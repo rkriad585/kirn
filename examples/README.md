@@ -1,4 +1,4 @@
-# Coco Examples (`examples/`)
+# Kirn Examples (`examples/`)
 
 These programs are the **normative corpus** for the language: they exercise the
 syntax (per `grammar/coco.ebnf`), semantics, and standard library, and are the

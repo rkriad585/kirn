@@ -48,7 +48,7 @@ The current `README.md` makes **unsupported, unverifiable claims**: "outperforms
 **Consequence for the plan:** every performance/feature claim in the docs site must be backed by a verifiable artifact (code you can run, a stdlib module that exists, a command that works). The plan includes a **"Claim Gate"** (Â§1.3) â€” a checklist that runs before publishing any page that makes a comparison or performance statement. The docs earn trust by being honest; the plan treats "no unsupported claims" as a hard requirement, exactly as the brief demands.
 
 ### 0.3 Architecture and tooling (verified)
-- **Compiler:** C++20; pipeline `src/lex â†’ src/parser â†’ src/sema â†’ src/vm (compiler+bytecode) â†’ src/interp (tree-walk) / src/backend/native (C++ lowering)`. Also a self-hosting seed in `selfhost/`.
+- **Compiler:** C++20; pipeline `src/lex â†’ src/parser â†’ src/sema â†’ src/vm (compiler+bytecode) â†’ src/interp (tree-walk) / src/backend/native (C++ lowering)`.
 - **CLI driver `coco`** (plus `cocorun`, `cococheck`, `cocolex`, `cocoparse`). Real subcommands (from `coco --help`, verified): `run`, `new`, `new lib`, `test`, `install/-g`, `add`, `update`, `remove`, `clone`, `build` (+`--release/--debug/--target/--native/--asan/-S/-O/-o`), `targets`, `build lib`, **`doc`**, `list`, `list online`.
 - **Built-in doc server exists:** `coco doc <lib|dir> [--port N]` "serve markdown docs + API ref". The website's content should **align with** (and can pull from) this so docs don't drift.
 - **Targets:** `windows/linux/darwin Ã— amd64/arm64`; bytecode bundles `.cob`, libraries `.cocolib`, native `.exe`.
@@ -69,8 +69,8 @@ Operators (multi-char): `<<= >>= ..= .?.` ; `** // == != <= >= << >> += -= *= /=
 ### 0.5 Branding, license, version, hosting facts
 - **License:** MIT Â© 2024 RK Riad Khan (`LICENSE.txt`) â€” your docs site is free to reuse inputs; keep attribution.
 - **Version source:** `.version` file at repo root (currently **empty**) and the `coco.toml` `version = "0.0.1-beta"` scaffold default + SemVer in `[package]`. There is **no CLI `--version`** (verified: `coco --version` prints usage). The **website needs a version display**, so this is a required input â€” see Phase 3 (version config).
-- **Hosting:** resource list says Documentation is `https://coco-lang.github.io`. **VitePress deploys as static output** â†’ GitHub Pages is the natural target (`gh-pages` branch or `{username}.github.io`). Deployment strategy in Â§8.
-- **Branding â†’ rebrand caution:** the repo's `logo/` directory contains **`ryro-*` branded assets** (this is the "rename project" tracked in sibling plan `COCO_TO_RYRO_PLAN.md`). The provided branding URLs point at the `ryro-*` logos. **The docs site's visual identity must track whichever name wins.** This plan builds with a **single source of truth for the brand** (a `theme` object in config) so the "Coco" â‡¢ "Ryro" swap is a one-line change â€” see Phase 2 (Â§2.5) and the branding note (Â§9).
+- **Hosting:** resource list says Documentation is `https://kirn-lang.github.io`. **VitePress deploys as static output** â†’ GitHub Pages is the natural target (`gh-pages` branch or `{username}.github.io`). Deployment strategy in Â§8.
+- **Branding â†’ rebrand caution:** the repo's `kirn-logos/` directory contains **`kirn-*` branded assets** (this is the "rename project" tracked in sibling plan `COCO_TO_KIRN_PLAN.md`). The provided branding URLs point at the `kirn-*` logos. **The docs site's visual identity must track whichever name wins.** This plan builds with a **single source of truth for the brand** (a `theme` object in config) so the "Coco" â‡¢ "Kirn" swap is a one-line change â€” see Phase 2 (Â§2.5) and the branding note (Â§9).
 
 ---
 
@@ -206,7 +206,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
       ],
       sidebar: { '/learn/': [], '/guide/': [], '/ref/': [] }, // filled in later phases
       search: { provider: 'local' }, // built-in full-text search (MiniSearch)
-      socialLinks: [{ icon: 'github', link: 'https://github.com/rkriad585/coco' }],
+      socialLinks: [{ icon: 'github', link: 'https://github.com/rkriad585/kirn' }],
       footer: {
         message: 'Released under the MIT License.',
         copyright: 'Â© 2024 RK Riad Khan',
@@ -227,7 +227,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   - `docs/.vitepress/theme/` with CSS custom properties for brand colors, typography scale, spacing, code accent.
   - A `brand.ts` module exporting `{ name, tagline, colors, logo, repo }` used by components + config.
   - Favicon + OG image.
-- **Why:** a docs site's credibility depends on consistent visual identity; and because the "Coco â‡¢ Ryro" rename is in flight (Â§0.5), a **single brand variable** makes the swap trivial and safe.
+- **Why:** a docs site's credibility depends on consistent visual identity; and because the "Coco â‡¢ Kirn" rename is in flight (Â§0.5), a **single brand variable** makes the swap trivial and safe.
 - **Relevant files:** `.vitepress/theme/index.ts`, `.vitepress/theme/style.css`, `public/favicon.ico`, `public/og.png`.
 - **Implementation approach:** derive the palette from the **Coco orange/white/black logo assets** (each logo is exactly one of those). Define one canonical orange as `--coco-brand` and wire it into VitePress's `--vp-c-brand-*` variables so the accent color, buttons, and links all come from it in light and dark mode.
 - **Code example (style.css brand tokens):**
@@ -246,9 +246,9 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   ```ts
   // .vitepress/theme/brand.ts  â€” the single source of truth for the brand
   export const brand = {
-    name: 'Coco',                 // â† flip to 'Ryro' when the rename lands
+    name: 'Coco',                 // â† flip to 'Kirn' when the rename lands
     tagline: 'Python-like syntax, Go-style compilation, native performance.',
-    repo: 'https://github.com/rkriad585/coco',
+    repo: 'https://github.com/rkriad585/kirn',
     logo: '/logo.svg',
     accent: '#e85d2a',
   } as const
@@ -523,11 +523,11 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   import { sitemap as sitemapPlugin } from 'vitepress-plugin-sitemap'
 
   export default defineConfig({
-    sitemap: { hostname: 'https://coco-lang.github.io' },
+    sitemap: { hostname: 'https://kirn-lang.github.io' },
     head: [
       ['meta', { property: 'og:type', content: 'website' }],
       ['meta', { property: 'og:image', content: '/og.png' }],
-      ['link', { rel: 'canonical', href: 'https://coco-lang.github.io' }],
+      ['link', { rel: 'canonical', href: 'https://kirn-lang.github.io' }],
     ],
     markdown: { lineNumbers: true },
   })
@@ -577,7 +577,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 ---
 
 ### Phase 14 â€” Deployment, CI, and maintenance playbook
-- **Goal:** ship to GitHub Pages (and document a self-host path), plus a maintenance routine.
+- **Goal:** ship to GitHub Pages, plus a maintenance routine.
 - **What to implement:** GitHub Actions workflow that builds and deploys the VitePress `dist` to `gh-pages` (or the Pages deployment), seeded `versions/`, and a maintenance playbook (`docs/MAINTENANCE.md`: how to add a page, run the verification scripts, cut a new version, update stdlib refs).
 - **Why:** "documentation is key to adoption" and CI deployment means a reviewer PR can be previewed before publishing (a Class-A docs feature per research).
 - **Relevant files:** `.github/workflows/docs.yml`, `docs/MAINTENANCE.md`.
@@ -615,7 +615,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
         - uses: actions/deploy-pages@v4
   ```
 - **Content requirements:** the maintenance playbook references the phase-by-phase rules.
-- **Testing/verification:** run the workflow; deploy to the real `coco-lang.github.io`/Pages URL; confirm sitemap + search work in production; verify the PR preview.
+- **Testing/verification:** run the workflow; deploy to the real `kirn-lang.github.io`/Pages URL; confirm sitemap + search work in production; verify the PR preview.
 - **Expected result:** automatic, repeatable, preview-able deployment; a documented hand-off for long-term upkeep.
 - **Issues/trade-offs:** `base` must match the Pages repo path (a mismatch breaks assets â€” the single most common VitePress-Pages failure); document that prominently in MAINTENANCE.md.
 
@@ -702,60 +702,19 @@ VitePress uses Shiki. Register a **custom `coco` language** using the canonical 
 
 ## 8. Deployment strategy (GitHub Pages)
 1. Static build output: `docs/.vitepress/dist`.
-2. Deploy via `.github/workflows/docs.yml` â†’ GitHub **Actions Pages** (`deploy-pages`) or push to `gh-pages`. Target `https://coco-lang.github.io` (per the resource list) â€” which implies either the `coco` org Pages or the user Pages with the repo published under it; `base` must be set accordingly (`/` for user/org page, `/coco-docs/` for project page).
-3. Optional self-host: `npm run docs:preview` (`vitepress preview`) or copy `dist/` to any static host (Netlify/Cloudflare/Vercel) â€” all same static output.
+2. Deploy via `.github/workflows/docs.yml` â†’ GitHub **Actions Pages** (`deploy-pages`) or push to `gh-pages`. Target `https://kirn-lang.github.io` (per the resource list) â€” which implies either the `coco` org Pages or the user Pages with the repo published under it; `base` must be set accordingly (`/` for user/org page, `/coco-docs/` for project page).
+3. Optional local preview: `npm run docs:preview` (`vitepress preview`) or copy `dist/` to any static host (Netlify/Cloudflare/Vercel) â€” all same static output.
 4. PR preview: the workflow builds every PR into a Pages-preview environment.
 5. Versioned deploys: on a Coco release, snapshot `/ref` + `/learn` into `versions/<tag>/` (VitePress versioning) so old docs stay reachable â€” mimics the Class-A multi-version pattern from research.
 
 ---
 
-## 9. Branding & the "Coco â‡¢ Ryro" rename â€” how this site stays correct
-- The repo's `logo/` currently ships **`ryro-*` assets**, and the sibling plan (`COCO_TO_RYRO_PLAN.md`) renames the language to **Ryro** and `.co â†’ .ro`. The provided branding URLs point at the `ryro-*` logos.
-- **This docs plan is name-agnostic by design:** all identity lives in `.vitepress/theme/brand.ts` (name, tagline, logo, accent) and the `base`/config. Swapping Coco â‡¢ Ryro is:
+## 9. Branding & the "Coco â‡¢ Kirn" rename â€” how this site stays correct
+- The repo's `kirn-logos/` currently ships **`kirn-*` assets**, and the sibling plan (`COCO_TO_KIRN_PLAN.md`) renames the language to **Kirn** and `.co â†’ .kn`. The provided branding URLs point at the `kirn-*` logos.
+- **This docs plan is name-agnostic by design:** all identity lives in `.vitepress/theme/brand.ts` (name, tagline, logo, accent) and the `base`/config. Swapping Coco â‡¢ Kirn is:
   1. change `brand.ts.name` (+ tagline),
-  2. swap `brand.logo` to the chosen `ryro-*.png`,
-  3. global-rename the docs prose `Coco`â†’`Ryro` and `coco`â†’`ryro` (command + `.co`â†’`.ro` in examples),
+  2. swap `brand.logo` to the chosen `kirn-*.png`,
+  3. global-rename the docs prose `Coco`â†’`Kirn` and `coco`â†’`kirn` (command + `.co`â†’`.kn` in examples),
   4. rerun `run_examples.ps1` + `banned_claims.ps1`.
 - A note in `MAINTENANCE.md` flags this as a coordinated change with the rename plan's Phase 12. Until the rename is final, the site documents the language as it is **now** (Coco, `.co`) and is structured so the rebrand is low-risk.
-- **Logo choice:** primary = orange logo (`ryro-logo-orange-bg-removed.png`, matches accent); white variant for dark header, black variant for light paper/footer. All three live in `public/`.
-
----
-
-## 10. Project & author metadata (for content/footer/SEO)
-```
-Author:  rkriad585
-Email:   rkriad585@gmail.com
-Website: https://rkriad585.github.io
-GitHub:  https://github.com/rkriad585
-
-Coco repo:      https://github.com/rkriad585/coco
-Docs host:      https://coco-lang.github.io
-Screenshots:    https://github.com/rkriad585/coco/tree/main/Screenshots
-Version source: https://raw.githubusercontent.com/rkriad585/coco/refs/heads/main/.version
-Readme:         https://raw.githubusercontent.com/rkriad585/coco/refs/heads/main/README.md
-License:        https://raw.githubusercontent.com/rkriad585/coco/refs/heads/main/LICENSE (MIT Â© 2024 RK Riad Khan)
-
-Author logo:    https://avatars.githubusercontent.com/u/107482047?v=4
-Orange logo:    .../logo/ryro-logo-orange-bg-removed.png
-White logo:     .../logo/ryro-white-bg-removed.png
-Black logo:     .../logo/ryro-black-bg-removed.png
-```
-Use `rkriad585` / `RK Riad Khan` in the site footer, meta author, JSON-LD, and the `package.json` author field.
-
----
-
-## 11. Definition of done (acceptance criteria)
-- [ ] `~/Projects/coco-docs` builds with `npm run docs:build` and deploys to GitHub Pages automatically.
-- [ ] Vite + TypeScript project (VitePress), no unnecessary dependencies.
-- [ ] Full IA (Â§1.2): Learn / Guide / Reference, all sections reachable, mobile + desktop nav.
-- [ ] Local full-text search finds code identifiers and stdlib APIs.
-- [ ] Coco syntax highlighting (Shiki) on all code blocks; copy-code button works.
-- [ ] Dark/light auto theme, WCAG AA, Lighthouse â‰¥ 95 across Core Web Vitals.
-- [ ] Version badge pinned to the real Coco version; version snapshot mechanism ready.
-- [ ] Every documented feature and example verified against the actual compiler in CI; every comparative/performance page passes the Claim Gate; `banned_claims.ps1` passes.
-- [ ] Readme/README's hype is NOT reproduced; planned/missing features are clearly marked (networking, IDE, debugger, JIT, formal borrow-checker, `--version` flag).
-- [ ] Contributing + maintenance docs present; the Coco â‡¢ Ryro swap is a documented low-risk change.
-
----
-
-*Plan authored 2026-09-03 after (a) building and running the actual Coco compiler against the example corpus to verify the real feature set, (b) reading the code, grammar, lexer keywords, stdlib API, tools, LICENSE, and version state, and (c) 2026 web research on documentation frameworks (VitePress/Docusaurus/Starlight), developer-experience best practices, developer pain points, and the documentation patterns of Python, Go, and Rust. VitePress is selected as the Vite+TypeScript framework that provides search, theming, syntax highlighting, versioning, and SEO with minimal custom code â€” the "simplest appropriate architecture."*
+- **Logo choice:** primary = `kirn-logos/kirn-logo.png` (matches accent); `kirn-logos/kirn-icon.png` for dark header, `kirn-logos/kirn-icon-on-light.png` for light paper/footer, banner `kirn-logos/kirn-1280x640.png`. All four live in `public/`.

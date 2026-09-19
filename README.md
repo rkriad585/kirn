@@ -1,6 +1,6 @@
 <p align="center">
-  <!-- Theme-matched logo (Coco brand accent: #e85d2a / orange) -->
-  <img src="https://github.com/kirn-lang/kirn-lang.github.io/blob/main/kirn-logos/kirn-icon.png" alt="Kirn logo" width="180" />
+  <!-- Theme-matched logo (Kirn brand accent) -->
+  <img src="kirn-logos/kirn-logo.png" alt="Kirn logo" width="180" />
 </p>
 
 <h1 align="center">Kirn Programming Language</h1>
@@ -16,9 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="https://coco-lib.github.io">Website</a> ·
-  <a href="https://github.com/coco-lib/coco-libs">Library Registry</a> ·
-  <a href="https://github.com/rkriad585/coco">Source</a>
+  <a href="https://kirn-lang.github.io">Website</a> ·
+  <a href="https://pets-registry.github.io">Library Registry</a> ·
+  <a href="https://github.com/rkriad585/kirn">Source</a>
 </p>
 
 > **⚠️ Work in progress.** Coco is under active development and **not yet
@@ -32,8 +32,8 @@
 **Coco** is a general-purpose programming language being designed and built by
 **RK Riad Khan** ([rkriad585](https://github.com/rkriad585)).
 
-It aims to combine the *simplicity and expressiveness* of a high-level language
-with the *performance and control* of a compiled language. Coco is written as a
+It aims to combine the _simplicity and expressiveness_ of a high-level language
+with the _performance and control_ of a compiled language. Coco is written as a
 modern **AOT (ahead-of-time) compiler in C++20** with the following high-level
 goals:
 
@@ -127,7 +127,7 @@ See the [examples](examples/) directory for a growing set of runnable programs.
 
 ## Features
 
-> The following reflects the current implementation. Items marked *planned* are
+> The following reflects the current implementation. Items marked _planned_ are
 > goals, not yet complete.
 
 - [x] Compiled interpreter pipeline (lexer → parser → semantic analysis)
@@ -140,10 +140,10 @@ See the [examples](examples/) directory for a growing set of runnable programs.
 - [x] Concurrency: `spawn`, `chan`, `select`
 - [x] OOP: `class`, `interface`, `record`, `extends`
 - [x] Generators / `yield`
-- [ ] Full AOT native code generation (*planned*)
-- [ ] JIT compilation (*planned*)
-- [ ] Networking standard library (*planned*)
-- [ ] IDE / debugger integration (*planned*)
+- [ ] Full AOT native code generation (_planned_)
+- [ ] JIT compilation (_planned_)
+- [ ] Networking standard library (_planned_)
+- [ ] IDE / debugger integration (_planned_)
 
 ---
 
@@ -151,15 +151,15 @@ See the [examples](examples/) directory for a growing set of runnable programs.
 
 The `coco` driver provides multiple subcommands:
 
-| Command | Description |
-| --- | --- |
-| `coco run` | Run a Coco program |
-| `coco new` | Scaffold a new project / library |
-| `coco test` | Run tests |
-| `coco build` | Build a program (release/debug, targets, native) |
-| `coco install` / `add` / `update` / `remove` / `clone` | Package management |
-| `coco doc` | Generate documentation |
-| `coco list` / `list online` | List packages |
+| Command                                                | Description                                      |
+| ------------------------------------------------------ | ------------------------------------------------ |
+| `coco run`                                             | Run a Coco program                               |
+| `coco new`                                             | Scaffold a new project / library                 |
+| `coco test`                                            | Run tests                                        |
+| `coco build`                                           | Build a program (release/debug, targets, native) |
+| `coco install` / `add` / `update` / `remove` / `clone` | Package management                               |
+| `coco doc`                                             | Generate documentation                           |
+| `coco list` / `list online`                            | List packages                                    |
 
 Companion tools: `cocorun`, `cococheck`, `cocolex`, `cocoparse`.
 
@@ -182,7 +182,7 @@ Coco ships a growing standard library. Current modules (each with a matching
 Coco has a lightweight library ecosystem. In addition to the bundled
 [standard library](#standard-library), you can install third-party packages from:
 
-- **The official library registry:** [`github.com/coco-lib/coco-libs`](https://github.com/coco-lib/coco-libs)
+- **The official library registry:** [`github.com/pets-registry/pets`](https://pets-registry.github.io)
 - Any Git repository (`github.com/user/repo` or `user/repo` shorthand), or a
   local path / `.cocolib` bundle.
 
@@ -219,27 +219,27 @@ the exact source and commit SHA so builds are reproducible — **commit
 
 ## Project Structure
 
-| Path | Description |
-| --- | --- |
-| `src/` | Compiler source (lexer → parser → sema → VM/interp → native backend) |
-| `stdlib/lib/` | Standard library modules |
-| `examples/` | Runnable example programs (01–44) |
-| `grammar/` | Normative EBNF grammar |
-| `tools/` | CLI tool sources (`coco`, `cocorun`, `cococheck`, `cocolex`, `cocoparse`) |
-| `scripts/` | Build/test/verification harness scripts |
-| `docs/` | Design and roadmap documents |
-| `logo/` | Brand assets |
+| Path          | Description                                                               |
+| ------------- | ------------------------------------------------------------------------- |
+| `src/`        | Compiler source (lexer → parser → sema → VM/interp → native backend)      |
+| `stdlib/lib/` | Standard library modules                                                  |
+| `examples/`   | Runnable example programs (01–44)                                         |
+| `grammar/`    | Normative EBNF grammar                                                    |
+| `tools/`      | CLI tool sources (`coco`, `cocorun`, `cococheck`, `cocolex`, `cocoparse`) |
+| `scripts/`    | Build/test/verification harness scripts                                   |
+| `docs/`       | Design and roadmap documents                                              |
+| `logo/`       | Brand assets                                                              |
 
 ---
 
 ## Documentation & Community
 
-- **Website:** [coco-lib.github.io](https://coco-lib.github.io)
+- **Website:** [kirn-lang.github.io](https://kirn-lang.github.io)
 - [Design docs & roadmap](docs/)
 - [Grammar (EBNF)](grammar/coco.ebnf)
 - [Examples](examples/)
 - [Plans](COCO_PLANS/)
-- **Library registry:** [github.com/coco-lib/coco-libs](https://github.com/coco-lib/coco-libs)
+- **Library registry:** [pets-registry.github.io](https://pets-registry.github.io)
 
 ---
 
@@ -247,7 +247,7 @@ the exact source and commit SHA so builds are reproducible — **commit
 
 Detailed, phased implementation plans live in [COCO_PLANS/](COCO_PLANS/),
 covering the docs website, the Coco → Ryro rebrand, language features, the
-standard library, self-hosting, and cross-compilation.
+standard library, and cross-compilation.
 
 ---
 

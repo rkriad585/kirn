@@ -9,8 +9,7 @@ PowerShell build/test/verification harnesses used during development and CI.
 | `types.ps1` | Run the `tests/types/*` suite |
 | `bench.ps1` | Run benchmarks (`bench_fib.co`) |
 | `asanall.ps1` | Run suites under AddressSanitizer builds (`build-asan/`) |
-| `lxdiff.ps1` | Diff self-host lexer output against the C++ oracle |
-| `vm_diff.ps1` | Diff self-host / VM output against the C++ oracle |
+| `vm_diff.ps1` | Diff VM output against the tree-walker oracle |
 
 Run with PowerShell from the repo root, e.g.:
 

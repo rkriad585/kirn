@@ -46,9 +46,7 @@ scripts/negative.ps1 -Runner build\Debug\cococheck.exe
 # Type suite — tests/types/p*.co pass check+run; n*.co fail with `# expect:`.
 scripts/types.ps1
 
-# Self-host parity — selfhost/lex.co & parse.co must be byte-identical to the
-# C++ oracles (cocolex --dump / cocoparse --ast) over the corpus.
-scripts/lxdiff.ps1        # lexer diff
+# VM/tree-walker differential — the VM runner must match the tree-walker over the corpus.
 scripts/vm_diff.ps1       # vm diff
 
 # Conventions — main.co/pin.co entry resolution + package init run-once.
@@ -85,9 +83,6 @@ Stdlib and project tests run via `coco test` and target `*_test.co` files.
 - `src/sema/symbols.h` `Symbol` carries declarations/signatures; the checker's
   `typeOf(expr)` returns resolved types; `src/support/diag.h` `Diag`/`FixIt` are
   already LSP-shaped (`SpanRange{line,col,endLine,endCol}`, 1-based inclusive).
-- **Self-hosting is real and parity-checked:** `selfhost/lex.co`+`parse.co` are
-  a 1:1 port of the C++ front end and must reproduce `cocoparse --ast`
-  byte-for-byte. Don't edit one side without the other.
 - The COCO `PLAN` files in `COCO_PLANS/` are living architecture docs; some
   plans (e.g. `COCO_LSP_PLAN.md`, `COCO_HIGHLIGHT_PLAN.md`) are grounded in the
   exact compiler components above. Treat declared-but-unimplemented syntax in

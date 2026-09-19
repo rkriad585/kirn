@@ -3,7 +3,7 @@
 - **Status:** DRAFT (roadmap, not yet executed)
 - **Author:** RK Riad Khan (`rkriad585`)
 - **Date:** 2026-09-04
-- **Repo:** `coco-lang/coco`
+- **Repo:** `github.com/rkriad585/kirn`
 - **Language:** Coco (`grammar/coco.ebnf`, "the normative grammar")
 - **Server name:** `coco-lsp`
 - **Protocol:** LSP 3.17 over JSON-RPC 2.0 / stdio
@@ -96,9 +96,6 @@ Read and confirmed from source:
   - CLI: `coco run/test/build/doc/install/add/update/remove/clone/new`.
   - `coco doc` already **regenerates an API reference** from `code/` packages â€”
   a natural seed for a symbol index.
-- **Self-hosted front end** (`selfhost/lex.co`, `selfhost/parse.co`): a Coco-written
-  lexer+parser that reproduces `cocoparse --ast` byte-for-byte â€” the seed for a
-  future **Coco-in-Coco LSP** (Section 8).
 
 ---
 
@@ -686,7 +683,7 @@ rosetta-oracle equivalence test.
 `Checker` into a cross-module binder (currently private per-module state); the
 plan scopes this phase to **diagnostics + symbol navigation** across files, and
 defers true cross-module type unification to a research spike, clearly flagged as
-future work (Section 8).
+future work (Section 7).
 
 ---
 
@@ -822,9 +819,7 @@ incremental *parse* caching; the buffer edit itself is always incremental).
 
 - **Why reuse the C++ front end instead of writing the LSP in Coco?** The
   compiler, checker, symbols, types, diagnostics, and module model are already a
-  battle-tested C++ library (see Â§1) and are reused unchanged. A Coco-in-Coco
-  server is a **future** option (below) but would require the self-host
-  checker/binder to mature first.
+  battle-tested C++ library (see Â§1) and are reused unchanged.
 - **Why not implement LSP in Node/Python?** The analysis library is C++; a
   native binary ships as a single static server with no runtime, matching the
   repo's zero-dependency tooling philosophy and its existing C++ build/link
@@ -834,18 +829,7 @@ incremental *parse* caching; the buffer edit itself is always incremental).
 
 ---
 
-## 7. Future path: a Coco-in-Coco LSP
-
-`selfhost/lex.co` + `selfhost/parse.co` already reproduce `cocoparse --ast`
-byte-for-byte. A future-phase LSP (still hypotheic / research) could be written
-entirely in Coco, executed via `cocorun`, once the self-hosted checker and a
-persistent symbol table exist. It would share the exact ModuleIndex/project
-model defined here. This is the dogfooding end-state and is explicitly out of
-scope for the roadmap's execution until the self-host front end is spec-complete.
-
----
-
-## 8. Explicitly-required additions (do not already exist)
+## 7. Explicitly-required additions (do not already exist)
 
 These are the only things the plan genuinely needs to *add*; everything else is
 reuse:

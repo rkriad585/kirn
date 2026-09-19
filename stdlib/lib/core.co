@@ -1,11 +1,9 @@
-# selfhost/lib/core.co - Coco-written compiler substrate (Phase 2).
-# Function helpers shared by later selfhost modules. These mirror the
-# behaviour of the C++ seed (src/interp/runtime.cpp, tools/cocolex.cpp) so
-# differential tests stay byte-identical.
+# stdlib/lib/core.co - core helper functions for the Coco stdlib.
+# These mirror the behaviour of the C++ runtime (src/interp/runtime.cpp) so
+# importers observe identical semantics.
 #
 # NOTE: struct types are NOT exported through the file-backed `import`
 # mechanism (only `pub def` functions are), so we expose helpers as functions.
-# Local structs are still fine inside an individual selfhost source file.
 
 # Read an entire file as a string ("" if the file cannot be opened/read).
 pub def read_file(path: string) -> string {

@@ -3,8 +3,8 @@
 # honest subset: glob-style wildcard matching (`*` = any run, `?` = one char)
 # plus literal find/split helpers. Import with: import lib.regexp;
 #
-# A full PCRE-style engine can replace these once the self-host substrate
-# lands; the call sites (match/find/split/replace) keep their signatures.
+# A full PCRE-style engine can replace these later; the call sites
+# (match/find/split/replace) keep their signatures.
 
 # Glob-style match: `*` matches any (possibly empty) run, `?` one char,
 # everything else literal.

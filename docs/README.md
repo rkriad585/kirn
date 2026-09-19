@@ -9,7 +9,7 @@ Design and engineering documentation for the Coco language.
 
 Related planning lives in [`COCO_PLANS/`](../COCO_PLANS/) (per-topic,
 phased implementation plans such as the docs website, standard library,
-self-hosting, highlighting, LSP, and cross-compilation).
+highlighting, LSP, and cross-compilation).
 
 Normative references:
 

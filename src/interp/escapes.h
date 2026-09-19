@@ -1,7 +1,7 @@
 #pragma once
 // Shared escape decoding for string/char literal values.
 // Single source of truth so the tree-walker and the bytecode-VM emitter
-// produce identical runtime values (the self-hosting differential depends on it).
+// produce identical runtime values.
 #include <cstdint>
 #include <cstdlib>
 #include <string>

@@ -372,7 +372,7 @@ strictness so existing code keeps compiling.
 > spec. Also: **7.1 collections types** (`deque/heap/bitset/…`) are modeled in `DATA_TYPE_PLAN.md`
 > Phase 10 (→); **7.2 regexp** has an **implementation-conflict to resolve** — this line says a
 > C++ RE2-style NFA module, but `STD_LIBS_PLAN.md` Phase 0+5a proposes a **pure-Coco** regexp
-> engine. **Recommendation: adopt the pure-Coco approach** (better dogfooding for self-host); amend
+> engine. **Recommendation: adopt the pure-Coco approach**; amend
 > this line accordingly before coding.
 
 **Goal:** deliver the high-priority groups from FEATURE_GAP §3.5, plus the reflection-driven
@@ -496,10 +496,9 @@ and multi-archive releases.
 - **Zig as a cross-linker — DECISION: abandoned after verification.** Tested zig 0.16.0 linking
   `aarch64-linux` ELF from a Windows host: it hangs reproducibly (even a tiny `printf` hello for
   `aarch64-linux-musl`; compile-only works, `x86_64-linux` works, any `-fuse-ld` linkage hangs).
-  Known upstream (codeberg ziglang #31752/#31189/#31210, kaappi #1613). Not Coco's fault; pursue
-  Go-style self-hosting instead (PLAN §15.2, informed by the "self-host trap" warning at
-  `docs/COCO_PLAN.md:844`): **Phase 8.2 native codegen first** (the machinery a self-hosted
-  compiler must own) → then rewrite the frontend. Keep the GNU/PATH-probe fallback (current default).
+  Known upstream (codeberg ziglang #31752/#31189/#31210, kaappi #1613). Not Coco's fault; keep
+  the GNU/PATH-probe fallback (current default) and invest in the Phase-8.2 native codegen
+  (`src/backend/native.cpp`) as the primary acceleration path instead.
 - **Static linking** option (`--static`) bundling libc/libcoco → portable single binaries.
 - **`.cob` portable bytecode** already exists as the no-toolchain fallback; keep it as a
   target equal to native.
@@ -631,7 +630,7 @@ validated only under `--release`.
 
 ---
 
-## Phase 15 — Ecosystem, Self-Hosting & Release (v1.0 path)
+## Phase 15 — Ecosystem & Release (v1.0 path)
 
 **Goal:** the "more and more important and useful thing" — real adoption infrastructure.
 
@@ -639,19 +638,9 @@ validated only under `--release`.
 - `coco publish` (or extend `build lib`) → push `.cocolib` + registry metadata to `coco-lib`
   (`coco-libs` registry). Registry schema evolution (semver ranges, features,
   `entry_points`-style advertised commands, `pin.co` init).
-- Signature/checksum verification on install; private/self-hosted registries.
+- Signature/checksum verification on install; private registries.
 
-### 15.2 Self-hosting start
-- **Decision: "native codegen first"** (chosen over a full frontend rewrite). The Phase-8.2
-  scalar backend (`src/backend/native.cpp`) is the first real compiler machinery: it analyzes a
-  checked program and emits C++ for statically-typed scalar functions — exactly what a future
-  self-hosted compiler must own. The frontend rewrite stays later; a compiler that cannot produce
-  fast code from its own source validates the loop (a rewrite-first path is the classic
-  "self-host trap: rewrite forever, ship nothing" — `docs/COCO_PLAN.md:844`).
-- Then begin rewriting the **lexer + parser in Coco** against the C++ front-end as oracle
-  (COCO_PLAN §17 Phase 7). The new diagnostics engine and `fmt` make this tractable.
-
-### 15.3 Docs, tests, CI, releases
+### 15.2 Docs, tests, CI, releases
 - Coverage: golden diagnostics, lint, VM-vs-treewalk differential, borrow, conventions,
   concurrency/TSan, cross-build matrix.
 - Release automation: GitHub Actions producing the Phase-10 installers + `SHA256SUMS` +
@@ -659,8 +648,6 @@ validated only under `--release`.
 - Website + book + `--version`/changelog governance; 25+ real external projects → v1.0.
 
 ### Exit criteria
-- `coco` self-parses a growing subset of its own source (milestone 80% of the corpus at ≥80%
-  C++ speed).
 - Full CJE: `coco new → add deps → build → test → bench → publish` end-to-end, documented and
   exercised in CI on win/linux/mac.
 
@@ -678,7 +665,7 @@ Phase 9/10 (toolchain/cross) ◄───┘                                Phas
         │
 Phase 12 (MIR + borrowck) ──► Phase 13 (JIT/optimizer)
 Phase 14 (concurrency/GC)
-Phase 15 (ecosystem/self-host/release)
+Phase 15 (ecosystem/release)
 ```
 
 **Suggested order of execution for a solo dev** (value first): 1 → 2 → 3 → 4 → 9 (fmt,

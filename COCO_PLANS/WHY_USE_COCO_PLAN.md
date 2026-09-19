@@ -100,8 +100,7 @@ From the audit of `src/` (~14,800 LOC C++20), `stdlib/`, `tools/`, `examples/` (
 | Package manager / registry / lockfile | ✅ | `coco new/run/test/install/add/update/remove/clone/list/doc/build/targets`; `coco.toml`, `coco.lock` (`tools/coco.cpp`) |
 | Doc generator / conventions | ✅ | `coco doc`; `main.co`/`pin.co` run-once conventions |
 | Diagnostics with spans/caret/fix-its/lints | ✅ | `src/support/diag.h` (245 lines), W0101–W0107 lints |
-| Differential correctness harness | ✅ | `vm_diff.ps1`, `lxdiff.ps1` (tree-walker ≡ VM byte-identical) |
-| Self-hosting seed | ✅ (partial) | `selfhost/lex.co`, `selfhost/parse.co` differential-matched to C++ |
+| Differential correctness harness | ✅ | `vm_diff.ps1` (tree-walker ≡ VM byte-identical) |
 
 **Honest gaps (do NOT overclaim in front of a developer):**
 - Native AOT is **scalar-only** today; collections/structs/concurrency still run through VM/interp
@@ -170,7 +169,7 @@ borrow-check hardening, safety lints + `coco vet`).
 
 Universal per-phase discipline (applies to every phase below):
 - **Never break the corpus.** Every commit keeps `examples/`, `tests/`, `stdlib/`, `tools/` green on
-  all three backends (`tree-walker ≡ VM ≡ native` via `scripts/vm_diff.ps1`/`lxdiff.ps1`).
+  all three backends (`tree-walker ≡ VM ≡ native` via `scripts/vm_diff.ps1`).
 - **Honesty gate.** No marketing claim ships before a measured benchmark or a working feature.
 - **Owner handoff.** Where work is already owned by another plan, this plan links to it and only adds
   the *positioning/why* and any gap that plan misses.
@@ -196,7 +195,7 @@ Universal per-phase discipline (applies to every phase below):
   # before:  fn   add(a:int,b:int)->int{return a+b;}
   # after:   fn add(a: int, b: int) -> int { return a + b; }
   ```
-- **Testing requirements:** run `coco fmt` over all 48 `examples/*.co` + `stdlib/` + `selfhost/`;
+- **Testing requirements:** run `coco fmt` over all 48 `examples/*.co` + `stdlib/`;
   assert byte-identical on second pass; `--check` fails on any messy input; corpus still runs after
   formatting (spacing-only changes).
 - **Expected outcome:** canonical bytes everywhere; CI enforces formatting; AI tools get a
@@ -524,27 +523,6 @@ Universal per-phase discipline (applies to every phase below):
 
 ---
 
-### Phase 14 — Self-hosting completion (the credibility engine)
-- **Goal:** get the Coco-written compiler (`selfhost/lex.co`, `selfhost/parse.co`) through
-  type-check + run on the full corpus, and ultimately self-compile (a `coco` built *in* Coco).
-- **Problem being solved:** a dogfooding, self-hosting language proves its own maturity and catches
-  real bugs; also rounds the builtins/feature gaps the compiler itself needs.
-- **Why it matters:** the ultimate "Coco is real" proof, and it forces correctness (the compiler is
-  the hardest test suite).
-- **Coco design:** extend `selfhost/` toward a full checker+codegen; differential-match against the
-  C++ seed (already byte-identical for lex/parse). This is a long, high-value arc (owner:
-  SELF_HOST_PLAN).
-- **Implementation approach:** follow SELF_HOST_PLAN phases; this plan notes it as the correctness
-  ceiling and the reason to keep `vm_diff`/`lxdiff` green.
-- **Relevant files:** `selfhost/*.co`, `src/` (the seed), `tools/cocorun.cpp` (`cocorun` runs them).
-- **Code/syntax examples:** (the Coco compiler, in Coco) — the strongest possible example.
-- **Testing:** differential selfhost ≡ seed on all examples; the self-hosted `coco check` passes the
-  corpus.
-- **Expected outcome:** a Coco compiler in Coco → credibility + a forcing function for correctness.
-- **Risks:** large scope; keep differential harness mandatory. Owner: `SELF_HOST_PLAN.md`.
-
----
-
 ### Phase 15 — Concurrency ergonomics & safety lints (`for in chan`, deadlock/race warnings)
 - **Goal:** polish existing `spawn/chan/select` into Go-quality ergonomics + lint-safety.
 - **Problem being solved:** Go wins cloud adoption on goroutines being the cleanest concurrency
@@ -693,7 +671,6 @@ Phase 10    FFI                               → practical usefulness
 Phases 6,7  native breadth / JIT              → the "fast" proof
 Phase 8     low-level surface (sizeof/@repr)  → systems credibility
 Phase 12,13 stdlib breadth + registry         → batteries/ecosystem
-Phase 14    self-hosting                      → credibility ceiling
 Phase 17    pattern/trait parity              → correctness layer
 Phase 18    consolidation + AI-readiness      → the lasting moat
 ```
@@ -715,7 +692,6 @@ Phase 18    consolidation + AI-readiness      → the lasting moat
 | 11 vet/lints | go vet/clippy/sanitizers trust; CVE memory-safety (70%) |
 | 12 stdlib breadth | Python batteries; "build a product without deps" |
 | 13 registry | PyPI/cargo/go-proxy ecosystem flywheel |
-| 14 self-host | "is Coco real?" credibility |
 | 15 concurrency | Python GIL; Ruby concurrency ceiling; "goroutines cleanest" |
 | 16 for-everything | Python dict ergonomics; Go shortest code |
 | 17 pattern/trait | Rust correctness; exhaustive intent |

@@ -3,7 +3,7 @@
 - **Status:** DRAFT (roadmap, not yet executed)
 - **Author:** RK Riad Khan (`rkriad585`)
 - **Date:** 2026-09-04
-- **Repo:** `coco-lang/coco`
+- **Repo:** `github.com/rkriad585/kirn`
 - **Language:** Coco (see `grammar/coco.ebnf`, a.k.a. "the normative grammar")
 
 ---
@@ -29,9 +29,8 @@ We therefore build on three shared foundations, then adapt per editor:
    error-tolerant editors (Zed, Neovim, Helix, GitHub) and for structural
    features (folding, indent, structural selection).
 4. **A language server (`coco-lsp`)** phase that reuses the compiler's own
-   lexer, parser, checker, and the existing self-hosted `selfhost/parse.co`
-   front-end to provide diagnostics, completion, hover, go-to-definition, and
-   semantic highlighting.
+   lexer, parser, and checker to provide diagnostics, completion, hover,
+   go-to-definition, and semantic highlighting.
 
 A build/generation pipeline keeps the TextMate and tree-sitter grammars and
 every editor highlighter synchronized whenever `grammar/coco.ebnf`, the lexer
@@ -56,15 +55,8 @@ Everything below is derived from actual source; nothing is invented.
   - `cocoparse` / `cocoparse --ast` â€” parse only, exit 0/1, emits
     `<file>:<line>:<col>: error: <msg>`.
   - `cocorun` â€” run through the interpreter.
-- There is a **self-hosted front end** in `selfhost/`:
-  - `selfhost/lex.co` â€” Coco-written lexer.
-  - `selfhost/parse.co` â€” Coco-written parser + AST dumper, a faithful 1:1
-    port of `src/parser/parser.cpp` + `src/ast/ast_dump.cpp`, invoked via
-    `cocorun selfhost/parse.co --ast <file.co>`. It reproduces `cocoparse`
-    byte-for-byte.
-  - **Implication for LSP:** a Coco parser already exists *in Coco* and emits
-    the exact `line:col` diagnostics an LSP needs. This sharply lowers the cost
-    of building `coco-lsp`.
+- **Implication for LSP:** the compiler's lexer/parser emit the exact `line:col`
+  diagnostics an LSP needs. This sharply lowers the cost of building `coco-lsp`.
 
 ### 1.2 Lexical model (canonical, from `src/lex/token.h` + `lexer.cpp`)
 
@@ -587,7 +579,7 @@ module.exports = grammar({
 
 **Testing/validation:** tree-sitter corpus tests (named snippets with expected
 parse trees) plus rosetta validation: parse **every file under `examples/`,
-`stdlib/lib/*.co`, `tests/`, `selfhost/`** with `cocoparse` and with
+`stdlib/lib/*.co`, `tests/`** with `cocoparse` and with
 tree-sitter, and byte-compare the **structure** (tree-sitter has no parse
 errors where `cocoparse` succeeds). This is the single strongest correctness
 check.
@@ -856,9 +848,9 @@ Emacs/Eglot, etc.).
 **Please read this and the source before starting this phase** â€” it is a
 research-heavy task â€” but importantly the pieces already exist:
 
-- `src/lex/lexer.cpp` + `selfhost/lex.co`: tokenizer (with line/col), including
+- `src/lex/lexer.cpp`: tokenizer (with line/col), including
   the f-string sub-tokens needed for accurate semantic tokens.
-- `src/parser/parser.cpp` + `selfhost/parse.co`: parser emitting
+- `src/parser/parser.cpp`: parser emitting
   `file:line:col: error:` diagnostics â€” exactly the LSP `Diagnostic` shape.
 - `src/sema/checker.cpp` + `symbols.h` + `type.h`: type checking, symbol
   resolution, borrow checking â€” the semantic layer for hover/definition/
@@ -866,20 +858,12 @@ research-heavy task â€” but importantly the pieces already exist:
 - `src/vm/compiler.cpp`, `src/interp/runtime.*`, `src/backend/native.*`:
   not needed by an LSP (skip codegen entirely).
 
-**Recommended server architecture (two options):**
+**Recommended server architecture:** native server in C++ wrapping
+`Lexer`/`Parser`/`Checker` directly, speaking JSON-RPC over stdio (implementing
+the LSP wire protocol in C++). Pros: uses the exact production front end, no
+drift. Cons: must implement JSON-RPC and a small LSP layer in C++.
 
-- **Option A â€” native server in C++** wrapping `Lexer`/`Parser`/`Checker`
-  directly, speaking JSON-RPC over stdio (implementing the LSP wire protocol in
-  C++). Pros: uses the exact production front end, no drift. Cons: must
-  implement JSON-RPC and a small LSP layer in C++.
-- **Option B â€” self-hosted server in Coco**, built on `selfhost/parse.co`. Once
-  the self-host front end matures, the whole server logic (module map, symbol
-  table, semantic queries) is written in Coco and executed with `cocorun`.
-  Pros: dogfooding, no C++ JSON-RPC. Cons: the self-hosted checker/binder must
-  graduate from a parser to a full analysis engine; interpreter startup cost on
-  large projects.
-
-Both share the *module + workspace* model:
+The server uses the *module + workspace* model:
 - Parse + type-check a workspace; cache per-file ASTs; incremental re-parse on
   change (tree-sitter or the Coco parser), and re-run the checker for the
   affected file + dependents.
@@ -932,8 +916,7 @@ highlighter it uses.
 
 **Potential limitations:** full type-checking of a workspace needs module
 resolution and incremental caching (the checker currently analyzes single
-files/modules); memory/time on very large projects; self-host path (Option B)
-requires the self-host checker to be spec-complete first.
+files/modules); memory/time on very large projects.
 
 ---
 
@@ -1140,7 +1123,7 @@ monorepo ease during development and split later. The single
 |---|---|
 | Definition drift as Coco evolves | Â§2.3 generator + CI freshness gate; golden tests |
 | f-string / contextual keyword highlighting errors | dedicated corpus tests; tree-sitter models structurally; LSP supplies semantic tokens |
-| High effort on JetBrains & LSP phases | Stage A (TextMate bundle) delivers value cheaply; LSP reuses existing lexer/parser/checker + self-host port |
+| High effort on JetBrains & LSP phases | Stage A (TextMate bundle) delivers value cheaply; LSP reuses existing lexer/parser/checker |
 | tree-sitter precedence/conflicts | iterative `tree-sitter test` + rosetta parse of full repo |
 | Editor version compatibility | pin supported versions per package; publish artifacts under their own semver while tying to cog syntax version |
 | Windows stdio/CRLF issues for LSP/generators | LF enforcement via `.gitattributes`; binary-mode stdio; per-OS CI matrix |
@@ -1158,13 +1141,13 @@ monorepo ease during development and split later. The single
    repo with `cocoparse`-equivalence rosetta; enable in Neovim and Zed.
 4. Phase 5: `highlightjs/coco.js` wired into the VitePress docs site.
 5. Phase 7 (research + scaffold): confirm `coco-lsp` reuses
-   `selfhost/parse.co` + `src/sema/checker.cpp`; stand up stdio JSON-RPC server
-   publishing diagnostics; connect VS Code + Neovim.
+   `src/lex/lexer.cpp` + `src/parser/parser.cpp` + `src/sema/checker.cpp`; stand
+   up stdio JSON-RPC server publishing diagnostics; connect VS Code + Neovim.
 
 ---
 
 _End of plan. This document is a roadmap; each phase should open with a focused
 "research + source review" task exactly as this plan was written â€” grounded in
 `grammar/coco.ebnf`, `src/lex/lexer.cpp`, `src/parser/parser.cpp`,
-`src/sema/checker.cpp`, `selfhost/*.co`, `stdlib/lib/*.co`, and
+`src/sema/checker.cpp`, `stdlib/lib/*.co`, and
 `tools/*.cpp` â€” before any code is generated._

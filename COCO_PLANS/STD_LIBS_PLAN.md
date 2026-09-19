@@ -4,8 +4,8 @@
 importable Coco source modules under `stdlib/lib/`.
 
 **Goal:** A batteries-included, dogfoodable standard library — written in Coco —
-that (a) gives the language usable breadth now, (b) acts as the **substrate** the
-self-hosting compiler (`SELF_HOST_PLAN.md`) will be written against, and (c) mirrors
+that (a) gives the language usable breadth now, (b) acts as the shared **substrate**
+for the compiler's own tooling (formatter, LSP, docs), and (c) mirrors
 the mature module layouts of the four reference interpreters whose sources live in
 `C:\Users\rkriad585\Projects\go-rust-ruby-cpython-source-code`:
 
@@ -149,7 +149,7 @@ phase is a Coco file. New native pseudo-modules:
 
 > **vs.** some designs put everything in C++ builtins; here the native layer stays
 > ~15 thin modules so the *policy*, *formatting*, and *logic* live in Coco
-> (proving the substrate is usable by the future self-host compiler).
+> (proving the substrate is usable by the compiler's own tooling).
 
 **Why Phase 0 first:** nearly every later phase depends on `os`, `bytes`, `path`,
 `io`, `sys` being real. Without truncate/stat/listdir, `os`/`path`/`fileutils`/

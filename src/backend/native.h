@@ -1,11 +1,11 @@
 #pragma once
-// Native code generation for Coco (PLAN Phase 8.2 — self-hosting-first backend).
+// Native code generation for Coco (PLAN Phase 8.2).
 //
 // The bytecode VM (Phase 4) and the tree-walking interpreter both evaluate a
-// dynamically-boxed `Value` at runtime. A real "faster like C/C++" path, and
-// the crucible for a future self-hosted compiler, lowers statically-typed
-// *scalar* user functions to plain C++ that the host toolchain compiles into
-// the produced binary (no interpreter involvement for those functions).
+// dynamically-boxed `Value` at runtime. A real "faster like C/C++" path lowers
+// statically-typed *scalar* user functions to plain C++ that the host
+// toolchain compiles into the produced binary (no interpreter involvement for
+// those functions).
 //
 // This module analyzes a checked program and emits C++ source for every user
 // function it can prove lowerable. A function is lowerable iff it is a

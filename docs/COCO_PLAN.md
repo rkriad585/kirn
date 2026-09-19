@@ -697,7 +697,7 @@ Prelude (auto-imported basics: `print`, `list`, `chan`, `spawn`…) maps onto th
 
 ## 13. Standard Library Plan
 
-Written **in Coco itself** wherever possible (dogfood + self-host rehearsal):
+Written **in Coco itself** wherever possible (dogfooding):
 
 | Module | Contents | Phase |
 |---|---|---|
@@ -737,7 +737,7 @@ All subcommands ship inside the one `coco` binary (Go philosophy):
 
 **LSP server** (`tools/lsp`, speak JSON-RPC): completions, hover types (inference reuse!),
 go-def/find-refs, rename, semantic highlight, inline errors — this is the single highest-
-leverage adoption tool after the compiler; scheduled right after self-host start (Phase 6).
+leverage adoption tool after the compiler (scheduled in Phase 6).
 
 Debugger story v1: emit DWARF/PDB (codegen stage) → gdb/lldb/VS work for stepping;
 custom debug console deferred.
@@ -799,8 +799,7 @@ Each phase has **exit criteria**; no phase starts before the previous exits.
 | **4. Concurrency + collections** | Full scheduler, channels/select, sendability checker, defer, collections+iterators, io/os/time/math | 10k-goroutine web crawler demo stable; ASan-clean | 2–3 mo |
 | **5. Stdlib + net + tooling** | net/text/serialize modules, `coco fmt`, `coco get` MVP + 20 published demo packages, bench infra online | Real project (JSON REST API server) builds & serves load with good p99 | 2–3 mo |
 | **6. Ecosystem hardening** | LSP server, bindgen, fuzzing/OSS-Fuzz, incremental compilation caches, Windows polish, packages site | Third-party contributors land features unassisted; LSP in VS Code marketplace | 3 mo |
-| **7. Self-hosting begins** | Rewrite lexer+parser in Coco (against C++ frontend as oracle), keep sema/codegen in C++ initially | Coco-written frontend passes identical test corpus at ≥80% C++ speed | 3–4 mo |
-| **8. v1.0** | Spec v1.0 frozen, semver guarantee, installers (brew/scoop/apt/docker), website+book, governance seated (§19) | 90-day freeze with zero spec changes; 25+ real external projects | 2 mo |
+| **7. v1.0** | Spec v1.0 frozen, semver guarantee, installers (brew/scoop/apt/docker), website+book, governance seated (§19) | 90-day freeze with zero spec changes; 25+ real external projects | 2 mo |
 
 Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 (aggressive solo-dev: 24–36 months). Cut scope, not quality bars.
@@ -841,7 +840,6 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 | LLVM compile times hurt "fast builds" goal | Adoption | Incremental caches, parallel driver, thin-LTO only in release; Cranelift fallback studied in Phase 6 |
 | Solo-founder bus factor | Project death | RFC record, public roadmap, welcome-first-contributor issues tagged from Phase 1 |
 | Windows toolchain pain (paths, FS semantics, debug info) | Half-broken platform | MSVC CI from Phase 1, not bolted on later |
-| Self-host trap (rewrite forever, ship nothing) | v1.0 slips years | Phase 7 strictly frontend-only rewrite; oracle-gated acceptance |
 | Ecosystem cold start | Nobody comes | Bindgen + C-interop means users bring their favorite C libs on day one — market THIS |
 
 ---
@@ -877,8 +875,7 @@ Tracked here until resolved by RFC (each blocked item names its decider phase):
 4. Method-call uniformity: UFCS (`first(items)` vs `items.first()` auto-deref rules)? (Phase 1)
 5. Trait-object layout: fat pointers vs vtable-in-instance? (Phase 2, affects ABI)
 6. Reflection depth for serialization derives: compile-time-only vs limited runtime metadata? (Phase 5)
-7. Registry hosting for `coco get`: self-host vs GitHub-topics bootstrap? (Phase 5)
-8. Edition cadence and minimum-supported-compiler window. (Phase 6)
+7. Edition cadence and minimum-supported-compiler window. (Phase 6)
 
 ---
 

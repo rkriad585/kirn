@@ -14,3 +14,6 @@ Gemfile.lock
 # coco package manager temp files (created in cwd during install/update)
 .coco-registry-lib.toml
 .coco-sha
+# Python bytecode - never track (regenerates every py_compile; tracked .pyc was committed debt from before this session)
+__pycache__/
+*.pyc

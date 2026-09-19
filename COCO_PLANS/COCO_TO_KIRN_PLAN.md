@@ -112,6 +112,62 @@ Categories and the files/strings that must change. "* = also affects binary/form
 - **Keep diff churn reviewable.** Use `git mv` for file renames (preserves history), and plain edits for content.
 - **One name, four case-forms.** `kirn` (identifiers/strings/commands), `Kirn` (prose/capitalized), `KIRN` (env vars / cmake / magic), plus the library term `pet`/`pets` (prose) vs `PETS` (env). Replace each case form explicitly; never blind-case-transform a mixed bag.
 - **Order matters.** Phases are ordered so that low-risk textual renames come first (proving the basic loop works), the risky source-extension change is in the middle (Phase 5) with the module loader/core, and the external-identity/binary/registry/CI changes come last.
+- **Automation is one Python script, proven on `examples/` first.** The single tool that executes every mechanical layer below is a **Python** script (`scripts/rename_kirn.py`), **not** a PowerShell harness. It must first be run **on `examples/`** (which is the whole demo corpus and the lowest-risk surface), and only after that passes `G-VERIFY` may it run against the **main project** (`src/ tools/ stdlib/ tests/ docs/`). Rationale: `examples/` is small, self-contained, and rebuild-free, so a bug in the script shows up as a tiny, fully-green-checkable diff — the same "dry-run on a slice first" discipline the plan already preaches in §5.2, promoted from prose to the *automation* itself)Skip. The script is idempotent: applying it twice to the same tree is a no-op, so the `examples/` run and the main-project run share one verified code path.
+- **Python, not PowerShell.** The plan's original §5.2/item-2 harnesses were PowerShell. Author decision: the *mechanical rename* must be plain Python 3 (argparse, stdlib only — zero deps, matches the zero-dependency tooling philosophy; `os.walk` + `pathlib` + regex are enough). PowerShell stays only at the *verify* layer (`scripts/rename_verify.ps1`, §8.4), which is intentionally read-only. Code example:
+
+  ```python
+  # scripts/rename_kirn.py (author decision x3) — one idempotent, dry-run-first renamer.
+  # Usage:  python scripts/rename_kirn.py --scan examples   # dry-run inventory (no write)
+  #         python scripts/rename_kirn.py --apply examples  # examples first, THEN the main tree
+  import argparse, re, sys
+  from pathlib import Path
+
+  CASE_FORMS = [  # (regex, replacement) — see §4 "one name, four case-forms"
+      (r"\bCoco\b", "Kirn"),
+      (r"\bcoco\b", "kirn"),
+      (r"\bCOCO\b", "KIRN"),
+      (r"\blib\b", "pet"),       # the library term (§4: pet/pets)
+      (r"\b\.co\b", ".kn"),      # source extension (Phase 5; guarded by its own phase)
+  ]
+  # Blocklist: identifiers/magic that must NOT be touched (see §4 point above).
+  BLOCKLIST = re.compile(r"coco_|coco/|\.coco|COCOB|\.co\b|\.cob\b|cocolib|cocorun|cococheck|\bcoco[^a-z]")
+
+  def main() -> int:
+      ap = argparse.ArgumentParser()
+      ap.add_argument("--scan", metavar="DIR", nargs="+", help="dry-run inventory, no writes")
+      ap.add_argument("--apply", metavar="DIR", nargs="+", help="actually rewrite (after --scan green)")
+      args = ap.parse_args()
+      mode, targets = ("apply", args.apply) if args.apply else ("scan", args.scan)
+      if not targets:
+          sys.exit("no target; pass --scan examples first, then --apply examples, then the main dir")
+      n = 0
+      for root in targets:
+          for p in Path(root).rglob("*"):
+              if p.is_file() and not any(x in p.parts for x in ("build", ".git", ".opencode")):
+                  try:
+                      t = p.read_text(encoding="utf-8")
+                  except Exception:
+                      continue
+                  out, changed = re.subn(BLOCKLIST, lambda m: m.group(0), t)  # keep blocked tokens
+                  for pat, repl in CASE_FORMS:
+                      out, c = re.subn(pat, repl, out)
+                      changed += c
+                  if mode == "apply":
+                      if changed:
+                          p.write_text(out, encoding="utf-8")
+                  elif changed:
+                      print(f"{changed:5d}  {p}")
+                  n += changed
+      print(f"[{mode}] {n} replacements across {len(targets)} target(s)")
+      if mode == "scan":
+          print("dry-run only; re-run with --apply to write. Next: apply examples, then the main tree.")
+      return 0
+
+  if __name__ == "__main__":
+      sys.exit(main())
+  ```
+
+  The gate is literal: `python scripts/rename_kirn.py --scan examples` (must list every `examples/` hit but change nothing), then `python scripts/rename_kirn.py --apply examples`, confirm `G-VERIFY` green on the toy corpus, **then** point the same script at the main project.
 
 ---
 

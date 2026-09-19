@@ -718,6 +718,37 @@ may shell to nothing — pure socket APIs.
 
 ---
 
+### 13.1 Kirn ships **no built-in pets** — all std pets live on GitHub, `kirn setup` installs them globally
+
+- **Author decision (2026):** Kirn does **not** contain any built-in pets. There is no
+  bundled/embedded std library in the binary, and no std pets are hard-coded into the
+  compiler output. The "dogs" analogy is dropped entirely — no pre-installed pets ship
+  with the toolchain.
+- **All std pets are pushed to GitHub** (the pets registry — see §14.2 "Package manager"
+  and §7/§10.5 identities; registry host is the `pets-registry` GitHub org, website
+  `https://pets-registry.github.io`). Each std pet (`core`, `collections`, `io`, `os`,
+  `net`, `concur`, `text`, `math`, `time`, `serialize`, `test`) is published as its own
+  repo in that org so it can be fetched/installed by URL, org+name, or org+name@version —
+  exactly like any third-party pet. There is **no special stdlib fetch path** distinct
+  from the normal package manager: "std" is just the set of pets the Kirn org curates.
+- **`kirn setup` auto-installs the std pets globally.** When a developer runs `kirn setup`
+  (first-time init or after install), Kirn:
+  1. reads the pinned std-pet set from the registry lock metadata (`kirn.lock` / the
+     `[pets]` manifest section),
+  2. fetches each std pet **into the system-wide pet store** (global, under
+     `~/.kirn/pets` — available on any path, any project, any directory on the machine),
+  3. records a global `<std-pet>@<version>` snapshot so all std pets become resolvable
+     from **anywhere** (`import pet.io*;` works in `/tmp/x.kn` as well as in a project).
+  This is the "usable anywhere, globally, std-only" guarantee: only the **std** pets are
+  auto-installed machine-wide; third-party pets stay scoped to their project's `pets/` as
+  in §14.2. Re-running `kirn setup` is idempotent — it re-fetches/updates the std set to
+  the pinned registry tags without touching project-local pets.
+- **Rationale:** keeps the language binary tiny and registry-first (Go philosophy), makes
+  the ecosystem the single source of truth for std, and gives new machines a one-command
+  `kirn setup` bootstrap that lands the whole standard library in the global pet store.
+
+---
+
 ## 14. Tooling
 
 All subcommands ship inside the one `coco` binary (Go philosophy):

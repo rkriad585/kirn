@@ -22,27 +22,25 @@ jobs:
         shell: pwsh
         run: scripts/runall.ps1 -Runner build\Debug\cocorun.exe
 
-      - name: Bytecode bundle roundtrip (build fallback -> cocorun)
+      - name: No-toolchain cross build must hard-fail (no .cob fallback)
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           # absolute paths: relative ones break after Push-Location
           # (and pwsh then reports "The module 'build' could not be loaded")
           $coco = Join-Path $PWD "build\Debug\coco.exe"
-          $run = Join-Path $PWD "build\Debug\cocorun.exe"
-          & $coco "targets"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $coco "new" "demo"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location demo
           try {
-            # a non-host target with no toolchain falls back to a .cob bundle
+            # a non-host target with no cross toolchain must fail loudly:
+            # the old portable .cob bundle fallback was removed
             & $coco "build" "--target=linux-amd64"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            $cob = Get-ChildItem build -Recurse -Filter demo.cob | Select-Object -First 1
-            if (-not $cob) { Write-Host "::error::no .cob produced"; exit 1 }
-            $out = (& $run $cob.FullName) -join "; "
-            Write-Host "bundle output: $out"
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "::error::cross build without toolchain should fail";
+              exit 1
+            }
+            Write-Host "cross build failed as expected (exit $LASTEXITCODE)"
           } finally { Pop-Location }
 
       - name: Upload tools
@@ -110,12 +108,13 @@ jobs:
               exit 1
             }
 
-            # no-toolchain target must fall back to a runnable portable bundle
+            # a target with no toolchain must now hard-fail: the portable
+            # .cob bundle fallback was removed
             & $coco "build" "--target=linux-amd64"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            $cob = Get-ChildItem build -Recurse -Filter armapp.cob |
-              Select-Object -First 1
-            if (-not $cob) { Write-Host "::error::no .cob fallback"; exit 1 }
-            $out = (& $run $cob.FullName) -join "; "
-            Write-Host "bundle output: $out"
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "::error::cross build without toolchain should fail"
+              exit 1
+            }
+            Write-Host "no-toolchain cross build failed as expected"
+          } finally { Pop-Location }
           } finally { Pop-Location }

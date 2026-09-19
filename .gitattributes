@@ -17,7 +17,6 @@
 
 # Binary / never-normalized
 *.exe   binary
-*.cob   binary
 *.cocolib binary
 *.png   binary
 *.jpg   binary

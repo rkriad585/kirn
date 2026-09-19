@@ -1,4 +1,4 @@
-﻿// coco â€” driver CLI for the Coco language.
+// coco — driver CLI for the Coco language.
 //
 //   coco new <name>              scaffold an application project
 //   coco new lib <name>          scaffold a library package
@@ -109,7 +109,7 @@ struct Manifest {
     std::string docs = "docs/index.md";   // docs entry file ([package] docs)
     std::string author, repo, readme = "README.md", homepage;
     std::vector<std::string> authors, tags, keywords;
-    // [git] â€” files generated for new repos
+    // [git] — files generated for new repos
     bool gitignore = true, gitkeep = false;
     std::vector<std::string> gitIgnoreExtra;   // additional ignore patterns
     Deps deps;
@@ -246,7 +246,7 @@ void writeManifest(const fs::path& dir, const Manifest& m) {
 }
 
 // ---------------------------------------------------------------------------
-// lockfile: coco.lock â€” pins exactly what is installed where
+// lockfile: coco.lock — pins exactly what is installed where
 // ---------------------------------------------------------------------------
 
 struct LockEntry {
@@ -439,53 +439,6 @@ void printDiags(const std::string& path, const coco::DiagEngine& diags) {
         if (d.sev == coco::Sev::Warning || d.sev == coco::Sev::Note)
             std::cerr << path << ":" << d.line << ":" << d.col
                       << ": warning[" << d.code << "]: " << d.message << "\n";
-}
-
-// ---- bytecode bundles (.cob): reader ---------------------------------------
-// Mirrors emitCob's layout: "COCOB" + u8 ver(1) + u32 count, then per entry
-//   u32 nameLen | name | u32 srcLen | utf8 src
-// The entry named "main" is the program; everything else is an embedded
-// module keyed by its normalized module name.
-bool unpackCob(const std::string& path, std::string& mainSrc,
-               std::map<std::string, std::string>& embedded) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) return false;
-    std::ostringstream ss;
-    ss << in.rdbuf();
-    const std::string b = ss.str();
-    auto u32at = [&](size_t off, uint32_t& v) {
-        if (off + 4 > b.size()) return false;
-        v = (uint8_t)b[off] | ((uint16_t)(uint8_t)b[off + 1] << 8) |
-            ((uint32_t)(uint8_t)b[off + 2] << 16) |
-            ((uint32_t)(uint8_t)b[off + 3] << 24);
-        return true;
-    };
-    if (b.size() < 10 || b.compare(0, 5, "COCOB") != 0 || b[5] != 1)
-        return false;
-    uint32_t count = 0;
-    if (!u32at(6, count)) return false;
-    size_t off = 10;
-    bool haveMain = false;
-    for (uint32_t i = 0; i < count; ++i) {
-        uint32_t nl = 0, sl = 0;
-        if (!u32at(off, nl)) return false;
-        off += 4;
-        if (off + nl > b.size()) return false;
-        std::string name = b.substr(off, nl);
-        off += nl;
-        if (!u32at(off, sl)) return false;
-        off += 4;
-        if (off + sl > b.size()) return false;
-        std::string esrc = b.substr(off, sl);
-        off += sl;
-        if (name == "main") {
-            mainSrc = std::move(esrc);
-            haveMain = true;
-        } else {
-            embedded[std::move(name)] = std::move(esrc);
-        }
-    }
-    return haveMain;
 }
 
 int runProgramSrc(const std::string& label, const std::string& src,
@@ -1012,7 +965,7 @@ int cmdInstall(const std::string& raw, bool global_) {
     return installOne(ref, raw, global_, /*record=*/true);
 }
 
-// `coco add` â€” npm-install / go-mod-tidy style sync.
+// `coco add` — npm-install / go-mod-tidy style sync.
 //   coco add <pkg>...   resolve + install + record each dependency
 //   coco add            (no args) tidy: install every manifest dep that is
 //                       missing from coco_libs/libs
@@ -1185,7 +1138,7 @@ int cmdList() {
 }
 
 // ---------------------------------------------------------------------------
-// coco clone â€” clone any git repo (shorthand-aware)
+// coco clone — clone any git repo (shorthand-aware)
 //   coco clone user/repo            -> github.com/user/repo
 //   coco clone github.com/u/r       full host forms work too
 //   coco clone https://host/u/r
@@ -1242,7 +1195,7 @@ int cmdClone(const std::string& spec, bool full) {
 }
 
 // ---------------------------------------------------------------------------
-// coco list online â€” browse the coco-libs registry
+// coco list online — browse the coco-libs registry
 // ---------------------------------------------------------------------------
 
 int cmdListOnline() {
@@ -1475,7 +1428,7 @@ bool regenerateDocs(const Manifest& m) {
 }
 
 // ---------------------------------------------------------------------------
-// coco doc â€” markdown viewer over HTTP
+// coco doc — markdown viewer over HTTP
 // ---------------------------------------------------------------------------
 
 std::string mdEscape(const std::string& s) {
@@ -1729,7 +1682,7 @@ int cmdDoc(const std::string& target, int port) {
 }
 
 // ---------------------------------------------------------------------------
-// coco build â€” app: standalone .exe (sources embedded, interpreter linked)
+// coco build — app: standalone .exe (sources embedded, interpreter linked)
 //              lib: type-check all sources + pack distributable .cocolib
 // ---------------------------------------------------------------------------
 
@@ -2309,36 +2262,9 @@ std::string emitSasm(const std::string& srcPath,
     return em.out.str();
 }
 
-// ---- portable bytecode bundle (.cob) ---------------------------------------
-// Layout: magic "COCOB" + u8 version(1) + u32 count, then per entry:
-//   u32 nameLen | name bytes | u32 srcLen | utf8 source bytes
-
-void putU32(std::string& s, uint32_t v) {
-    s += char(v & 0xFF);
-    s += char((v >> 8) & 0xFF);
-    s += char((v >> 16) & 0xFF);
-    s += char((v >> 24) & 0xFF);
-}
-
-std::string emitCob(const std::string& mainSrc,
-                    const std::map<std::string, std::string>& embedded) {
-    std::string o = "COCOB";
-    o += '\x01';
-    putU32(o, (uint32_t)(embedded.size() + 1));
-    auto addEntry = [&](const std::string& name, const std::string& src) {
-        putU32(o, (uint32_t)name.size());
-        o += name;
-        putU32(o, (uint32_t)src.size());
-        o += src;
-    };
-    addEntry("main", mainSrc);
-    for (const auto& [k, v] : embedded) addEntry(k, v);
-    return o;
-}
-
 // Core build pipeline shared by project mode (coco.toml) and single-file
-// mode (`coco build main.co`): type-check, then emit sasm / bytecode bundle
-// / self-contained launcher and compile it with the best available pipeline.
+// mode (`coco build main.co`): type-check, then emit sasm / self-contained
+// launcher and compile it with the best available pipeline.
 int buildProgram(const std::string& name, const std::string& version,
                  const std::string& entry, const std::string& mainSrc,
                  const std::map<std::string, std::string>& embedded,
@@ -2348,9 +2274,9 @@ int buildProgram(const std::string& name, const std::string& version,
     std::error_code ec;
     fs::create_directories(outDir, ec);
 
-    // Go-style decision point: a GNU toolchain produces a real native static
-    // binary for the target; without one we fall back to portable bytecode
-    // (non-host) or the prebuilt-MSVC-lib pipeline (host).
+    // Go-style decision point: a cross GNU toolchain produces a real native
+    // static binary for non-host targets; without one the build hard-fails
+    // (the old portable .cob bundle fallback was removed).
     const bool isHost = opts.target == hostTarget();
     const TargetInfo* ti = findTarget(opts.target);
     std::string crossCxx = ti ? resolveCrossCxx(ti) : "";
@@ -2384,22 +2310,16 @@ int buildProgram(const std::string& name, const std::string& version,
     }
 
     if (!isHost && crossCxx.empty()) {
-        // No cross toolchain for this target: fall back to a portable bytecode
-        // bundle (.cob) that cocorun can run, instead of a native binary.
-        const std::string base = opts.outPath.empty() ? (outDir / name).generic_string() : opts.outPath;
-        const std::string out =
-            opts.outPath.empty() && !opts.defaultOut.empty()
-                ? opts.defaultOut + ".cob"
-                : base + ".cob";
-        writeFile(out, emitCob(mainSrc, embedded));
-        std::cout << "no cross toolchain for '" << opts.target
-                  << "' - wrote portable bundle " << out << "\n"
-                  << "  install e.g. llvm-mingw / aarch64-linux-gnu-g++"
-                  << " or set COCO_CXX_" ;
+        // No cross toolchain for this target: no portable .cob bundle exists
+        // anymore (bytecode bundles were removed), so this is a hard failure.
+        std::string envName = "COCO_CXX_";
         for (char c : opts.target)
-            std::cout << (c == '-' ? '_' : (char)toupper((unsigned char)c));
-        std::cout << "=<path-to-g++>\n";
-        if (!opts.obj) return 0;
+            envName +=
+                (c == '-') ? '_' : (char)toupper((unsigned char)c);
+        std::cerr << "coco build: no cross toolchain for '" << opts.target
+                  << "'\n  install e.g. llvm-mingw / aarch64-linux-gnu-g++"
+                  << " or set " << envName << "=<path-to-g++>\n";
+        return 1;
     }
 
     // --native: parse+check once at build time, lower scalar user fns to C++
@@ -2588,7 +2508,7 @@ int buildProgram(const std::string& name, const std::string& version,
                              ? std::getenv("COCO_CL")
                              : resolveHostCl();
 
-    // NOTE: must not start with '"' â€” cmd /c strips leading quotes.
+    // NOTE: must not start with '"' — cmd /c strips leading quotes.
     // NOTE: no quoted paths ending in '\' (argv would eat the quote).
     const std::string genCpp = (outDir / (name + ".cpp")).generic_string();
     const std::string outBase =
@@ -2906,7 +2826,7 @@ int cmdTargets() {
                 for (const char* p = ti.triple; *p; ++p)
                     envName +=
                         (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
-                std::cout << "- portable bytecode only"
+                std::cout << "- no toolchain"
                           << " (set " << envName << "=<g++> for native)\n";
             }
         }
@@ -2919,8 +2839,7 @@ void usage() {
         << "coco - the Coco language driver\n\n"
         << "usage:\n"
         << "  coco run [dir|file]              run a program or project\n"
-        << "  coco run <file.co|.cob>          run a script or bytecode bundle"
-               "\n"
+        << "  coco run <file.co>              run a script or project\n"
         << "  coco new <name>                  scaffold an application\n"
         << "  coco new lib <name>              scaffold a library package\n"
         << "  coco test [.|file|dir ...]       run *_test.co files\n"
@@ -2976,17 +2895,6 @@ int main(int argc, char** argv) {
         std::string target = args[1];
         std::vector<std::string> progArgs(args.begin() + 2, args.end());
         fs::path file(target);
-        // bytecode bundle: fully self-contained, no sources or libs needed
-        if (file.extension() == ".cob") {
-            std::string msrc;
-            std::map<std::string, std::string> emb;
-            if (!unpackCob(file.string(), msrc, emb)) {
-                std::cerr << "coco: invalid bytecode bundle '" << file.string()
-                          << "'\n";
-                return 66;
-            }
-            return runProgramSrc(file.string(), msrc, {}, emb, progArgs);
-        }
         if (fs::is_directory(file)) {
             Manifest m = readManifest(file);
             std::string entry = resolveEntry(m, file);

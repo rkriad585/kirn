@@ -93,7 +93,7 @@ Stdlib and project tests run via `coco test` and target `*_test.co` files.
 
 - Line endings are enforced by `.gitattributes`: `.co/.h/.cpp/.md/.ebnf` are LF,
   `.ps1/.bat` are CRLF. Don't fight the normalization or touch endianness of
-  `.cob`/`.cocolib` (binary, never opened as source).
+  `.cocolib` (binary, never opened as source).
 - Do not commit `tools/*.co` scratch files without reason — many (`scratch_*.co`,
   `t?.co`, `u?.co`, `out.txt`) are ad-hoc developer debris.
 - No external dependencies beyond CMake + a C++20 compiler (matches the

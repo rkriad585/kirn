@@ -1,7 +1,5 @@
-// cocorun: lex + parse + semantic-check + interpret a Coco source file,
-// or execute a self-contained bytecode bundle (.cob) produced by `coco build`
-// cross-target fallbacks.
-//   cocorun <file.co | file.cob> [args...]
+// cocorun: lex + parse + semantic-check + interpret a Coco source file.
+//   cocorun <file.co> [args...]
 //                                 run program; main()'s Int return is the
 //                                 process exit code (default 0)
 #include "interp/runtime.h"
@@ -63,49 +61,6 @@ void addModuleDirs(coco::interp::Interpreter& interp,
 }
 
 } // namespace
-
-// .cob container reader (see tools/coco.cpp emitCob for the writer)
-static bool unpackCob(const std::string& path, std::string& mainSrc,
-                      std::map<std::string, std::string>& embedded) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) return false;
-    std::ostringstream ss;
-    ss << in.rdbuf();
-    const std::string b = ss.str();
-    auto u32at = [&](size_t off, uint32_t& v) {
-        if (off + 4 > b.size()) return false;
-        v = (uint8_t)b[off] | ((uint16_t)(uint8_t)b[off + 1] << 8) |
-            ((uint32_t)(uint8_t)b[off + 2] << 16) |
-            ((uint32_t)(uint8_t)b[off + 3] << 24);
-        return true;
-    };
-    if (b.size() < 10 || b.compare(0, 5, "COCOB") != 0 || b[5] != 1)
-        return false;
-    uint32_t count = 0;
-    if (!u32at(6, count)) return false;
-    size_t off = 10;
-    bool haveMain = false;
-    for (uint32_t i = 0; i < count; ++i) {
-        uint32_t nl = 0, sl = 0;
-        if (!u32at(off, nl)) return false;
-        off += 4;
-        if (off + nl > b.size()) return false;
-        std::string name = b.substr(off, nl);
-        off += nl;
-        if (!u32at(off, sl)) return false;
-        off += 4;
-        if (off + sl > b.size()) return false;
-        std::string esrc = b.substr(off, sl);
-        off += sl;
-        if (name == "main") {
-            mainSrc = std::move(esrc);
-            haveMain = true;
-        } else {
-            embedded[std::move(name)] = std::move(esrc);
-        }
-    }
-    return haveMain;
-}
 
 // shared pipeline: front-end + interpret, with panic handling
 // The bytecode VM is now the DEFAULT runner: it is verified-correct against the
@@ -180,7 +135,7 @@ int main(int argc, char** argv) {
             continue;
         }
         if (a == "-h" || a == "--help") {
-            std::cout << "usage: cocorun [--no-vm|--vm] <file.co | file.cob> [args...]\n"
+            std::cout << "usage: cocorun [--no-vm|--vm] <file.co> [args...]\n"
                          "  (the bytecode-VM accelerator is the default; --no-vm\n"
                          "   forces the tree-walker interpreter, --vm re-enables)\n"
                          "  arguments after <file> are passed to the program as os.args()\n";
@@ -192,22 +147,8 @@ int main(int argc, char** argv) {
         afterFile = true;
     }
     if (file.empty()) {
-        std::cerr << "usage: cocorun <file.co | file.cob> [args...]\n";
+        std::cerr << "usage: cocorun <file.co> [args...]\n";
         return 2;
-    }
-
-    // bytecode bundle path
-    size_t dot = file.find_last_of('.');
-    std::string ext = dot == std::string::npos ? "" : file.substr(dot);
-    for (auto& c : ext) c = (char)tolower((unsigned char)c);
-    if (ext == ".cob") {
-        std::string msrc;
-        std::map<std::string, std::string> emb;
-        if (!unpackCob(file, msrc, emb)) {
-            std::cerr << "cocorun: invalid bytecode bundle '" << file << "'\n";
-            return 66;
-        }
-        return runSources(file, msrc, &emb, progArgs);
     }
 
     std::string src;

@@ -1,18 +1,1 @@
-﻿COCO->KIRN baseline snapshot (Phase 1)
-timestamp : 2026-09-20T10:50:09.5098851Z
-root      : C:\Users\rkriad585\Projects\coco
-version   : 0.0.1-beta
-git head  : 5ee073ec0eed145df34b67c8b0eced9eb1f80ed3
-git branch: main
-git desc  : v0.0.1-beta-12-g5ee073e
-git status:
- D AGENTS.md
-?? _rename/
-?? scripts/rename_baseline.ps1
-?? scripts/rename_dryrun.ps1
-remote    : https://github.com/rkriad585/kirn.git
-cmake     : cmake version 4.4.1
-runtime   : C:\Users\rkriad585\Projects\coco\build\cocorun.exe
-check     : C:\Users\rkriad585\Projects\coco\build\cococheck.exe
-driver    : C:\Users\rkriad585\Projects\coco\build\coco.exe
-cl        : C:\msvc\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64\cl.exe
+

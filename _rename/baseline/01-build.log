@@ -1,17 +1,1 @@
-﻿--- cmake -S . -B build ---
--- Configuring done (0.1s)
--- Generating done (0.3s)
--- Build files have been written to: C:/Users/rkriad585/Projects/coco/build
---- cmake --build build --config Debug ---
-[  7%] Built target coco_lex
-[ 19%] Built target coco_ast
-[ 26%] Built target coco_parser
-[ 38%] Built target coco_sema
-[ 46%] Built target coco_vm
-[ 53%] Built target coco_interp
-[ 61%] Built target coco_backend
-[ 69%] Built target cocolex
-[ 76%] Built target cocoparse
-[ 84%] Built target cococheck
-[ 92%] Built target cocorun
-[100%] Built target coco
+

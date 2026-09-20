@@ -36,7 +36,8 @@ CASE_FORMS = [
 # Phase 7, dirs -> Phase 7). Short-circuits a whole line.
 BLOCKLIST = re.compile(
     r"coco_|coco/|/coco|\.co\b|\.cob\b|\.cocolib\b|COCOB\b|COCO_|"
-    r"cocolib|lib\.|github\.com/coco|coco_libs|coco\.toml|coco\.lock"
+    r"cocolib|lib\.|github\.com/coco|coco_libs|coco\.toml|coco\.lock|"
+    r"coco-lib|coco-libs|coco-ffi|coco-pkg|coco-registry|\.coco-"
 )
 
 SKIP_SUFFIX = {".py", ".ps1", ".exe", ".dll", ".obj", ".lib", ".cob", ".co", ".kn"}

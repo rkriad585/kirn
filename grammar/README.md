@@ -1,6 +1,6 @@
-# Coco Grammar (`grammar/`)
+# Kirn Grammar (`grammar/`)
 
-The normative, machine-checkable grammar of the Coco language.
+The normative, machine-checkable grammar of the Kirn language.
 
 | File | Description |
 |------|-------------|

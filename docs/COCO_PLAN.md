@@ -780,7 +780,7 @@ All subcommands ship inside the one `kirn` binary (Go philosophy):
   Pages landing) and the pets registry org `https://github.com/pets-registry` (the registry
   repo + every std/third-party pet repo). A dedicated **registry repo is created on the
   `pets-registry` org** (the pets index, same role the `coco-lib` registry repo played for
-  the old COCO ecosystem) — it hosts the machine-readable pet index (`registry.toml`) that
+  the old KIRN ecosystem) — it hosts the machine-readable pet index (`registry.toml`) that
   powers name→repo resolution.
 - **Websites:** full-identity landing `https://kirn-lang.github.io`; **docs / learn-Kirn-
   syntax** site `https://rkriad585.github.io/kirn`; **pets landing** `https://pets-registry.github.io`

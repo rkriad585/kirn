@@ -1,5 +1,5 @@
 # =============================================================================
-#  Coco Language — Normative Grammar (EBNF)
+#  Kirn Language — Normative Grammar (EBNF)
 #  File:       grammar/coco.ebnf
 #  Status:     PHASE 0 DRAFT v0.2  (ratification tracked in docs/COCO_PLAN.md §22)
 #  Change rec: v0.2 (2026-09-03) fixes malformed EBNF and adds productions
@@ -174,7 +174,7 @@ top_item        = func_def | struct_def | enum_def | trait_def | impl_def
                runs exactly once when the package tree is imported, then exposes
                its pub surface on the package module object. Preferred entry over
                mod.co / <dirname>.co / a lone *.co inside a package directory.
-   - tests/    <name>_test.co files invoked by `coco test`.                *)
+   - tests/    <name>_test.co files invoked by `kirn test`.                *)
 
 
 (* ---- Imports -------------------------------------------------------------- *)

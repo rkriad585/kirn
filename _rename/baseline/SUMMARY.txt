@@ -1,0 +1,8 @@
+﻿COCO->KIRN baseline harness summary
+runall         PASS exit=0    5186 ms  02-runall.log
+types          PASS exit=0    2078 ms  03-types.log
+negative       PASS exit=0    2053 ms  04-negative.log
+vm_diff        PASS exit=0    7111 ms  05-vm_diff.log
+conventions    PASS exit=0    2061 ms  06-conventions.log
+---
+baseline OK: 5/5 gates passed

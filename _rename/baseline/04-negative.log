@@ -1,0 +1,19 @@
+PASS  n01_undefined_var: undefined variable 'y'
+PASS  n02_immutable_reassign: cannot reassign immutable binding 'x'
+PASS  n03_return_mismatch: return type mismatch
+PASS  n04_too_many_args: too many arguments
+PASS  n05_unknown_field: struct 'Point' has no field 'zzz'
+PASS  n06_break_outside: 'break' outside of a loop
+PASS  n07_is_none_nonopt: 'is none' expects an optional
+PASS  n08_duplicate_def: duplicate definition of 'f'
+PASS  n09_undefined_base: base class 'Ghost' is not defined
+PASS  n10_temp_exhausted: temp 't' exhausted (2 uses)
+PASS  n11_del_undefined: del: undefined variable 'nope'
+PASS  n12_yield_outside: 'yield' outside of a generator function
+PASS  n13_yield_return_value: generator functions cannot 'return' a value; use 'yield'
+PASS  n14_yield_wrong_ret: must declare return type generator[...], got i64
+PASS  n15_goto_undefined: goto: label 'missing' is not declared in this block or an enclosing block
+PASS  n16_goto_dup_label: label 'dup' is defined more than once
+PASS  n17_gather_outside: 'gather <expr>,' may only appear inside a gather { } loop
+PASS  n18_goto_over_decl: goto may not jump over a declaration
+RESULT: 18 passed, 0 failed

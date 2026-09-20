@@ -1,0 +1,14 @@
+PASS  p01_default_type_params: check + run clean
+PASS  p02_default_arg_constraint: check + run clean
+PASS  p03_default_int: check + run clean
+PASS  p04_enum_to_int: check + run clean
+PASS  p05_exhaustive_ok: check + run clean
+PASS  p06_borrow_ok: check + run clean
+PASS  p07_del_used: check + run clean
+PASS  n01_borrow_return: escape: '&x' must not be returned or stored
+PASS  n02_borrow_callarg: escape: '&x' must not be returned or stored
+PASS  n03_borrow_store: escape: '&x' must not be returned or stored
+PASS  n04_enum_non_exhaustive: non-exhaustive match over enum 'Color': missing 'Green'
+PASS  n05_int_non_exhaustive: match over integers/chars is non-exhaustive: add a 'case _' wildcard arm
+PASS  n06_char_non_exhaustive: match over integers/chars is non-exhaustive: add a 'case _' wildcard arm
+RESULT: 13 passed, 0 failed

@@ -1,0 +1,62 @@
+
+File           Code Stdout Stderr
+----           ---- ------ ------
+native_main.co  350              
+
+
+
+
+File                          Code Stdout                                                                                                                                                                                   
+----                          ---- ------                                                                                                                                                                                   
+01_hello.co                      0 Hello, World!       Cocosays hi                                                                                                                                                          
+02_variables.co                  0 1000 42 11 3.14 42                                                                                                                                                                       
+03_literals_casts.co             0 9000000000 127 65535 170 493 1e-09 A C:\path\with\noescape b'\x00\x01' 127 127                                                                                                           
+04_conditionals.co               0 83-> B(keep pushing)                                                                                                                                                                     
+05_loops_ranges.co               0 alpha beta gamma 55 [0, 2, 4, 6, 8, 10, 12] 0                                                                                                                                            
+06_functions_params.co           0 hello world hello Coco 5 10 30                                                                                                                                                           
+07_closures_captures.co          0 81 COCO! 1 2 3 50 6                                                                                                                                                                      
+08_comprehensions.co             0 [1, 4, 9, 16, 25] [2, 4] [(0, 1), (0, 2), (1, 2)] [10, 20, 30, 40, 50]                                                                                                                   
+09_match_guards_ranges.co        0 zero negative single digit many                                                                                                                                                          
+10_patterns_destructuring.co     0 x=3, y=4 1 two 3.0 12 0                                                                                                                                                                  
+11_structs_methods.co            0 5.0 3.0 13.0 0.0 2                                                                                                                                                                       
+12_enums_exhaustive.co           0 idle running pid=42 error 404: not found                                                                                                                                                 
+13_traits_dispatch.co            0 inherent draw r=2.5 circle inherent draw r=2.5                                                                                                                                           
+14_generics_bounds.co            0 10 a 1 two 215                                                                                                                                                                           
+15_operator_overloading.co       0 4.0 6.0 false 20                                                                                                                                                                         
+16_collections_slices.co         0 [1, 2, 3, 4] 1 [2, 3] [1, 2, 3, 4] 1 3 true {'red', 'green', 'blue'} true 9                                                                                                              
+17_tuples_swap.co                0 3 4 2 1 7 4 (42,)                                                                                                                                                                        
+18_optionals_nil_safe.co         0 found 20 -1 none                                                                                                                                                                         
+19_results_try_propagation.co    0 8080 port = 8080 rejected 'not-a-number'                                                                                                                                                 
+20_defer_panic.co                0 processing data.txt 81 recovered from: n must be >= 0                                                                                                                                    
+21_modules_visibility.co         0 12.0 hello-coco-world {"ok": true}                                                                                                                                                       
+22_spawn_channels_join.co        0 job 1 finished job 2 finished job 3 finished job 4 finished job 5 finished all workers joined                                                                                            
+23_select_multiplex.co           0 timed out waiting                                                                                                                                                                        
+24_ffi_unsafe.co                 0 Hello from Coco!! Hello from Coco! (len=16u)                                                                                                                                             
+25_operator_precedence.co        0 -4 4 3 1 17 512 true false                                                                                                                                                               
+26_iterators_views.co            0 0 1 2 3 4 120                                                                                                                                                                            
+27_value_semantics_copy.co       0 20.5 99.0 1 42.0                                                                                                                                                                         
+28_weak_references.co            0 child is child parent                                                                                                                                                                    
+29_arena_allocation.co           0 1001 sprite-0 frame memory released in one operation                                                                                                                                     
+30_capstone_wordcount.co         0 the: 3 fox: 2 dog: 1                                                                                                                                                                     
+31_advanced_patterns.co          0 ['n', 'fizz', 'buzz', 'fizzbuzz', 'fizz', 'buzz', 'n'] tuple alias even=42whole=(42, 7) head=10tail=[20, 30, 40] a=1b=2rest=(3, 4) (0,0) (0,1) (0,2) after-labeled-break [1,1] [1,2]     
+                                   [2,1] [2,2] [3,1] [3,2] done                                                                                                                                                             
+32_conventions.co                0 load_count = 1 via        = 1 again      = 1 hello, Coco!                                                                                                                                
+34_batteries.co                  0 42 3.14 true [1, 2] 43 3.0 false true int string list dict 14 1 5 [1, 1, 3, 4, 5] [5, 1, 4, 1, 3] true false [9, 1, 16, 1, 25] [3, 1, 1, 5] 14 [(0, 'a'), (1, 'b')] HELLO hello hi true  
+                                   true true a+b+c ['a', 'b', 'c'] 1-2-3                                                                                                                                                    
+35_try_catch.co                  0 recovered: n must be >= 0 9 discarded=yes num=43 outer=rethrown: n must be >= 0 in loop: boom 2 count=2                                                                                  
+36_oop.co                        0 direct speak  = woof direct name   = Rex   render_name -> Rex volume        = 8 animal speak  = ? base   greet  = base(1) base   describe = base(1)/Base deriv  greet  = base(2) deriv   
+                                   describe = base(2)/Derived deriv  tag    = Derived point         = (3, 4) rec eq        = true false fn-add        = 5                                                                   
+37_dynamic_any.co                0 a = hi d = 42 len(lst) = 3 widget size = 6 show('text') show([1, 2])                                                                                                                     
+38_patterns_power.co             0 empty a=1 b=2 rest=[3, 4] front=9 other t=10,20 one=7 nested @ => small 3 ref pattern => borrowed point                                                                                  
+39_builtin_methods.co            0 true abcabcabc true true true a+b+c 6 -1 Hello true true 3 [60, 50, 40, 30, 20, 10] 10 20 true true true 3 true true false 3                                                             
+40_keywords.co                   0 None=none dict={'a': 1, 'c': 3} list=[1, 2, 4] before=hi gadget-n-after-del=3 pr=hidden counter=12 local=1 t1=100 t2=101 t3=100 bucket=[1, 2, 3, 4, 5]                                   
+41_generators.co                 0 sum=15 fibs=[1, 1, 2, 3, 5, 8, 13, 21, 34] even=[2, 4, 6, 8, 10] sq=[1, 4, 9, 16] len=7 mixed=['start', 9, 8, none] fresh=gen(1, 2, 3)                                                   
+42_control_goto_gather.co        0 doTotal=15 doOnce=1 searchSum=10 gotoTotal=10 gatherVisited=[0, 1, 2, 3, 4] gatherBfs=[1, 2, 4, 8, 16] nilv=none nan=|NaN| inf=inf                                                       
+43_nested_constructs.co          0 nestedIf=65 doubleNest=2 deepFor=103 doGatherSum=21 gotoOut=3                                                                                                                            
+44_block_closures.co             0 dmap=[3, 5, 7] typed=3 scale=700 counter=1 2 3 early=6 pipeline=8 folded=160 arrow=81                                                                                                    
+native_main.co                 350                                                                                                                                                                                          
+native_scalar_mix.co             0 10 10 105 1024.0                                                                                                                                                                         
+
+
+
+45/45 examples passed

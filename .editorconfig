@@ -1,0 +1,26 @@
+# EditorConfig: line endings are LF for every file, matching gitattributes
+# ("* eol=lf", core.autocrlf off). Keep these two files in sync.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{co,c,h,cpp,hpp}]
+indent_style = space
+indent_size = 4
+
+[*.{ps1,bat}]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,jsonc,toml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false

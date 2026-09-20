@@ -1,0 +1,19 @@
+# Prettier only formats markup/data (markdown, YAML, JSON) in this repo.
+# Everything else uses the harness-native formatters and must never be touched.
+build/
+build-asan/
+build-rel/
+_rename/
+node_modules/
+.git/
+*.co
+*.c
+*.h
+*.cpp
+*.hpp
+*.ps1
+*.bat
+*.co.ebnf
+*.toml
+*.exe
+*.png

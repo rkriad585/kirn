@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# husky v9 pre-commit: run lint-staged against the staged subset only.
+# Depends on `npm install` (package.json devDeps: husky, lint-staged,
+# prettier). If node tooling isn't installed, fall through silently so a
+# plain C++ build is never blocked by missing JS tooling.
+[ -x "$(command -v npx)" ] || exit 0
+[ -f package.json ] || exit 0
+npx --no-install lint-staged --allow-empty 2>/dev/null || npx lint-staged --allow-empty

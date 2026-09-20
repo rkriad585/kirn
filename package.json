@@ -1,0 +1,22 @@
+{
+  "name": "coco",
+  "version": "0.0.1-beta",
+  "private": true,
+  "description": "Local repo-tooling manifest for the Kirn (formerly Coco) compiler project. Hooks live under .husky/ and are wired by husky v9; these tools only touch repo metadata (md/yml/json), never the C++20 toolchain.",
+  "type": "commonjs",
+  "scripts": {
+    "prepare": "husky",
+    "commitlint": "commitlint",
+    "lint-staged": "lint-staged"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
+    "prettier": "^3.5.0"
+  }
+}

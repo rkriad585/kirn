@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# husky v9 commit-msg: validate against .\commitlint.config.cjs.
+# Falls through silently when commitlint isn't installed (see pre-commit).
+[ -x "$(command -v npx)" ] || exit 0
+[ -f commitlint.config.cjs ] || exit 0
+npx --no-install commitlint --edit "$1" 2>/dev/null || npx commitlint --edit "$1"

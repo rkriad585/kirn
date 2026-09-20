@@ -1,0 +1,5 @@
+{
+  "*.co": "!co (handled by the compiler harness, not prettier; see .prettierignore)",
+  "*.{md,yml,yaml,json,jsonc}": "prettier --write",
+  "*.{ps1,bat,c,h,cpp,hpp,ebnf}": "echo SKIP prettier-only subset"
+}

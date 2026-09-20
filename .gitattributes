@@ -1,7 +1,10 @@
-# Normalize line endings: files are stored as LF in the repo; checkouts use
-# the platform default (CRLF on Windows via core.autocrlf). This keeps diffs
-# clean and avoids "LF will be replaced by CRLF" noise from git.
-* text=auto
+# Line endings are fully declared: EVERY text file is stored and checked out as
+# LF (including .ps1/.bat - PowerShell and cmd both handle LF fine). To make sure
+# git never auto-converts (and never warns "LF/CRLF will be replaced"), disable
+# core.autocrlf for this repo:  git config core.autocrlf false
+# The working tree then always matches the index, and there are no CRLF churn
+# warnings on add/commit.
+* text=auto eol=lf
 
 *.co    text eol=lf
 *.c     text eol=lf
@@ -10,10 +13,9 @@
 *.hpp   text eol=lf
 *.md    text eol=lf
 *.txt   text eol=lf
+*.log   text eol=lf
 *.toml  text eol=lf
 *.ebnf  text eol=lf
-*.ps1   text eol=crlf
-*.bat   text eol=crlf
 
 # Binary / never-normalized
 *.exe   binary

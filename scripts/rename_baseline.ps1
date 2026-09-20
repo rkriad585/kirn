@@ -53,6 +53,20 @@ $Runtime = Pick-Exe 'cocorun' $RuntimeExe
 $Check   = Pick-Exe 'cococheck' $CheckExe
 $Driver  = Pick-Exe 'coco' $DriverExe
 
+# Write LF-only UTF-8 (no BOM). Transcripts are tracked as LF (.gitattributes
+# *.log/*.txt eol=lf) and core.autocrlf is off, so regenerating a baseline must
+# not leave CRLF files behind (which git would flag as modified).
+function Write-Lf {
+    param([string]$Path, [string[]]$Lines, [switch]$Append)
+    $text = ($Lines -join "`n") + "`n"
+    $enc = [System.Text.UTF8Encoding]::new($false)
+    if ($Append -and (Test-Path -LiteralPath $Path)) {
+        [IO.File]::AppendAllText($Path, $text, $enc)
+    } else {
+        [IO.File]::WriteAllText($Path, $text, $enc)
+    }
+}
+
 function Invoke-And-Tee {
     param([string]$Name, [string]$LogName, [string]$ScriptPath, [string[]]$ScriptArgs = @())
     $logPath = Join-Path $OutDir $LogName
@@ -72,13 +86,18 @@ function Invoke-And-Tee {
         $exitCode = $psi.ExitCode
     } catch {
         $capturedErr += "HARNESS THREW: $_"
-        if (-not (Test-Path -LiteralPath $logPath)) {
-            $capturedErr | Set-Content -LiteralPath $logPath -Encoding utf8
-        } else {
-            Add-Content -LiteralPath $logPath -Value $capturedErr -Encoding utf8
-        }
+        Write-Lf -Path $logPath -Lines $capturedErr -Append
     }
     $sw.Stop()
+    # Normalize transcripts to LF so regenerated baselines never dirty the tree.
+    foreach ($p in @($logPath, $errPath)) {
+        if (Test-Path -LiteralPath $p) {
+            $t = [IO.File]::ReadAllText($p)
+            if ($t.Contains("`r`n")) {
+                [IO.File]::WriteAllText($p, ($t -replace "`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+            }
+        }
+    }
     $output = @()
     if (Test-Path -LiteralPath $logPath) { $output += Get-Content -LiteralPath $logPath }
     if (Test-Path -LiteralPath $errPath) {
@@ -110,7 +129,7 @@ $meta += "runtime   : $Runtime"
 $meta += "check     : $Check"
 $meta += "driver    : $Driver"
 $meta += "cl        : " + (((where.exe cl 2>$null) | Select-Object -First 1))
-$meta | Set-Content -LiteralPath (Join-Path $OutDir '00-metadata.txt') -Encoding utf8
+$meta | Write-Lf (Join-Path $OutDir '00-metadata.txt')
 
 # --- 2. build ------------------------------------------------------------------
 Write-Output '==> Building (cmake -S . -B build; cmake --build build --config Debug)'
@@ -120,7 +139,7 @@ $buildOut += (& cmake -S $Root -B (Join-Path $Root 'build') 2>&1 | ForEach-Objec
 $buildOut += '--- cmake --build build --config Debug ---'
 $buildOut += (& cmake --build (Join-Path $Root 'build') --config Debug 2>&1 | ForEach-Object { "$_" })
 $buildCode = $LASTEXITCODE
-$buildOut | Set-Content -LiteralPath $buildLog -Encoding utf8
+$buildOut | Write-Lf $buildLog
 Write-Output ("   build exit={0}  -> 01-build.log" -f $buildCode)
 if ($buildCode -ne 0) {
     Write-Output 'baseline build FAILED; recording transcript and exiting 1'
@@ -161,7 +180,7 @@ foreach ($g in $gates) {
 }
 $lines += '---'
 $lines += ("baseline {0}: {1}/{2} gates passed" -f $(if ($bad) { 'FAILED' } else { 'OK' }), ($gates.Count - $bad.Count), $gates.Count)
-$lines | Set-Content -LiteralPath (Join-Path $OutDir 'SUMMARY.txt') -Encoding utf8
+$lines | Write-Lf (Join-Path $OutDir 'SUMMARY.txt')
 Write-Output '==> baseline summary:'
 $lines | ForEach-Object { Write-Output ("   " + $_) }
 Write-Output "==> transcripts under $OutDir"

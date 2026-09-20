@@ -20,3 +20,6 @@ __pycache__/
 
 /.opencode/
 
+# baseline stderr transcripts (empty when gates pass; regenerated every run)
+_rename/baseline/*.err
+

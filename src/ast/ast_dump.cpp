@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-namespace coco {
+namespace kirn {
 namespace ast {
 namespace {
 
@@ -650,4 +650,4 @@ void dump(const Stmt& s, int d) {
 }
 
 } // namespace ast
-} // namespace coco
+} // namespace kirn

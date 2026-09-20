@@ -1,6 +1,6 @@
-# Coco Docs (`docs/`)
+# Kirn Docs (`docs/`)
 
-Design and engineering documentation for the Coco language.
+Design and engineering documentation for the Kirn language.
 
 | Document | Description |
 |----------|-------------|

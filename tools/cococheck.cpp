@@ -1,4 +1,4 @@
-// cococheck: lex + parse + semantic analysis for a Coco source file.
+// cococheck: lex + parse + semantic analysis for a Kirn source file.
 //   cococheck <file>        check; print "OK" or diagnostics, exit 0/1
 #include "lex/lexer.h"
 #include "parser/parser.h"
@@ -50,23 +50,23 @@ int main(int argc, char** argv) {
     std::string src;
     if (!readFile(file, src)) return 2;
 
-    coco::DiagEngine diags;
-    auto toks = coco::Lexer(src, file, diags).lexAll();
+    kirn::DiagEngine diags;
+    auto toks = kirn::Lexer(src, file, diags).lexAll();
 
     size_t front = diags.count();
     if (front == 0) {
-        auto prog = coco::Parser(toks, diags).parseProgram();
+        auto prog = kirn::Parser(toks, diags).parseProgram();
         front = diags.count();
         if (front == 0) {
-            coco::sema::Checker checker(diags);
+            kirn::sema::Checker checker(diags);
             checker.checkModule(prog);
         }
     }
 
     if (diags.count()) {
-        coco::SourceMap sm(src);
+        kirn::SourceMap sm(src);
         std::string out;
-        coco::renderDiags(file, sm, diags.diags(), color, plain, out);
+        kirn::renderDiags(file, sm, diags.diags(), color, plain, out);
         std::cout << out;
         std::cout << file << ": " << diags.errorCount() << " error(s)";
         if (diags.warningCount()) std::cout << ", " << diags.warningCount() << " warning(s)";

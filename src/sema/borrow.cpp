@@ -2,7 +2,7 @@
 #include <set>
 #include <string>
 
-namespace coco {
+namespace kirn {
 namespace sema {
 
 // ---- helpers ---------------------------------------------------------------
@@ -217,4 +217,4 @@ void BorrowChecker::checkModule(const std::vector<ast::StmtP>& prog) {
 }
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

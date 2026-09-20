@@ -1,9 +1,9 @@
-# Coco — Feature Gap Analysis vs Go & Rust
+# Kirn — Feature Gap Analysis vs Go & Rust
 
-**Status:** Living document · last updated with `coco build` single-file mode, brace-syntax
+**Status:** Living document · last updated with `kirn build` single-file mode, brace-syntax
 migration (v1), pattern aliases, or-patterns, and labeled loops.
 
-This document compares Coco against the reference language implementations in
+This document compares Kirn against the reference language implementations in
 `C:\Users\rkriad585\Projects\go-rust-source-code` (`go-master`, `rust-main`) and records
 what has been adopted, what is deliberately deferred, and a prioritized roadmap.
 
@@ -22,14 +22,14 @@ Both reference trees were surveyed at the compiler level:
 | Bounds/moves | escape analysis `cmd/compile/internal/escape` | `compiler/rustc_borrowck/src/*` (NLL) |
 | Backend | SSA `cmd/compile/internal/ssa` | LLVM/Cranelift/GCC |
 
-Coco's pipeline is a single-pass recursive-descent parser + AST + type checker
+Kirn's pipeline is a single-pass recursive-descent parser + AST + type checker
 (`src/parser`, `src/sema`) feeding a tree-walking interpreter (`src/interp`) that is
 also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
-`coco build file.co`).
+`kirn build file.co`).
 
 ---
 
-## 2. What Coco Already Has (mirrors Go/Rust)
+## 2. What Kirn Already Has (mirrors Go/Rust)
 
 ### Syntax / structure
 - `{ }` blocks, `;` statement terminators — C/Go/Rust style, layout-free.
@@ -39,7 +39,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 - `struct`/`enum`/`trait`/`impl` — full nominal type system (Rust-like).
 - Type parameters `[T is Bound]` on functions/structs/enums/traits.
 - `match` with guards, exhaustiveness-aware arm checking.
-- `import`/`from ... import` package system + `coco install` registry/ecosystem.
+- `import`/`from ... import` package system + `kirn install` registry/ecosystem.
 - Visibility `pub`; modules (`code/`, `text/slug`, `json`, `math`, `time`, ...).
 - Ownership-lite: `&` borrow, `*` deref, `weak` references, value semantics.
 - Concurrency: `spawn`, `chan`, `select` (Go's goroutine/channel/select trio).
@@ -61,7 +61,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 
 ### 3.1 Expression & statement level
 
-| Feature | Go | Rust | Coco | Priority |
+| Feature | Go | Rust | Kirn | Priority |
 |---|---|---|---|---|
 | `?:`-style conditional expressions | ✗ (if is stmt) | `if/else` expr | ✅ Rust-form `if c { a } else { b }` | done |
 | Ternary `a ? b : c` | ✗ | macro | ✗ (rejected §4.9) | low |
@@ -102,7 +102,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 Rust `PatKind`: `Wild, Ident, Struct, TupleStruct, Or, Path, Tuple, Box, Deref,
 Ref, Expr, Range, Slice, Rest, Never, Guard, Paren`.
 
-Coco now covers: Wild, Ident(bind), Ctor(struct/enum), Or, Tuple, Range,
+Kirn now covers: Wild, Ident(bind), Ctor(struct/enum), Or, Tuple, Range,
 Literal(expr-path), Guard(always via `if`), Paren(group). Remaining gaps:
 
 - **Slice patterns** `[a, b, ..rest]` — for `case [x, y]` destructuring lists.
@@ -117,12 +117,12 @@ associated const/type items, generic defaults, inference from context (bidirecti
 lifetime elision. Go's uniqueness: method sets as first-class interfaces, `iota`,
 struct embedding/promotion.
 
-Coco priorities (checked checker): default type-param values, `interface`-as-set
+Kirn priorities (checked checker): default type-param values, `interface`-as-set
 for trait bounds (Go constrains via method sets), `iota`-like enum discriminants.
 
 ### 3.4 Ownership / memory model
 
-Go: GC, no borrow checks. Rust: moves + NLL borrowck. Coco today: value semantics
+Go: GC, no borrow checks. Rust: moves + NLL borrowck. Kirn today: value semantics
 with `&`/`*` sugar in the interpreter; compile-time borrow/alias tracking is the
 largest missing piece and the biggest engineering effort (parallel to
 `rustc_borrowck`). Recommended: implement a conservative move/borrow pass over
@@ -130,9 +130,9 @@ the AST before native AOT emission.
 
 ### 3.5 Standard library roadmap
 
-Go `src/` stdlib groups and Coco status:
+Go `src/` stdlib groups and Kirn status:
 
-| Group | Examples | Coco | Priority |
+| Group | Examples | Kirn | Priority |
 |---|---|---|---|
 | text/format | `fmt`, `strings`, `strconv` | f-strings, `str` methods | done |
 | collections | `container/*`, `sort`, `slices`, `maps` | builtin list/dict/set, `.sort()` | high |
@@ -195,4 +195,4 @@ Go `src/` stdlib groups and Coco status:
 - Go grammar & pipeline: `go-master/doc/go_spec.html`, `go-master/src/go/ast/ast.go`
 - Rust AST enums: `rust-main/compiler/rustc_ast/src/ast.rs` (ItemKind, ExprKind,
   StmtKind, PatKind, TyKind, BinOpKind)
-- Coco normative grammar: `grammar/coco.ebnf`
+- Kirn normative grammar: `grammar/coco.ebnf`

@@ -1,7 +1,7 @@
-# Coco Standard Library (`stdlib/`)
+# Kirn Standard Library (`stdlib/`)
 
-The standard library ships with Coco and lives in `stdlib/lib/`. Each module is
-written in Coco (`.co`) and is accompanied by a matching `*_test.co` acceptance
+The standard library ships with Kirn and lives in `stdlib/lib/`. Each module is
+written in Kirn (`.co`) and is accompanied by a matching `*_test.co` acceptance
 suite.
 
 ## Modules
@@ -22,7 +22,7 @@ suite.
 
 ## Testing
 
-Each `*_test.co` runs under `coco test`. Add a new module by dropping
+Each `*_test.co` runs under `kirn test`. Add a new module by dropping
 `name.co` + `name_test.co` here and registering it in the build/tooling.
 
 ## Conventions

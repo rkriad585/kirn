@@ -1,4 +1,4 @@
-# Coco Tooling (`tools/`)
+# Kirn Tooling (`tools/`)
 
 Command-line tools and the project driver, built in C++ and linked against
 [`src/`](../src/).
@@ -7,11 +7,11 @@ Command-line tools and the project driver, built in C++ and linked against
 
 | Tool | Source | Purpose |
 |------|--------|---------|
-| `coco` | `coco.cpp` | Primary driver: `run`, `test`, `build`, `doc`, `install/add/update/remove/clone`, project/entry and module resolution |
+| `kirn` | `kirn.cpp` | Primary driver: `run`, `test`, `build`, `doc`, `install/add/update/remove/clone`, project/entry and module resolution |
 | `cococheck` | `cococheck.cpp` | Type-check / static analysis only |
 | `cocolex` | `cocolex.cpp` | Dump tokens (lexer oracle) |
 | `cocoparse` | `cocoparse.cpp` | Dump `--ast` (parser oracle) |
-| `cocorun` | `cocorun.cpp` | Run a Coco program directly |
+| `cocorun` | `cocorun.cpp` | Run a Kirn program directly |
 
 `tools/coco.cpp` also hosts the reusable project model used elsewhere in the
 repo: `frontEnd` (lex → parse → check), `resolveEntry`, `libDirsFor`,

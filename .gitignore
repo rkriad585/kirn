@@ -17,3 +17,6 @@ Gemfile.lock
 # Python bytecode - never track (regenerates every py_compile; tracked .pyc was committed debt from before this session)
 __pycache__/
 *.pyc
+
+/.opencode/
+

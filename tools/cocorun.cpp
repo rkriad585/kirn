@@ -1,4 +1,4 @@
-// cocorun: lex + parse + semantic-check + interpret a Coco source file.
+// cocorun: lex + parse + semantic-check + interpret a Kirn source file.
 //   cocorun <file.co> [args...]
 //                                 run program; main()'s Int return is the
 //                                 process exit code (default 0)
@@ -34,11 +34,11 @@ bool readFile(const std::string& path, std::string& out) {
 //   1. $COCO_LIBS
 //   2. <script dir>/coco_libs/libs  (per-project packages)
 //   3. <script dir>/coco_libs       (legacy layout)
-//   4. ~/.coco/coco-pkg/{libs,/}    (global installs; libs/ preferred)
+//   4. ~/.coco/kirn-pkg/{libs,/}    (global installs; libs/ preferred)
 //   5. <script dir>/../stdlib       (repo checkout layout)
 //   6. ./stdlib
 //   7. $COCO_STDLIB
-void addModuleDirs(coco::interp::Interpreter& interp,
+void addModuleDirs(kirn::interp::Interpreter& interp,
                    const std::string& script) {
     size_t p = script.find_last_of("/\\");
     std::string dir = p == std::string::npos ? "." : script.substr(0, p);
@@ -47,11 +47,11 @@ void addModuleDirs(coco::interp::Interpreter& interp,
     interp.addStdlibDir(dir + "/coco_libs/libs");
     interp.addStdlibDir(dir + "/coco_libs");
     if (const char* home = std::getenv("USERPROFILE")) {
-        std::string g = std::string(home) + "/.coco/coco-pkg";
+        std::string g = std::string(home) + "/.coco/kirn-pkg";
         interp.addStdlibDir(g + "/libs");
         interp.addStdlibDir(g);
     } else if (const char* home2 = std::getenv("HOME")) {
-        std::string g = std::string(home2) + "/.coco/coco-pkg";
+        std::string g = std::string(home2) + "/.coco/kirn-pkg";
         interp.addStdlibDir(g + "/libs");
         interp.addStdlibDir(g);
     }
@@ -70,35 +70,35 @@ static bool g_useVm = true;
 static int runSources(const std::string& label, const std::string& src,
                       const std::map<std::string, std::string>* embedded,
                       const std::vector<std::string>& progArgs) {
-    coco::DiagEngine diags;
-    auto toks = coco::Lexer(src, label, diags).lexAll();
+    kirn::DiagEngine diags;
+    auto toks = kirn::Lexer(src, label, diags).lexAll();
     int ret = 0;
     if (diags.errorCount() == 0) {
-        auto body = coco::Parser(toks, diags).parseProgram();
+        auto body = kirn::Parser(toks, diags).parseProgram();
         if (diags.errorCount() == 0) {
-            coco::sema::Checker checker(diags);
+            kirn::sema::Checker checker(diags);
             checker.checkModule(body);
             if (diags.errorCount() == 0) {
-                coco::ast::Stmt module;
-                module.kind = coco::ast::StKind::Pass;
+                kirn::ast::Stmt module;
+                module.kind = kirn::ast::StKind::Pass;
                 module.body = std::move(body);
                 try {
-                    coco::interp::Interpreter interp(module);
+                    kirn::interp::Interpreter interp(module);
                     addModuleDirs(interp, label);
                     if (embedded)
                         for (const auto& [name, esrc] : *embedded)
                             interp.addEmbeddedSource(name, esrc);
                     interp.setProgramArgs(progArgs);
                     if (g_useVm) interp.enableVm();   // PLAN Phase 4 bytecode VM
-                    coco::interp::Value r = interp.run();
-                    ret = r.k == coco::interp::VK::Int ? (int)r.i : 0;
-                } catch (const coco::interp::PanicSignal& p) {
+                    kirn::interp::Value r = interp.run();
+                    ret = r.k == kirn::interp::VK::Int ? (int)r.i : 0;
+                } catch (const kirn::interp::PanicSignal& p) {
                     fflush(stdout);
                     fputs(("panic: " + p.msg + "\n").c_str(), stderr);
                     for (const auto& f : p.frames)
                         fputs(("  " + f + "\n").c_str(), stderr);
                     ret = 70;
-                } catch (const coco::interp::SignalRaise&) {
+                } catch (const kirn::interp::SignalRaise&) {
                     fflush(stdout);
                     fputs("panic: uncaught raise escaped main\n", stderr);
                     ret = 70;
@@ -108,16 +108,16 @@ static int runSources(const std::string& label, const std::string& src,
     }
     if (diags.errorCount() != 0) {
         for (const auto& d : diags.diags())
-            if (d.sev == coco::Sev::Error || d.sev == coco::Sev::InternalError)
+            if (d.sev == kirn::Sev::Error || d.sev == kirn::Sev::InternalError)
                 std::cout << label << ":" << d.line << ":" << d.col
                           << ": error: " << d.message << "\n";
         std::cout << label << ": " << diags.errorCount() << " error(s)\n";
         return 1;
     }
     if (diags.warningCount()) {
-        coco::SourceMap sm(src);
+        kirn::SourceMap sm(src);
         std::string out;
-        coco::renderDiags(label, sm, diags.diags(), /*color*/ false,
+        kirn::renderDiags(label, sm, diags.diags(), /*color*/ false,
                           /*plain*/ false, out);
         std::cout << out;
     }

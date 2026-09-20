@@ -1,5 +1,5 @@
 #pragma once
-// Diagnostics for the Coco frontend + runtime (PLAN phase 1).
+// Diagnostics for the Kirn frontend + runtime (PLAN phase 1).
 //
 // Backward-compatible with the original minimal model:
 //   DiagEngine::report(line, col, msg)  ->  stores Diag{line,col,message}
@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 
 // A rectangular source region: 1-based line, 1-based column, inclusive end.
 struct SpanRange {
@@ -242,4 +242,4 @@ inline void renderDiags(const std::string& path, const SourceMap& src,
     }
 }
 
-} // namespace coco
+} // namespace kirn

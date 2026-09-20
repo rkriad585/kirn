@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace backend {
 
 using ast::ExKind;
@@ -54,7 +54,7 @@ static TyP declTy(const ast::TypeP& t) {
     return sema::unkTy();
 }
 
-// Sanitize a Coco identifier into a valid C identifier (locals prefixed v_).
+// Sanitize a Kirn identifier into a valid C identifier (locals prefixed v_).
 static std::string cIdent(const std::string& s, const char* pre) {
     std::string r = pre;
     for (char c : s) r += (isalnum((unsigned char)c) ? c : '_');
@@ -290,7 +290,7 @@ public:
         out_ << "#include <cmath>\n"
              << "namespace coco_native {\n"
              << "static inline void co_panic(const char* m){ "
-                "coco::interp::panicHere(m); }\n"
+                "kirn::interp::panicHere(m); }\n"
              << "static inline int64_t co_floordiv(int64_t a,int64_t b){"
                 " if(b==0)co_panic(\"division by zero\"); int64_t q=a/b;"
                 " if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }\n"
@@ -305,10 +305,10 @@ public:
                 " int64_t o=1; while(e>0){ if(e&1)o*=b; e>>=1; if(e)b*=b;}"
                 " return o; }\n"
              << "static inline int64_t co_shl(int64_t a,int64_t b){"
-                " if(b<0||b>=63)coco::interp::panicHere(\"shift\");"
+                " if(b<0||b>=63)kirn::interp::panicHere(\"shift\");"
                 " return (int64_t)((uint64_t)a<<b); }\n"
              << "static inline int64_t co_shr(int64_t a,int64_t b){"
-                " if(b<0||b>=63)coco::interp::panicHere(\"shift\");"
+                " if(b<0||b>=63)kirn::interp::panicHere(\"shift\");"
                 " return a>>b; }\n";
     }
 
@@ -619,14 +619,14 @@ void out_registerAll(
         return t == "int64_t" ? "integer" : t == "double" ? "floating"
                                                           : "boolean";
     };
-    out << "inline void coco_native_register(coco::interp::Interpreter& interp,"
-           " const std::vector<coco::ast::StmtP>& prog) {\n";
+    out << "inline void coco_native_register(kirn::interp::Interpreter& interp,"
+           " const std::vector<kirn::ast::StmtP>& prog) {\n";
     for (auto& [fn, nf] : lowered) {
         out << "    for (const auto& d : prog) if (d->kind == "
-               "coco::ast::StKind::FuncDef && d->name == \""
+               "kirn::ast::StKind::FuncDef && d->name == \""
             << nf.name
             << "\") { interp.enableNative(); interp.registerNative(d.get(), "
-               "[&interp](coco::interp::Env e) -> coco::interp::Value {\n";
+               "[&interp](kirn::interp::Env e) -> kirn::interp::Value {\n";
         // read scalar params out of the caller's Env
         for (size_t i = 0; i < nf.params.size(); ++i) {
             std::string v = "v_";
@@ -645,9 +645,9 @@ void out_registerAll(
         }
         call += ")";
         if (nf.retCpp.empty())
-            out << "        " << call << "; return coco::interp::Value::none();\n";
+            out << "        " << call << "; return kirn::interp::Value::none();\n";
         else
-            out << "        return coco::interp::Value::" << valueCtor(nf.retCpp)
+            out << "        return kirn::interp::Value::" << valueCtor(nf.retCpp)
                 << "(" << call << ");\n";
         out << "    }); }\n";
     }
@@ -655,4 +655,4 @@ void out_registerAll(
 }
 
 } // namespace backend
-} // namespace coco
+} // namespace kirn

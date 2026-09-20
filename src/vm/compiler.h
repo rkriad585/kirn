@@ -7,7 +7,7 @@
 #include "ast/ast.h"
 #include "vm/bytecode.h"
 
-namespace coco {
+namespace kirn {
 namespace vm {
 
 // Compile result: the program's functions plus, for each compiled `def`
@@ -37,4 +37,4 @@ CompileResult compileProgram(const std::vector<ast::StmtP>& body,
                              const std::unordered_set<std::string>& modules);
 
 } // namespace vm
-} // namespace coco
+} // namespace kirn

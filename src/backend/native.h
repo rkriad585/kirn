@@ -1,5 +1,5 @@
 #pragma once
-// Native code generation for Coco (PLAN Phase 8.2).
+// Native code generation for Kirn (PLAN Phase 8.2).
 //
 // The bytecode VM (Phase 4) and the tree-walking interpreter both evaluate a
 // dynamically-boxed `Value` at runtime. A real "faster like C/C++" path lowers
@@ -16,7 +16,7 @@
 // else is left to the interpreter/VM — the runtime preference is native -> VM ->
 // tree-walker, so non-lowerable code keeps exact existing behaviour.
 //
-// The emitted C++ is appended to the standalone launcher in `coco build
+// The emitted C++ is appended to the standalone launcher in `kirn build
 // --native` and compiled by the resolved toolchain. Functions read their scalar
 // parameters from the received `interp::Env` and return a scalar `interp::Value`.
 #include "ast/ast.h"
@@ -27,12 +27,12 @@
 #include <string>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace backend {
 
 struct NativeFunc {
     const ast::Stmt* fn = nullptr;   // the lowered FuncDef
-    std::string name;                // Coco function name
+    std::string name;                // Kirn function name
     std::string cName;               // emitted C++ function name
     std::vector<std::string> params; // scalar parameter names, in order
     std::vector<std::string> pTypes; // cpp types of params ("int64_t"/"double"/...)
@@ -56,4 +56,4 @@ NativeProgram emitNative(std::ostream& out,
 bool isScalarTy(const sema::TyP& t);
 
 } // namespace backend
-} // namespace coco
+} // namespace kirn

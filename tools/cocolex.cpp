@@ -1,4 +1,4 @@
-// cocolex — Coco lexer test driver.
+// cocolex — Kirn lexer test driver.
 //   cocolex <path>...            lex each file/dir (recursively collects *.co)
 //   cocolex --dump <file.co>     print token stream for one file
 #include "lex/lexer.h"
@@ -61,13 +61,13 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        coco::DiagEngine diags;
-        coco::Lexer lexer(src, f.string(), diags);
-        std::vector<coco::Token> toks = lexer.lexAll();
+        kirn::DiagEngine diags;
+        kirn::Lexer lexer(src, f.string(), diags);
+        std::vector<kirn::Token> toks = lexer.lexAll();
 
         if (dump && files.size() == 1) {
             for (const auto& t : toks)
-                std::cout << coco::tokName(t.kind) << '\t' << t.line << ':'
+                std::cout << kirn::tokName(t.kind) << '\t' << t.line << ':'
                           << t.col << '\t' << t.text << '\n';
         }
 

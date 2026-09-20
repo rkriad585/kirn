@@ -1,5 +1,5 @@
 #pragma once
-// Recursive-descent parser for Coco (grammar/coco.ebnf §3).
+// Recursive-descent parser for Kirn (grammar/coco.ebnf §3).
 #include "ast/ast.h"
 #include "support/diag.h"
 #include "lex/token.h"
@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 
 class Parser {
 public:
@@ -104,4 +104,4 @@ private:
     std::vector<ast::StmtP> extraTopStmts_;
 };
 
-} // namespace coco
+} // namespace kirn

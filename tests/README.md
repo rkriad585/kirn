@@ -1,4 +1,4 @@
-# Coco Tests (`tests/`)
+# Kirn Tests (`tests/`)
 
 The acceptance suites that validate the compiler against the normative grammar
 and expected semantics.

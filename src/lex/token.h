@@ -1,10 +1,10 @@
 #pragma once
-// Token model for the Coco lexer (grammar/coco.ebnf §1).
+// Token model for the Kirn lexer (grammar/coco.ebnf §1).
 #include <cstdint>
 #include <string>
 #include <string_view>
 
-namespace coco {
+namespace kirn {
 
 enum class Tok : uint8_t {
     Eof,
@@ -49,4 +49,4 @@ struct Token {
 // against this by the parser; the lexer deliberately emits plain Ident.
 bool isKeyword(std::string_view ident);
 
-} // namespace coco
+} // namespace kirn

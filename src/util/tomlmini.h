@@ -1,5 +1,5 @@
 // Minimal TOML-subset reader shared by the interpreter's module loader and
-// the coco CLI. Supports exactly what manifests and lockfiles need:
+// the kirn CLI. Supports exactly what manifests and lockfiles need:
 //   # comments
 //   [section.sub]            scalar keys under dotted sections
 //   [[array]]                arrays of tables (kept in order)
@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace tomlmini {
 
 struct Entry {
@@ -163,4 +163,4 @@ dependencies(const Doc& d) {
 }
 
 } // namespace tomlmini
-} // namespace coco
+} // namespace kirn

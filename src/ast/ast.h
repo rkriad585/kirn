@@ -1,11 +1,11 @@
 #pragma once
-// Abstract Syntax Tree for Coco (grammar/coco.ebnf §3).
+// Abstract Syntax Tree for Kirn (grammar/coco.ebnf §3).
 // Ownership: unique_ptr everywhere (plan §11.2); arenas arrive with MIR.
 #include <memory>
 #include <string>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace ast {
 
 struct Expr;
@@ -304,4 +304,4 @@ struct Stmt {
 void dump(const Stmt& s, int indent = 0);
 
 } // namespace ast
-} // namespace coco
+} // namespace kirn

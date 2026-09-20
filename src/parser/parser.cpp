@@ -1,6 +1,6 @@
 #include "parser/parser.h"
 
-namespace coco {
+namespace kirn {
 
 Parser::Parser(const std::vector<Token>& toks, DiagEngine& diags)
     : diags_(diags), toks_(toks) {}
@@ -473,7 +473,7 @@ ast::StmtP Parser::parseClassDef(bool pub) {
         if (atIdent("extends")) {
             diags_.report(cur().line, cur().col,
                           s->baseName +
-                              " already extends a base; Coco supports single "
+                              " already extends a base; Kirn supports single "
                               "inheritance (one base) plus structural "
                               "'implements' interfaces");
             throw Abort("extendsmulti");
@@ -2189,4 +2189,4 @@ ast::ExprP Parser::parsePrimary() {
     throw Abort("primary");
 }
 
-} // namespace coco
+} // namespace kirn

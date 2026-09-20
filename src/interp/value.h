@@ -1,5 +1,5 @@
 #pragma once
-// Runtime value model for the Coco tree-walking interpreter (plan §10.4).
+// Runtime value model for the Kirn tree-walking interpreter (plan §10.4).
 //
 // Copy semantics encode language semantics directly:
 //   - Struct instances are copied by value on assignment (plan §6.1).
@@ -17,7 +17,7 @@
 
 #include "ast/ast.h"
 
-namespace coco {
+namespace kirn {
 namespace interp {
 
 struct Value;
@@ -164,4 +164,4 @@ std::string toStr(const Value& v);
 bool truthy(const Value& v);
 
 } // namespace interp
-} // namespace coco
+} // namespace kirn

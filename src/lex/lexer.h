@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 
 enum class FsMode : uint8_t { None, Text, Expr };
 
@@ -73,4 +73,4 @@ private:
     bool eofDone_ = false;
 };
 
-} // namespace coco
+} // namespace kirn

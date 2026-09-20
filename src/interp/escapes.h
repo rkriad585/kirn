@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <string>
 
-namespace coco {
+namespace kirn {
 
 // Decodes lexer escape sequences (\n \t \r \\ \' \" \0 \xHH \u{HEX}).
 inline std::string decodeEscapes(const std::string& in) {
@@ -69,4 +69,4 @@ inline char32_t decodeCharText(const std::string& in) {
     return b0;
 }
 
-} // namespace coco
+} // namespace kirn

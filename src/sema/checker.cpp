@@ -1,11 +1,11 @@
-// Semantic analysis for Coco v1. See checker.h for the design overview.
+// Semantic analysis for Kirn v1. See checker.h for the design overview.
 #include "sema/checker.h"
 #include "sema/borrow.h"
 
-namespace coco {
+namespace kirn {
 namespace sema {
 
-using namespace coco::ast;
+using namespace kirn::ast;
 
 // ============================ type utilities ================================
 
@@ -3275,4 +3275,4 @@ TyP Checker::checkCall(const ast::Expr& e) {
 }
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

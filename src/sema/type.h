@@ -1,12 +1,12 @@
 #pragma once
-// Resolved (semantic) types for Coco sema.
+// Resolved (semantic) types for Kirn sema.
 // Structural value type with shared_ptr indirection; Ty::None is the unit type.
 // Error/Unknown are "poison"/"dynamic" markers that suppress cascading reports.
 #include <memory>
 #include <string>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace sema {
 
 enum class TyK {
@@ -115,4 +115,4 @@ bool equal(const TyP& a, const TyP& b);
 std::string toString(const Ty& t);
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

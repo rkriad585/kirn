@@ -1,5 +1,5 @@
 #pragma once
-// Symbols & lexical scopes for Coco sema.
+// Symbols & lexical scopes for Kirn sema.
 #include "sema/type.h"
 
 #include <map>
@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 
 namespace ast { struct Stmt; }   // forward decl for Symbol::importStmt
 
@@ -118,4 +118,4 @@ struct Scoped {
 };
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

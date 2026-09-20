@@ -1,6 +1,6 @@
-# Coco Compiler Source (`src/`)
+# Kirn Compiler Source (`src/`)
 
-This is the C++20 implementation of the Coco compiler and runtime. The pipeline
+This is the C++20 implementation of the Kirn compiler and runtime. The pipeline
 is a classic **lexer → parser → semantic analysis → VM/interpreter → native
 backend**, with each stage in its own subdirectory and linked into the CLI
 tools in [`tools/`](../tools/).
@@ -25,7 +25,7 @@ tools in [`tools/`](../tools/).
 ## Conventions
 
 - New files must fit the existing include/style habits (headers + `.cpp`
-  pairs, `coco::` namespaces matching directory names).
+  pairs, `kirn::` namespaces matching directory names).
 - Every change to parsing/semantics should be validated against the example
   corpus (`examples/*.co`) and the negative test suite (`tests/negative/*.co`)
   — see [`../scripts/`](../scripts/) harnesses.

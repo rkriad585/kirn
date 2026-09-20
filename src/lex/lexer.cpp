@@ -2,7 +2,7 @@
 
 #include <cctype>
 
-namespace coco {
+namespace kirn {
 
 // ---------------------------------------------------------------------------
 // Token helpers
@@ -713,4 +713,4 @@ Token Lexer::scanOperator() {
     return t;
 }
 
-} // namespace coco
+} // namespace kirn

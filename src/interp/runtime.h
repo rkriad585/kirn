@@ -17,7 +17,7 @@
 #include "interp/value.h"
 #include "vm/compiler.h"
 
-namespace coco {
+namespace kirn {
 
 namespace interp {
 
@@ -238,4 +238,4 @@ public:
 };
 
 } // namespace interp
-} // namespace coco
+} // namespace kirn

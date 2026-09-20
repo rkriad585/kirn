@@ -20,11 +20,11 @@
 #include <iostream>
 #include <sstream>
 
-namespace coco {
+namespace kirn {
 namespace interp {
 
-namespace vm = coco::vm;
-using namespace coco::vm;
+namespace vm = kirn::vm;
+using namespace kirn::vm;
 
 using ast::CallArg;
 using ast::Expr;
@@ -1131,8 +1131,8 @@ static bool readFileIfExists(const std::string& path, std::string& out) {
 static bool resolvePackageEntry(const std::string& dir, std::string& out) {
     std::string manifest;
     if (readFileIfExists(dir + "/coco.toml", manifest)) {
-        coco::tomlmini::Doc doc = coco::tomlmini::parse(manifest);
-        std::string mainf = coco::tomlmini::get(doc, "package", "main");
+        kirn::tomlmini::Doc doc = kirn::tomlmini::parse(manifest);
+        std::string mainf = kirn::tomlmini::get(doc, "package", "main");
         std::string probe;
         if (!mainf.empty() &&
             readFileIfExists(dir + "/" + mainf, probe)) {
@@ -5413,4 +5413,4 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
 }
 
 } // namespace interp
-} // namespace coco
+} // namespace kirn

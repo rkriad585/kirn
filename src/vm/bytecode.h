@@ -1,5 +1,5 @@
 #pragma once
-// Bytecode VM for Coco (PLAN Phase 4) — core vertical slice.
+// Bytecode VM for Kirn (PLAN Phase 4) — core vertical slice.
 //
 // Design (per PLAN.md §4.3): the tree-walking interpreter stays the
 // authoritative correctness model. This compiler lowers the AST to a linear
@@ -21,7 +21,7 @@
 #include "ast/ast.h"
 #include "interp/value.h"
 
-namespace coco {
+namespace kirn {
 namespace vm {
 
 using interp::Value;
@@ -151,4 +151,4 @@ struct VmProgram {
 };
 
 } // namespace vm
-} // namespace coco
+} // namespace kirn

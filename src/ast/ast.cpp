@@ -1,6 +1,6 @@
 #include "ast/ast.h"
 
-namespace coco {
+namespace kirn {
 namespace ast {
 
 TypeP Type::makeName(std::string n, Span s, std::vector<TypeP> gens) {
@@ -55,4 +55,4 @@ TypeP Type::makeTuple(std::vector<TypeP> ts, Span s) {
 }
 
 } // namespace ast
-} // namespace coco
+} // namespace kirn

@@ -13,7 +13,7 @@
 #include <set>
 #include <string>
 
-namespace coco {
+namespace kirn {
 namespace sema {
 
 class BorrowChecker {
@@ -26,4 +26,4 @@ private:
 };
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

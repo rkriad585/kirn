@@ -1,20 +1,20 @@
-// coco — driver CLI for the Coco language.
+// kirn — driver CLI for the Kirn language.
 //
-//   coco new <name>              scaffold an application project
-//   coco new lib <name>          scaffold a library package
-//   coco run [dir|file]          run a program or project
-//   coco test [dir|file...]      run *_test.co files
-//   coco install|i [-g] <pkg>    install into ./coco_libs or ~/.coco/coco-pkg
-//   coco update [name]           refresh installed dependencies
-//   coco remove <name>           uninstall a dependency
-//   coco build                   compile project -> standalone build/<name>.exe
-//   coco build lib               check + pack library -> build/<n>-<v>.cocolib
-//   coco doc <lib|dir> [--port]  generate API docs + serve markdown viewer
-//   coco list                    show installed libraries
+//   kirn new <name>              scaffold an application project
+//   kirn new lib <name>          scaffold a library package
+//   kirn run [dir|file]          run a program or project
+//   kirn test [dir|file...]      run *_test.co files
+//   kirn install|i [-g] <pkg>    install into ./coco_libs or ~/.coco/kirn-pkg
+//   kirn update [name]           refresh installed dependencies
+//   kirn remove <name>           uninstall a dependency
+//   kirn build                   compile project -> standalone build/<name>.exe
+//   kirn build lib               check + pack library -> build/<n>-<v>.cocolib
+//   kirn doc <lib|dir> [--port]  generate API docs + serve markdown viewer
+//   kirn list                    show installed libraries
 //
-// Projects are Rust-style but with Coco's own folder names:
+// Projects are Rust-style but with Kirn's own folder names:
 //   coco.toml | code/ | tests/ | docs/ | coco_libs/ | build/
-// Packages installed globally live in ~/.coco/coco-pkg (binaries in bin/).
+// Packages installed globally live in ~/.coco/kirn-pkg (binaries in bin/).
 #include "ast/ast.h"
 #include "interp/runtime.h"
 #include "lex/lexer.h"
@@ -53,7 +53,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-using coco::tomlmini::Doc;
+using kirn::tomlmini::Doc;
 using Deps = std::map<std::string, std::map<std::string, std::string>>;
 
 bool readFile(const std::string& path, std::string& out) {
@@ -119,22 +119,22 @@ Manifest readManifest(const fs::path& dir) {
     Manifest m;
     std::string text;
     if (!readFile((dir / "coco.toml").string(), text)) return m;
-    Doc d = coco::tomlmini::parse(text);
-    m.name = coco::tomlmini::get(d, "package", "name");
-    m.version = coco::tomlmini::get(d, "package", "version", "0.0.1-beta");
-    m.type = coco::tomlmini::get(d, "package", "type", "app");
-    m.main = coco::tomlmini::get(d, "package", "main");
-    m.docs = coco::tomlmini::get(d, "package", "docs", "docs/index.md");
-    m.description = coco::tomlmini::get(d, "package", "description");
-    m.license = coco::tomlmini::get(d, "package", "license");
-    m.author = coco::tomlmini::get(d, "package", "author");
-    m.repo = coco::tomlmini::get(d, "package", "repo");
-    m.readme = coco::tomlmini::get(d, "package", "readme", "README.md");
-    m.homepage = coco::tomlmini::get(d, "package", "homepage");
-    m.gitignore = coco::tomlmini::get(d, "git", "gitignore", "true") != "false";
-    m.gitkeep = coco::tomlmini::get(d, "git", "gitkeep", "false") == "true";
+    Doc d = kirn::tomlmini::parse(text);
+    m.name = kirn::tomlmini::get(d, "package", "name");
+    m.version = kirn::tomlmini::get(d, "package", "version", "0.0.1-beta");
+    m.type = kirn::tomlmini::get(d, "package", "type", "app");
+    m.main = kirn::tomlmini::get(d, "package", "main");
+    m.docs = kirn::tomlmini::get(d, "package", "docs", "docs/index.md");
+    m.description = kirn::tomlmini::get(d, "package", "description");
+    m.license = kirn::tomlmini::get(d, "package", "license");
+    m.author = kirn::tomlmini::get(d, "package", "author");
+    m.repo = kirn::tomlmini::get(d, "package", "repo");
+    m.readme = kirn::tomlmini::get(d, "package", "readme", "README.md");
+    m.homepage = kirn::tomlmini::get(d, "package", "homepage");
+    m.gitignore = kirn::tomlmini::get(d, "git", "gitignore", "true") != "false";
+    m.gitkeep = kirn::tomlmini::get(d, "git", "gitkeep", "false") == "true";
     {
-        std::string extra = coco::tomlmini::get(d, "git", "ignore", "");
+        std::string extra = kirn::tomlmini::get(d, "git", "ignore", "");
         size_t a = extra.find('[');
         size_t b = extra.rfind(']');
         if (a != std::string::npos && b != std::string::npos) {
@@ -142,10 +142,10 @@ Manifest readManifest(const fs::path& dir) {
             bool q = false;
             for (char c : body) {
                 if (c == '"') q = !q;
-                if (c == ',' && !q) { m.gitIgnoreExtra.push_back(coco::tomlmini::strip(cur)); cur.clear(); }
+                if (c == ',' && !q) { m.gitIgnoreExtra.push_back(kirn::tomlmini::strip(cur)); cur.clear(); }
                 else cur += c;
             }
-            m.gitIgnoreExtra.push_back(coco::tomlmini::strip(cur));
+            m.gitIgnoreExtra.push_back(kirn::tomlmini::strip(cur));
         }
     }
     for (const auto& [k, v] : d.kv) {
@@ -169,7 +169,7 @@ Manifest readManifest(const fs::path& dir) {
             }
             items.push_back(cur);
             for (auto& it : items) {
-                std::string s = coco::tomlmini::strip(it);
+                std::string s = kirn::tomlmini::strip(it);
                 if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
                     s = s.substr(1, s.size() - 2);
                 if (!s.empty())
@@ -180,9 +180,9 @@ Manifest readManifest(const fs::path& dir) {
             }
         }
     }
-    for (const auto& [name, spec] : coco::tomlmini::dependencies(d)) {
+    for (const auto& [name, spec] : kirn::tomlmini::dependencies(d)) {
         Deps::mapped_type e;
-        for (const auto& [ik, iv] : spec) e[ik] = coco::tomlmini::unquote(iv);
+        for (const auto& [ik, iv] : spec) e[ik] = kirn::tomlmini::unquote(iv);
         m.deps[name] = e;
     }
     return m;
@@ -192,30 +192,30 @@ std::string tomlArray(const std::vector<std::string>& v) {
     if (v.empty()) return "[]";
     std::string o = "[";
     for (size_t i = 0; i < v.size(); ++i)
-        o += (i ? ", " : "") + coco::tomlmini::quote(v[i]);
+        o += (i ? ", " : "") + kirn::tomlmini::quote(v[i]);
     return o + "]";
 }
 
 void writeManifest(const fs::path& dir, const Manifest& m) {
     std::ostringstream o;
     o << "[package]\n";
-    o << "name = " << coco::tomlmini::quote(m.name) << "\n";
-    o << "version = " << coco::tomlmini::quote(m.version) << "\n";
-    o << "type = " << coco::tomlmini::quote(m.type) << "\n";
-    if (!m.main.empty()) o << "main = " << coco::tomlmini::quote(m.main) << "\n";
-    if (!m.docs.empty()) o << "docs = " << coco::tomlmini::quote(m.docs) << "\n";
+    o << "name = " << kirn::tomlmini::quote(m.name) << "\n";
+    o << "version = " << kirn::tomlmini::quote(m.version) << "\n";
+    o << "type = " << kirn::tomlmini::quote(m.type) << "\n";
+    if (!m.main.empty()) o << "main = " << kirn::tomlmini::quote(m.main) << "\n";
+    if (!m.docs.empty()) o << "docs = " << kirn::tomlmini::quote(m.docs) << "\n";
     if (!m.description.empty())
-        o << "description = " << coco::tomlmini::quote(m.description) << "\n";
+        o << "description = " << kirn::tomlmini::quote(m.description) << "\n";
     if (!m.license.empty())
-        o << "license = " << coco::tomlmini::quote(m.license) << "\n";
+        o << "license = " << kirn::tomlmini::quote(m.license) << "\n";
     if (!m.author.empty())
-        o << "author = " << coco::tomlmini::quote(m.author) << "\n";
+        o << "author = " << kirn::tomlmini::quote(m.author) << "\n";
     if (!m.authors.empty()) o << "authors = " << tomlArray(m.authors) << "\n";
-    if (!m.repo.empty()) o << "repo = " << coco::tomlmini::quote(m.repo) << "\n";
+    if (!m.repo.empty()) o << "repo = " << kirn::tomlmini::quote(m.repo) << "\n";
     if (!m.homepage.empty())
-        o << "homepage = " << coco::tomlmini::quote(m.homepage) << "\n";
+        o << "homepage = " << kirn::tomlmini::quote(m.homepage) << "\n";
     if (!m.readme.empty() && m.readme != "README.md")
-        o << "readme = " << coco::tomlmini::quote(m.readme) << "\n";
+        o << "readme = " << kirn::tomlmini::quote(m.readme) << "\n";
     if (!m.tags.empty()) o << "tags = " << tomlArray(m.tags) << "\n";
     if (!m.keywords.empty())
         o << "keywords = " << tomlArray(m.keywords) << "\n";
@@ -229,7 +229,7 @@ void writeManifest(const fs::path& dir, const Manifest& m) {
     o << "\n[dependencies]\n";
     for (const auto& [name, spec] : m.deps) {
         if (spec.size() == 1 && spec.count("version"))
-            o << name << " = " << coco::tomlmini::quote(spec.at("version"))
+            o << name << " = " << kirn::tomlmini::quote(spec.at("version"))
               << "\n";
         else {
             o << name << " = { ";
@@ -237,7 +237,7 @@ void writeManifest(const fs::path& dir, const Manifest& m) {
             for (const auto& [ik, iv] : spec) {
                 if (!first) o << ", ";
                 first = false;
-                o << ik << " = " << coco::tomlmini::quote(iv);
+                o << ik << " = " << kirn::tomlmini::quote(iv);
             }
             o << " }\n";
         }
@@ -257,13 +257,13 @@ std::vector<LockEntry> readLock(const fs::path& dir) {
     std::vector<LockEntry> out;
     std::string text;
     if (!readFile((dir / "coco.lock").string(), text)) return out;
-    Doc d = coco::tomlmini::parse(text);
+    Doc d = kirn::tomlmini::parse(text);
     for (const auto& t : d.tables) {
         if (t.name != "lock") continue;
         LockEntry e;
         auto g = [&](const char* k) {
             auto it = t.kv.find(k);
-            return it == t.kv.end() ? "" : coco::tomlmini::unquote(it->second);
+            return it == t.kv.end() ? "" : kirn::tomlmini::unquote(it->second);
         };
         e.name = g("name");
         e.source = g("source");
@@ -279,16 +279,16 @@ std::vector<LockEntry> readLock(const fs::path& dir) {
 
 void writeLock(const fs::path& dir, const std::vector<LockEntry>& locks) {
     std::ostringstream o;
-    o << "# coco.lock - generated by `coco install/update`. Commit this file.\n";
+    o << "# coco.lock - generated by `kirn install/update`. Commit this file.\n";
     for (const auto& e : locks) {
         o << "\n[[lock]]\n";
-        o << "name = " << coco::tomlmini::quote(e.name) << "\n";
-        o << "source = " << coco::tomlmini::quote(e.source) << "\n";
-        o << "url = " << coco::tomlmini::quote(e.url) << "\n";
-        o << "tag = " << coco::tomlmini::quote(e.tag) << "\n";
-        o << "commit = " << coco::tomlmini::quote(e.commit) << "\n";
-        o << "version = " << coco::tomlmini::quote(e.version) << "\n";
-        o << "installed = " << coco::tomlmini::quote(e.installed) << "\n";
+        o << "name = " << kirn::tomlmini::quote(e.name) << "\n";
+        o << "source = " << kirn::tomlmini::quote(e.source) << "\n";
+        o << "url = " << kirn::tomlmini::quote(e.url) << "\n";
+        o << "tag = " << kirn::tomlmini::quote(e.tag) << "\n";
+        o << "commit = " << kirn::tomlmini::quote(e.commit) << "\n";
+        o << "version = " << kirn::tomlmini::quote(e.version) << "\n";
+        o << "installed = " << kirn::tomlmini::quote(e.installed) << "\n";
     }
     writeFile(dir / "coco.lock", o.str());
 }
@@ -301,12 +301,12 @@ bool copyTree(const fs::path& from, const fs::path& to) {
     for (char& c : f) c = (char)tolower((unsigned char)c);
     for (char& c : t) c = (char)tolower((unsigned char)c);
     if (t.rfind(f + "/", 0) == 0 || t.rfind(f + "\\", 0) == 0 || t == f) {
-        std::cerr << "coco install: destination lies inside the source\n";
+        std::cerr << "kirn install: destination lies inside the source\n";
         return false;
     }
     fs::create_directories(to, ec);
     if (ec) {
-        std::cerr << "coco install: mkdir " << to.string() << ": "
+        std::cerr << "kirn install: mkdir " << to.string() << ": "
                   << ec.message() << "\n";
         return false;
     }
@@ -321,7 +321,7 @@ bool copyTree(const fs::path& from, const fs::path& to) {
             fs::copy_file(p, to / p.filename(), fs::copy_options::overwrite_existing,
                           ec);
             if (ec) {
-                std::cerr << "coco install: copy " << p.string() << ": "
+                std::cerr << "kirn install: copy " << p.string() << ": "
                           << ec.message() << "\n";
                 return false;
             }
@@ -350,7 +350,7 @@ std::string resolveEntry(const Manifest& m, const fs::path& dir) {
 std::string globalPkgDir() {
     const char* home = std::getenv("USERPROFILE");
     if (!home) home = std::getenv("HOME");
-    return home ? std::string(home) + "/.coco/coco-pkg" : "";
+    return home ? std::string(home) + "/.coco/kirn-pkg" : "";
 }
 
 std::vector<std::string> libDirsFor(const std::string& script) {
@@ -384,7 +384,7 @@ std::vector<std::string> libDirsFor(const std::string& script) {
 fs::path pkgBase(bool global_) {
     if (global_) {
         std::string g = globalPkgDir();
-        return g.empty() ? fs::path(".coco-pkg") : fs::path(g);
+        return g.empty() ? fs::path(".kirn-pkg") : fs::path(g);
     }
     return fs::path("coco_libs");
 }
@@ -418,25 +418,25 @@ bool ensureUserPathContains(const std::string& dirRaw) {
 // ---------------------------------------------------------------------------
 
 // check one source; returns program or empty vector on error (diags printed)
-std::vector<coco::ast::StmtP> frontEnd(const std::string& path,
+std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
-                                       coco::DiagEngine& diags) {
-    auto toks = coco::Lexer(src, path, diags).lexAll();
+                                       kirn::DiagEngine& diags) {
+    auto toks = kirn::Lexer(src, path, diags).lexAll();
     if (diags.errorCount()) return {};
-    auto body = coco::Parser(toks, diags).parseProgram();
+    auto body = kirn::Parser(toks, diags).parseProgram();
     if (diags.errorCount()) return {};
-    coco::sema::Checker chk(diags);
+    kirn::sema::Checker chk(diags);
     chk.checkModule(body);
     return body;
 }
 
-void printDiags(const std::string& path, const coco::DiagEngine& diags) {
+void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
     for (const auto& d : diags.diags())
-        if (d.sev == coco::Sev::Error || d.sev == coco::Sev::InternalError)
+        if (d.sev == kirn::Sev::Error || d.sev == kirn::Sev::InternalError)
             std::cerr << path << ":" << d.line << ":" << d.col
                       << ": error: " << d.message << "\n";
     for (const auto& d : diags.diags())
-        if (d.sev == coco::Sev::Warning || d.sev == coco::Sev::Note)
+        if (d.sev == kirn::Sev::Warning || d.sev == kirn::Sev::Note)
             std::cerr << path << ":" << d.line << ":" << d.col
                       << ": warning[" << d.code << "]: " << d.message << "\n";
 }
@@ -445,30 +445,30 @@ int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
                   const std::vector<std::string>& progArgs = {}) {
-    coco::DiagEngine diags;
+    kirn::DiagEngine diags;
     auto body = frontEnd(label, src, diags);
     if (diags.errorCount()) {
         printDiags(label, diags);
         return 65;
     }
     if (diags.warningCount()) printDiags(label, diags);
-    coco::ast::Stmt root;
-    root.kind = coco::ast::StKind::Pass;
+    kirn::ast::Stmt root;
+    root.kind = kirn::ast::StKind::Pass;
     root.body = std::move(body);
     try {
-        coco::interp::Interpreter interp(root);
+        kirn::interp::Interpreter interp(root);
         for (const auto& d : dirs) interp.addStdlibDir(d);
         for (const auto& [name, esrc] : embedded)
             interp.addEmbeddedSource(name, esrc);
         interp.setProgramArgs(progArgs);
         interp.enableVm();   // bytecode VM is the default runner
-        coco::interp::Value r = interp.run();
-        return r.k == coco::interp::VK::Int ? (int)r.i : 0;
-    } catch (const coco::interp::PanicSignal& p) {
+        kirn::interp::Value r = interp.run();
+        return r.k == kirn::interp::VK::Int ? (int)r.i : 0;
+    } catch (const kirn::interp::PanicSignal& p) {
         fflush(stdout);
         fputs(("panic: " + p.msg + "\n").c_str(), stderr);
         return 70;
-    } catch (const coco::interp::SignalRaise&) {
+    } catch (const kirn::interp::SignalRaise&) {
         fflush(stdout);
         fputs("panic: uncaught raise escaped main\n", stderr);
         return 70;
@@ -484,26 +484,26 @@ int runProgram(const std::string& entryPath,
                const std::vector<std::string>& progArgs = {}) {
     std::string src;
     if (!readFile(entryPath, src)) {
-        std::cerr << "coco: cannot read '" << entryPath << "'\n";
+        std::cerr << "kirn: cannot read '" << entryPath << "'\n";
         return 66;
     }
     return runProgramSrc(entryPath, src, dirs, embedded, progArgs);
 }
 
 // ---------------------------------------------------------------------------
-// scaffolding: rust-style structure with Coco folder names
+// scaffolding: rust-style structure with Kirn folder names
 // ---------------------------------------------------------------------------
 
 int cmdNew(const std::string& name, bool lib) {
     if (name.empty() || name.find_first_of("/\\") != std::string::npos ||
         name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") !=
             std::string::npos) {
-        std::cerr << "coco new: '" << name << "' is not a valid package name\n";
+        std::cerr << "kirn new: '" << name << "' is not a valid package name\n";
         return 1;
     }
     const fs::path root(name);
     if (fs::exists(root)) {
-        std::cerr << "coco new: '" << name << "' already exists\n";
+        std::cerr << "kirn new: '" << name << "' already exists\n";
         return 1;
     }
 
@@ -511,7 +511,7 @@ int cmdNew(const std::string& name, bool lib) {
     m.name = name;
     m.version = "0.0.1-beta";
     m.type = lib ? "lib" : "app";
-    m.description = lib ? "A Coco library" : "A Coco application";
+    m.description = lib ? "A Kirn library" : "A Kirn application";
     m.license = "MIT";
     m.docs = "docs/index.md";
     m.readme = "README.md";
@@ -521,18 +521,18 @@ int cmdNew(const std::string& name, bool lib) {
     m.authors.push_back("Your Name <you@example.com>");
     if (lib) {
         m.tags.push_back("utility");
-        m.keywords.push_back("coco");
+        m.keywords.push_back("kirn");
         m.keywords.push_back(name);
     }
-    m.gitIgnoreExtra.push_back(".coco-registry-lib.toml");
+    m.gitIgnoreExtra.push_back(".kirn-registry-lib.toml");
 
     const std::string gitignore =
-        "# coco build output\n"
+        "# kirn build output\n"
         "build/\n"
         "# installed dependencies\n"
         "coco_libs/\n"
         "# cached registry copy\n"
-        ".coco-registry-lib.toml\n"
+        ".kirn-registry-lib.toml\n"
         "# editor/OS noise\n"
         ".vscode/\n.idea/\n*.swp\nThumbs.db\n.DS_Store\n";
 
@@ -544,13 +544,13 @@ int cmdNew(const std::string& name, bool lib) {
         // once when the package is imported and re-exports the package's
         // `pub` surface (Python __init__ analogue).
         writeFile(root / "code" / "pin.co",
-                  "## " + name + " - a Coco library.\n"
+                  "## " + name + " - a Kirn library.\n"
                   "##\n"
                   "## This pin.co file is the package's public-API aggregator.\n"
                   "## It runs once when the package is imported, then the\n"
                   "## package's `pub` surface is available on the module.\n"
                   "## Doc comments starting with '##' sit above each `pub`:\n"
-                  "## `coco doc " + name + "` turns them into a browsable API\n"
+                  "## `kirn doc " + name + "` turns them into a browsable API\n"
                   "## reference.\n\n"
                   "## Say hello to someone.\n"
                   "pub def hello(who: string) -> string {\n"
@@ -570,7 +570,7 @@ int cmdNew(const std::string& name, bool lib) {
 
         writeFile(root / "tests" / (name + "_test.co"),
                   "# tests live in tests/ and are named <file>_test.co\n"
-                  "# run them all with:  coco test .\n"
+                  "# run them all with:  kirn test .\n"
                   "# (import the package's pin.co initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
                   "import \"code/pin.co\" as " + name + ";\n\n"
@@ -582,7 +582,7 @@ int cmdNew(const std::string& name, bool lib) {
         writeFile(root / "docs" / "index.md",
                   "# " + name + "\n\n" + m.description +
                       ".\n\n## Install\n\n```bash\n"
-                      "coco install github.com/coco-lib/" + name +
+                      "kirn install github.com/coco-lib/" + name +
                       "\n```\n\n## Usage\n\n```co\n"
                       "import \"" + name + "\"\n\n"
                       "print(" + name + ".hello(\"world\"))\n```\n");
@@ -606,13 +606,13 @@ int cmdNew(const std::string& name, bool lib) {
                   << "  tests/          *_test.co files\n"
                   << "  docs/           markdown docs\n"
                   << "next:\n"
-                  << "  cd " << name << " && coco build lib && coco test .\n";
+                  << "  cd " << name << " && kirn build lib && kirn test .\n";
     } else {
         m.main = "code/main.co";
         writeManifest(root, m);
 
         writeFile(root / "code" / "main.co",
-                  "# " + name + " - a Coco application.\n\n"
+                  "# " + name + " - a Kirn application.\n\n"
                   "def main() {\n"
                   "    print(\"hello from " + name + "\");\n}\n");
 
@@ -637,19 +637,19 @@ int cmdNew(const std::string& name, bool lib) {
                   << "  tests/          *_test.co files\n"
                   << "  docs/           project docs\n"
                   << "next:\n"
-                  << "  cd " << name << " && coco run\n";
+                  << "  cd " << name << " && kirn run\n";
     }
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// package sources: local path | git repo | coco-libs registry
+// package sources: local path | git repo | kirn-libs registry
 // ---------------------------------------------------------------------------
 
 struct PkgRef {
     std::string spec;      // normalized repo path or local dir
     std::string tag;
-    std::string destName;  // directory name under coco_libs/ or coco-pkg/
+    std::string destName;  // directory name under coco_libs/ or kirn-pkg/
     enum class Kind { Path, Git } kind = Kind::Git;
 };
 
@@ -660,7 +660,7 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
         at > 0 && spec[0] != '.' && spec[0] != '/' && spec[0] != '\\') {
         ref.tag = spec.substr(at + 1);
         if (ref.tag.empty()) {
-            std::cerr << "coco install: empty version in '" << raw << "'\n";
+            std::cerr << "kirn install: empty version in '" << raw << "'\n";
             return false;
         }
         spec = spec.substr(0, at);
@@ -673,7 +673,7 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
     if (looksLocal) {
         if (asPath.extension() == ".cocolib") return true;  // handled later
         if (!fs::is_directory(asPath)) {
-            std::cerr << "coco install: local package '" << raw
+            std::cerr << "kirn install: local package '" << raw
                       << "' does not exist\n";
             return false;
         }
@@ -689,7 +689,7 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
         size_t slashes = std::count(spec.begin(), spec.end(), '/');
         if (slashes == 1) spec = "github.com/" + spec;   // user/repo shorthand
         if (std::count(spec.begin(), spec.end(), '/') < 2) {
-            std::cerr << "coco install: '" << raw
+            std::cerr << "kirn install: '" << raw
                       << "' is not user/repo, github.com/user/repo, a path,"
                          " or a registry name\n";
             return false;
@@ -699,31 +699,31 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
         ref.destName = lastSegment(ref.spec);
     }
     if (ref.destName.empty() || ref.destName == "." || ref.destName == "..") {
-        std::cerr << "coco install: cannot derive a package name from '"
+        std::cerr << "kirn install: cannot derive a package name from '"
                   << raw << "'\n";
         return false;
     }
     return true;
 }
 
-// resolve a bare library name through the coco-libs registry
+// resolve a bare library name through the kirn-libs registry
 // (github.com/coco-lib/coco-libs -> registry/lib.toml)
 bool lookupRegistry(const std::string& name, std::string& url) {
-    const std::string cache = ".coco-registry-lib.toml";
+    const std::string cache = ".kirn-registry-lib.toml";
     // refresh the cached registry copy; fall back to it when offline
-    std::system("curl -s --max-time 15 -o .coco-registry-lib.toml "
+    std::system("curl -s --max-time 15 -o .kirn-registry-lib.toml "
                 "https://raw.githubusercontent.com/coco-lib/coco-libs/main/"
                 "registry/lib.toml");
     std::string text;
     if (!readFile(cache, text)) return false;
-    Doc d = coco::tomlmini::parse(text);
+    Doc d = kirn::tomlmini::parse(text);
     for (const auto& t : d.tables) {
         if (t.name != "lib") continue;
         auto n = t.kv.find("name");
-        if (n == t.kv.end() || coco::tomlmini::unquote(n->second) != name)
+        if (n == t.kv.end() || kirn::tomlmini::unquote(n->second) != name)
             continue;
         auto u = t.kv.find("url");
-        if (u != t.kv.end()) url = coco::tomlmini::unquote(u->second);
+        if (u != t.kv.end()) url = kirn::tomlmini::unquote(u->second);
         return !url.empty();
     }
     return false;
@@ -732,7 +732,7 @@ bool lookupRegistry(const std::string& name, std::string& url) {
 std::string gitHeadSha(const fs::path& dir) {
     std::string cmd = "git -C \"" + dir.string() + "\" rev-parse HEAD 2>nul";
     // capture via temp file (system() has no portable pipe-back)
-    std::string tmp = ".coco-sha";
+    std::string tmp = ".kirn-sha";
     std::string full = cmd + " > \"" + tmp + "\"";
     if (std::system(full.c_str()) != 0) return "";
     std::string sha;
@@ -750,7 +750,7 @@ bool materializePackage(const PkgRef& ref, const fs::path& dest,
     if (ref.kind == PkgRef::Kind::Path) {
         fs::remove_all(dest, ec);
         if (ec) {
-            std::cerr << "coco install: cleanup failed: " << ec.message()
+            std::cerr << "kirn install: cleanup failed: " << ec.message()
                       << "\n";
             return false;
         }
@@ -758,7 +758,7 @@ bool materializePackage(const PkgRef& ref, const fs::path& dest,
         commitSha.clear();
     } else {
         if (std::system("git --version >nul 2>nul") != 0) {
-            std::cerr << "coco install: git not found on PATH\n";
+            std::cerr << "kirn install: git not found on PATH\n";
             return false;
         }
         fs::remove_all(dest, ec);
@@ -769,7 +769,7 @@ bool materializePackage(const PkgRef& ref, const fs::path& dest,
             std::string(ref.tag.empty() ? "" : " --branch " + ref.tag) + " " +
             url + " \"" + dest.string() + "\"";
         if (std::system(cmd.c_str()) != 0) {
-            std::cerr << "coco install: git clone failed for " << url << "\n";
+            std::cerr << "kirn install: git clone failed for " << url << "\n";
             return false;
         }
         commitSha = gitHeadSha(dest);
@@ -850,7 +850,7 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
     if (isApp) {
         std::error_code ec;
         fs::create_directories(binDir, ec);
-        // resolve this coco executable so the shim works off-PATH too
+        // resolve this kirn executable so the shim works off-PATH too
         char cocoBuf[MAX_PATH * 2];
         GetModuleFileNameA(nullptr, cocoBuf, sizeof cocoBuf);
         std::string cocoExe = cocoBuf;
@@ -929,7 +929,7 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
                              : base;
         }
         if (n.empty()) {
-            std::cerr << "coco install: cannot derive a package name from '"
+            std::cerr << "kirn install: cannot derive a package name from '"
                       << raw << "'\n";
             return false;
         }
@@ -938,7 +938,7 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
         ref.destName = n;
         return true;
     }
-    // bare name -> look it up in the coco-libs registry
+    // bare name -> look it up in the kirn-libs registry
     bool isBareName =
         raw.find('/') == std::string::npos &&
         raw.find('\\') == std::string::npos && raw.find(':') == std::string::npos &&
@@ -946,8 +946,8 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
     if (isBareName) {
         std::string url;
         if (!lookupRegistry(raw, url)) {
-            std::cerr << "coco install: '" << raw
-                      << "' not found in the coco-libs registry\n"
+            std::cerr << "kirn install: '" << raw
+                      << "' not found in the kirn-libs registry\n"
                       << "  browse: https://github.com/coco-lib/coco-libs\n";
             return false;
         }
@@ -965,9 +965,9 @@ int cmdInstall(const std::string& raw, bool global_) {
     return installOne(ref, raw, global_, /*record=*/true);
 }
 
-// `coco add` — npm-install / go-mod-tidy style sync.
-//   coco add <pkg>...   resolve + install + record each dependency
-//   coco add            (no args) tidy: install every manifest dep that is
+// `kirn add` — npm-install / go-mod-tidy style sync.
+//   kirn add <pkg>...   resolve + install + record each dependency
+//   kirn add            (no args) tidy: install every manifest dep that is
 //                       missing from coco_libs/libs
 int cmdAdd(const std::vector<std::string>& pkgs) {
     if (pkgs.empty()) {
@@ -993,7 +993,7 @@ int cmdAdd(const std::vector<std::string>& pkgs) {
             } else if (spec.count("version")) {
                 std::string url;
                 if (!lookupRegistry(name, url)) {
-                    std::cerr << "coco add: '" << name
+                    std::cerr << "kirn add: '" << name
                               << "' not found in the registry\n";
                     rc = 1;
                     continue;
@@ -1042,8 +1042,8 @@ int cmdUpdate(const std::string& only) {
         } else if (spec.count("version")) {
             std::string url;
             if (!lookupRegistry(name, url)) {
-                std::cerr << "coco update: '" << name
-                          << "' not found in the coco-libs registry\n";
+                std::cerr << "kirn update: '" << name
+                          << "' not found in the kirn-libs registry\n";
                 rc = 1;
                 continue;
             }
@@ -1138,16 +1138,16 @@ int cmdList() {
 }
 
 // ---------------------------------------------------------------------------
-// coco clone — clone any git repo (shorthand-aware)
-//   coco clone user/repo            -> github.com/user/repo
-//   coco clone github.com/u/r       full host forms work too
-//   coco clone https://host/u/r
-//   coco clone <spec> --full        keep full history (default: depth 1)
+// kirn clone — clone any git repo (shorthand-aware)
+//   kirn clone user/repo            -> github.com/user/repo
+//   kirn clone github.com/u/r       full host forms work too
+//   kirn clone https://host/u/r
+//   kirn clone <spec> --full        keep full history (default: depth 1)
 // ---------------------------------------------------------------------------
 
 int cmdClone(const std::string& spec, bool full) {
     if (std::system("git --version >nul 2>nul") != 0) {
-        std::cerr << "coco clone: git not found on PATH\n";
+        std::cerr << "kirn clone: git not found on PATH\n";
         return 1;
     }
     std::string url = spec;
@@ -1172,7 +1172,7 @@ int cmdClone(const std::string& spec, bool full) {
     if (name.size() > 4 && name.compare(name.size() - 4, 4, ".git") == 0)
         name.erase(name.size() - 4);
     if (fs::exists(name)) {
-        std::cerr << "coco clone: '" << name << "' already exists here\n";
+        std::cerr << "kirn clone: '" << name << "' already exists here\n";
         return 1;
     }
     std::string cmd =
@@ -1181,7 +1181,7 @@ int cmdClone(const std::string& spec, bool full) {
     std::cout << "cloning " << url << " ...\n";
     int rc = std::system(cmd.c_str());
     if (rc != 0) {
-        std::cerr << "coco clone: failed (" << rc << ")\n";
+        std::cerr << "kirn clone: failed (" << rc << ")\n";
         return rc == 0 ? 1 : rc;
     }
     Manifest m = readManifest(name);
@@ -1190,27 +1190,27 @@ int cmdClone(const std::string& spec, bool full) {
         std::cout << " - " << m.name << " v"
                   << (m.version.empty() ? "?" : m.version)
                   << (m.type == "lib" ? " [lib]" : " [app]");
-    std::cout << "\nnext:\n  cd " << name << " && coco run | coco test .\n";
+    std::cout << "\nnext:\n  cd " << name << " && kirn run | kirn test .\n";
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// coco list online — browse the coco-libs registry
+// kirn list online — browse the kirn-libs registry
 // ---------------------------------------------------------------------------
 
 int cmdListOnline() {
-    const std::string cache = ".coco-registry-lib.toml";
+    const std::string cache = ".kirn-registry-lib.toml";
     std::system(
-        "curl -s --max-time 15 -o .coco-registry-lib.toml "
+        "curl -s --max-time 15 -o .kirn-registry-lib.toml "
         "https://raw.githubusercontent.com/coco-lib/coco-libs/refs/heads/"
         "main/registry/lib.toml");
     std::string text;
     if (!readFile(cache, text)) {
-        std::cerr << "coco list online: cannot reach "
+        std::cerr << "kirn list online: cannot reach "
                      "raw.githubusercontent.com/coco-lib/coco-libs\n";
         return 1;
     }
-    Doc d = coco::tomlmini::parse(text);
+    Doc d = kirn::tomlmini::parse(text);
     struct Row { std::string name, desc, url, ver; };
     std::vector<Row> rows;
     // [[lib]] arrays-of-tables arrive in order in Doc::tables
@@ -1218,7 +1218,7 @@ int cmdListOnline() {
         if (t.name != "lib") continue;
         auto gv = [&](const char* k) {
             auto it = t.kv.find(k);
-            return it == t.kv.end() ? "" : coco::tomlmini::unquote(it->second);
+            return it == t.kv.end() ? "" : kirn::tomlmini::unquote(it->second);
         };
         // versions = ["0.1.0", ...] -> advertise the latest
         std::string ver = gv("version");
@@ -1260,7 +1260,7 @@ int cmdListOnline() {
             std::cout << std::string(wName + wVer + 6, ' ') << "# " << r.desc
                       << "\n";
     }
-    std::cout << rows.size() << " package(s)\ninstall with: coco install "
+    std::cout << rows.size() << " package(s)\ninstall with: kirn install "
               << "<name>\n";
     return 0;
 }
@@ -1306,7 +1306,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
                 files.push_back(p);
                 any = true;
             } else {
-                std::cerr << "coco test: '" << args[i]
+                std::cerr << "kirn test: '" << args[i]
                           << "' is not a <name>_test.co file or directory\n";
                 return 64;
             }
@@ -1318,7 +1318,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
     auto dirs = libDirsFor(".");
     if (std::find(dirs.begin(), dirs.end(), ".") == dirs.end())
         dirs.push_back(".");
-    // the repo ships its stdlib as Coco source under ./stdlib; tests import it
+    // the repo ships its stdlib as Kirn source under ./stdlib; tests import it
     if (std::find(dirs.begin(), dirs.end(), "./stdlib") == dirs.end())
         dirs.push_back("./stdlib");
     int pass = 0, fail = 0;
@@ -1345,7 +1345,7 @@ std::string extractApiDocs(const Manifest& m) {
     std::ostringstream o;
     o << "## API reference - " << m.name << "\n\n";
     if (!m.description.empty()) o << m.description << "\n\n";
-    o << "_This section is regenerated by `coco doc " << m.name
+    o << "_This section is regenerated by `kirn doc " << m.name
       << "` from inline `##` doc comments._\n\n";
     std::error_code ec;
     bool anyFn = false;
@@ -1368,9 +1368,9 @@ std::string extractApiDocs(const Manifest& m) {
         bool fileHeaded = false;
         std::string pendingDoc;
         for (const auto& line : lines) {
-            std::string t = coco::tomlmini::strip(line);
+            std::string t = kirn::tomlmini::strip(line);
             if (t.rfind("##", 0) == 0 && t.compare(0, 3, "###") != 0) {
-                std::string d = coco::tomlmini::strip(t.substr(2));
+                std::string d = kirn::tomlmini::strip(t.substr(2));
                 if (!d.empty()) pendingDoc += d + "\n";
                 continue;
             }
@@ -1404,8 +1404,8 @@ std::string extractApiDocs(const Manifest& m);
 // (default docs/index.md), replacing any previous auto-generated block
 bool regenerateDocs(const Manifest& m) {
     std::string entry = m.docs.empty() ? "docs/index.md" : m.docs;
-    const char* beginMark = "<!-- coco-docs:start -->";
-    const char* endMark = "<!-- coco-docs:end -->";
+    const char* beginMark = "<!-- kirn-docs:start -->";
+    const char* endMark = "<!-- kirn-docs:end -->";
     std::string existing;
     readFile(entry, existing);
     size_t start = existing.find(beginMark);
@@ -1428,7 +1428,7 @@ bool regenerateDocs(const Manifest& m) {
 }
 
 // ---------------------------------------------------------------------------
-// coco doc — markdown viewer over HTTP
+// kirn doc — markdown viewer over HTTP
 // ---------------------------------------------------------------------------
 
 std::string mdEscape(const std::string& s) {
@@ -1485,7 +1485,7 @@ std::string mdToHtml(const std::string& md) {
         while (std::getline(in, l)) lines.push_back(l);
     }
     for (const auto& line : lines) {
-        std::string t = coco::tomlmini::strip(line);
+        std::string t = kirn::tomlmini::strip(line);
         if (t.rfind("```", 0) == 0) {
             if (inList) { o << "</ul>\n"; inList = false; }
             o << (inCode ? "</code></pre>\n" : "<pre><code>");
@@ -1526,7 +1526,7 @@ std::string pageHtml(const std::string& title, const std::string& bodyHtml,
                      const std::string& nav) {
     std::ostringstream o;
     o << "<!doctype html><html><head><meta charset=\"utf-8\">"
-      << "<title>" << title << " - coco docs</title><style>"
+      << "<title>" << title << " - kirn docs</title><style>"
       << "body{font-family:Segoe UI,system-ui,sans-serif;margin:0;display:flex}"
       << "nav{width:230px;min-height:100vh;background:#1d2433;color:#cfd8e6;"
       << "padding:18px 14px;box-sizing:border-box}nav a{color:#7fb4ff;"
@@ -1545,7 +1545,7 @@ int serveDocs(const fs::path& docsDir, int port, const std::string& libName,
               const std::string& entryFile) {
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        std::cerr << "coco doc: WSAStartup failed\n";
+        std::cerr << "kirn doc: WSAStartup failed\n";
         return 1;
     }
     SOCKET srv = socket(AF_INET, SOCK_STREAM, 0);
@@ -1558,7 +1558,7 @@ int serveDocs(const fs::path& docsDir, int port, const std::string& libName,
                sizeof reuse);
     if (bind(srv, (sockaddr*)&addr, sizeof addr) != 0 ||
         listen(srv, 8) != 0) {
-        std::cerr << "coco doc: cannot bind port " << port << "\n";
+        std::cerr << "kirn doc: cannot bind port " << port << "\n";
         return 1;
     }
 
@@ -1627,7 +1627,7 @@ int serveDocs(const fs::path& docsDir, int port, const std::string& libName,
 #else
 int serveDocs(const fs::path&, int, const std::string&,
               const std::string&) {
-    std::cerr << "coco doc: http server not supported on this platform\n";
+    std::cerr << "kirn doc: http server not supported on this platform\n";
     return 1;
 }
 #endif
@@ -1652,7 +1652,7 @@ int cmdDoc(const std::string& target, int port) {
         else if (!globLegacy.empty() && fs::is_directory(globLegacy))
             libDir = globLegacy;
         else {
-            std::cerr << "coco doc: no project or installed library '"
+            std::cerr << "kirn doc: no project or installed library '"
                       << target << "'\n";
             return 1;
         }
@@ -1682,7 +1682,7 @@ int cmdDoc(const std::string& target, int port) {
 }
 
 // ---------------------------------------------------------------------------
-// coco build — app: standalone .exe (sources embedded, interpreter linked)
+// kirn build — app: standalone .exe (sources embedded, interpreter linked)
 //              lib: type-check all sources + pack distributable .cocolib
 // ---------------------------------------------------------------------------
 
@@ -1733,18 +1733,18 @@ bool resolveSource(const std::string& dotted,
 
 void collectImports(const std::string& path, const std::string& src,
                     std::vector<std::string>& names) {
-    coco::DiagEngine diags;
-    auto toks = coco::Lexer(src, path, diags).lexAll();
+    kirn::DiagEngine diags;
+    auto toks = kirn::Lexer(src, path, diags).lexAll();
     if (diags.errorCount()) return;
-    auto body = coco::Parser(toks, diags).parseProgram();
+    auto body = kirn::Parser(toks, diags).parseProgram();
     for (const auto& s : body)
-        if (s->kind == coco::ast::StKind::Import &&
+        if (s->kind == kirn::ast::StKind::Import &&
             !s->fromImport && !s->moduleName.empty())
             names.push_back(s->moduleName);
 }
 
 std::string cppRawLiteral(const std::string& s) {
-    return "R\"COCO(" + s + ")COCO\"";
+    return "R\"KIRN(" + s + ")KIRN\"";
 }
 
 // match the runtime the prebuilt coco_interp.lib was compiled with
@@ -1766,7 +1766,7 @@ std::string detectRuntimeFlags(const std::string& binRoot) {
 }
 
 // ---- build options ---------------------------------------------------------
-// Output layout is cargo-flavored but Coco-named:
+// Output layout is cargo-flavored but Kirn-named:
 //   build/<profile>/<target>/...      profile: debug | release
 // Targets: <os>-<arch>, os in {windows,linux,darwin}, arch in {amd64,arm64}
 
@@ -1775,7 +1775,7 @@ struct BuildOpts {
     bool wantLib = false;
     bool sasm = false;       // -S  human-readable assembly listing (.sasm)
     bool obj = false;        // -O  native object file (.obj + .lib via lib.exe)
-    bool singleFile = false; // `coco build file.co` (Go-style, no manifest)
+    bool singleFile = false; // `kirn build file.co` (Go-style, no manifest)
     bool native_ = false;    // --native  lower scalar user fns to real C++
     bool asan = false;       // --asan    build with AddressSanitizer
     std::string target;      // --target=<os>-<arch>; empty -> $COCO_TARGET -> host
@@ -1853,7 +1853,7 @@ std::string resolveCrossCxx(const TargetInfo* ti) {
         envName += (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
     if (const char* env = std::getenv(envName.c_str())) {
         if (toolchainWorks(env)) return env;
-        std::cerr << "coco build: warning: $" << envName << "=" << env
+        std::cerr << "kirn build: warning: $" << envName << "=" << env
                   << " is not runnable, probing PATH\n";
     }
     if (const char* any = std::getenv("COCO_CXX"))
@@ -1936,7 +1936,7 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
 }
 
 // ---- -S: human-readable pseudo-assembly listing -----------------------------
-// COCO-SASM v1: a linear, labeled listing derived from the AST. Great for
+// KIRN-SASM v1: a linear, labeled listing derived from the AST. Great for
 // reading what your program does; not (yet) an executable ISA.
 
 struct SasmEmitter {
@@ -1945,23 +1945,23 @@ struct SasmEmitter {
     std::vector<std::pair<std::string, std::string>> loopLabels;   // brk, cont
 
     // compact printable form of a Type node
-    static std::string tyName(const coco::ast::Type* t) {
+    static std::string tyName(const kirn::ast::Type* t) {
         if (!t) return "<type>";
         switch (t->kind) {
-            case coco::ast::TyKind::Name:
+            case kirn::ast::TyKind::Name:
                 return t->name +
                        (t->generics.empty()
                             ? ""
                             : "[" + std::to_string(t->generics.size()) + "]");
-            case coco::ast::TyKind::Pointer:
+            case kirn::ast::TyKind::Pointer:
                 return "*" + tyName(t->inner.get());
-            case coco::ast::TyKind::Ref:
+            case kirn::ast::TyKind::Ref:
                 return (t->refMut ? "&mut " : "&") + tyName(t->inner.get());
-            case coco::ast::TyKind::Optional:
+            case kirn::ast::TyKind::Optional:
                 return tyName(t->inner.get()) + "?";
-            case coco::ast::TyKind::Fn:
+            case kirn::ast::TyKind::Fn:
                 return "fn[" + std::to_string(t->params.size()) + " args]";
-            case coco::ast::TyKind::Tuple:
+            case kirn::ast::TyKind::Tuple:
                 return "(" + std::to_string(t->params.size()) + ")";
         }
         return "<type>";
@@ -1969,10 +1969,10 @@ struct SasmEmitter {
 
     std::string nl(const std::string& s) { return "    " + s + "\n"; }
     std::string quote(const std::string& s) {
-        return coco::tomlmini::quote(s);
+        return kirn::tomlmini::quote(s);
     }
-    void expr(const coco::ast::Expr& e) {
-        using ET = coco::ast::ExKind;
+    void expr(const kirn::ast::Expr& e) {
+        using ET = kirn::ast::ExKind;
         switch (e.kind) {
             case ET::Int: out << nl("PUSH_INT " + e.text); break;
             case ET::Float: out << nl("PUSH_FLOAT " + e.text); break;
@@ -2079,10 +2079,10 @@ struct SasmEmitter {
         }
     }
 
-    void stmts(const std::vector<coco::ast::StmtP>& body, int depth);
+    void stmts(const std::vector<kirn::ast::StmtP>& body, int depth);
 
-    void stmt(const coco::ast::Stmt& s, int depth) {
-        using ST = coco::ast::StKind;
+    void stmt(const kirn::ast::Stmt& s, int depth) {
+        using ST = kirn::ast::StKind;
         std::string ind(depth * 2, ' ');
         switch (s.kind) {
             case ST::FuncDef: {
@@ -2110,7 +2110,7 @@ struct SasmEmitter {
                 if (s.value) expr(*s.value);
                 out << nl(std::string(s.kind == ST::VarDecl ? "STORE_MUT "
                                                             : "STORE") +
-                          (s.target && s.target->kind == coco::ast::ExKind::Ident
+                          (s.target && s.target->kind == kirn::ast::ExKind::Ident
                                ? s.target->text
                                : "<pat>"));
                 break;
@@ -2126,9 +2126,9 @@ struct SasmEmitter {
                     const auto& val = s.exprs[nT + i];
                     const auto& tgt = s.exprs[i];
                     if (val) expr(*val);
-                    if (tgt && tgt->kind == coco::ast::ExKind::Ident)
+                    if (tgt && tgt->kind == kirn::ast::ExKind::Ident)
                         out << nl("STORE " + tgt->text);
-                    else if (tgt && tgt->kind == coco::ast::ExKind::Index) {
+                    else if (tgt && tgt->kind == kirn::ast::ExKind::Index) {
                         expr(*tgt->lhs);
                         expr(*tgt->rhs);
                         out << nl("INDEX_SET");
@@ -2140,7 +2140,7 @@ struct SasmEmitter {
             case ST::AugAssign: {
                 if (!s.exprs.empty()) {
                     const auto& tgt = s.exprs[0];
-                    if (tgt && tgt->kind == coco::ast::ExKind::Ident) {
+                    if (tgt && tgt->kind == kirn::ast::ExKind::Ident) {
                         out << nl("LOAD " + tgt->text);
                         if (s.exprs.size() > 1) expr(*s.exprs.back());
                         out << nl("BINOP " + s.augOp);
@@ -2246,15 +2246,15 @@ struct SasmEmitter {
     }
 };
 
-void SasmEmitter::stmts(const std::vector<coco::ast::StmtP>& body, int depth) {
+void SasmEmitter::stmts(const std::vector<kirn::ast::StmtP>& body, int depth) {
     for (const auto& st : body)
         if (st) stmt(*st, depth);
 }
 
 std::string emitSasm(const std::string& srcPath,
-                     const std::vector<coco::ast::StmtP>& body) {
+                     const std::vector<kirn::ast::StmtP>& body) {
     SasmEmitter em;
-    em.out << "; COCO-SASM v1 - pseudo-assembly listing (generated by `coco"
+    em.out << "; KIRN-SASM v1 - pseudo-assembly listing (generated by `kirn"
               " build -S`)\n"
            << "; source: " << srcPath << "\n"
            << "; this is a readable IR dump, not machine code\n\n";
@@ -2263,7 +2263,7 @@ std::string emitSasm(const std::string& srcPath,
 }
 
 // Core build pipeline shared by project mode (coco.toml) and single-file
-// mode (`coco build main.co`): type-check, then emit sasm / self-contained
+// mode (`kirn build main.co`): type-check, then emit sasm / self-contained
 // launcher and compile it with the best available pipeline.
 int buildProgram(const std::string& name, const std::string& version,
                  const std::string& entry, const std::string& mainSrc,
@@ -2284,17 +2284,17 @@ int buildProgram(const std::string& name, const std::string& version,
     if (!isHost && opts.obj) crossCxx = "";
 
     if (opts.sasm) {
-        std::vector<coco::ast::StmtP> parsed;
+        std::vector<kirn::ast::StmtP> parsed;
         {
-            coco::DiagEngine diags;
+            kirn::DiagEngine diags;
             frontEnd(entry, mainSrc, diags);
             if (diags.errorCount()) {
                 printDiags(entry, diags);
                 return 65;
             }
-            auto toks = coco::Lexer(mainSrc, entry, diags).lexAll();
+            auto toks = kirn::Lexer(mainSrc, entry, diags).lexAll();
             if (!diags.errorCount())
-                parsed = coco::Parser(toks, diags).parseProgram();
+                parsed = kirn::Parser(toks, diags).parseProgram();
             if (diags.errorCount()) {
                 printDiags(entry, diags);
                 return 65;
@@ -2316,32 +2316,32 @@ int buildProgram(const std::string& name, const std::string& version,
         for (char c : opts.target)
             envName +=
                 (c == '-') ? '_' : (char)toupper((unsigned char)c);
-        std::cerr << "coco build: no cross toolchain for '" << opts.target
+        std::cerr << "kirn build: no cross toolchain for '" << opts.target
                   << "'\n  install e.g. llvm-mingw / aarch64-linux-gnu-g++"
                   << " or set " << envName << "=<path-to-g++>\n";
         return 1;
     }
 
     // --native: parse+check once at build time, lower scalar user fns to C++
-    std::unique_ptr<coco::sema::Checker> natChk;
-    coco::DiagEngine natDiags;
-    std::vector<coco::ast::StmtP> natBody;
+    std::unique_ptr<kirn::sema::Checker> natChk;
+    kirn::DiagEngine natDiags;
+    std::vector<kirn::ast::StmtP> natBody;
     if (opts.native_) {
-        auto toks = coco::Lexer(mainSrc, entry, natDiags).lexAll();
-        natBody = coco::Parser(toks, natDiags).parseProgram();
+        auto toks = kirn::Lexer(mainSrc, entry, natDiags).lexAll();
+        natBody = kirn::Parser(toks, natDiags).parseProgram();
         if (!natDiags.errorCount()) {
-            natChk = std::make_unique<coco::sema::Checker>(natDiags);
+            natChk = std::make_unique<kirn::sema::Checker>(natDiags);
             natChk->checkModule(natBody);
         }
     }
 
     // emit launcher .cpp embedding every reachable source
     std::ostringstream o;
-    o << "// generated by coco build - standalone Coco program\n";
-    o << "#define COCO_APP_NAME " << coco::tomlmini::quote(name) << "\n"
+    o << "// generated by kirn build - standalone Kirn program\n";
+    o << "#define COCO_APP_NAME " << kirn::tomlmini::quote(name) << "\n"
       << "#define COCO_APP_VERSION "
-      << coco::tomlmini::quote(version.empty() ? "0.0.0" : version) << "\n"
-      << "#define COCO_APP_TARGET " << coco::tomlmini::quote(opts.target)
+      << kirn::tomlmini::quote(version.empty() ? "0.0.0" : version) << "\n"
+      << "#define COCO_APP_TARGET " << kirn::tomlmini::quote(opts.target)
       << "\n\n";
     o << "#include \"interp/runtime.h\"\n"
       << "#include \"lex/lexer.h\"\n"
@@ -2371,7 +2371,7 @@ int buildProgram(const std::string& name, const std::string& version,
     // --native: emit lowered C++ scalar function bodies + registration helper
     if (opts.native_ && natChk && !natDiags.errorCount()) {
         std::ostringstream nativeOut;
-        auto prog = coco::backend::emitNative(nativeOut, natBody, *natChk);
+        auto prog = kirn::backend::emitNative(nativeOut, natBody, *natChk);
         if (prog.any) {
             o << "#define COCO_HAS_NATIVE 1\n";
             o << "// ---- native scalar functions (build-time lowered) ----\n";
@@ -2386,19 +2386,19 @@ int buildProgram(const std::string& name, const std::string& version,
       << "                    COCO_APP_VERSION, COCO_APP_TARGET);\n"
       << "        return 0;\n"
       << "    }\n"
-      << "    coco::DiagEngine diags;\n"
-<< "    auto toks = coco::Lexer(kMainSrc, \"main.co\", diags).lexAll();\n"
+      << "    kirn::DiagEngine diags;\n"
+<< "    auto toks = kirn::Lexer(kMainSrc, \"main.co\", diags).lexAll();\n"
        << "    if (diags.errorCount()) { std::cerr << \"embedded source error\\n\"; "
           "return 65; }\n"
-       << "    auto body = coco::Parser(toks, diags).parseProgram();\n"
+       << "    auto body = kirn::Parser(toks, diags).parseProgram();\n"
        << "    if (diags.errorCount()) { return 65; }\n"
-       << "    { coco::sema::Checker chk(diags); chk.checkModule(body); }\n"
+       << "    { kirn::sema::Checker chk(diags); chk.checkModule(body); }\n"
        << "    if (diags.errorCount()) { return 65; }\n"
-      << "    coco::ast::Stmt root;\n"
-      << "    root.kind = coco::ast::StKind::Pass;\n"
+      << "    kirn::ast::Stmt root;\n"
+      << "    root.kind = kirn::ast::StKind::Pass;\n"
       << "    root.body = std::move(body);\n"
       << "    try {\n"
-      << "        coco::interp::Interpreter interp(root);\n"
+      << "        kirn::interp::Interpreter interp(root);\n"
       << "        for (const auto& e : kEmbed) "
          "if (e.key[0]) interp.addEmbeddedSource(e.key, e.src);\n"
       << "        interp.enableVm();   // bytecode VM is the default runner\n"
@@ -2406,12 +2406,12 @@ int buildProgram(const std::string& name, const std::string& version,
       << "        coco_native_register(interp, root.body);\n"
       << "#endif\n"
       << "        auto r = interp.run();\n"
-      << "        return r.k == coco::interp::VK::Int ? (int)r.i : 0;\n"
-      << "    } catch (const coco::interp::PanicSignal& p) {\n"
+      << "        return r.k == kirn::interp::VK::Int ? (int)r.i : 0;\n"
+      << "    } catch (const kirn::interp::PanicSignal& p) {\n"
       << "        fflush(stdout);\n"
       << "        fputs((\"panic: \" + p.msg + \"\\n\").c_str(), stderr);\n"
       << "        return 70;\n"
-      << "    } catch (const coco::interp::SignalRaise&) {\n"
+      << "    } catch (const kirn::interp::SignalRaise&) {\n"
       << "        fputs(\"panic: uncaught raise\\n\", stderr);\n"
       << "        return 70;\n"
       << "    }\n"
@@ -2420,7 +2420,7 @@ int buildProgram(const std::string& name, const std::string& version,
     writeFile((outDir / (name + ".cpp")).generic_string(), o.str());
 
     // ---- Go-style cross build: one self-contained static binary ----------
-    // Compiles the generated launcher TOGETHER WITH the whole Coco runtime
+    // Compiles the generated launcher TOGETHER WITH the whole Kirn runtime
     // (src/**/*.cpp) using the target's C++ toolchain - the analogue of
     // CGO_ENABLED=0: no prebuilt host libs, nothing external.
     // crossCxx is non-empty exactly when we want the GNU pipeline: any
@@ -2450,7 +2450,7 @@ int buildProgram(const std::string& name, const std::string& version,
         const std::string srcRoot = (fs::path(binRoot2) / ".." / "src").generic_string();
         auto srcs = collectRuntimeSources(srcRoot);
         if (srcs.empty()) {
-            std::cerr << "coco build: runtime sources not found at "
+            std::cerr << "kirn build: runtime sources not found at "
                       << srcRoot << " (needed for cross builds)\n";
             return 1;
         }
@@ -2494,7 +2494,7 @@ int buildProgram(const std::string& name, const std::string& version,
         if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
-            std::cerr << "coco build: cross-compilation failed (" << rc
+            std::cerr << "kirn build: cross-compilation failed (" << rc
                       << ")\n";
             return rc == 0 ? 1 : rc;
         }
@@ -2519,7 +2519,7 @@ int buildProgram(const std::string& name, const std::string& version,
     if (opts.obj) {
         // -O: object file (+ static .lib via lib.exe); host toolchain only
         if (opts.target != hostTarget()) {
-            std::cerr << "coco build -O: native objects for '" << opts.target
+            std::cerr << "kirn build -O: native objects for '" << opts.target
                       << "' need that platform's toolchain\n";
             return 1;
         }
@@ -2531,7 +2531,7 @@ int buildProgram(const std::string& name, const std::string& version,
         std::cout << "compiling " << outBase << ".obj ...\n";
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
-            std::cerr << "coco build: compilation failed (" << rc << ")\n";
+            std::cerr << "kirn build: compilation failed (" << rc << ")\n";
             return rc == 0 ? 1 : rc;
         }
         const char* libTool = std::getenv("COCO_LIB_TOOL");
@@ -2545,7 +2545,7 @@ int buildProgram(const std::string& name, const std::string& version,
         std::cout << "archiving " << outBase << ".lib ...\n";
         int rc2 = std::system(arc.c_str());
         if (rc2 != 0) {
-            std::cerr << "coco build: lib.exe failed (" << rc2 << ")\n";
+            std::cerr << "kirn build: lib.exe failed (" << rc2 << ")\n";
             return rc2 == 0 ? 1 : rc2;
         }
         std::cout << "built " << outBase << ".obj + .lib\n";
@@ -2556,7 +2556,7 @@ int buildProgram(const std::string& name, const std::string& version,
     if (opts.release) {
         // --release: force -O2 on the emitted C++ even if the prebuilt runtime
         // libs are a debug build (optimized launcher, same lib set). A release
-        // cache of the runtime yields the full win; see coco build --release.
+        // cache of the runtime yields the full win; see kirn build --release.
         if (flags.find("/O2") == std::string::npos &&
             flags.find("/Ox") == std::string::npos)
             flags += " /O2";
@@ -2580,7 +2580,7 @@ int buildProgram(const std::string& name, const std::string& version,
     std::cout << "compiling " << exeOut << " ...\n";
     int rc = std::system(cmd.c_str());
     if (rc != 0) {
-        std::cerr << "coco build: compilation failed (" << rc << ")\n";
+        std::cerr << "kirn build: compilation failed (" << rc << ")\n";
         return rc == 0 ? 1 : rc;
     }
     std::cout << "built " << exeOut << "\n";
@@ -2598,7 +2598,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
             continue;
         std::string src;
         readFile(it->path().string(), src);
-        coco::DiagEngine diags;
+        kirn::DiagEngine diags;
         frontEnd(it->path().string(), src, diags);
         if (diags.errorCount()) {
             printDiags(it->path().string(), diags);
@@ -2606,7 +2606,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         }
     }
     if (bad) {
-        std::cerr << "coco build lib: " << bad << " file(s) failed checks\n";
+        std::cerr << "kirn build lib: " << bad << " file(s) failed checks\n";
         return 1;
     }
     regenerateDocs(m);
@@ -2643,16 +2643,16 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
 int buildAppShim(const Manifest& m, BuildOpts& opts) {
     std::string entry = resolveEntry(m, ".");
     if (entry.empty()) {
-        std::cerr << "coco build: no entry point found in this directory\n"
+        std::cerr << "kirn build: no entry point found in this directory\n"
                   << "  looked for (in order): coco.toml [package] main, "
                      "code/main.co, main.co, code/pin.co, pin.co\n"
-                  << "  fix-it: create code/main.co, or run `coco new "
+                  << "  fix-it: create code/main.co, or run `kirn new "
                      "<name>`\n";
         return 1;
     }
     std::string mainSrc;
     if (!readFile(entry, mainSrc)) {
-        std::cerr << "coco build: entry '" << entry << "' not found\n";
+        std::cerr << "kirn build: entry '" << entry << "' not found\n";
         return 1;
     }
     std::map<std::string, std::string> embedded;
@@ -2685,7 +2685,7 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         else if (a.size() && a[0] != '-' && positional.empty())
             positional = a;                     // file.co | . | <dir>
         else {
-            std::cerr << "coco build: unknown option '" << a << "'\n";
+            std::cerr << "kirn build: unknown option '" << a << "'\n";
             return 64;
         }
     }
@@ -2693,25 +2693,25 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         opts.target = std::getenv("COCO_TARGET");   // GOOS/GOARCH analogue
     if (opts.target.empty()) opts.target = hostTarget();
     if (!validTarget(opts.target)) {
-        std::cerr << "coco build: unknown target '" << opts.target
+        std::cerr << "kirn build: unknown target '" << opts.target
                   << "' (like 'unknown GOOS' in Go)\n"
-                  << "run 'coco targets' for the supported matrix\n";
+                  << "run 'kirn targets' for the supported matrix\n";
         return 64;
     }
 
-    // ---- Go-style single-file mode: coco build path/to/prog.co ----------
+    // ---- Go-style single-file mode: kirn build path/to/prog.co ----------
     // No manifest needed; the binary defaults to ./<stem>.exe in the CWD.
     if (!positional.empty() &&
         positional.rfind(".co") == positional.size() - 3) {
         fs::path p(positional);
         if (!fs::is_regular_file(p)) {
-            std::cerr << "coco build: file not found: " << positional << "\n";
+            std::cerr << "kirn build: file not found: " << positional << "\n";
             return 1;
         }
         p = fs::absolute(p).lexically_normal();
         std::string mainSrc;
         if (!readFile(p.generic_string(), mainSrc)) {
-            std::cerr << "coco build: cannot read '" << positional << "'\n";
+            std::cerr << "kirn build: cannot read '" << positional << "'\n";
             return 1;
         }
         opts.singleFile = true;
@@ -2724,20 +2724,20 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
                             p.generic_string(), mainSrc, embedded, opts);
     }
     if (!positional.empty() && positional != ".") {
-        std::cerr << "coco build: '" << positional
+        std::cerr << "kirn build: '" << positional
                   << "' is neither a .co file nor a project directory\n";
         return 64;
     }
 
     Manifest m = readManifest(".");
     if (m.name.empty()) {
-        std::cerr << "coco build: no coco.toml in this directory\n"
-                  << "(or compile a single file: coco build main.co)\n";
+        std::cerr << "kirn build: no coco.toml in this directory\n"
+                  << "(or compile a single file: kirn build main.co)\n";
         return 1;
     }
     if (opts.wantLib || m.type == "lib") {
         if (!fs::is_directory("code")) {
-            std::cerr << "coco build lib: no code/ directory\n";
+            std::cerr << "kirn build lib: no code/ directory\n";
             return 1;
         }
         return packLib(m, opts);
@@ -2748,14 +2748,14 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
 int unpackCocolib(const std::string& raw, bool global_) {
     std::string text;
     if (!readFile(raw, text)) {
-        std::cerr << "coco install: cannot read bundle '" << raw << "'\n";
+        std::cerr << "kirn install: cannot read bundle '" << raw << "'\n";
         return 1;
     }
     std::istringstream in(text);
     std::string header;
     std::getline(in, header);
     if (header.rfind("COCOLIB/", 0) != 0) {
-        std::cerr << "coco install: not a valid .cocolib bundle\n";
+        std::cerr << "kirn install: not a valid .cocolib bundle\n";
         return 1;
     }
 
@@ -2775,8 +2775,8 @@ int unpackCocolib(const std::string& raw, bool global_) {
     std::string name;
     for (const auto& s : sections)
         if (s.path == "coco.toml") {
-            Doc d = coco::tomlmini::parse(s.body);
-            name = coco::tomlmini::get(d, "package", "name");
+            Doc d = kirn::tomlmini::parse(s.body);
+            name = kirn::tomlmini::get(d, "package", "name");
         }
     if (name.empty()) {
         // greet-0.1.0.cocolib -> greet
@@ -2785,7 +2785,7 @@ int unpackCocolib(const std::string& raw, bool global_) {
         name = dash == std::string::npos ? stem : stem.substr(0, dash);
     }
     if (name.empty()) {
-        std::cerr << "coco install: cannot determine package name\n";
+        std::cerr << "kirn install: cannot determine package name\n";
         return 1;
     }
 
@@ -2801,7 +2801,7 @@ int unpackCocolib(const std::string& raw, bool global_) {
 
 // ---------------------------------------------------------------------------
 
-// coco targets - the `go tool dist list` analogue: every supported
+// kirn targets - the `go tool dist list` analogue: every supported
 // GOOS/GOARCH-style triple, marked with what this machine can produce.
 int cmdTargets() {
     const std::string host = hostTarget();
@@ -2836,29 +2836,29 @@ int cmdTargets() {
 
 void usage() {
     std::cout
-        << "coco - the Coco language driver\n\n"
+        << "kirn - the Kirn language driver\n\n"
         << "usage:\n"
-        << "  coco run [dir|file]              run a program or project\n"
-        << "  coco run <file.co>              run a script or project\n"
-        << "  coco new <name>                  scaffold an application\n"
-        << "  coco new lib <name>              scaffold a library package\n"
-        << "  coco test [.|file|dir ...]       run *_test.co files\n"
-        << "  coco install|i [-g] <pkg>        install into ./coco_libs/libs\n"
+        << "  kirn run [dir|file]              run a program or project\n"
+        << "  kirn run <file.co>              run a script or project\n"
+        << "  kirn new <name>                  scaffold an application\n"
+        << "  kirn new lib <name>              scaffold a library package\n"
+        << "  kirn test [.|file|dir ...]       run *_test.co files\n"
+        << "  kirn install|i [-g] <pkg>        install into ./coco_libs/libs\n"
         << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry"
                "-name> | file.cocolib\n"
-        << "      -g installs globally into ~/.coco/coco-pkg/libs\n"
+        << "      -g installs globally into ~/.coco/kirn-pkg/libs\n"
         << "         (apps also get a bin shim + PATH entry)\n"
-        << "  coco add <pkg>...                install + record dependencies"
+        << "  kirn add <pkg>...                install + record dependencies"
                "\n"
-        << "  coco add                         sync: install missing deps"
+        << "  kirn add                         sync: install missing deps"
                " (go mod tidy)\n"
-        << "  coco update [name]               refresh installed deps\n"
-        << "  coco remove <name>               uninstall a dependency\n"
-        << "  coco clone <repo> [--full]       clone any repo (shorthand:"
+        << "  kirn update [name]               refresh installed deps\n"
+        << "  kirn remove <name>               uninstall a dependency\n"
+        << "  kirn clone <repo> [--full]       clone any repo (shorthand:"
                " user/repo)\n"
-        << "  coco build                       compile project (needs "
+        << "  kirn build                       compile project (needs "
                "coco.toml)\n"
-        << "  coco build <file.co>             compile one file -> ./<stem>"
+        << "  kirn build <file.co>             compile one file -> ./<stem>"
                ".exe\n"
         << "           [--release|--debug]     optimization profile\n"
         << "           [--target=<os>-<arch>]    like GOOS/GOARCH; default "
@@ -2869,13 +2869,13 @@ void usage() {
                "real C++\n"
          << "           [--asan]                   build with AddressSanitizer\n"
          << "           [-o <path>]               output path (Go build -o)\n"
-        << "  coco targets                     list all supported target "
+        << "  kirn targets                     list all supported target "
                "triples\n"
-        << "  coco build lib                   check + pack -> "
+        << "  kirn build lib                   check + pack -> "
                "build/<profile>/<t>/<n>-<v>.cocolib\n"
-        << "  coco doc <lib|dir> [--port N]    serve markdown docs + API ref\n"
-        << "  coco list                        list installed libraries\n"
-        << "  coco list online                 browse the coco-libs registry\n";
+        << "  kirn doc <lib|dir> [--port N]    serve markdown docs + API ref\n"
+        << "  kirn list                        list installed libraries\n"
+        << "  kirn list online                 browse the kirn-libs registry\n";
 }
 
 } // namespace
@@ -2900,11 +2900,11 @@ int main(int argc, char** argv) {
             std::string entry = resolveEntry(m, file);
             if (entry.empty()) {
                 std::cerr
-                    << "coco run: no entry point found in '" << target
+                    << "kirn run: no entry point found in '" << target
                     << "'\n"
                     << "  looked for (in order): coco.toml [package] main, "
                        "code/main.co, main.co, code/pin.co, pin.co\n"
-                    << "  fix-it: create code/main.co, or run `coco new <name>` "
+                    << "  fix-it: create code/main.co, or run `kirn new <name>` "
                        "to scaffold a project\n";
                 return 66;
             }

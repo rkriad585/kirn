@@ -1,4 +1,4 @@
-# Coco Language — Complete Design & Implementation Plan
+# Kirn Language — Complete Design & Implementation Plan
 
 > **One-line vision:** Python's syntax, Go's compilation model, Rust/C++-level performance.
 >
@@ -35,16 +35,16 @@
 
 ## 1. Vision & Goals
 
-Coco is a statically typed, ahead-of-time compiled, general-purpose systems-and-applications
+Kirn is a statically typed, ahead-of-time compiled, general-purpose systems-and-applications
 language that *feels like Python* to write but produces fast native binaries.
 
 | Goal | Meaning in practice |
 |---|---|
 | **Python-like syntax** | Indentation-based blocks, no braces/semicolons, `def` functions, readable one-liners, REPL-friendly |
-| **Go-like compilation** | Single static binary output, near-instant startup, fast compile times (`coco build` < 1s for medium projects), trivial cross-compilation, no VM/JIT required at runtime |
+| **Go-like compilation** | Single static binary output, near-instant startup, fast compile times (`kirn build` < 1s for medium projects), trivial cross-compilation, no VM/JIT required at runtime |
 | **Rust/C++ performance** | Value semantics + stack allocation by default, zero-cost abstractions, monomorphized generics, LLVM optimization pipeline, no mandatory garbage-collection pauses on the hot path |
 | **Safe by default** | Memory-safe subset by default; raw pointers only inside explicit `unsafe:` blocks; array bounds always checked unless proven/elided |
-| **Simple toolchain** | One executable `coco`: build, run, test, fmt, package manager — like `go`, not a zoo of tools |
+| **Simple toolchain** | One executable `kirn`: build, run, test, fmt, package manager — like `go`, not a zoo of tools |
 
 **Elevator pitch:** *"Write it like Python. Ship it like C."*
 
@@ -84,7 +84,7 @@ Being explicit prevents scope creep:
 | Go-like compiled | "JIT compilation at runtime" | JIT = VM dependency, slow startup | Pure AOT → static binary (§10) |
 | Rust-level perf + simplicity | "Ownership model like Rust" | Borrow checker ≠ simple | ARC + value semantics, phased ownership inference (§6) |
 | Buildable roadmap | Generic compiler textbook | No decisions, no milestones | Concrete phases 0–8 with exit criteria (§17) |
-| Toolchain | Vague | No CLI spec, no host language | `coco` CLI + C++ implementation plan (§11, §14) |
+| Toolchain | Vague | No CLI spec, no host language | `kirn` CLI + C++ implementation plan (§11, §14) |
 
 ---
 
@@ -100,8 +100,8 @@ def main():
 ```
 
 ```bash
-$ coco run main.co     # compile + execute
-$ coco build main.co   # emit ./main native binary
+$ kirn run main.co     # compile + execute
+$ kirn build main.co   # emit ./main native binary
 ```
 
 ### 5.1 Lexical Structure
@@ -548,7 +548,7 @@ def c_printf_safely(msg: string):
 
 - `extern def` supports variadics, custom calling conventions (`extern "system"`), structs
   with explicit layout (`@packed`, alignment attributes).
-- **Bindgen companion tool** (`coco bindgen header.h`) generates declarations from C headers —
+- **Bindgen companion tool** (`kirn bindgen header.h`) generates declarations from C headers —
   same role cargo-bindgen plays for Rust. C++ headers: name-mangled extern support in phase 6.
 - `unsafe:` blocks unlock: raw pointers (`*T`), pointer arithmetic, `unsafe_as`,
   `malloc`/`free`/custom allocators, `unsafe_get` unchecked indexing.
@@ -607,7 +607,7 @@ def c_printf_safely(msg: string):
 | GCC backend | No | C-coupled, hostile embedding API |
 
 Cross-compilation: LLVM target triples + lld + sysroot packaging →
-`coco build --target aarch64-linux-gnu` works day one on any host (same trick Zig popularized).
+`kirn build --target aarch64-linux-gnu` works day one on any host (same trick Zig popularized).
 
 ### 10.4 Interpreter (bootstrap & REPL)
 
@@ -656,11 +656,11 @@ coco/
 │   ├── sema/                   # resolve, infer, checks, capture/EA
 │   ├── mir/                    # MIR def, SSA builder, passes
 │   ├── codegen/                # LLVM IR emission
-│   ├── driver/                 # coco CLI entry, job graph, caching
+│   ├── driver/                 # kirn CLI entry, job graph, caching
 │   ├── interp/                 # tree-walk interpreter
 │   └── support/                # diag engine, arena, hashing, paths
 ├── rt/                         # libcoco_rt (C11): sched, chan, arc, panics
-├── stdlib/                     # std modules written IN COCO (§13)
+├── stdlib/                     # std modules written IN KIRN (§13)
 ├── tests/                      # §15 layout
 ├── tools/                      # fmt, lsp, bindgen, bench-runner
 ├── third_party/{llvm,fmt,utf8proc,...}
@@ -679,7 +679,7 @@ coco/
 
 ## 12. Runtime Library Design (C)
 
-Every Coco binary embeds `libcoco_rt` (~50–150 KB):
+Every Kirn binary embeds `libcoco_rt` (~50–150 KB):
 
 | Component | Notes |
 |---|---|
@@ -697,7 +697,7 @@ Prelude (auto-imported basics: `print`, `list`, `chan`, `spawn`…) maps onto th
 
 ## 13. Standard Library Plan
 
-Written **in Coco itself** wherever possible (dogfooding):
+Written **in Kirn itself** wherever possible (dogfooding):
 
 | Module | Contents | Phase |
 |---|---|---|
@@ -711,7 +711,7 @@ Written **in Coco itself** wherever possible (dogfooding):
 | `math` | numeric tower helpers, statistics, PRNG (xoshiro), SIMD intrinsics wrappers | 4 |
 | `time` | monotonic/wall clocks, durations, timers, tz-lite | 4 |
 | `serialize` | derive-based JSON/TOML/CBOR via reflection-at-compile-time (trait derivation, not runtime reflection) | 6 |
-| `test` | built-in framework powering `coco test` (assert_eq, fixtures, benches) | 3 |
+| `test` | built-in framework powering `kirn test` (assert_eq, fixtures, benches) | 3 |
 
 Non-negotiable rule: stdlib adds **zero runtime deps** beyond libcoco_rt/libc; networking
 may shell to nothing — pure socket APIs.
@@ -751,20 +751,90 @@ may shell to nothing — pure socket APIs.
 
 ## 14. Tooling
 
-All subcommands ship inside the one `coco` binary (Go philosophy):
+All subcommands ship inside the one `kirn` binary (Go philosophy):
 
 | Command | Function |
 |---|---|
-| `coco run x.co [-- args]` | compile (cached) + exec |
-| `coco build [-O0..O3] [--target t] [-o out]` | produce binary/static-lib |
-| `coco check` | full front-end only — IDE-speed diagnostics |
-| `coco test [path]` | discovers `test "name" { }` blocks, parallel runner |
-| `coco bench` | criterion-style statistical benches (§16) |
-| `coco fmt` | opinionated formatter (gofmt spirit: zero config) |
-| `coco doc` | doc comment extraction → static HTML |
-| `coco get pkg@ver` | package manager: git-backed registry, lockfile (`coco.lock`), semver, content-addressed cache |
-| `coco repl` | interpreter-backed REPL w/ multiline, completion |
-| `coco bindgen header.h` | C header → Coco extern decls |
+| `kirn run x.co [-- args]` | compile (cached) + exec |
+| `kirn build [-O0..O3] [--target t] [-o out]` | produce binary/static-lib |
+| `kirn check` | full front-end only — IDE-speed diagnostics |
+| `kirn test [path]` | discovers `test "name" { }` blocks, parallel runner |
+| `kirn bench` | criterion-style statistical benches (§16) |
+| `kirn fmt` | opinionated formatter (gofmt spirit: zero config) |
+| `kirn doc` | doc comment extraction → static HTML |
+| `kirn i` / `kirn install <pets>@<tag\|commit>` | package manager fetch: registry name, `user/repo`, or third-party full URL (see §14.2) |
+| `kirn update [pets name]` / `.` | update pets — `.` = default **all** (§14.2) |
+| `kirn sync` | reconciles manifest ↔ lock ↔ installed (replaces `kirn add`; npm-install / go-mod-tidy spirit). |
+| `kirn info <pets>\|<user>/<repo>\|full-url` | print a pet's config info to terminal / website (§14.2) |
+| `kirn doctor` | syntax + type check (`kirn check` + negative/types harnesses) + registry/install sanity |
+| `kirn new <project>` / `kirn new pets <name>` | init project/pets template + auto Auto Build & Release workflow (§14.2) |
+| `kirn setup` | one-time machine init: global defaults + auto-install std pets (§13.1) |
+| `kirn self-update` | fetch & install the latest `kirn` release (§14.2) |
+| `kirn repl` | interpreter-backed REPL w/ multiline, completion |
+| `kirn bindgen header.h` | C header → Kirn extern decls |
+
+### 14.2 Package manager, pets registry & the ecosystem
+
+- **GitHub orgs (rkriad585 has full access to both):** the language org
+  `https://github.com/kirn-lang` (the compiler repo `kirn-lang/kirn` + the `kirn-lang` GitHub
+  Pages landing) and the pets registry org `https://github.com/pets-registry` (the registry
+  repo + every std/third-party pet repo). A dedicated **registry repo is created on the
+  `pets-registry` org** (the pets index, same role the `coco-lib` registry repo played for
+  the old COCO ecosystem) — it hosts the machine-readable pet index (`registry.toml`) that
+  powers name→repo resolution.
+- **Websites:** full-identity landing `https://kirn-lang.github.io`; **docs / learn-Kirn-
+  syntax** site `https://rkriad585.github.io/kirn`; **pets landing** `https://pets-registry.github.io`
+  where developers search pets or learn how to author/`kirn new pets <name>`. (The old
+  `coco_pets` branding is dropped — the library term is `pet`/`pets`, not `coco_pets`.)
+- **`kirn setup` — global defaults, asked once, remembered.** First-time `kirn setup`
+  prompts for global project defaults: **package name, version, license, author, website
+  URL (optional), GitHub URL (optional)** — the GitHub URL accepts any of
+  `[https://]github|gitlab|codeberg.com/some_user` (repo name auto-inferred from the project
+  or pets name: `[https://]github|gitlab|codeberg.com/<user>/<project|pets>`) plus an
+  optional **branch** (default `main`). These are stored globally (`~/.kirn/kirn.toml`,
+  `[global]` section). Kirn **does not re-ask** once global info is set; the user must pass
+  `kirn new --setup` to re-run/re-edit the global defaults. `kirn setup` also auto-installs
+  the std pets globally (idempotent — §13.1).
+- **`kirn i` / `kirn install <pets>@<tag\|commit>`** fetches a pet by:
+  1. **registry name** (`kirn i json`) — resolved via the `pets-registry` index;
+  2. **user/repo** (`kirn i someuser/some_kirn_pets_repo`) — no URL prefix needed;
+  3. **third-party git services by full URL** (`kirn i [https://]gitlab.com/someuser/some_kirn_pets`)
+     — auto-{fetch,install} from any git host. Version is optional (`@<semver tag>` or
+     `@<commit id>`); default = default branch (`main`).
+- **`kirn i`, `kirn install <pets>@<tag\|commit>`** — see above; tag/commit form always
+  allowed. `kirn i` is the short form.
+- **`kirn update [pets name]`** updates a single pet; `kirn update .` (or bare `kirn update`)
+  updates **all** registered pets to the latest within their range.
+- **`kirn sync`** is the new consolidate command (replaces `kirn add`): reads the manifest
+  (`kirn.toml`) + lockfile, installs/removes what changed, rewrites `kirn.lock` — the
+  npm-install / go-mod-tidy reconciliation step.
+- **`kirn info <pets>|<user>/<repo>|full-url`** fetches the pet's config (name, version,
+  license, author, website, GitHub URL) and prints it to the terminal or renders it on the
+  registry website.
+- **`kirn doctor`** runs syntax + type checking (reuses the negative/types harnesses) and
+  health-checks the registry/installer/global config.
+- **`kirn new <project>`** and **`kirn new pets <petsname>`** scaffold a template. A pets
+  template auto-generates a GitHub **Auto Build & Release workflow** (tag-triggered): on a
+  pushed `v*` tag the workflow runs `kirn build pets` and publishes a release artifact so
+  anyone can `kirn i <petsname>` (registry), `kirn i someuser/some_kirn_pets_name`, or
+  `kirn i [https://]gitlab.com/someuser/some_kirn_pets` to install it.
+- **Cross-platform, rust-style one-shot installers** (tag-triggered from the same Auto Build
+  & Release repo, no extra setup / no config prompts):
+  Windows PowerShell `irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex`,
+  POSIX `curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh`.
+  Every installer is built by the Auto Build & Release workflow and published as a tagged
+  GitHub release; `kirn self-update` fetches and applies the newest release on any platform.
+
+**LSP server** (`tools/lsp`, speak JSON-RPC): completions, hover types (inference reuse!),
+go-def/find-refs, rename, semantic highlight, inline errors — this is the single highest-
+leverage adoption tool after the compiler (scheduled in Phase 6).
+
+**k-docs — inline docs for Kirn (pydoc/godoc spirit, new syntax):** a dedicated
+`COCO_KIRN_DOCS_PLAN.md`-style plan tracks the k-doc comment syntax (`///` block + Kirn-
+specific directive markers), extraction into the `kirn doc` pipeline, and rendering to
+static HTML on the docs site (`https://rkriad585.github.io/kirn`) — see `COCO_PLANS/`. This
+is analogous to pydoc/godoc but with Kirn-native comment syntax; scheduled alongside
+Phase 6 `kirn doc`.
 
 **LSP server** (`tools/lsp`, speak JSON-RPC): completions, hover types (inference reuse!),
 go-def/find-refs, rename, semantic highlight, inline errors — this is the single highest-
@@ -824,11 +894,11 @@ Each phase has **exit criteria**; no phase starts before the previous exits.
 | Phase | Deliverables | Exit criteria | Est. effort |
 |---|---|---|---|
 | **0. Spec freeze (v0.1)** | This doc ratified; `grammar/coco.ebnf` complete; 30 example programs that must parse someday | 3 independent people can hand-execute examples unambiguously | 2–4 wks |
-| **1. Frontend + interpreter** | Lexer, parser, resolver/inference, tree-walk interpreter, `coco repl`, diag engine | All Phase-0 examples run correctly in interpreter; error messages have spans+fix-its | 2–3 mo |
-| **2. MIR + codegen skeleton** | SSA MIR, lowering for core subset, LLVM emission, `coco build` produces hello-world binary linking libcoco_rt (scheduler stubbed) | fib/nbody run compiled & match interpreter bit-for-bit | 2 mo |
+| **1. Frontend + interpreter** | Lexer, parser, resolver/inference, tree-walk interpreter, `kirn repl`, diag engine | All Phase-0 examples run correctly in interpreter; error messages have spans+fix-its | 2–3 mo |
+| **2. MIR + codegen skeleton** | SSA MIR, lowering for core subset, LLVM emission, `kirn build` produces hello-world binary linking libcoco_rt (scheduler stubbed) | fib/nbody run compiled & match interpreter bit-for-bit | 2 mo |
 | **3. Core language complete** | Generics/monomorphization, traits static+dynamic, match exhaustiveness, ARC runtime + cycle collector, bounds checks + elision, `test` framework | Suite §15 green incl. sanitizers; differential testing automated in CI | 3 mo |
 | **4. Concurrency + collections** | Full scheduler, channels/select, sendability checker, defer, collections+iterators, io/os/time/math | 10k-goroutine web crawler demo stable; ASan-clean | 2–3 mo |
-| **5. Stdlib + net + tooling** | net/text/serialize modules, `coco fmt`, `coco get` MVP + 20 published demo packages, bench infra online | Real project (JSON REST API server) builds & serves load with good p99 | 2–3 mo |
+| **5. Stdlib + net + tooling** | net/text/serialize modules, `kirn fmt`, `kirn get` MVP + 20 published demo packages, bench infra online | Real project (JSON REST API server) builds & serves load with good p99 | 2–3 mo |
 | **6. Ecosystem hardening** | LSP server, bindgen, fuzzing/OSS-Fuzz, incremental compilation caches, Windows polish, packages site | Third-party contributors land features unassisted; LSP in VS Code marketplace | 3 mo |
 | **7. v1.0** | Spec v1.0 frozen, semver guarantee, installers (brew/scoop/apt/docker), website+book, governance seated (§19) | 90-day freeze with zero spec changes; 25+ real external projects | 2 mo |
 
@@ -841,7 +911,7 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 
 - **Semver** for compiler AND language: breaking language changes require major bump.
 - Edition system (like Rust/C++): `edition = "2027"` in `coco.toml` lets old code keep compiling
-  while new editions clean up warts; migrations automated by `coco fmt --migrate`.
+  while new editions clean up warts; migrations automated by `kirn fmt --migrate`.
 - Deprecation ladder: warn (≥2 minor releases) → error in next edition only.
 - Stdlib stability: anything exported from stdlib follows semver too; experimental modules
   namespace `x/` explicitly unstable.
@@ -853,7 +923,7 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 - **Governance v1:** BDFL (project founder) + RFC process: any language change needs a
   numbered RFC (template in `rfcs/`), 2-week comment window, recorded decision + rationale.
   At 50+ contributors: elect a 5-person language council; BDFL retains tie-break only.
-- **Docs:** The Coco Book (mdBook) generated in CI; stdlib docs via `coco doc` published
+- **Docs:** The Kirn Book (mdBook) generated in CI; stdlib docs via `kirn doc` published
   per release; playground (wasm-compiled interpreter) embedded in website.
 - **Community:** GitHub Discussions for Q&A, RFCs for design, Discord for chat;
   issue templates already in repo — extend with `rfc`, `stdlib-proposal`.
@@ -877,7 +947,7 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 
 ## 21. Comparison With Other Languages
 
-| Dimension | Coco | Python | Go | Rust | C++ |
+| Dimension | Kirn | Python | Go | Rust | C++ |
 |---|---|---|---|---|---|
 | Typing | static, inferred | dynamic | static, inferred | static, inferred | static |
 | Syntax feel | indentation, Pythonic | ★★★★★ | braces | braces | braces |

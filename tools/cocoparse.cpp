@@ -1,4 +1,4 @@
-// cocoparse: lex + parse a Coco source file.
+// cocoparse: lex + parse a Kirn source file.
 //   cocoparse <file>          parse; print "OK" or diagnostics, exit 0/1
 //   cocoparse --ast <file>    also dump the AST
 #include "lex/lexer.h"
@@ -25,7 +25,7 @@ bool readFile(const std::string& path, std::string& out) {
     return true;
 }
 
-void printDiags(const coco::DiagEngine& diags, const std::string& filename) {
+void printDiags(const kirn::DiagEngine& diags, const std::string& filename) {
     for (const auto& d : diags.diags())
         std::cout << filename << ":" << d.line << ":" << d.col
                   << ": error: " << d.message << "\n";
@@ -52,16 +52,16 @@ int main(int argc, char** argv) {
     std::string src;
     if (!readFile(file, src)) return 2;
 
-    coco::DiagEngine diags;
-    auto toks = coco::Lexer(src, file, diags).lexAll();
+    kirn::DiagEngine diags;
+    auto toks = kirn::Lexer(src, file, diags).lexAll();
 
     size_t lexErrors = diags.count();
     size_t parseErrors = 0;
     if (lexErrors == 0) {
-        auto prog = coco::Parser(toks, diags).parseProgram();
+        auto prog = kirn::Parser(toks, diags).parseProgram();
         parseErrors = diags.count() - lexErrors;
         if (wantAst)
-            for (const auto& st : prog) coco::ast::dump(*st);
+            for (const auto& st : prog) kirn::ast::dump(*st);
         if (parseErrors == 0)
             std::cout << file << ": OK (" << prog.size() << " top-level statements)\n";
     }

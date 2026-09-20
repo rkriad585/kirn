@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace coco {
+namespace kirn {
 namespace vm {
 
 using ast::Stmt;
@@ -640,4 +640,4 @@ CompileResult compileProgram(const std::vector<StmtP>& body,
 }
 
 } // namespace vm
-} // namespace coco
+} // namespace kirn

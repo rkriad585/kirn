@@ -1,5 +1,5 @@
 #pragma once
-// Semantic analysis for Coco v1: symbol collection, name resolution,
+// Semantic analysis for Kirn v1: symbol collection, name resolution,
 // type inference/checking over the parsed AST. Pragmatic ruleset aligned
 // with docs/COCO_PLAN.md §5 and the frozen example corpus.
 #include "ast/ast.h"
@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace coco {
+namespace kirn {
 namespace sema {
 
 // Lint configuration (PLAN phase 2.5). `allow` suppresses a lint code;
@@ -154,4 +154,4 @@ private:
 };
 
 } // namespace sema
-} // namespace coco
+} // namespace kirn

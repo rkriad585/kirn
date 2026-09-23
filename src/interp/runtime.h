@@ -3,6 +3,7 @@
 // Correctness vehicle for the corpus; the MIR/LLVM backend supersedes it later.
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <map>

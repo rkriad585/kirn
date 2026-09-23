@@ -2,6 +2,7 @@
 // Symbols & lexical scopes for Kirn sema.
 #include "sema/type.h"
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>

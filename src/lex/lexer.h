@@ -6,6 +6,7 @@
 #include "support/diag.h"
 #include "lex/token.h"
 
+#include <cstdint>
 #include <deque>
 #include <string>
 #include <string_view>

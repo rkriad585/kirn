@@ -1,5 +1,6 @@
 #pragma once
 // AST -> bytecode compiler (core slice). See bytecode.h for the design.
+#include <cstdint>
 #include <map>
 #include <unordered_set>
 #include <vector>

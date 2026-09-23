@@ -6,6 +6,7 @@
 #include "sema/symbols.h"
 #include "support/diag.h"
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <set>

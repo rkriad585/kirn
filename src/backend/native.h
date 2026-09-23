@@ -23,6 +23,7 @@
 #include "sema/checker.h"
 #include "sema/type.h"
 
+#include <cstdint>
 #include <ostream>
 #include <string>
 #include <vector>

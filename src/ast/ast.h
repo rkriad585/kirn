@@ -1,6 +1,7 @@
 #pragma once
 // Abstract Syntax Tree for Kirn (grammar/coco.ebnf §3).
 // Ownership: unique_ptr everywhere (plan §11.2); arenas arrive with MIR.
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>

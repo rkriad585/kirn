@@ -47,6 +47,41 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>   // GetEnvironmentVariableA (PATH auto-setup)
+#else
+// Minimal POSIX shims for the handful of Win32 calls used below (PATH
+// auto-setup, app-shim install, and self-path resolution). Keeps the driver
+// buildable on Linux dev machines; the Windows-only behaviour (registry
+// PATH, .cmd shims, MSVC cl.exe pipeline) is untouched and still gated to
+// _WIN32 at the call sites that matter.
+#include <unistd.h>
+#include <strings.h>
+#include <cstring>
+
+#ifndef MAX_PATH
+#define MAX_PATH 4096
+#endif
+
+static int _stricmp(const char* a, const char* b) { return ::strcasecmp(a, b); }
+
+static char* GetEnvironmentVariableA(const char* name, char* buf, size_t size) {
+    const char* v = ::getenv(name);
+    if (!v) return nullptr;
+    size_t n = ::strlen(v);
+    if (n >= size && size) n = size - 1;
+    if (size) {
+        ::memcpy(buf, v, n);
+        buf[n] = 0;
+    }
+    return buf;
+}
+
+static unsigned long GetModuleFileNameA(void*, char* buf, unsigned long size) {
+    if (!size) return 0;
+    ssize_t n = ::readlink("/proc/self/exe", buf, size - 1);
+    if (n < 0) n = 0;
+    buf[n] = 0;
+    return (unsigned long)n;
+}
 #endif
 
 namespace fs = std::filesystem;

@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # feeds clangd/LSP
 
+# std::thread lives in the CRT on MSVC but needs -pthread on POSIX link lines.
+find_package(Threads REQUIRED)
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -49,7 +52,9 @@ target_link_libraries(coco_vm PUBLIC coco_sema)
 add_library(coco_interp STATIC
     src/interp/runtime.cpp
 )
-target_link_libraries(coco_interp PUBLIC coco_vm)
+# Threads::Threads propagates to every consumer (cocorun, coco) so POSIX
+# link lines get their -pthread.
+target_link_libraries(coco_interp PUBLIC coco_vm Threads::Threads)
 
 add_library(coco_backend STATIC
     src/backend/native.cpp
@@ -69,7 +74,13 @@ add_executable(cocorun tools/cocorun.cpp)
 target_link_libraries(cocorun PRIVATE coco_interp)
 
 add_executable(coco tools/coco.cpp)
-target_link_libraries(coco PRIVATE coco_interp coco_backend ws2_32)
+# ws2_32 is the WinSock import lib: Windows-cmake only (the coco driver bakes
+# in a TCP network client). On POSIX hosts linking it fails, so gate it.
+if(WIN32)
+    target_link_libraries(coco PRIVATE coco_interp coco_backend ws2_32)
+else()
+    target_link_libraries(coco PRIVATE coco_interp coco_backend)
+endif()
 
 foreach(tgt coco_lex coco_ast coco_parser coco_sema coco_vm coco_interp coco_backend)
     if(MSVC)

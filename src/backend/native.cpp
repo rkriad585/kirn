@@ -288,7 +288,7 @@ public:
 
     void emitPreamble() {
         out_ << "#include <cmath>\n"
-             << "namespace coco_native {\n"
+             << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
                 "kirn::interp::panicHere(m); }\n"
              << "static inline int64_t co_floordiv(int64_t a,int64_t b){"
@@ -318,7 +318,7 @@ public:
             auto it = lowered_->find(s.get());
             if (it != lowered_->end()) emitFunction(*s, it->second);
         }
-        out_ << "}\n";  // close namespace coco_native
+        out_ << "}\n";  // close namespace kirn_native
     }
 
 private:
@@ -544,23 +544,23 @@ private:
             return "(" + le + " " + op + " " + re + ")";
         }
         if (op == "/") {
-            return "coco_native::co_fdiv((double)(" + le + "),(double)(" + re +
+            return "kirn_native::co_fdiv((double)(" + le + "),(double)(" + re +
                    "))";
         }
         if (op == "//") {
-            if (lint && rint) return "coco_native::co_floordiv(" + le + "," + re + ")";
+            if (lint && rint) return "kirn_native::co_floordiv(" + le + "," + re + ")";
             return "std::floor((" + le + ")/(" + re + "))";
         }
         if (op == "%") {
-            if (lint && rint) return "coco_native::co_mod(" + le + "," + re + ")";
-            return "coco_native::co_fmodm((" + le + "),(" + re + "))";
+            if (lint && rint) return "kirn_native::co_mod(" + le + "," + re + ")";
+            return "kirn_native::co_fmodm((" + le + "),(" + re + "))";
         }
         if (op == "**") {
-            if (lint && rint) return "coco_native::co_ipow(" + le + "," + re + ")";
+            if (lint && rint) return "kirn_native::co_ipow(" + le + "," + re + ")";
             return "std::pow((" + le + "),(" + re + "))";
         }
-        if (op == "<<") return "coco_native::co_shl(" + le + "," + re + ")";
-        if (op == ">>") return "coco_native::co_shr(" + le + "," + re + ")";
+        if (op == "<<") return "kirn_native::co_shl(" + le + "," + re + ")";
+        if (op == ">>") return "kirn_native::co_shr(" + le + "," + re + ")";
         if (op == "&") return "(" + le + " & " + re + ")";
         if (op == "|") return "(" + le + " | " + re + ")";
         if (op == "^") return "(" + le + " ^ " + re + ")";
@@ -619,7 +619,7 @@ void out_registerAll(
         return t == "int64_t" ? "integer" : t == "double" ? "floating"
                                                           : "boolean";
     };
-    out << "inline void coco_native_register(kirn::interp::Interpreter& interp,"
+    out << "inline void kirn_native_register(kirn::interp::Interpreter& interp,"
            " const std::vector<kirn::ast::StmtP>& prog) {\n";
     for (auto& [fn, nf] : lowered) {
         out << "    for (const auto& d : prog) if (d->kind == "
@@ -636,7 +636,7 @@ void out_registerAll(
                             << nf.params[i] << "\")." << envField(nf.pTypes[i])
                             << ";\n";
         }
-        std::string call = "coco_native::" + nf.cName + "(";
+        std::string call = "kirn_native::" + nf.cName + "(";
         for (size_t i = 0; i < nf.params.size(); ++i) {
             if (i) call += ", ";
             std::string v = "v_";

@@ -46,7 +46,7 @@ struct NativeProgram {
 };
 
 // Analyze `prog` (already type-checked via `chk`) and emit the C++ bodies for
-// all lowerable scalar functions into `out`, plus a `coco_native::registerAll`
+// all lowerable scalar functions into `out`, plus a `kirn_native::registerAll`
 // helper that wires them into an Interpreter. Returns which functions were
 // lowered. Emits nothing (and returns .any=false) when nothing is lowerable.
 NativeProgram emitNative(std::ostream& out,

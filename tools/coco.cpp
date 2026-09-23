@@ -2438,7 +2438,7 @@ int buildProgram(const std::string& name, const std::string& version,
          "if (e.key[0]) interp.addEmbeddedSource(e.key, e.src);\n"
       << "        interp.enableVm();   // bytecode VM is the default runner\n"
       << "#ifdef COCO_HAS_NATIVE\n"
-      << "        coco_native_register(interp, root.body);\n"
+      << "        kirn_native_register(interp, root.body);\n"
       << "#endif\n"
       << "        auto r = interp.run();\n"
       << "        return r.k == kirn::interp::VK::Int ? (int)r.i : 0;\n"

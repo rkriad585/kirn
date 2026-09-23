@@ -395,8 +395,14 @@ private:
                 std::string name = cIdent(cname, "v_");
                 std::string val;
                 if (s.kind == StKind::AugAssign) {
-                    // rebuild target op value with binop semantics
-                    val = emitBinop(s.augOp, *s.exprs[0], *s.exprs[1]);
+                    // rebuild target op value with binop semantics.
+                    // augOp is a compound-assign ("-=" ...); strip the '=' so
+                    // the binop dispatcher sees the plain operator. Binop ops
+                    // are never comparisons, so a trailing '=' is unambiguous
+                    // (and never one of the two-char relops ==/!=/<=/>=).
+                    std::string op = s.augOp;
+                    if (!op.empty() && op.back() == '=') op.pop_back();
+                    val = emitBinop(op, *s.exprs[0], *s.exprs[1]);
                 } else {
                     val = emitExpr(*s.exprs[1]);
                 }

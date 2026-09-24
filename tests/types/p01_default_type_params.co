@@ -1,5 +1,5 @@
 # Type-system hardening (PLAN Phase 5) positive tests — each runs clean to
-# exit 0 through cocorun (cococheck must accept them too).
+# exit 0 through kirnrun (kirncheck must accept them too).
 #
 # 5.1 — default type parameters: `def f[T = int](...)`. An unresolved TypeVar in
 # the generic's return type becomes its declared default.

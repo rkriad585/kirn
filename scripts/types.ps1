@@ -1,13 +1,13 @@
 # Runs the PLAN Phase 5 type-system test suite:
-#   - tests/types/p*.co  (positive) must PASS cococheck and cocorun (exit 0)
-#   - tests/types/n*.co  (negative) must FAIL cococheck with the substring on
+#   - tests/types/p*.co  (positive) must PASS kirncheck and kirnrun (exit 0)
+#   - tests/types/n*.co  (negative) must FAIL kirncheck with the substring on
 #     the `# expect:` comment line.
-#   scripts/types.ps1 [-Check <cococheck-path>] [-Run <cocorun-path>]
+#   scripts/types.ps1 [-Check <kirncheck-path>] [-Run <kirnrun-path>]
 param(
     [Alias("cc")]
-    [string]$Check = "cococheck.exe",
+    [string]$Check = "kirncheck.exe",
     [Alias("rr")]
-    [string]$Run = "cocorun.exe"
+    [string]$Run = "kirnrun.exe"
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -34,13 +34,13 @@ foreach ($t in $positive) {
     $name = $t.BaseName
     $cout = (& $CheckExe $t.FullName 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0) {
-        Report "FAIL" $name "cococheck rejected positive test (exit $LASTEXITCODE)";
+        Report "FAIL" $name "kirncheck rejected positive test (exit $LASTEXITCODE)";
         $cout.Trim() -split "`r?`n" | ForEach-Object { Write-Output "          $_" }
         continue
     }
     $rout = (& $RunExe $t.FullName 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0) {
-        Report "FAIL" $name "cocorun did not reach exit 0 (exit $LASTEXITCODE)";
+        Report "FAIL" $name "kirnrun did not reach exit 0 (exit $LASTEXITCODE)";
         $rout.Trim() -split "`r?`n" | ForEach-Object { Write-Output "          $_" }
         continue
     }
@@ -62,7 +62,7 @@ foreach ($t in $negative) {
     }
     $out = (& $CheckExe $t.FullName 2>&1 | Out-String)
     if ($LASTEXITCODE -eq 0) {
-        Report "FAIL" $name "cococheck exited 0, expected a diagnostic"
+        Report "FAIL" $name "kirncheck exited 0, expected a diagnostic"
         continue
     }
     if ($out -notmatch [regex]::Escape($expected)) {

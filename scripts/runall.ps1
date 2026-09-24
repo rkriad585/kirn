@@ -1,8 +1,8 @@
-# CI corpus runner: executes every examples/*.co through cocorun with a
+# CI corpus runner: executes every examples/*.co through kirnrun with a
 # per-example timeout. Prints a table (failures only when -Quiet), and
 # EXITS NONZERO if any example fails or hangs.
 #
-#   scripts/runall.ps1 [-Runner build\cocorun.exe] [-Dir examples] [-Quiet]
+#   scripts/runall.ps1 [-Runner build\kirnrun.exe] [-Dir examples] [-Quiet]
 param(
     [string]$Runner = "",
     [string]$Dir = "examples",
@@ -12,16 +12,16 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Runner) {
-    $cfg = if (Test-Path "$root\build\cocorun.exe") { "build" }
-           elseif (Test-Path "$root\build\Debug\cocorun.exe") { "build\Debug" }
-           else { Write-Error "cocorun.exe not found; pass -Runner" }
-    $Runner = "$root\$cfg\cocorun.exe"
+    $cfg = if (Test-Path "$root\build\kirnrun.exe") { "build" }
+           elseif (Test-Path "$root\build\Debug\kirnrun.exe") { "build\Debug" }
+           else { Write-Error "kirnrun.exe not found; pass -Runner" }
+    $Runner = "$root\$cfg\kirnrun.exe"
 }
 if (-not (Test-Path $Runner)) { Write-Error "runner not found: $Runner" }
 $dirPath = if ([IO.Path]::IsPathRooted($Dir) -and (Test-Path $Dir)) { $Dir }
            else { Join-Path $root $Dir }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ("coco-ci-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ("kirn-ci-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $failures = @()
 $rows = @()

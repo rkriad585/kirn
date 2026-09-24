@@ -1,9 +1,9 @@
-# ASan coverage harness: builds the whole Coco runtime/toolchain with
+# ASan coverage harness: builds the whole Kirn runtime/toolchain with
 # AddressSanitizer into build-asan/, then runs every examples/*.co through the
-# ASan-instrumented cocorun. Any leak or memory error surfaces as a nonzero
+# ASan-instrumented kirnrun. Any leak or memory error surfaces as a nonzero
 # exit (with an ASan report) and is reported like the CI corpus runner.
 #
-#   scripts/asanall.ps1 [-Quiet] [-Runner build-asan\cocorun.exe]
+#   scripts/asanall.ps1 [-Quiet] [-Runner build-asan\kirnrun.exe]
 #
 # Also does a `--native --asan` build+run smoke test for the native codegen
 # path (whole-runtime instrumented).
@@ -21,10 +21,10 @@ if (-not (Test-Path "$bdir\CMakeCache.txt")) {
 & cmake --build $bdir --config Debug
 if ($LASTEXITCODE -ne 0) { Write-Error "cmake build failed" }
 
-if (-not $Runner) { $Runner = "$bdir\cocorun.exe" }
+if (-not $Runner) { $Runner = "$bdir\kirnrun.exe" }
 if (-not (Test-Path $Runner)) { Write-Error "runner not found: $Runner" }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ("coco-asan-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ("kirn-asan-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $failures = @()
 foreach ($f in (Get-ChildItem "$root\examples" -Filter *.co | Sort-Object Name)) {
@@ -61,7 +61,7 @@ else {
 # --- 2. native codegen ASan smoke test -------------------------------------
 Write-Host "`nASan --native smoke test ..."
 $asanExe = Join-Path $root "build\asan-native-smoke.exe"
-& "$bdir\coco.exe" build "$root\examples\native_scalar_mix.co" --native --asan -o $asanExe 2>$null | Out-Null
+& "$bdir\kirn.exe" build "$root\examples\native_scalar_mix.co" --native --asan -o $asanExe 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "native --asan build failed"; exit 1 }
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $asanExe

@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$runner = Join-Path (Resolve-Path "$PSScriptRoot\..\build") "cocorun.exe"
+$runner = Join-Path (Resolve-Path "$PSScriptRoot\..\build") "kirnrun.exe"
 $files = Get-ChildItem (Join-Path (Resolve-Path "$PSScriptRoot\..") $Dir) -Filter *.co -Name |
          Where-Object { $_ -match $Pattern }
 

@@ -1,6 +1,6 @@
-// cocolex — Kirn lexer test driver.
-//   cocolex <path>...            lex each file/dir (recursively collects *.co)
-//   cocolex --dump <file.co>     print token stream for one file
+// kirnlex — Kirn lexer test driver.
+//   kirnlex <path>...            lex each file/dir (recursively collects *.co)
+//   kirnlex --dump <file.co>     print token stream for one file
 #include "lex/lexer.h"
 
 #include <algorithm>
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
         else paths.push_back(a);
     }
     if (paths.empty()) {
-        std::cerr << "usage: cocolex [--dump] <file.co | dir>...\n";
+        std::cerr << "usage: kirnlex [--dump] <file.co | dir>...\n";
         return 2;
     }
 

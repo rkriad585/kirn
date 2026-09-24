@@ -19,70 +19,70 @@ if(COCO_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
-add_library(coco_support INTERFACE)
-target_include_directories(coco_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+add_library(kirn_support INTERFACE)
+target_include_directories(kirn_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_library(coco_lex STATIC
+add_library(kirn_lex STATIC
     src/lex/lexer.cpp
 )
-target_link_libraries(coco_lex PUBLIC coco_support)
+target_link_libraries(kirn_lex PUBLIC kirn_support)
 
-add_library(coco_ast STATIC
+add_library(kirn_ast STATIC
     src/ast/ast.cpp
     src/ast/ast_dump.cpp
 )
-target_link_libraries(coco_ast PUBLIC coco_support)
+target_link_libraries(kirn_ast PUBLIC kirn_support)
 
-add_library(coco_parser STATIC
+add_library(kirn_parser STATIC
     src/parser/parser.cpp
 )
-target_link_libraries(coco_parser PUBLIC coco_ast coco_lex)
+target_link_libraries(kirn_parser PUBLIC kirn_ast kirn_lex)
 
-add_library(coco_sema STATIC
+add_library(kirn_sema STATIC
     src/sema/checker.cpp
     src/sema/borrow.cpp
 )
-target_link_libraries(coco_sema PUBLIC coco_parser)
+target_link_libraries(kirn_sema PUBLIC kirn_parser)
 
-add_library(coco_vm STATIC
+add_library(kirn_vm STATIC
     src/vm/compiler.cpp
 )
-target_link_libraries(coco_vm PUBLIC coco_sema)
+target_link_libraries(kirn_vm PUBLIC kirn_sema)
 
-add_library(coco_interp STATIC
+add_library(kirn_interp STATIC
     src/interp/runtime.cpp
 )
-# Threads::Threads propagates to every consumer (cocorun, coco) so POSIX
+# Threads::Threads propagates to every consumer (kirnrun, kirn) so POSIX
 # link lines get their -pthread.
-target_link_libraries(coco_interp PUBLIC coco_vm Threads::Threads)
+target_link_libraries(kirn_interp PUBLIC kirn_vm Threads::Threads)
 
-add_library(coco_backend STATIC
+add_library(kirn_backend STATIC
     src/backend/native.cpp
 )
-target_link_libraries(coco_backend PUBLIC coco_sema)
+target_link_libraries(kirn_backend PUBLIC kirn_sema)
 
-add_executable(cocolex tools/cocolex.cpp)
-target_link_libraries(cocolex PRIVATE coco_lex)
+add_executable(kirnlex tools/kirnlex.cpp)
+target_link_libraries(kirnlex PRIVATE kirn_lex)
 
-add_executable(cocoparse tools/cocoparse.cpp)
-target_link_libraries(cocoparse PRIVATE coco_parser)
+add_executable(kirnparse tools/kirnparse.cpp)
+target_link_libraries(kirnparse PRIVATE kirn_parser)
 
-add_executable(cococheck tools/cococheck.cpp)
-target_link_libraries(cococheck PRIVATE coco_sema)
+add_executable(kirncheck tools/kirncheck.cpp)
+target_link_libraries(kirncheck PRIVATE kirn_sema)
 
-add_executable(cocorun tools/cocorun.cpp)
-target_link_libraries(cocorun PRIVATE coco_interp)
+add_executable(kirnrun tools/kirnrun.cpp)
+target_link_libraries(kirnrun PRIVATE kirn_interp)
 
-add_executable(coco tools/coco.cpp)
-# ws2_32 is the WinSock import lib: Windows-cmake only (the coco driver bakes
+add_executable(kirn tools/kirn.cpp)
+# ws2_32 is the WinSock import lib: Windows-cmake only (the kirn driver bakes
 # in a TCP network client). On POSIX hosts linking it fails, so gate it.
 if(WIN32)
-    target_link_libraries(coco PRIVATE coco_interp coco_backend ws2_32)
+    target_link_libraries(kirn PRIVATE kirn_interp kirn_backend ws2_32)
 else()
-    target_link_libraries(coco PRIVATE coco_interp coco_backend)
+    target_link_libraries(kirn PRIVATE kirn_interp kirn_backend)
 endif()
 
-foreach(tgt coco_lex coco_ast coco_parser coco_sema coco_vm coco_interp coco_backend)
+foreach(tgt kirn_lex kirn_ast kirn_parser kirn_sema kirn_vm kirn_interp kirn_backend)
     if(MSVC)
         target_compile_options(${tgt} PRIVATE /W4 /permissive-)
     else()

@@ -1,4 +1,4 @@
-# Coco Scripts (`scripts/`)
+# Kirn Scripts (`scripts/`)
 
 PowerShell build/test/verification harnesses used during development and CI.
 

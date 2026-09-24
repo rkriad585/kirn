@@ -2,7 +2,7 @@
 # Run:  scripts/bench.ps1
 #
 # HONEST STATUS (specialized opcodes + flat-SP stack + VM default):
-#   The bytecode VM is now the DEFAULT runner (cocorun, coco run/test/build and
+#   The bytecode VM is now the DEFAULT runner (kirnrun, kirn run/test/build and
 #   produced executables). It is fully correct (32/32 differential, 33/33 corpus,
 #   8/8 negatives, 7/7 conventions, ASan-clean). Optimizations landed:
 #     - compact ~16-byte tagged VmVal (inline int/float/bool/char + heap Value* box)
@@ -17,7 +17,7 @@
 #     arithmetic while loop: ratio ~0.35 (~2.9x faster)
 #     fib(25) call bench:   ratio ~0.25 (~4.0x faster)
 #   Use --no-vm to force the tree-walker for comparison.
-param([string]$Exe = "build-rel\cocorun.exe", [switch]$DebugBuild)
+param([string]$Exe = "build-rel\kirnrun.exe", [switch]$DebugBuild)
 
 if (-not $DebugBuild -and -not (Test-Path $Exe)) {
     Write-Host "No Release build found ($Exe). Configure with:"
@@ -25,7 +25,7 @@ if (-not $DebugBuild -and -not (Test-Path $Exe)) {
     exit 2
 }
 $exe = (Resolve-Path $Exe).Path
-$tmp = Join-Path $env:TEMP "coco-bench.co"
+$tmp = Join-Path $env:TEMP "kirn-bench.co"
 
 function Time-One([string]$mode, [string]$args) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo

@@ -1,6 +1,6 @@
-// cocoparse: lex + parse a Kirn source file.
-//   cocoparse <file>          parse; print "OK" or diagnostics, exit 0/1
-//   cocoparse --ast <file>    also dump the AST
+// kirnparse: lex + parse a Kirn source file.
+//   kirnparse <file>          parse; print "OK" or diagnostics, exit 0/1
+//   kirnparse --ast <file>    also dump the AST
 #include "lex/lexer.h"
 #include "parser/parser.h"
 
@@ -16,7 +16,7 @@ namespace {
 bool readFile(const std::string& path, std::string& out) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        std::cerr << "cocoparse: cannot open '" << path << "'\n";
+        std::cerr << "kirnparse: cannot open '" << path << "'\n";
         return false;
     }
     std::ostringstream ss;
@@ -40,12 +40,12 @@ int main(int argc, char** argv) {
         std::string a = argv[i];
         if (a == "--ast") wantAst = true;
         else if (a == "-h" || a == "--help") {
-            std::cout << "usage: cocoparse [--ast] <file.co>\n";
+            std::cout << "usage: kirnparse [--ast] <file.co>\n";
             return 0;
         } else file = a;
     }
     if (file.empty()) {
-        std::cerr << "usage: cocoparse [--ast] <file.co>\n";
+        std::cerr << "usage: kirnparse [--ast] <file.co>\n";
         return 2;
     }
 

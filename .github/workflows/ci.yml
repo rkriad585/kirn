@@ -20,7 +20,7 @@ jobs:
 
       - name: Corpus (examples/*.co)
         shell: pwsh
-        run: scripts/runall.ps1 -Runner build\Debug\cocorun.exe
+        run: scripts/runall.ps1 -Runner build\Debug\kirnrun.exe
 
       - name: No-toolchain cross build must hard-fail (no .cob fallback)
         shell: pwsh
@@ -28,14 +28,14 @@ jobs:
           $ErrorActionPreference = "Stop"
           # absolute paths: relative ones break after Push-Location
           # (and pwsh then reports "The module 'build' could not be loaded")
-          $coco = Join-Path $PWD "build\Debug\coco.exe"
-          & $coco "new" "demo"
+          $kirn = Join-Path $PWD "build\Debug\kirn.exe"
+          & $kirn "new" "demo"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location demo
           try {
             # a non-host target with no cross toolchain must fail loudly:
             # the old portable .cob bundle fallback was removed
-            & $coco "build" "--target=linux-amd64"
+            & $kirn "build" "--target=linux-amd64"
             if ($LASTEXITCODE -eq 0) {
               Write-Host "::error::cross build without toolchain should fail";
               exit 1
@@ -46,10 +46,10 @@ jobs:
       - name: Upload tools
         uses: actions/upload-artifact@v4
         with:
-          name: coco-tools
+          name: kirn-tools
           path: |
-            build/Debug/coco.exe
-            build/Debug/cocorun.exe
+            build/Debug/kirn.exe
+            build/Debug/kirnrun.exe
           retention-days: 1
           if-no-files-found: error
 
@@ -59,13 +59,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # flattened by the artifact: lands at build\coco.exe, build\cocorun.exe
-      # (coco resolves its runtime sources at <exe-dir>/../src, so the exe
+      # flattened by the artifact: lands at build\kirn.exe, build\kirnrun.exe
+      # (kirn resolves its runtime sources at <exe-dir>/../src, so the exe
       # must sit exactly one level below the checkout root)
       - name: Download tools
         uses: actions/download-artifact@v4
         with:
-          name: coco-tools
+          name: kirn-tools
           path: build
 
       - name: Install llvm-mingw (aarch64 toolchain)
@@ -85,15 +85,15 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           # absolute paths survive Push-Location armapp below
-          $coco = Join-Path $PWD "build\coco.exe"
-          $run = Join-Path $PWD "build\cocorun.exe"
-          & $coco "targets"
+          $kirn = Join-Path $PWD "build\kirn.exe"
+          $run = Join-Path $PWD "build\kirnrun.exe"
+          & $kirn "targets"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $coco "new" "armapp"
+          & $kirn "new" "armapp"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location armapp
           try {
-            & $coco "build" "--release" "--target=windows-arm64"
+            & $kirn "build" "--release" "--target=windows-arm64"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             $exe = Get-ChildItem build -Recurse -Filter armapp.exe |
               Where-Object { $_.FullName -match "windows-arm64" } |
@@ -110,7 +110,7 @@ jobs:
 
             # a target with no toolchain must now hard-fail: the portable
             # .cob bundle fallback was removed
-            & $coco "build" "--target=linux-amd64"
+            & $kirn "build" "--target=linux-amd64"
             if ($LASTEXITCODE -eq 0) {
               Write-Host "::error::cross build without toolchain should fail"
               exit 1

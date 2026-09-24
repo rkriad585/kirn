@@ -8,12 +8,12 @@
 #      transcripts to _rename/baseline/
 #   4. (dry-run inventory is produced by scripts/rename_dryrun.ps1)
 #
-# The harnesses are invoked with the CURRENT executables (coco.exe, cocorun.exe,
-# cococheck.exe) exactly as Phase 1 orders - nothing is renamed yet.
+# The harnesses are invoked with the CURRENT executables (kirn.exe, kirnrun.exe,
+# kirncheck.exe) exactly as Phase 1 orders - nothing is renamed yet.
 #
 # Usage:
 #     powershell -File scripts/rename_baseline.ps1                    # auto-detect build\*.exe
-#     powershell -File scripts/rename_baseline.ps1 -Runner build\Debug\cocorun.exe
+#     powershell -File scripts/rename_baseline.ps1 -Runner build\Debug\kirnrun.exe
 #     powershell -File scripts/rename_baseline.ps1 -IncludeAsan       # also build+run build-asan/ corpus
 #     powershell -File scripts/rename_baseline.ps1 -BuildOnly         # skip harnesses
 #
@@ -21,9 +21,9 @@
 
 param(
     [string]$Root = (Get-Location),
-    [string]$RuntimeExe = '',   # cocorun.exe (default: build\ then build\Debug\)
-    [string]$CheckExe   = '',   # cococheck.exe (default: build\ then build\Debug\)
-    [string]$DriverExe  = '',   # coco.exe     (default: build\ then build\Debug\)
+    [string]$RuntimeExe = '',   # kirnrun.exe (default: build\ then build\Debug\)
+    [string]$CheckExe   = '',   # kirncheck.exe (default: build\ then build\Debug\)
+    [string]$DriverExe  = '',   # kirn.exe     (default: build\ then build\Debug\)
     [switch]$IncludeAsan,
     [switch]$BuildOnly,
     [switch]$Quiet
@@ -49,9 +49,9 @@ function Pick-Exe {
     throw "no built $Name executable found under build\; rebuild first"
 }
 
-$Runtime = Pick-Exe 'cocorun' $RuntimeExe
-$Check   = Pick-Exe 'cococheck' $CheckExe
-$Driver  = Pick-Exe 'coco' $DriverExe
+$Runtime = Pick-Exe 'kirnrun' $RuntimeExe
+$Check   = Pick-Exe 'kirncheck' $CheckExe
+$Driver  = Pick-Exe 'kirn' $DriverExe
 
 # Write LF-only UTF-8 (no BOM). Transcripts are tracked as LF (.gitattributes
 # *.log/*.txt eol=lf) and core.autocrlf is off, so regenerating a baseline must
@@ -114,7 +114,7 @@ $gates = @()
 
 # --- 1. metadata ---------------------------------------------------------------
 $meta = @()
-$meta += "COCO->KIRN baseline snapshot (Phase 1)"
+$meta += "baseline snapshot (Phase 1)"
 $meta += "timestamp : " + (Get-Date).ToUniversalTime().ToString('o')
 $meta += "root      : $Root"
 $meta += "version   : " + ((Get-Content -LiteralPath (Join-Path $Root '.version') -ErrorAction SilentlyContinue) -join '')
@@ -164,7 +164,7 @@ if ($IncludeAsan) {
 
 # --- 4. summary -----------------------------------------------------------------
 $bad = @()
-$lines = @('COCO->KIRN baseline harness summary')
+$lines = @('baseline harness summary')
 foreach ($g in $gates) {
     $ok = $true
     if ($g.Name -eq 'vm_diff') {

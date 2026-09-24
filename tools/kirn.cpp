@@ -626,7 +626,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# " + name + "\n\n" + m.description +
                       ".\n\nDocs live in `docs/index.md` (the manifest's "
                       "`docs` entry). Regenerate the API section with:\n\n"
-                      "```bash\ncoco doc " + name + "\ncoco test .\n"
+                      "```bash\nkirn doc " + name + "\nkirn test .\n"
                       "```\n\n## License\n\nMIT\n");
         writeFile(root / "LICENSE",
                   "MIT License\n\nCopyright (c) 2026 " + name +
@@ -659,11 +659,11 @@ int cmdNew(const std::string& name, bool lib) {
 
         writeFile(root / "docs" / "index.md",
                   "# " + name + "\n\n" + m.description + ".\n\n## Run\n\n```"
-                  "bash\ncoco run\ncoco test .\ncoco build\n```\n");
+                  "bash\nkirn run\nkirn test .\nkirn build\n```\n");
 
         writeFile(root / "README.md",
                   "# " + name + "\n\n" + m.description +
-                      ".\n\n## Run\n\n```bash\ncoco run\n```\n");
+                      ".\n\n## Run\n\n```bash\nkirn run\n```\n");
         writeFile(root / ".gitignore", gitignore);
 
         std::cout << "created project '" << name << "'\n"
@@ -886,16 +886,16 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
         std::error_code ec;
         fs::create_directories(binDir, ec);
         // resolve this kirn executable so the shim works off-PATH too
-        char cocoBuf[MAX_PATH * 2];
-        GetModuleFileNameA(nullptr, cocoBuf, sizeof cocoBuf);
-        std::string cocoExe = cocoBuf;
-        for (char& c : cocoExe)
+        char kirnBuf[MAX_PATH * 2];
+        GetModuleFileNameA(nullptr, kirnBuf, sizeof kirnBuf);
+        std::string kirnExe = kirnBuf;
+        for (char& c : kirnExe)
             if (c == '/') c = '\\';
         fs::path absLib = fs::weakly_canonical(libDest, ec);
         if (absLib.empty()) absLib = fs::absolute(libDest);
         std::ostringstream sh;
         sh << "@echo off\r\n"
-           << "\"" << cocoExe << "\" run \""
+           << "\"" << kirnExe << "\" run \""
            << absLib.string() << "\" %*\r\n";
         writeFile(binDir / (ref.destName + ".cmd"), sh.str());
         if (global_) {
@@ -1782,7 +1782,7 @@ std::string cppRawLiteral(const std::string& s) {
     return "R\"KIRN(" + s + ")KIRN\"";
 }
 
-// match the runtime the prebuilt coco_interp.lib was compiled with
+// match the runtime the prebuilt kirn_interp.lib was compiled with
 // (read CMAKE_BUILD_TYPE from the build tree next to our executable;
 //  CMake's default MSVC runtime is /MD release, /MDd debug)
 std::string detectRuntimeFlags(const std::string& binRoot) {
@@ -2471,7 +2471,7 @@ int buildProgram(const std::string& name, const std::string& version,
     size_t ds2 = exePath2.find_last_of("/\\");
     std::string binRoot = ds2 == std::string::npos ? "." : exePath2.substr(0, ds2);
     const bool hostHasMsvc = isHost && resolveHostCl() != "" &&
-                             fs::exists(fs::path(binRoot) / "coco_interp.lib");
+                             fs::exists(fs::path(binRoot) / "kirn_interp.lib");
     // ASan instruments the WHOLE runtime, so it always uses the whole-runtime
     // pipeline (GNU) rather than the fast launcher-only MSVC path (mixing an
     // instrumented launcher with uninstrumented prebuilt libs is not linkable).
@@ -2609,8 +2609,8 @@ int buildProgram(const std::string& name, const std::string& version,
         " /I\"" + binRoot + "\\..\\src\""
         " /Fobuild\\ " + genCpp +
         " /Fe:" + exeOut + " /link /LIBPATH:\"" + binRoot +
-        "\" coco_interp.lib coco_vm.lib coco_sema.lib coco_parser.lib"
-        " coco_ast.lib coco_lex.lib";
+        "\" kirn_interp.lib kirn_vm.lib kirn_sema.lib kirn_parser.lib"
+        " kirn_ast.lib kirn_lex.lib";
     if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
     std::cout << "compiling " << exeOut << " ...\n";
     int rc = std::system(cmd.c_str());

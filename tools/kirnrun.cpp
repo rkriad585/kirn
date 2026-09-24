@@ -1,5 +1,5 @@
-// cocorun: lex + parse + semantic-check + interpret a Kirn source file.
-//   cocorun <file.co> [args...]
+// kirnrun: lex + parse + semantic-check + interpret a Kirn source file.
+//   kirnrun <file.co> [args...]
 //                                 run program; main()'s Int return is the
 //                                 process exit code (default 0)
 #include "interp/runtime.h"
@@ -21,7 +21,7 @@ namespace {
 bool readFile(const std::string& path, std::string& out) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        std::cerr << "cocorun: cannot open '" << path << "'\n";
+        std::cerr << "kirnrun: cannot open '" << path << "'\n";
         return false;
     }
     std::ostringstream ss;
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
             continue;
         }
         if (a == "-h" || a == "--help") {
-            std::cout << "usage: cocorun [--no-vm|--vm] <file.co> [args...]\n"
+            std::cout << "usage: kirnrun [--no-vm|--vm] <file.co> [args...]\n"
                          "  (the bytecode-VM accelerator is the default; --no-vm\n"
                          "   forces the tree-walker interpreter, --vm re-enables)\n"
                          "  arguments after <file> are passed to the program as os.args()\n";
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
         afterFile = true;
     }
     if (file.empty()) {
-        std::cerr << "usage: cocorun <file.co> [args...]\n";
+        std::cerr << "usage: kirnrun <file.co> [args...]\n";
         return 2;
     }
 

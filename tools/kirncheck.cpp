@@ -1,5 +1,5 @@
-// cococheck: lex + parse + semantic analysis for a Kirn source file.
-//   cococheck <file>        check; print "OK" or diagnostics, exit 0/1
+// kirncheck: lex + parse + semantic analysis for a Kirn source file.
+//   kirncheck <file>        check; print "OK" or diagnostics, exit 0/1
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "sema/checker.h"
@@ -16,7 +16,7 @@ namespace {
 bool readFile(const std::string& path, std::string& out) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        std::cerr << "cococheck: cannot open '" << path << "'\n";
+        std::cerr << "kirncheck: cannot open '" << path << "'\n";
         return false;
     }
     std::ostringstream ss;
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "-h" || a == "--help") {
-            std::cout << "usage: cococheck [--color|--no-color|--plain] <file.co>\n";
+            std::cout << "usage: kirncheck [--color|--no-color|--plain] <file.co>\n";
             return 0;
         }
         if (a == "--color") { color = true; continue; }
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
         file = a;
     }
     if (file.empty()) {
-        std::cerr << "usage: cococheck <file.co>\n";
+        std::cerr << "usage: kirncheck <file.co>\n";
         return 2;
     }
 

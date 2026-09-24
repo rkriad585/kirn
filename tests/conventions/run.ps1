@@ -1,17 +1,17 @@
 # Phase 3 convention-file matrix tester.
 #
 # Verifies that the special convention files (main.co, pin.co) are resolved:
-#   * `coco run .` picks the right entry (manifest main -> code/main.co ->
+#   * `kirn run .` picks the right entry (manifest main -> code/main.co ->
 #     main.co -> code/pin.co -> pin.co) and errors helpfully when none exist
 #   * importing a package directory runs its pin.co (initializer) exactly once
 #     and exposes the package's pub surface
 
 param([string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path)
 
-$coco = Join-Path $Root "build\coco.exe"
-if (-not (Test-Path $coco)) { Write-Error "coco.exe not found: $coco" }
+$kirn = Join-Path $Root "build\kirn.exe"
+if (-not (Test-Path $kirn)) { Write-Error "kirn.exe not found: $kirn" }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ("coco-conv-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ("kirn-conv-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 $pass = 0; $fail = 0
@@ -26,12 +26,12 @@ function SetFile($path, $content) {
     [System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
 }
 
-# Run a coco subcommand, capturing exit code and combined output without
+# Run a kirn subcommand, capturing exit code and combined output without
 # letting native stderr trips PowerShell's error handling.
 function RunCoco {
     param([string[]]$CocoArgs)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $coco
+    $psi.FileName = $kirn
     $psi.Arguments = ($CocoArgs -join " ")
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true

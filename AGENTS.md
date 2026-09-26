@@ -26,8 +26,8 @@
 #     144 checks); currently 144/144 green on the renamed binaries in build/
 #     (CC=kirncheck, CR=kirnrun, CO=kirn). Native smoke: kirn build
 #     --native + run must print `10 10 105 1024.0` for
-#     examples/native_scalar_mix.co and exit 94 (=350 % 256) for
-#     examples/native_main.co. (Compile with COCO_CXX=g++; that env var is
+#     examples/native_scalar_mix.kn and exit 94 (=350 % 256) for
+#     examples/native_main.kn. (Compile with COCO_CXX=g++; that env var is
 #     Phase 8's COCO_*->KIRN_* rename.)
 #   * emitted native launcher TU is retained at build/debug/linux-amd64/*.cpp
 #     for postmortem inspection (it is where a `v_n = (v_n)` would betray a
@@ -39,7 +39,7 @@
 #   (07, 21, 32, 44); native --asan smoke still prints `10 10 105 1024.0`).
 #   Windows ASan has no LSan so these are Linux-only detections; worth a
 #   future weak-ptr/cycle fix, not a Phase blocker. asanall.ps1 also flags
-#   native_main.co (exit != 0) -- its loop ignores `# expect-exit`, a pre-*
+#   native_main.kn (exit != 0) -- its loop ignores `# expect-exit`, a pre-*
 #   script quirk, mirror it in bash gates as expected behavior.
 # - Node-based dev tooling (optional, husky v9 + lint-staged + commitlint +
 #   prettier): activate with `npm install`. Hooks live in .husky/ and NOP
@@ -52,8 +52,25 @@
 # rename: coco -> kirn, coco_native -> kirn_native; 0 matches left in src/ +
 # tools/) and 4 (CLI rename: tools + CMake targets + every harness/CI call
 # site -> kirn/kirnrun/kirncheck/kirnlex/kirnparse; commit 3d538e0) are
-# complete. NEXT is Phase 5: source extension .co -> .kn (loader + resolver +
-# on-disk git mv of 130 files, atomic with every glob).
+# complete, as is Phase 5: source extension .co -> .kn (git mv of 130 files
+# + loader/resolver/convention/glob literals in the same commit; commits
+# 6a1a5f0 rename(phase5) + 6b07d9a fix(tools) nul-device probes).
+# NEXT is Phase 6: lib -> pet + .cocolib -> .pet + coco_libs).
+#
+# Phase 5 details worth remembering:
+#   * Zero-grep allowlist still in force: migration-toolkit scripts
+#     (scripts/rename_kirn.py, rename_native_emitter.ps1, rename_native_ns.ps1),
+#     .prettierignore:16 `*.co.ebnf` (grammar *filename* rename is Phase 10/11),
+#     and prose docs (README/CONTRIBUTING/SECURITY/tools/src/stdlib/tests/
+#     examples/grammar READMEs) -> Phase 10 prose pass.
+#   * tools/kirn.cpp shell probes used to redirect to a literal `nul` file
+#     (only meaningful on Windows); now routed through shellNullDevice()
+#     (nul vs /dev/null) and all POSIX-reachable probes are clean -- native
+#     builds/gates no longer litter a root `nul` artifact.
+#   * Extension literals in C++: launcher "main.kn" (~:2436), package-entry
+#     defaults /pin.kn,/code/pin.kn,/mod.kn,/code/mod.kn (runtime.cpp
+#     ~:1143-1144), loader .kn strip at runtime.cpp ~:629/:1180,
+#     checker.cpp ~:658, kirn.cpp ~:1729/:1957/:2740.
 #
 # Phase 4 details worth remembering:
 #   * Folding plan Phase 9's code part INTO Phase 4 (per plan risk-row 5):

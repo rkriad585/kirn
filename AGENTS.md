@@ -24,8 +24,8 @@
 #   * tools/kirn.cpp uses `#ifdef COCO_HAS_NATIVE` and emits userspace
 #     `kirn_native` (Phase 3), matching the C++ namespace in src/backend/.
 #   * scripts/gates_linux.sh is the faithful bash port of the 7 gates
-#     (runall 45 / types 31 / negative 18 / vm_diff 43 / conventions 7 /
-#     test 1 / pets 3 = 148 checks); currently 148/148 green on the renamed
+#     (runall 45 / types 31 / negative 18 / vm_diff 43 / conventions 8 /
+#     test 1 / pets 3 = 149 checks); currently 149/149 green on the renamed
 #     binaries in build/ (CC=kirncheck, CR=kirnrun, CO=kirn). Native smoke:
 #     kirn build --native + run must print `10 10 105 1024.0` for
 #     examples/native_scalar_mix.kn and exit 94 (=350 % 256) for
@@ -58,7 +58,7 @@
 # + loader/resolver/convention/glob literals in the same commit; commits
 # 6a1a5f0 rename(phase5) + 6b07d9a fix(tools) nul-device probes) and
 # Phase 6: lib -> pet + .cocolib -> .pet + coco_libs -> pets.
-# NEXT is Phase 7: coco.toml -> kirn.toml etc.
+# NEXT is Phase 8: COCO_* environment variables -> KIRN_*.
 #
 # Phase 6 details worth remembering (commit rename(phase6), unpushed):
 #   * One atomic rename commit; the loader has NO first-segment aliasing
@@ -88,7 +88,46 @@
 #     tooling); normalized to UTF-8/LF during the `import pet.json` rewrite.
 #   * ASan: build-asan/ tools predate Phase 6 (string renames + the 3 stdlib
 #     behavior fixes only; no memory-semantics changes, but a rebuild of the
-#     build-asan/* binaries is the next hygiene step before Phase 7).
+#     build-asan/* binaries is the next hygiene step before Phase 8).
+#
+# Phase 7 details worth remembering (commit rename(phase7), unpushed):
+#   * Manifest/lockfile rename: coco.toml -> kirn.toml, coco.lock -> kirn.lock
+#     (one commit; readManifest/writeManifest/readLock/writeLock, pack/unpack,
+#     build/usage, comments). Hard rename per Cargo/npm/Bun precedent: NO
+#     dual-read. Stale-file diagnostics instead: readManifest (tools/kirn.cpp
+#     ~:163) and readLock (~:308) print a `mv coco.toml kirn.toml` /
+#     `rm coco.lock` hint and return empty; the interpreter's
+#     resolvePackageEntry (runtime.cpp ~:1131) prefers kirn.toml, prints a
+#     note, but still parses a legacy coco.toml so stale installs keep running
+#     until reinstalled (CLI never silently writes a mixed-state manifest).
+#   * Registry retargeted to the REAL registry: github.com/pets-registry/pets
+#     (org "Kirn's Pets"). CRITICAL: the plan's `registry/lib.toml` path
+#     404'd; the live index is registry.toml at the repo ROOT with a NEW
+#     schema: [registry] name/org/org_url/landing/docs/branch +
+#     [pets."<name>"] repo="owner/repo" (req), latest, license, author,
+#     website, branch (opt; currently zero entries). The old
+#     github.com/coco-lib/coco-libs registry ([lib] rows with url shorthand)
+#     is retired. tomlmini folds [pets."<name>"] into flat kv keys
+#     ("pets.\"<name>\".repo") NOT Doc::tables (legacy [[lib]] rows), so
+#     lookups now use a new enumPets() helper (tools/kirn.cpp ~:776);
+#     repo is normalized to the `github.com/<repo>` clone shorthand via
+#     petUrl() (clone = "https://"+spec+".git"), and cmdListOnline reads the
+#     new keys (name/latest/license).
+#   * Registry metadata dotfiles renamed: .kirn-registry-lib.toml ->
+#     .pets-registry.toml and .kirn-sha -> .pets-sha everywhere (kirn.cpp
+#     install/list sites + scaffold .gitignore template + gitIgnoreExtra) AND
+#     the root .gitignore:14-16 entries were STALE (.coco-registry-lib.toml /
+#     .coco-sha, dead code names) and now carry the live .pets-* names again.
+#   * All registry fetches unified on
+#     raw.githubusercontent.com/pets-registry/pets/main/registry.toml
+#     (dropped the old refs/heads variant); `kirn-libs` prose -> "the Pets
+#     Registry"; browse hint -> https://github.com/pets-registry/pets; scaffold
+#     m.repo/m.homepage/install docs point at github.com/pets-registry/.
+#   * CODEOWNERS root dropped the dead `@coco-lib` handle -> `* @rkriad585`
+#     (.github/CODEOWNERS was already self-owned).
+#   * Gate suite +1 for the stale-coco.toml diagnostic (conventions 7 -> 8
+#     checks, total 149) and gate 7 now also asserts the scaffolded install
+#     carries kirn.toml with no coco.toml present.
 #
 # Phase 5 details worth remembering:
 #   * Zero-grep allowlist still in force: migration-toolkit scripts
@@ -117,9 +156,10 @@
 #   * Intentional-keeps for the phase-4 zero-grep (tool-name tokens still
 #     present on purpose): migration-toolkit scripts (scripts/rename_*.ps1,
 #     scripts/rename_kirn.py, scripts/run_phase3_half2.ps1), the frozen
-#     _rename/baseline/ transcripts, and the manifest tokens coco.toml/
-#     coco.lock (Phase 7; the old coco_libs/ and ~/.coco/ paths were retired
-#     by Phase 6). tools/README.md still lists the old tool table -> Phase 10
+#     _rename/baseline/ transcripts, and the migration-toolkit scripts
+#     (the coco.toml/coco.lock manifest tokens named there were retired by
+#     Phase 7; old coco_libs/ and ~/.coco/ paths were retired by Phase 6).
+#     tools/README.md still lists the old tool table -> Phase 10
 #     prose pass.
 
 # docs/COCO_PLAN.md / docs/README.md / docs/FEATURE_GAP_ANALYSIS.md

@@ -1,4 +1,4 @@
-# stdlib/lib/path_test.co - tests for lib.path.
+# stdlib/lib/path_test.kn - tests for lib.path.
 import lib.path;
 
 def main() {

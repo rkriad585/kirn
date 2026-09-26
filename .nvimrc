@@ -12,5 +12,5 @@ set smartindent
 set softtabstop=4
 set textwidth=100
 set colorcolumn=100
-" .co sources are C-like for highlighting/session purposes.
-autocmd BufRead,BufNewFile *.co setlocal filetype=c
+" .kn sources are C-like for highlighting/session purposes.
+autocmd BufRead,BufNewFile *.kn setlocal filetype=c

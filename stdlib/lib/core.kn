@@ -1,4 +1,4 @@
-# stdlib/lib/core.co - core helper functions for the Coco stdlib.
+# stdlib/lib/core.kn - core helper functions for the Coco stdlib.
 # These mirror the behaviour of the C++ runtime (src/interp/runtime.cpp) so
 # importers observe identical semantics.
 #

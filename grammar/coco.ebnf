@@ -3,7 +3,7 @@
 #  File:       grammar/coco.ebnf
 #  Status:     PHASE 0 DRAFT v0.2  (ratification tracked in docs/COCO_PLAN.md §22)
 #  Change rec: v0.2 (2026-09-03) fixes malformed EBNF and adds productions
-#              required by the example corpus (examples/01–44 + stdlib *_test.co):
+#              required by the example corpus (examples/01–44 + stdlib *_test.kn):
 #              try_stmt/catch, try-expr, match-as-expression, OOP facade
 #              (class/interface/record/extends/implements), gather_stmt,
 #              ref pattern `&pat`, `fn` alias for `def`, `do_while_stmt` spelling,
@@ -32,7 +32,7 @@
 
 (* --- Source basics ------------------------------------------------------- *)
 
-(* Encoding: UTF-8. File extension: .co. Layout is free: blocks are delimited
+(* Encoding: UTF-8. File extension: .kn. Layout is free: blocks are delimited
    by '{' ... '}' and simple statements end with ';'. Newlines are plain
    whitespace; indentation is purely cosmetic. *)
 
@@ -169,12 +169,12 @@ top_item        = func_def | struct_def | enum_def | trait_def | impl_def
                 | statement ;
 
 (* Project-layout conventions (NOT grammar; ratified Phase 3):
-   - main.co   executable entry point: the file whose main() a build/run invokes.
-   - pin.co    package initializer / public-API aggregator (Python __init__):
+   - main.kn   executable entry point: the file whose main() a build/run invokes.
+   - pin.kn    package initializer / public-API aggregator (Python __init__):
                runs exactly once when the package tree is imported, then exposes
                its pub surface on the package module object. Preferred entry over
-               mod.co / <dirname>.co / a lone *.co inside a package directory.
-   - tests/    <name>_test.co files invoked by `kirn test`.                *)
+               mod.kn / <dirname>.kn / a lone *.kn inside a package directory.
+   - tests/    <name>_test.kn files invoked by `kirn test`.                *)
 
 
 (* ---- Imports -------------------------------------------------------------- *)

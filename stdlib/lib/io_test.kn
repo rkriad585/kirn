@@ -1,4 +1,4 @@
-# stdlib/lib/io_test.co - tests for lib.io.
+# stdlib/lib/io_test.kn - tests for lib.io.
 import lib.io;
 
 def main() {

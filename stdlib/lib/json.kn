@@ -1,4 +1,4 @@
-# stdlib/lib/json.co - JSON encode/decode (Coco-written, Phase 6).
+# stdlib/lib/json.kn - JSON encode/decode (Coco-written, Phase 6).
 # `dumps` delegates to the native serializer; `loads` is a pure-Coco recursive
 # descent parser producing dict/list/str/float/bool/nil. Import with:
 #   import lib.json;

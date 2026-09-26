@@ -1,4 +1,4 @@
-# stdlib/lib/regexp_test.co - tests for lib.regexp.
+# stdlib/lib/regexp_test.kn - tests for lib.regexp.
 import lib.regexp;
 
 def main() {

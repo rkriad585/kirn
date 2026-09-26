@@ -1,4 +1,4 @@
-# stdlib/lib/strings_test.co - tests for lib.strings.
+# stdlib/lib/strings_test.kn - tests for lib.strings.
 import lib.strings;
 
 def main() {

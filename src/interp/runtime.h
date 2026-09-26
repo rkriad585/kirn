@@ -176,7 +176,7 @@ private:
     void installBuiltins();
     Value resolveModulePath(const std::string& dotted);
     Value moduleMember(const std::string& mod, const std::string& name);
-    // real stdlib: load <dir>/<dotted/path>.co as an isolated module namespace
+    // real stdlib: load <dir>/<dotted/path>.kn as an isolated module namespace
     std::vector<std::string> stdlibDirs_;
     std::map<std::string, std::string> embeddedSources_;  // baked-in modules
     std::map<std::string, Env> loadedModules_;

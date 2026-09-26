@@ -1,4 +1,4 @@
-# stdlib/lib/time.co - time utilities (Coco-written, Phase 6).
+# stdlib/lib/time.kn - time utilities (Coco-written, Phase 6).
 # Built on the runtime `time` pseudo-module (now/sleep/after). Import with:
 #   import lib.time;
 

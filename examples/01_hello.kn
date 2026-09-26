@@ -1,5 +1,5 @@
 # 01 — Hello World                        (plan §5.0 · grammar §3)
-# Expected someday: coco run examples/01_hello.co  →  Hello, World!
+# Expected someday: coco run examples/01_hello.kn  →  Hello, World!
 def main() {
     name = "World";
     print(f"Hello, {name}!");

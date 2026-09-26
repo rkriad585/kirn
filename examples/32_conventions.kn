@@ -1,12 +1,12 @@
-# 32 — Convention files: main.co & pin.co       (plan §3)
-# main.co is the executable ENTRY POINT; pin.co is a package's INITIALIZER /
-# public-API aggregator. This file shows the pin.co convention in action:
+# 32 — Convention files: main.kn & pin.kn       (plan §3)
+# main.kn is the executable ENTRY POINT; pin.kn is a package's INITIALIZER /
+# public-API aggregator. This file shows the pin.kn convention in action:
 #   - importing the `greet` package (examples/coco_libs/greet) runs its
-#     pin.co exactly once, whatever the import count
-#   - pin.co's `pub` surface is reachable on the package module object
+#     pin.kn exactly once, whatever the import count
+#   - pin.kn's `pub` surface is reachable on the package module object
 import greet;
 import greet as via;      # importing again binds a second name...
-import greet as again;    # ...but pin.co still runs ONCE, not three times
+import greet as again;    # ...but pin.kn still runs ONCE, not three times
 
 def main() {
     # the package's module state and pub API come from that single init

@@ -1,4 +1,4 @@
-# stdlib/lib/os_test.co - tests for lib.os.
+# stdlib/lib/os_test.kn - tests for lib.os.
 import lib.os;
 
 def main() {

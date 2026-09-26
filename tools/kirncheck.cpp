@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "-h" || a == "--help") {
-            std::cout << "usage: kirncheck [--color|--no-color|--plain] <file.co>\n";
+            std::cout << "usage: kirncheck [--color|--no-color|--plain] <file.kn>\n";
             return 0;
         }
         if (a == "--color") { color = true; continue; }
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
         file = a;
     }
     if (file.empty()) {
-        std::cerr << "usage: kirncheck <file.co>\n";
+        std::cerr << "usage: kirncheck <file.kn>\n";
         return 2;
     }
 

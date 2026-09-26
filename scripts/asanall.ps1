@@ -1,5 +1,5 @@
 # ASan coverage harness: builds the whole Kirn runtime/toolchain with
-# AddressSanitizer into build-asan/, then runs every examples/*.co through the
+# AddressSanitizer into build-asan/, then runs every examples/*.kn through the
 # ASan-instrumented kirnrun. Any leak or memory error surfaces as a nonzero
 # exit (with an ASan report) and is reported like the CI corpus runner.
 #
@@ -27,7 +27,7 @@ if (-not (Test-Path $Runner)) { Write-Error "runner not found: $Runner" }
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("kirn-asan-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $failures = @()
-foreach ($f in (Get-ChildItem "$root\examples" -Filter *.co | Sort-Object Name)) {
+foreach ($f in (Get-ChildItem "$root\examples" -Filter *.kn | Sort-Object Name)) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Runner
     $psi.Arguments = '"' + $f.FullName + '"'
@@ -50,7 +50,7 @@ foreach ($f in (Get-ChildItem "$root\examples" -Filter *.co | Sort-Object Name))
 }
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 
-$count = (Get-ChildItem "$root\examples" -Filter *.co | Measure-Object).Count
+$count = (Get-ChildItem "$root\examples" -Filter *.kn | Measure-Object).Count
 Write-Host ""
 if ($failures.Count -eq 0) { Write-Host "ASan corpus: ALL PASS ($count examples)" }
 else {
@@ -61,7 +61,7 @@ else {
 # --- 2. native codegen ASan smoke test -------------------------------------
 Write-Host "`nASan --native smoke test ..."
 $asanExe = Join-Path $root "build\asan-native-smoke.exe"
-& "$bdir\kirn.exe" build "$root\examples\native_scalar_mix.co" --native --asan -o $asanExe 2>$null | Out-Null
+& "$bdir\kirn.exe" build "$root\examples\native_scalar_mix.kn" --native --asan -o $asanExe 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "native --asan build failed"; exit 1 }
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $asanExe

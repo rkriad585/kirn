@@ -655,8 +655,8 @@ void Checker::fillStructBody(SymP stSym, const ast::Stmt& s) {
 std::string importRootOf(const ast::Stmt& st) {
     if (!st.importAlias.empty()) return st.importAlias;
     std::string mod = st.moduleName;
-    if (mod.size() > 3 && mod.compare(mod.size() - 3, 3, ".co") == 0)
-        mod.erase(mod.size() - 3);   // import "util.co" binds as util
+    if (mod.size() > 3 && mod.compare(mod.size() - 3, 3, ".kn") == 0)
+        mod.erase(mod.size() - 3);   // import "util.kn" binds as util
     auto dot = mod.rfind('.');
     if (dot == std::string::npos) return mod;
     return mod.substr(dot + 1);

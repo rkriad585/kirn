@@ -1,4 +1,4 @@
-# stdlib/lib/path.co - path manipulation (Coco-written, Phase 6).
+# stdlib/lib/path.kn - path manipulation (Coco-written, Phase 6).
 # Pure-Coco helpers; platform separator defaults to '/'. Import with:
 #   import lib.path;
 

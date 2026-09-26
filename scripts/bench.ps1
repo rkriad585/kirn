@@ -25,7 +25,7 @@ if (-not $DebugBuild -and -not (Test-Path $Exe)) {
     exit 2
 }
 $exe = (Resolve-Path $Exe).Path
-$tmp = Join-Path $env:TEMP "kirn-bench.co"
+$tmp = Join-Path $env:TEMP "kirn-bench.kn"
 
 function Time-One([string]$mode, [string]$args) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo

@@ -18,7 +18,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Debug
 
-      - name: Corpus (examples/*.co)
+      - name: Corpus (examples/*.kn)
         shell: pwsh
         run: scripts/runall.ps1 -Runner build\Debug\kirnrun.exe
 

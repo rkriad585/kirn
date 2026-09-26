@@ -1,4 +1,4 @@
-# stdlib/text/slug.co — URL slugification (pure Coco, no native stubs)
+# stdlib/text/slug.kn — URL slugification (pure Coco, no native stubs)
 #
 # Converts arbitrary text into a lowercase, hyphen-separated identifier:
 #   "Hello, Coco World!"  ->  "hello-coco-world"

@@ -1,4 +1,4 @@
-# stdlib/lib/regexp.co - pattern matching (Coco-written, Phase 6).
+# stdlib/lib/regexp.kn - pattern matching (Coco-written, Phase 6).
 # No native regex engine exists in the substrate yet, so this provides an
 # honest subset: glob-style wildcard matching (`*` = any run, `?` = one char)
 # plus literal find/split helpers. Import with: import lib.regexp;

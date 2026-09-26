@@ -1,7 +1,7 @@
-## greet — a tiny package whose initializer is pin.co.
+## greet — a tiny package whose initializer is pin.kn.
 ##
-## pin.co is the package's *public-API aggregator* (Python `__init__`
-## analogue). Importing the package runs pin.co exactly once, then exposes the
+## pin.kn is the package's *public-API aggregator* (Python `__init__`
+## analogue). Importing the package runs pin.kn exactly once, then exposes the
 ## `pub` surface below on the `greet` module object.
 
 var loads = 0;               # module state: preserved across imports

@@ -1,4 +1,4 @@
-# Runs the negative test suite: each tests/negative/n*.co must FAIL kirncheck
+# Runs the negative test suite: each tests/negative/n*.kn must FAIL kirncheck
 # and its output must contain the substring on the `# expect:` comment line.
 #   scripts/negative.ps1 [-Runner <kirncheck-path>] [-Cocheck <name>]
 param(
@@ -19,7 +19,7 @@ if (-not (Test-Path -LiteralPath $CheckExe)) {
     Write-Error "kirncheck not found at '$CheckExe'"
 }
 
-$tests = Get-ChildItem -LiteralPath (Join-Path $root "tests\negative") -Filter "n*.co" | Sort-Object Name
+$tests = Get-ChildItem -LiteralPath (Join-Path $root "tests\negative") -Filter "n*.kn" | Sort-Object Name
 if (-not $tests) { Write-Error "no negative tests found" }
 
 $pass = 0; $fail = 0

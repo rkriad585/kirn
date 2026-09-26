@@ -1,4 +1,4 @@
-# stdlib/lib/math_test.co - tests for lib.math.
+# stdlib/lib/math_test.kn - tests for lib.math.
 import lib.math;
 
 def main() {

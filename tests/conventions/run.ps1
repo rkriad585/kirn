@@ -1,9 +1,9 @@
 # Phase 3 convention-file matrix tester.
 #
-# Verifies that the special convention files (main.co, pin.co) are resolved:
-#   * `kirn run .` picks the right entry (manifest main -> code/main.co ->
-#     main.co -> code/pin.co -> pin.co) and errors helpfully when none exist
-#   * importing a package directory runs its pin.co (initializer) exactly once
+# Verifies that the special convention files (main.kn, pin.kn) are resolved:
+#   * `kirn run .` picks the right entry (manifest main -> code/main.kn ->
+#     main.kn -> code/pin.kn -> pin.kn) and errors helpfully when none exist
+#   * importing a package directory runs its pin.kn (initializer) exactly once
 #     and exposes the package's pub surface
 
 param([string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path)
@@ -49,44 +49,44 @@ function RunCoco {
 
 Write-Host "== run-entry resolution =="
 
-# 1. code/main.co entry (the classic scaffold)
+# 1. code/main.kn entry (the classic scaffold)
 $p = Join-Path $tmp "a"
-SetFile (Join-Path $p "code\main.co") "def main() { print(`"A`"); }"
+SetFile (Join-Path $p "code\main.kn") "def main() { print(`"A`"); }"
 $r = RunCoco @("run", $p)
-Check "code/main.co entry" ($r.Code -eq 0 -and $r.Out -match "A") $r.Out
+Check "code/main.kn entry" ($r.Code -eq 0 -and $r.Out -match "A") $r.Out
 
-# 2. manifest main = other path wins over code/main.co
+# 2. manifest main = other path wins over code/main.kn
 $p = Join-Path $tmp "b"
-SetFile (Join-Path $p "coco.toml") "[package]`nname=`"b`"`nmain=`"start.co`"`n"
-SetFile (Join-Path $p "start.co") "def main() { print(`"Bmain`"); }"
-SetFile (Join-Path $p "code\main.co") "def main() { print(`"Bcode`"); }"
+SetFile (Join-Path $p "coco.toml") "[package]`nname=`"b`"`nmain=`"start.kn`"`n"
+SetFile (Join-Path $p "start.kn") "def main() { print(`"Bmain`"); }"
+SetFile (Join-Path $p "code\main.kn") "def main() { print(`"Bcode`"); }"
 $r = RunCoco @("run", $p)
 Check "manifest main preferred" ($r.Code -eq 0 -and $r.Out -match "Bmain") $r.Out
 
-# 3. pin.co as the only entry (library-style, run directly)
+# 3. pin.kn as the only entry (library-style, run directly)
 $p = Join-Path $tmp "c"
-SetFile (Join-Path $p "pin.co") "pub def main() { print(`"C`"); }"
+SetFile (Join-Path $p "pin.kn") "pub def main() { print(`"C`"); }"
 $r = RunCoco @("run", $p)
-Check "pin.co as run entry" ($r.Code -eq 0 -and $r.Out -match "C") $r.Out
+Check "pin.kn as run entry" ($r.Code -eq 0 -and $r.Out -match "C") $r.Out
 
 # 4. no entry -> helpful fix-it error
 $p = Join-Path $tmp "d"
 New-Item -ItemType Directory -Path $p -Force | Out-Null
-SetFile (Join-Path $p "code\util.co") "pub def u() -> int { return 1; }"
+SetFile (Join-Path $p "code\util.kn") "pub def u() -> int { return 1; }"
 $r = RunCoco @("run", $p)
 Check "no entry -> fix-it error" ($r.Code -ne 0 -and $r.Out -match "no entry point") $r.Out
 
-Write-Host "== pin.co package initializer =="
+Write-Host "== pin.kn package initializer =="
 
 # 5. package run-once + pub surface across several imports
 $p = Join-Path $tmp "proj"
-SetFile (Join-Path $p "coco_libs\greet\code\pin.co") @"
+SetFile (Join-Path $p "coco_libs\greet\code\pin.kn") @"
 var loads = 0;
 loads = loads + 1;
 pub def load_count() -> int { return loads; }
 pub def hi(who: string) -> string { return "hi " + who; }
 "@
-SetFile (Join-Path $p "main.co") @"
+SetFile (Join-Path $p "main.kn") @"
 import greet;
 import greet as g2;
 import greet as g3;
@@ -96,20 +96,20 @@ def main() {
 }
 "@
 $r = RunCoco @("run", $p)
-Check "pin.co runs once (count=1)" ($r.Code -eq 0 -and $r.Out -match "count= 1") $r.Out
-Check "pin.co pub surface" ($r.Code -eq 0 -and $r.Out -match "hi world") $r.Out
+Check "pin.kn runs once (count=1)" ($r.Code -eq 0 -and $r.Out -match "count= 1") $r.Out
+Check "pin.kn pub surface" ($r.Code -eq 0 -and $r.Out -match "hi world") $r.Out
 
-# 6. pin.co without a manifest, discovered in code/
+# 6. pin.kn without a manifest, discovered in code/
 $p = Join-Path $tmp "proj2"
-SetFile (Join-Path $p "coco_libs\nomanifest\code\pin.co") @"
+SetFile (Join-Path $p "coco_libs\nomanifest\code\pin.kn") @"
 pub def poke() -> string { return "poked"; }
 "@
-SetFile (Join-Path $p "main.co") @"
+SetFile (Join-Path $p "main.kn") @"
 import nomanifest;
 def main() { print(nomanifest.poke()); }
 "@
 $r = RunCoco @("run", $p)
-Check "pin.co discovered w/o manifest" ($r.Code -eq 0 -and $r.Out -match "poked") $r.Out
+Check "pin.kn discovered w/o manifest" ($r.Code -eq 0 -and $r.Out -match "poked") $r.Out
 
 Write-Host ""
 Write-Host ("{0} passed, {1} failed" -f $pass, $fail)

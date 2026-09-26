@@ -1,6 +1,6 @@
 // kirnlex — Kirn lexer test driver.
-//   kirnlex <path>...            lex each file/dir (recursively collects *.co)
-//   kirnlex --dump <file.co>     print token stream for one file
+//   kirnlex <path>...            lex each file/dir (recursively collects *.kn)
+//   kirnlex --dump <file.kn>     print token stream for one file
 #include "lex/lexer.h"
 
 #include <algorithm>
@@ -27,7 +27,7 @@ static void collect(const fs::path& p, std::vector<fs::path>& files) {
         std::error_code ec;
         for (auto& e : fs::recursive_directory_iterator(p, ec)) {
             if (ec) break;
-            if (e.is_regular_file() && e.path().extension() == ".co")
+            if (e.is_regular_file() && e.path().extension() == ".kn")
                 files.push_back(e.path());
         }
     } else {
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
         else paths.push_back(a);
     }
     if (paths.empty()) {
-        std::cerr << "usage: kirnlex [--dump] <file.co | dir>...\n";
+        std::cerr << "usage: kirnlex [--dump] <file.kn | dir>...\n";
         return 2;
     }
 

@@ -40,12 +40,12 @@ int main(int argc, char** argv) {
         std::string a = argv[i];
         if (a == "--ast") wantAst = true;
         else if (a == "-h" || a == "--help") {
-            std::cout << "usage: kirnparse [--ast] <file.co>\n";
+            std::cout << "usage: kirnparse [--ast] <file.kn>\n";
             return 0;
         } else file = a;
     }
     if (file.empty()) {
-        std::cerr << "usage: kirnparse [--ast] <file.co>\n";
+        std::cerr << "usage: kirnparse [--ast] <file.kn>\n";
         return 2;
     }
 

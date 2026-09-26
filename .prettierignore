@@ -6,7 +6,7 @@ build-rel/
 _rename/
 node_modules/
 .git/
-*.co
+*.kn
 *.c
 *.h
 *.cpp

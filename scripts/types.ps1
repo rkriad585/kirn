@@ -1,6 +1,6 @@
 # Runs the PLAN Phase 5 type-system test suite:
-#   - tests/types/p*.co  (positive) must PASS kirncheck and kirnrun (exit 0)
-#   - tests/types/n*.co  (negative) must FAIL kirncheck with the substring on
+#   - tests/types/p*.kn  (positive) must PASS kirncheck and kirnrun (exit 0)
+#   - tests/types/n*.kn  (negative) must FAIL kirncheck with the substring on
 #     the `# expect:` comment line.
 #   scripts/types.ps1 [-Check <kirncheck-path>] [-Run <kirnrun-path>]
 param(
@@ -21,8 +21,8 @@ function Resolve-Exe([string]$p) {
 $CheckExe = Resolve-Exe $Check
 $RunExe = Resolve-Exe $Run
 
-$positive = Get-ChildItem -LiteralPath $typesDir -Filter "p*.co" | Sort-Object Name
-$negative = Get-ChildItem -LiteralPath $typesDir -Filter "n*.co" | Sort-Object Name
+$positive = Get-ChildItem -LiteralPath $typesDir -Filter "p*.kn" | Sort-Object Name
+$negative = Get-ChildItem -LiteralPath $typesDir -Filter "n*.kn" | Sort-Object Name
 
 $pass = 0; $fail = 0
 function Report([string]$status, [string]$name, [string]$msg) {

@@ -1,4 +1,4 @@
-# CI corpus runner: executes every examples/*.co through kirnrun with a
+# CI corpus runner: executes every examples/*.kn through kirnrun with a
 # per-example timeout. Prints a table (failures only when -Quiet), and
 # EXITS NONZERO if any example fails or hangs.
 #
@@ -25,7 +25,7 @@ $tmp = Join-Path ([IO.Path]::GetTempPath()) ("kirn-ci-" + [Guid]::NewGuid().ToSt
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $failures = @()
 $rows = @()
-foreach ($f in (Get-ChildItem $dirPath -Filter *.co | Sort-Object Name)) {
+foreach ($f in (Get-ChildItem $dirPath -Filter *.kn | Sort-Object Name)) {
     # raw .NET instead of Start-Process: ExitCode stays null there when
     # streams are redirected
     $psi = New-Object System.Diagnostics.ProcessStartInfo

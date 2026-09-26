@@ -621,12 +621,12 @@ void Interpreter::collectProgram(const Stmt& program) {
                     Value real = loadModuleFile(s.moduleName);
                     if (real.k != VK::None) {
                         // unaliased imports bind the last path segment
-                        // ("util.co" -> util, "a/b.co" -> b)
+                        // ("util.kn" -> util, "a/b.kn" -> b)
                         std::string bind = s.importAlias;
                         if (bind.empty()) {
                             std::string mn = s.moduleName;
                             if (mn.size() > 3 &&
-                                mn.compare(mn.size() - 3, 3, ".co") == 0)
+                                mn.compare(mn.size() - 3, 3, ".kn") == 0)
                                 mn.erase(mn.size() - 3);
                             size_t cut = mn.find_last_of("/.");
                             bind = cut == std::string::npos
@@ -1112,7 +1112,7 @@ Value Interpreter::resolveModulePath(const std::string& dotted) {
 }
 
 // ---------------------------------------------------------------------------
-// module loader: dotted/slash import paths -> <dir>/<path>.co source files
+// module loader: dotted/slash import paths -> <dir>/<path>.kn source files
 // ---------------------------------------------------------------------------
 
 static bool readFileIfExists(const std::string& path, std::string& out) {
@@ -1126,8 +1126,8 @@ static bool readFileIfExists(const std::string& path, std::string& out) {
 
 // entry-file convention inside an installed package directory:
 //   coco.toml [package] main = "..."
-//     -> pin.co (package initializer / public-API aggregator)
-//     -> mod.co -> <dirname>.co -> lone *.co
+//     -> pin.kn (package initializer / public-API aggregator)
+//     -> mod.kn -> <dirname>.kn -> lone *.kn
 static bool resolvePackageEntry(const std::string& dir, std::string& out) {
     std::string manifest;
     if (readFileIfExists(dir + "/coco.toml", manifest)) {
@@ -1140,8 +1140,8 @@ static bool resolvePackageEntry(const std::string& dir, std::string& out) {
             return true;
         }
     }
-    const char* defaults[] = {"/pin.co", "/code/pin.co", "/mod.co",
-                              "/code/mod.co"};
+    const char* defaults[] = {"/pin.kn", "/code/pin.kn", "/mod.kn",
+                              "/code/mod.kn"};
     for (const char* d : defaults) {
         std::string probe;
         if (readFileIfExists(dir + d, probe)) {
@@ -1149,21 +1149,21 @@ static bool resolvePackageEntry(const std::string& dir, std::string& out) {
             return true;
         }
     }
-    // <dirname>.co then a single top-level source file
+    // <dirname>.kn then a single top-level source file
     std::string base = dir;
     size_t cut = base.find_last_of("/\\");
     if (cut != std::string::npos) base = base.substr(cut + 1);
     std::string probe;
     std::vector<std::string> tops;
-    if (readFileIfExists(dir + "/" + base + ".co", probe))
-        tops.push_back(dir + "/" + base + ".co");
+    if (readFileIfExists(dir + "/" + base + ".kn", probe))
+        tops.push_back(dir + "/" + base + ".kn");
     if (tops.empty()) {
         std::error_code ec;
         std::filesystem::directory_iterator it(dir, ec), end;
         if (!ec)
             for (; it != end; it.increment(ec))
                 if (!ec && it->is_regular_file(ec) &&
-                    it->path().extension() == ".co")
+                    it->path().extension() == ".kn")
                     tops.push_back(it->path().string());
     }
     if (tops.size() == 1) {
@@ -1174,10 +1174,10 @@ static bool resolvePackageEntry(const std::string& dir, std::string& out) {
 }
 
 Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
-    // accept explicit ".co" suffixes (import "file1.co")
+    // accept explicit ".kn" suffixes (import "file1.kn")
     std::string dotted = dottedRaw;
     if (dotted.size() > 3 &&
-        dotted.compare(dotted.size() - 3, 3, ".co") == 0)
+        dotted.compare(dotted.size() - 3, 3, ".kn") == 0)
         dotted.erase(dotted.size() - 3);
     auto hit = loadedModules_.find(dotted);
     if (hit != loadedModules_.end()) {
@@ -1190,7 +1190,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
     std::string rel;
     for (char c : dotted) rel += (c == '.' || c == '/') ? '/' : c;
     std::string key = rel;                 // embedded-source lookup key
-    rel += ".co";
+    rel += ".kn";
 
     std::string found, src;
     auto emb = embeddedSources_.find(key);
@@ -1205,7 +1205,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
             }
             // package directory (installed under coco_libs/): use entry file
             std::string pkgDir =
-                dir + "/" + rel.substr(0, rel.size() - 3);   // strip ".co"
+                dir + "/" + rel.substr(0, rel.size() - 3);   // strip ".kn"
             if (!pkgDir.empty() && std::filesystem::is_directory(pkgDir) &&
                 resolvePackageEntry(pkgDir, found)) {
                 readFileIfExists(found, src);

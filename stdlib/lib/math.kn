@@ -1,4 +1,4 @@
-# stdlib/lib/math.co - numeric helpers (Coco-written, Phase 6).
+# stdlib/lib/math.kn - numeric helpers (Coco-written, Phase 6).
 # Built on the runtime `sqrt`/`abs`/`float`/`int` builtins. Import with:
 #   import lib.math;
 

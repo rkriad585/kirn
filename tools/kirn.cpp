@@ -3,7 +3,7 @@
 //   kirn new <name>              scaffold an application project
 //   kirn new lib <name>          scaffold a library package
 //   kirn run [dir|file]          run a program or project
-//   kirn test [dir|file...]      run *_test.co files
+//   kirn test [dir|file...]      run *_test.kn files
 //   kirn install|i [-g] <pkg>    install into ./coco_libs or ~/.coco/kirn-pkg
 //   kirn update [name]           refresh installed dependencies
 //   kirn remove <name>           uninstall a dependency
@@ -370,13 +370,13 @@ bool copyTree(const fs::path& from, const fs::path& to) {
 // ---------------------------------------------------------------------------
 
 // Convention-file resolution for a project root (used by `run` and `build`):
-//   coco.toml [package] main -> code/main.co -> main.co -> code/pin.co -> pin.co
+//   coco.toml [package] main -> code/main.kn -> main.kn -> code/pin.kn -> pin.kn
 // Returns the relative path to the chosen entry, or "" when none exists.
 std::string resolveEntry(const Manifest& m, const fs::path& dir) {
     std::string probe;
     if (!m.main.empty() && fs::is_regular_file(dir / m.main)) return m.main;
-    const char* cands[] = {"code/main.co", "main.co", "code/pin.co",
-                           "pin.co"};
+    const char* cands[] = {"code/main.kn", "main.kn", "code/pin.kn",
+                           "pin.kn"};
     for (const char* c : cands)
         if (fs::is_regular_file(dir / c)) return c;
     return "";
@@ -572,16 +572,16 @@ int cmdNew(const std::string& name, bool lib) {
         ".vscode/\n.idea/\n*.swp\nThumbs.db\n.DS_Store\n";
 
     if (lib) {
-        m.main = "code/pin.co";
+        m.main = "code/pin.kn";
         writeManifest(root, m);
 
-        // pin.co is the package initializer + public-API aggregator. It runs
+        // pin.kn is the package initializer + public-API aggregator. It runs
         // once when the package is imported and re-exports the package's
         // `pub` surface (Python __init__ analogue).
-        writeFile(root / "code" / "pin.co",
+        writeFile(root / "code" / "pin.kn",
                   "## " + name + " - a Kirn library.\n"
                   "##\n"
-                  "## This pin.co file is the package's public-API aggregator.\n"
+                  "## This pin.kn file is the package's public-API aggregator.\n"
                   "## It runs once when the package is imported, then the\n"
                   "## package's `pub` surface is available on the module.\n"
                   "## Doc comments starting with '##' sit above each `pub`:\n"
@@ -603,12 +603,12 @@ int cmdNew(const std::string& name, bool lib) {
                   "    }\n"
                   "    return out;\n}\n");
 
-        writeFile(root / "tests" / (name + "_test.co"),
-                  "# tests live in tests/ and are named <file>_test.co\n"
+        writeFile(root / "tests" / (name + "_test.kn"),
+                  "# tests live in tests/ and are named <file>_test.kn\n"
                   "# run them all with:  kirn test .\n"
-                  "# (import the package's pin.co initializer; installed\n"
+                  "# (import the package's pin.kn initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
-                  "import \"code/pin.co\" as " + name + ";\n\n"
+                  "import \"code/pin.kn\" as " + name + ";\n\n"
                   "def main() {\n"
                   "    assert_eq(" + name + ".hello(\"no one\"),\n"
                   "              \"hello from " + name + ", no one!\");\n"
@@ -637,22 +637,22 @@ int cmdNew(const std::string& name, bool lib) {
 
         std::cout << "created library '" << name << "'\n"
                   << "  " << name << "/coco.toml      manifest\n"
-                  << "  code/pin.co   package initializer + pub API\n"
-                  << "  tests/          *_test.co files\n"
+                  << "  code/pin.kn   package initializer + pub API\n"
+                  << "  tests/          *_test.kn files\n"
                   << "  docs/           markdown docs\n"
                   << "next:\n"
                   << "  cd " << name << " && kirn build lib && kirn test .\n";
     } else {
-        m.main = "code/main.co";
+        m.main = "code/main.kn";
         writeManifest(root, m);
 
-        writeFile(root / "code" / "main.co",
+        writeFile(root / "code" / "main.kn",
                   "# " + name + " - a Kirn application.\n\n"
                   "def main() {\n"
                   "    print(\"hello from " + name + "\");\n}\n");
 
-        writeFile(root / "tests" / "main_test.co",
-                  "# tests live in tests/ and are named <file>_test.co\n\n"
+        writeFile(root / "tests" / "main_test.kn",
+                  "# tests live in tests/ and are named <file>_test.kn\n\n"
                   "def main() {\n"
                   "    assert_eq(2 + 2, 4);\n"
                   "    print(\"all tests passed\");\n}\n");
@@ -668,8 +668,8 @@ int cmdNew(const std::string& name, bool lib) {
 
         std::cout << "created project '" << name << "'\n"
                   << "  " << name << "/coco.toml      manifest\n"
-                  << "  code/main.co    entry point\n"
-                  << "  tests/          *_test.co files\n"
+                  << "  code/main.kn    entry point\n"
+                  << "  tests/          *_test.kn files\n"
                   << "  docs/           project docs\n"
                   << "next:\n"
                   << "  cd " << name << " && kirn run\n";
@@ -1302,8 +1302,8 @@ int cmdListOnline() {
 
 bool isTestFile(const fs::path& p) {
     std::string n = p.filename().string();
-    const std::string suffix = "_test.co";
-    return p.extension() == ".co" && n.size() > suffix.size() &&
+    const std::string suffix = "_test.kn";
+    return p.extension() == ".kn" && n.size() > suffix.size() &&
            n.compare(n.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
@@ -1327,7 +1327,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
     if (from == args.size() || args[from] == ".") {
         collectTestFiles(".", files);
         if (files.empty()) {
-            std::cout << "no *_test.co files found\n";
+            std::cout << "no *_test.kn files found\n";
             return 0;
         }
     } else {
@@ -1342,7 +1342,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
                 any = true;
             } else {
                 std::cerr << "kirn test: '" << args[i]
-                          << "' is not a <name>_test.co file or directory\n";
+                          << "' is not a <name>_test.kn file or directory\n";
                 return 64;
             }
         }
@@ -1388,7 +1388,7 @@ std::string extractApiDocs(const Manifest& m) {
     for (fs::directory_iterator it("code", ec), end; !ec && it != end;
          it.increment(ec))
         if (!ec && it->is_regular_file(ec) &&
-            it->path().extension() == ".co")
+            it->path().extension() == ".kn")
             sources.push_back(it->path());
     std::sort(sources.begin(), sources.end());
     for (const auto& f : sources) {
@@ -1726,11 +1726,11 @@ bool resolveSource(const std::string& dotted,
                    const std::vector<std::string>& dirs, std::string& path,
                    std::string& src) {
     std::string name = dotted;
-    if (name.size() > 3 && name.compare(name.size() - 3, 3, ".co") == 0)
+    if (name.size() > 3 && name.compare(name.size() - 3, 3, ".kn") == 0)
         name.erase(name.size() - 3);   // explicit suffix form
     std::string rel;
     for (char c : name) rel += (c == '.' || c == '/') ? '/' : c;
-    rel += ".co";
+    rel += ".kn";
     for (const auto& d : dirs) {
         std::string cand = d + "/" + rel;
         if (readFile(cand, src)) {
@@ -1739,12 +1739,12 @@ bool resolveSource(const std::string& dotted,
         }
         std::string pkgDir = d + "/" + rel.substr(0, rel.size() - 3);
         if (!pkgDir.empty() && fs::is_directory(pkgDir)) {
-            // package entry: coco.toml main / mod.co / <dir>.co / lone *.co
+            // package entry: coco.toml main / mod.kn / <dir>.kn / lone *.kn
             Manifest pm = readManifest(pkgDir);
             std::vector<std::string> cands;
             if (!pm.main.empty()) cands.push_back(pm.main);
-            cands.push_back("mod.co");
-            cands.push_back(lastSegment(trimSlashes(pkgDir)) + ".co");
+            cands.push_back("mod.kn");
+            cands.push_back(lastSegment(trimSlashes(pkgDir)) + ".kn");
             for (const auto& rel2 : cands)
                 if (readFile((fs::path(pkgDir) / rel2).string(), src)) {
                     path = (fs::path(pkgDir) / rel2).string();
@@ -1755,7 +1755,7 @@ bool resolveSource(const std::string& dotted,
             for (fs::directory_iterator it(pkgDir, ec), end; !ec && it != end;
                  it.increment(ec))
                 if (!ec && it->is_regular_file(ec) &&
-                    it->path().extension() == ".co")
+                    it->path().extension() == ".kn")
                     tops.push_back(it->path());
             if (tops.size() == 1 && readFile(tops[0].string(), src)) {
                 path = tops[0].string();
@@ -1810,7 +1810,7 @@ struct BuildOpts {
     bool wantLib = false;
     bool sasm = false;       // -S  human-readable assembly listing (.sasm)
     bool obj = false;        // -O  native object file (.obj + .lib via lib.exe)
-    bool singleFile = false; // `kirn build file.co` (Go-style, no manifest)
+    bool singleFile = false; // `kirn build file.kn` (Go-style, no manifest)
     bool native_ = false;    // --native  lower scalar user fns to real C++
     bool asan = false;       // --asan    build with AddressSanitizer
     std::string target;      // --target=<os>-<arch>; empty -> $COCO_TARGET -> host
@@ -1906,8 +1906,12 @@ std::string resolveHostCl() {
     const std::string hard =
         "C:/msvc/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe";
     if (toolchainWorks(hard)) return hard;
-    // PATH probe: `where cl` returns zero if found
+#ifdef _WIN32
+    // PATH probe: `where cl` returns zero if found; on POSIX `nul` is not the
+    // null device, so probing would litter a stray `nul` file and can never
+    // locate cl.exe anyway.
     if (std::system("where cl >nul 2>nul") == 0) return "cl";
+#endif
     return "";
 }
 
@@ -1952,9 +1956,9 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
         auto [nameRaw, _] = queue.back();
         queue.pop_back();
         // normalize exactly like Interpreter::loadModuleFile: drop an
-        // explicit ".co" suffix FIRST, then '.'/'/' -> '/'
+        // explicit ".kn" suffix FIRST, then '.'/'/' -> '/'
         std::string name = nameRaw;
-        if (name.size() > 3 && name.compare(name.size() - 3, 3, ".co") == 0)
+        if (name.size() > 3 && name.compare(name.size() - 3, 3, ".kn") == 0)
             name.erase(name.size() - 3);
         std::string key;
         for (char c : name) key += (c == '.' || c == '/') ? '/' : c;
@@ -2298,7 +2302,7 @@ std::string emitSasm(const std::string& srcPath,
 }
 
 // Core build pipeline shared by project mode (coco.toml) and single-file
-// mode (`kirn build main.co`): type-check, then emit sasm / self-contained
+// mode (`kirn build main.kn`): type-check, then emit sasm / self-contained
 // launcher and compile it with the best available pipeline.
 int buildProgram(const std::string& name, const std::string& version,
                  const std::string& entry, const std::string& mainSrc,
@@ -2422,7 +2426,7 @@ int buildProgram(const std::string& name, const std::string& version,
       << "        return 0;\n"
       << "    }\n"
       << "    kirn::DiagEngine diags;\n"
-<< "    auto toks = kirn::Lexer(kMainSrc, \"main.co\", diags).lexAll();\n"
+<< "    auto toks = kirn::Lexer(kMainSrc, \"main.kn\", diags).lexAll();\n"
        << "    if (diags.errorCount()) { std::cerr << \"embedded source error\\n\"; "
           "return 65; }\n"
        << "    auto body = kirn::Parser(toks, diags).parseProgram();\n"
@@ -2629,7 +2633,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
          it.increment(ec)) {
         if (ec || !it->is_regular_file(ec) ||
-            it->path().extension() != ".co")
+            it->path().extension() != ".kn")
             continue;
         std::string src;
         readFile(it->path().string(), src);
@@ -2680,8 +2684,8 @@ int buildAppShim(const Manifest& m, BuildOpts& opts) {
     if (entry.empty()) {
         std::cerr << "kirn build: no entry point found in this directory\n"
                   << "  looked for (in order): coco.toml [package] main, "
-                     "code/main.co, main.co, code/pin.co, pin.co\n"
-                  << "  fix-it: create code/main.co, or run `kirn new "
+                     "code/main.kn, main.kn, code/pin.kn, pin.kn\n"
+                  << "  fix-it: create code/main.kn, or run `kirn new "
                      "<name>`\n";
         return 1;
     }
@@ -2718,7 +2722,7 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         else if (a.rfind("--output=", 0) == 0)
             opts.outPath = a.substr(9);
         else if (a.size() && a[0] != '-' && positional.empty())
-            positional = a;                     // file.co | . | <dir>
+            positional = a;                     // file.kn | . | <dir>
         else {
             std::cerr << "kirn build: unknown option '" << a << "'\n";
             return 64;
@@ -2734,10 +2738,10 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         return 64;
     }
 
-    // ---- Go-style single-file mode: kirn build path/to/prog.co ----------
+    // ---- Go-style single-file mode: kirn build path/to/prog.kn ----------
     // No manifest needed; the binary defaults to ./<stem>.exe in the CWD.
     if (!positional.empty() &&
-        positional.rfind(".co") == positional.size() - 3) {
+        positional.rfind(".kn") == positional.size() - 3) {
         fs::path p(positional);
         if (!fs::is_regular_file(p)) {
             std::cerr << "kirn build: file not found: " << positional << "\n";
@@ -2760,14 +2764,14 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     }
     if (!positional.empty() && positional != ".") {
         std::cerr << "kirn build: '" << positional
-                  << "' is neither a .co file nor a project directory\n";
+                  << "' is neither a .kn file nor a project directory\n";
         return 64;
     }
 
     Manifest m = readManifest(".");
     if (m.name.empty()) {
         std::cerr << "kirn build: no coco.toml in this directory\n"
-                  << "(or compile a single file: kirn build main.co)\n";
+                  << "(or compile a single file: kirn build main.kn)\n";
         return 1;
     }
     if (opts.wantLib || m.type == "lib") {
@@ -2874,10 +2878,10 @@ void usage() {
         << "kirn - the Kirn language driver\n\n"
         << "usage:\n"
         << "  kirn run [dir|file]              run a program or project\n"
-        << "  kirn run <file.co>              run a script or project\n"
+        << "  kirn run <file.kn>              run a script or project\n"
         << "  kirn new <name>                  scaffold an application\n"
         << "  kirn new lib <name>              scaffold a library package\n"
-        << "  kirn test [.|file|dir ...]       run *_test.co files\n"
+        << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
         << "  kirn install|i [-g] <pkg>        install into ./coco_libs/libs\n"
         << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry"
                "-name> | file.cocolib\n"
@@ -2893,7 +2897,7 @@ void usage() {
                " user/repo)\n"
         << "  kirn build                       compile project (needs "
                "coco.toml)\n"
-        << "  kirn build <file.co>             compile one file -> ./<stem>"
+        << "  kirn build <file.kn>             compile one file -> ./<stem>"
                ".exe\n"
         << "           [--release|--debug]     optimization profile\n"
         << "           [--target=<os>-<arch>]    like GOOS/GOARCH; default "
@@ -2938,8 +2942,8 @@ int main(int argc, char** argv) {
                     << "kirn run: no entry point found in '" << target
                     << "'\n"
                     << "  looked for (in order): coco.toml [package] main, "
-                       "code/main.co, main.co, code/pin.co, pin.co\n"
-                    << "  fix-it: create code/main.co, or run `kirn new <name>` "
+                       "code/main.kn, main.kn, code/pin.kn, pin.kn\n"
+                    << "  fix-it: create code/main.kn, or run `kirn new <name>` "
                        "to scaffold a project\n";
                 return 66;
             }
@@ -2951,7 +2955,7 @@ int main(int argc, char** argv) {
                                     : file.parent_path().string();
         auto dirs = libDirsFor(scriptDir);
         // sibling modules of the entry file (code/) are importable too:
-        // `import "util.co"` or `import util` inside code/main.co
+        // `import "util.kn"` or `import util` inside code/main.kn
         {
             std::string parent = file.parent_path().string();
             if (!parent.empty() && parent != "." && parent != scriptDir)

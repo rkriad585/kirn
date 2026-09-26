@@ -1,4 +1,4 @@
-# stdlib/lib/io.co - file I/O helpers (Coco-written, Phase 6).
+# stdlib/lib/io.kn - file I/O helpers (Coco-written, Phase 6).
 # Built on the runtime `io` pseudo-module (open) and the File value methods
 # (read/write/close). Import with: import lib.io;
 #

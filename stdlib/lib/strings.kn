@@ -1,4 +1,4 @@
-# stdlib/lib/strings.co - string helpers (Coco-written, Phase 6).
+# stdlib/lib/strings.kn - string helpers (Coco-written, Phase 6).
 # Built on the runtime string builtins (upper/lower/trim/replace/split/...)
 # plus additional Coco-defined utilities. Import with: import lib.strings;
 

@@ -1,4 +1,4 @@
-# stdlib/lib/os.co - operating-system helpers (Coco-written, Phase 6).
+# stdlib/lib/os.kn - operating-system helpers (Coco-written, Phase 6).
 # Wraps the runtime `os` pseudo-module (exit/args/getenv). Import with:
 #   import lib.os;
 #

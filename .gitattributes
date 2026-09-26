@@ -6,7 +6,7 @@
 # warnings on add/commit.
 * text=auto eol=lf
 
-*.co    text eol=lf
+*.kn    text eol=lf
 *.c     text eol=lf
 *.h     text eol=lf
 *.cpp   text eol=lf

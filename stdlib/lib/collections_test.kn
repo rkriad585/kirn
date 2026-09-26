@@ -1,4 +1,4 @@
-# stdlib/lib/collections_test.co - tests for lib.collections.
+# stdlib/lib/collections_test.kn - tests for lib.collections.
 import lib.collections;
 
 def main() {

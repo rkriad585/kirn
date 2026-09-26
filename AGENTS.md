@@ -5,12 +5,14 @@
 # - LF line endings EVERYWHERE (see .gitattributes "* text=auto eol=lf").
 #   core.autocrlf is DISABLED for this repo (`git config core.autocrlf false`)
 #   so git never auto-converts and never warns about LF/CRLF replacement.
-# - 5-gate verification harness: scripts/runall.ps1, scripts/types.ps1
+# - 7-gate verification harness: scripts/runall.ps1, scripts/types.ps1
 #   (-Check/-Run), scripts/negative.ps1 (-Runner), scripts/vm_diff.ps1,
-#   tests/conventions/run.ps1. Phase-1 snapshot captured in scripts/
-#   rename_baseline.ps1 (transcripts under _rename/baseline/).
-#   Phase 4 renamed the tools + every harness call site: the CLI is now
-#   `kirn` (driver), `kirnrun`, `kirncheck`, `kirnlex`, `kirnparse`.
+#   tests/conventions/run.ps1, plus the Phase-6 gates `kirn test` on the
+#   stdlib/pet suite and the .pet pack->install->consume round-trip.
+#   Phase-1 snapshot captured in scripts/rename_baseline.ps1 (transcripts
+#   under _rename/baseline/). Phase 4 renamed the tools + every harness call
+#   site: the CLI is now `kirn` (driver), `kirnrun`, `kirncheck`, `kirnlex`,
+#   `kirnparse`.
 # - Linux dev environment (Phase 3 added this as a first-class path):
 #   * no cmake installed yet -> build with direct g++; binaries live in
 #     build/ (gitignored) because the kirn driver resolves runtime sources at
@@ -21,11 +23,11 @@
 #     phase MSVC pulled it transitively).
 #   * tools/kirn.cpp uses `#ifdef COCO_HAS_NATIVE` and emits userspace
 #     `kirn_native` (Phase 3), matching the C++ namespace in src/backend/.
-#   * scripts/gates_linux.sh is the faithful bash port of the 5 gates
-#     (runall 45 / types 31 / negative 18 / vm_diff 43 / conventions 7 =
-#     144 checks); currently 144/144 green on the renamed binaries in build/
-#     (CC=kirncheck, CR=kirnrun, CO=kirn). Native smoke: kirn build
-#     --native + run must print `10 10 105 1024.0` for
+#   * scripts/gates_linux.sh is the faithful bash port of the 7 gates
+#     (runall 45 / types 31 / negative 18 / vm_diff 43 / conventions 7 /
+#     test 1 / pets 3 = 148 checks); currently 148/148 green on the renamed
+#     binaries in build/ (CC=kirncheck, CR=kirnrun, CO=kirn). Native smoke:
+#     kirn build --native + run must print `10 10 105 1024.0` for
 #     examples/native_scalar_mix.kn and exit 94 (=350 % 256) for
 #     examples/native_main.kn. (Compile with COCO_CXX=g++; that env var is
 #     Phase 8's COCO_*->KIRN_* rename.)
@@ -54,8 +56,39 @@
 # site -> kirn/kirnrun/kirncheck/kirnlex/kirnparse; commit 3d538e0) are
 # complete, as is Phase 5: source extension .co -> .kn (git mv of 130 files
 # + loader/resolver/convention/glob literals in the same commit; commits
-# 6a1a5f0 rename(phase5) + 6b07d9a fix(tools) nul-device probes).
-# NEXT is Phase 6: lib -> pet + .cocolib -> .pet + coco_libs).
+# 6a1a5f0 rename(phase5) + 6b07d9a fix(tools) nul-device probes) and
+# Phase 6: lib -> pet + .cocolib -> .pet + coco_libs -> pets.
+# NEXT is Phase 7: coco.toml -> kirn.toml etc.
+#
+# Phase 6 details worth remembering (commit rename(phase6), unpushed):
+#   * One atomic rename commit; the loader has NO first-segment aliasing
+#     (imporks probe <dir>/<name>/<rest>.kn literally) so dir + imports +
+#     search-dirs were renamed together. New layout:
+#       stdlib/lib -> stdlib/pet (namespace `lib.` -> `pet.`, 22 import sites)
+#       coco_libs -> pets      (project deps; keeps `pets/libs` + `pets` roots)
+#       ~/.coco/kirn-pkg -> ~/.kirn/pets (global cache; no-HOME fallback is
+#       now `.kirn-pets`)
+#       .cocolib -> .pet  magic header COCOLIB/1 -> PETLIB/1
+#     Bundle format is unchanged otherwise: plain text, `@@FILE <path>` +
+#     `@@END` framing, payload = coco.toml + code/ + docs/ + README + LICENSE,
+#     output `build/{debug|release}/{target}/<name>-<ver>.pet`,
+#     unpack dest `pets/libs/<name>`, function unpackCocolib -> unpackPet.
+#   * `kirn build lib` subcommand, manifest `type="lib"`, and the registry
+#     surface (github.com/coco-lib/*, kirn-libs) keep the `lib` name (Phase 7
+#     owns coco.toml/lock + registry tokens; COCO_* env names are Phase 8).
+#   * `kirn test .` (gate 6) revealed latent stdlib bugs, since fixed:
+#     regexp_test asserted NOT-match for `a*b`/`acb` (standard glob says it
+#     matches; now asserts that plus the `a*bx` negative); path.dirname
+#     dropped the leading slash (join collapses the empty root segment; now
+#     re-prefixes "/"); os_test assumed >=1 program arg (runners pass none).
+#     io_test writes append-only scratch (no unlink primitive) -> gate 6
+#     removes $ROOT/.io_tmp_test.txt before/after; other dirs (examples/pets,
+#     pets/) are skipped by the test-file walker like build/.git.
+#   * tools/j.kn was UTF-16LE + CRLF (pre-existing, invisible to text
+#     tooling); normalized to UTF-8/LF during the `import pet.json` rewrite.
+#   * ASan: build-asan/ tools predate Phase 6 (string renames + the 3 stdlib
+#     behavior fixes only; no memory-semantics changes, but a rebuild of the
+#     build-asan/* binaries is the next hygiene step before Phase 7).
 #
 # Phase 5 details worth remembering:
 #   * Zero-grep allowlist still in force: migration-toolkit scripts
@@ -85,8 +118,9 @@
 #     present on purpose): migration-toolkit scripts (scripts/rename_*.ps1,
 #     scripts/rename_kirn.py, scripts/run_phase3_half2.ps1), the frozen
 #     _rename/baseline/ transcripts, and the manifest tokens coco.toml/
-#     coco.lock/coco_libs/~/.coco/ (Phases 6-7). tools/README.md still lists
-#     the old tool table -> Phase 10 prose pass.
+#     coco.lock (Phase 7; the old coco_libs/ and ~/.coco/ paths were retired
+#     by Phase 6). tools/README.md still lists the old tool table -> Phase 10
+#     prose pass.
 
 # docs/COCO_PLAN.md / docs/README.md / docs/FEATURE_GAP_ANALYSIS.md
 

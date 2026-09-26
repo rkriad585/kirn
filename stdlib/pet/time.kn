@@ -1,6 +1,6 @@
-# stdlib/lib/time.kn - time utilities (Coco-written, Phase 6).
+# stdlib/pet/time.kn - time utilities (Coco-written, Phase 6).
 # Built on the runtime `time` pseudo-module (now/sleep/after). Import with:
-#   import lib.time;
+#   import pet.time;
 
 # The pseudo-module is captured at load time (the module's own namespace is
 # bound under the same name `time` in the consumer, which shadows it inside).

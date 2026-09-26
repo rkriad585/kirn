@@ -1,5 +1,5 @@
-# stdlib/lib/strings_test.kn - tests for lib.strings.
-import lib.strings;
+# stdlib/pet/strings_test.kn - tests for pet.strings.
+import pet.strings;
 
 def main() {
     assert(strings.contains("hello world", "world"));

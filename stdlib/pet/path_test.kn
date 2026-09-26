@@ -1,5 +1,5 @@
-# stdlib/lib/path_test.kn - tests for lib.path.
-import lib.path;
+# stdlib/pet/path_test.kn - tests for pet.path.
+import pet.path;
 
 def main() {
     assert_eq(path.basename("/a/b/c.txt"), "c.txt");

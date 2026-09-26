@@ -1,5 +1,5 @@
-# stdlib/lib/collections_test.kn - tests for lib.collections.
-import lib.collections;
+# stdlib/pet/collections_test.kn - tests for pet.collections.
+import pet.collections;
 
 def main() {
     m = collections.HashMap();

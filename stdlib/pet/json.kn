@@ -1,7 +1,7 @@
-# stdlib/lib/json.kn - JSON encode/decode (Coco-written, Phase 6).
+# stdlib/pet/json.kn - JSON encode/decode (Coco-written, Phase 6).
 # `dumps` delegates to the native serializer; `loads` is a pure-Coco recursive
 # descent parser producing dict/list/str/float/bool/nil. Import with:
-#   import lib.json;
+#   import pet.json;
 
 # The native dumper is captured at load time (the module's own namespace is
 # bound under the same name `json` in the consumer, which shadows it inside).

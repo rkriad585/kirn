@@ -1,6 +1,6 @@
-# stdlib/lib/collections.kn - data-structure utilities (Coco-written, Phase 6).
+# stdlib/pet/collections.kn - data-structure utilities (Coco-written, Phase 6).
 # Provides a HashMap struct plus functional list helpers. Import with:
-#   import lib.collections;
+#   import pet.collections;
 
 # A string-keyed hash map over a runtime dict. The dict type keys are coerced
 # to strings so int/str keys unify; lookups are O(1) amortized.

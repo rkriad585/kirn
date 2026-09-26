@@ -19,7 +19,7 @@
 
 # Binary / never-normalized
 *.exe   binary
-*.cocolib binary
+*.pet   binary
 *.png   binary
 *.jpg   binary
 *.ico   binary

@@ -1,6 +1,6 @@
-# stdlib/lib/math.kn - numeric helpers (Coco-written, Phase 6).
+# stdlib/pet/math.kn - numeric helpers (Coco-written, Phase 6).
 # Built on the runtime `sqrt`/`abs`/`float`/`int` builtins. Import with:
-#   import lib.math;
+#   import pet.math;
 
 pub const PI: float = 3.1415926535897932384;
 pub const E: float = 2.7182818284590452353;

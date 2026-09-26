@@ -32,9 +32,9 @@ bool readFile(const std::string& path, std::string& out) {
 
 // Module search paths, in priority order:
 //   1. $COCO_LIBS
-//   2. <script dir>/coco_libs/libs  (per-project packages)
-//   3. <script dir>/coco_libs       (legacy layout)
-//   4. ~/.coco/kirn-pkg/{libs,/}    (global installs; libs/ preferred)
+//   2. <script dir>/pets/libs  (per-project packages)
+//   3. <script dir>/pets       (legacy layout)
+//   4. ~/.kirn/pets/{libs,/}    (global installs; libs/ preferred)
 //   5. <script dir>/../stdlib       (repo checkout layout)
 //   6. ./stdlib
 //   7. $COCO_STDLIB
@@ -44,14 +44,14 @@ void addModuleDirs(kirn::interp::Interpreter& interp,
     std::string dir = p == std::string::npos ? "." : script.substr(0, p);
     if (const char* env = std::getenv("COCO_LIBS"))
         interp.addStdlibDir(env);
-    interp.addStdlibDir(dir + "/coco_libs/libs");
-    interp.addStdlibDir(dir + "/coco_libs");
+    interp.addStdlibDir(dir + "/pets/libs");
+    interp.addStdlibDir(dir + "/pets");
     if (const char* home = std::getenv("USERPROFILE")) {
-        std::string g = std::string(home) + "/.coco/kirn-pkg";
+        std::string g = std::string(home) + "/.kirn/pets";
         interp.addStdlibDir(g + "/libs");
         interp.addStdlibDir(g);
     } else if (const char* home2 = std::getenv("HOME")) {
-        std::string g = std::string(home2) + "/.coco/kirn-pkg";
+        std::string g = std::string(home2) + "/.kirn/pets";
         interp.addStdlibDir(g + "/libs");
         interp.addStdlibDir(g);
     }

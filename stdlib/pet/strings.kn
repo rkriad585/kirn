@@ -1,6 +1,6 @@
-# stdlib/lib/strings.kn - string helpers (Coco-written, Phase 6).
+# stdlib/pet/strings.kn - string helpers (Coco-written, Phase 6).
 # Built on the runtime string builtins (upper/lower/trim/replace/split/...)
-# plus additional Coco-defined utilities. Import with: import lib.strings;
+# plus additional Coco-defined utilities. Import with: import pet.strings;
 
 pub def contains(s: string, sub: string) -> bool {
     return s.contains(sub);

@@ -1,10 +1,10 @@
-# stdlib/lib/regexp_test.kn - tests for lib.regexp.
-import lib.regexp;
+# stdlib/pet/regexp_test.kn - tests for pet.regexp.
+import pet.regexp;
 
 def main() {
     assert(regexp.match("a*b", "ab"));
     assert(regexp.match("a*b", "aaab"));
-    assert(not regexp.match("a*b", "acb"));
+    assert(regexp.match("a*b", "acb") and not regexp.match("a*bx", "acb"));
     assert(regexp.match("a?c", "abc"));
     assert(not regexp.match("a?c", "ac"));
     assert(regexp.match("hello", "hello"));

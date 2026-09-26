@@ -1,5 +1,5 @@
-# stdlib/lib/time_test.kn - tests for lib.time.
-import lib.time;
+# stdlib/pet/time_test.kn - tests for pet.time.
+import pet.time;
 
 def main() {
     a = time.now();

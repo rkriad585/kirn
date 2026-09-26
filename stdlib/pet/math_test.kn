@@ -1,5 +1,5 @@
-# stdlib/lib/math_test.kn - tests for lib.math.
-import lib.math;
+# stdlib/pet/math_test.kn - tests for pet.math.
+import pet.math;
 
 def main() {
     assert(math.sqrt(4.0) < 2.001 and math.sqrt(4.0) > 1.999);

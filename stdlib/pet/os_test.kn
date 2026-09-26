@@ -1,0 +1,20 @@
+# stdlib/pet/os_test.kn - tests for pet.os.
+import pet.os;
+
+def main() {
+    # args() is a list of program arguments; runners pass none by default.
+    args = os.args();
+    assert(args.len() >= 0);
+    if args.len() > 0 {
+        first = str(args[0]);
+        assert(first.len() > 0);
+    }
+
+    # getenv: an unset variable reads back as nil, a defined one as a string.
+    g = os.getenv("COCO_OS_TEST_NOT_SET");
+    assert(g == nil);
+    p = os.getenv("PATH");
+    assert(p != nil);
+
+    print("os_test ok");
+}

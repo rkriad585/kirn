@@ -1,5 +1,5 @@
-# stdlib/lib/io_test.kn - tests for lib.io.
-import lib.io;
+# stdlib/pet/io_test.kn - tests for pet.io.
+import pet.io;
 
 def main() {
     path = ".io_tmp_test.txt";

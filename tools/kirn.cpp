@@ -4,17 +4,17 @@
 //   kirn new lib <name>          scaffold a library package
 //   kirn run [dir|file]          run a program or project
 //   kirn test [dir|file...]      run *_test.kn files
-//   kirn install|i [-g] <pkg>    install into ./coco_libs or ~/.coco/kirn-pkg
+//   kirn install|i [-g] <pkg>    install into ./pets or ~/.kirn/pets
 //   kirn update [name]           refresh installed dependencies
 //   kirn remove <name>           uninstall a dependency
 //   kirn build                   compile project -> standalone build/<name>.exe
-//   kirn build lib               check + pack library -> build/<n>-<v>.cocolib
+//   kirn build lib               check + pack library -> build/<n>-<v>.pet
 //   kirn doc <lib|dir> [--port]  generate API docs + serve markdown viewer
 //   kirn list                    show installed libraries
 //
 // Projects are Rust-style but with Kirn's own folder names:
-//   coco.toml | code/ | tests/ | docs/ | coco_libs/ | build/
-// Packages installed globally live in ~/.coco/kirn-pkg (binaries in bin/).
+//   coco.toml | code/ | tests/ | docs/ | pets/ | build/
+// Packages installed globally live in ~/.kirn/pets (binaries in bin/).
 #include "ast/ast.h"
 #include "interp/runtime.h"
 #include "lex/lexer.h"
@@ -394,7 +394,7 @@ std::string resolveEntry(const Manifest& m, const fs::path& dir) {
 std::string globalPkgDir() {
     const char* home = std::getenv("USERPROFILE");
     if (!home) home = std::getenv("HOME");
-    return home ? std::string(home) + "/.coco/kirn-pkg" : "";
+    return home ? std::string(home) + "/.kirn/pets" : "";
 }
 
 std::vector<std::string> libDirsFor(const std::string& script) {
@@ -410,8 +410,8 @@ std::vector<std::string> libDirsFor(const std::string& script) {
             : (fs::is_directory(sp) ? script : sp.parent_path().string());
     // type-aware package roots: libs under <base>/libs, apps shimmed into
     // <base>/bin; the bare roots stay for backward compatibility.
-    dirs.push_back(dir + "/coco_libs/libs");
-    dirs.push_back(dir + "/coco_libs");
+    dirs.push_back(dir + "/pets/libs");
+    dirs.push_back(dir + "/pets");
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir() + "/libs");
         dirs.push_back(globalPkgDir());
@@ -428,9 +428,9 @@ std::vector<std::string> libDirsFor(const std::string& script) {
 fs::path pkgBase(bool global_) {
     if (global_) {
         std::string g = globalPkgDir();
-        return g.empty() ? fs::path(".kirn-pkg") : fs::path(g);
+        return g.empty() ? fs::path(".kirn-pets") : fs::path(g);
     }
-    return fs::path("coco_libs");
+    return fs::path("pets");
 }
 fs::path pkgLibRoot(bool global_) { return pkgBase(global_) / "libs"; }
 
@@ -574,7 +574,7 @@ int cmdNew(const std::string& name, bool lib) {
         "# kirn build output\n"
         "build/\n"
         "# installed dependencies\n"
-        "coco_libs/\n"
+        "pets/\n"
         "# cached registry copy\n"
         ".kirn-registry-lib.toml\n"
         "# editor/OS noise\n"
@@ -693,7 +693,7 @@ int cmdNew(const std::string& name, bool lib) {
 struct PkgRef {
     std::string spec;      // normalized repo path or local dir
     std::string tag;
-    std::string destName;  // directory name under coco_libs/ or kirn-pkg/
+    std::string destName;  // directory name under pets/ or ~/.kirn/pets
     enum class Kind { Path, Git } kind = Kind::Git;
 };
 
@@ -715,7 +715,7 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
                       (!spec.empty() &&
                        (spec[0] == '.' || spec[0] == '/' || spec[0] == '\\'));
     if (looksLocal) {
-        if (asPath.extension() == ".cocolib") return true;  // handled later
+        if (asPath.extension() == ".pet") return true;  // handled later
         if (!fs::is_directory(asPath)) {
             std::cerr << "kirn install: local package '" << raw
                       << "' does not exist\n";
@@ -955,14 +955,13 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
     return 0;
 }
 
-// resolve a raw spec (bare registry name | path | user/repo | .cocolib)
+// resolve a raw spec (bare registry name | path | user/repo | .pet)
 static bool resolveRaw(const std::string& raw, PkgRef& ref);
-int unpackCocolib(const std::string& raw, bool global_);
-int unpackCocolib(const std::string& raw, bool global_);
+int unpackPet(const std::string& raw, bool global_);
 static bool resolveRaw(const std::string& raw, PkgRef& ref) {
-    // .cocolib bundle?
-    if (fs::is_regular_file(raw) && fs::path(raw).extension() == ".cocolib")
-        return unpackCocolib(raw, /*global_=*/false) == 0;
+    // .pet bundle?
+    if (fs::is_regular_file(raw) && fs::path(raw).extension() == ".pet")
+        return unpackPet(raw, /*global_=*/false) == 0;
     // local directory -> install by its manifest name
     if (fs::is_directory(raw)) {
         Manifest pm = readManifest(raw);
@@ -1012,7 +1011,7 @@ int cmdInstall(const std::string& raw, bool global_) {
 // `kirn add` — npm-install / go-mod-tidy style sync.
 //   kirn add <pkg>...   resolve + install + record each dependency
 //   kirn add            (no args) tidy: install every manifest dep that is
-//                       missing from coco_libs/libs
+//                       missing from pets/libs
 int cmdAdd(const std::vector<std::string>& pkgs) {
     if (pkgs.empty()) {
         Manifest proj = readManifest(".");
@@ -1023,7 +1022,7 @@ int cmdAdd(const std::vector<std::string>& pkgs) {
         int rc = 0, done = 0;
         for (const auto& [name, spec] : proj.deps) {
             if (fs::exists(pkgLibRoot(false) / name) ||
-                fs::exists(fs::path("coco_libs") / name))
+                fs::exists(fs::path("pets") / name))
                 continue;   // already present
             PkgRef ref;
             ref.destName = name;
@@ -1133,8 +1132,8 @@ int cmdRemove(const std::string& name) {
                 locks.end());
     std::error_code ec;
     fs::remove_all(pkgLibRoot(false) / name, ec);
-    fs::remove_all(fs::path("coco_libs") / name, ec);   // legacy layout
-    fs::remove_all(fs::path("coco_libs") / "bin" / (name + ".cmd"), ec);
+    fs::remove_all(fs::path("pets") / name, ec);   // legacy layout
+    fs::remove_all(fs::path("pets") / "bin" / (name + ".cmd"), ec);
     writeManifest(".", proj);
     writeLock(".", locks);
     std::cout << "removed " << name;
@@ -1162,7 +1161,7 @@ int cmdList() {
         }
     };
     show("", pkgLibRoot(false));
-    show("", fs::path("coco_libs"));   // legacy layout
+    show("", fs::path("pets"));   // legacy layout
     if (!globalPkgDir().empty()) {
         show("[global] ", fs::path(globalPkgDir()) / "libs");
         show("[global] ", fs::path(globalPkgDir()));
@@ -1323,7 +1322,7 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
         if (ec) break;
         const fs::path& p = it->path();
         std::string fn = p.filename().string();
-        if (fn == "coco_libs" || fn == "build" || fn == ".git") {
+        if (fn == "pets" || fn == "build" || fn == ".git") {
             it.disable_recursion_pending();
             continue;
         }
@@ -1681,7 +1680,7 @@ int cmdDoc(const std::string& target, int port) {
     fs::path libDir(target);
     if (!fs::is_directory(libDir)) {
         fs::path local = pkgLibRoot(false) / target;
-        fs::path legacy = fs::path("coco_libs") / target;
+        fs::path legacy = fs::path("pets") / target;
         fs::path glob, globLegacy;
         if (!globalPkgDir().empty()) {
             glob = fs::path(globalPkgDir()) / "libs" / target;
@@ -1727,7 +1726,7 @@ int cmdDoc(const std::string& target, int port) {
 
 // ---------------------------------------------------------------------------
 // kirn build — app: standalone .exe (sources embedded, interpreter linked)
-//              lib: type-check all sources + pack distributable .cocolib
+//              lib: type-check all sources + pack distributable .pet
 // ---------------------------------------------------------------------------
 
 // resolve a module name to a source file across the given dirs (loader rules)
@@ -1945,8 +1944,8 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
                     const std::vector<std::string>& extraDirs = {}) {
     std::vector<std::string> dirs = extraDirs;
     dirs.push_back("code");                 // sibling modules of the entry
-    dirs.push_back("coco_libs/libs");
-    dirs.push_back("coco_libs");
+    dirs.push_back("pets/libs");
+    dirs.push_back("pets");
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir() + "/libs");
         dirs.push_back(globalPkgDir());
@@ -2664,9 +2663,9 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         fs::path("build") / (opts.release ? "release" : "debug") / opts.target;
     fs::create_directories(outDir, ec);
     const std::string outPath =
-        (outDir / (m.name + "-" + m.version + ".cocolib")).generic_string();
+        (outDir / (m.name + "-" + m.version + ".pet")).generic_string();
     std::ostringstream o;
-    o << "COCOLIB/1\n";
+    o << "PETLIB/1\n";
     std::vector<fs::path> files;
     files.push_back(fs::path("coco.toml"));
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
@@ -2793,7 +2792,7 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     return buildAppShim(m, opts);
 }
 
-int unpackCocolib(const std::string& raw, bool global_) {
+int unpackPet(const std::string& raw, bool global_) {
     std::string text;
     if (!readFile(raw, text)) {
         std::cerr << "kirn install: cannot read bundle '" << raw << "'\n";
@@ -2802,8 +2801,8 @@ int unpackCocolib(const std::string& raw, bool global_) {
     std::istringstream in(text);
     std::string header;
     std::getline(in, header);
-    if (header.rfind("COCOLIB/", 0) != 0) {
-        std::cerr << "kirn install: not a valid .cocolib bundle\n";
+    if (header.rfind("PETLIB/", 0) != 0) {
+        std::cerr << "kirn install: not a valid .pet bundle\n";
         return 1;
     }
 
@@ -2827,7 +2826,7 @@ int unpackCocolib(const std::string& raw, bool global_) {
             name = kirn::tomlmini::get(d, "package", "name");
         }
     if (name.empty()) {
-        // greet-0.1.0.cocolib -> greet
+        // greet-0.1.0.pet -> greet
         std::string stem = fs::path(raw).stem().string();
         size_t dash = stem.find('-');
         name = dash == std::string::npos ? stem : stem.substr(0, dash);
@@ -2891,10 +2890,10 @@ void usage() {
         << "  kirn new <name>                  scaffold an application\n"
         << "  kirn new lib <name>              scaffold a library package\n"
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
-        << "  kirn install|i [-g] <pkg>        install into ./coco_libs/libs\n"
+        << "  kirn install|i [-g] <pkg>        install into ./pets/libs\n"
         << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry"
-               "-name> | file.cocolib\n"
-        << "      -g installs globally into ~/.coco/kirn-pkg/libs\n"
+               "-name> | file.pet\n"
+        << "      -g installs globally into ~/.kirn/pets/libs\n"
         << "         (apps also get a bin shim + PATH entry)\n"
         << "  kirn add <pkg>...                install + record dependencies"
                "\n"
@@ -2920,7 +2919,7 @@ void usage() {
         << "  kirn targets                     list all supported target "
                "triples\n"
         << "  kirn build lib                   check + pack -> "
-               "build/<profile>/<t>/<n>-<v>.cocolib\n"
+               "build/<profile>/<t>/<n>-<v>.pet\n"
         << "  kirn doc <lib|dir> [--port N]    serve markdown docs + API ref\n"
         << "  kirn list                        list installed libraries\n"
         << "  kirn list online                 browse the kirn-libs registry\n";
@@ -2994,8 +2993,8 @@ int main(int argc, char** argv) {
             return 64;
         }
         if (fs::is_regular_file(pkg) &&
-            fs::path(pkg).extension() == ".cocolib")
-            return unpackCocolib(pkg, global_);
+            fs::path(pkg).extension() == ".pet")
+            return unpackPet(pkg, global_);
         return cmdInstall(pkg, global_);
     }
     if (cmd == "update" && args.size() <= 2)

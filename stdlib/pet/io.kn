@@ -1,6 +1,6 @@
-# stdlib/lib/io.kn - file I/O helpers (Coco-written, Phase 6).
+# stdlib/pet/io.kn - file I/O helpers (Coco-written, Phase 6).
 # Built on the runtime `io` pseudo-module (open) and the File value methods
-# (read/write/close). Import with: import lib.io;
+# (read/write/close). Import with: import pet.io;
 #
 # NOTE: the substrate File.write appends, there is no truncate primitive, and
 # missing files read back as "" (no existence probe), so write_file is

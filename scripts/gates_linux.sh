@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linux gate harness - bash port of the five PowerShell verification gates:
+# Linux gate harness - bash port of the seven PowerShell verification gates:
 #   1. runall      - every examples/*.kn through kirnrun (20s watchdog),
 #                    honoring '# expect-exit: N' (POSIX exit codes are 8-bit,
 #                    so N is compared as N % 256).
@@ -11,6 +11,10 @@
 #                    examples matching '^[0-9]' (code + combined output).
 #   5. conventions - rules/convention matrix for the `kirn` driver (run-entry
 #                    resolution + pin.kn package initializer).
+#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (9
+#                    tests, must report '9 passed, 0 failed').
+#   7. pets        - .pet bundle round-trip: pack a lib, install the bundle
+#                    into a consuming project's pets/ dir, consume it at run.
 # Exit 0 iff every gate passes, else 1.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -125,18 +129,49 @@ mkdir -p "$P/d/code"; printf 'pub def u() -> int { return 1; }' > "$P/d/code/uti
 r=$(kirn_run "$P/d" run "$P/d"); c=${r%%|*}; out=${r#*|}
 [ "$c" != 0 ] && echo "$out" | grep -q "no entry point" && report PASS "no entry -> fix-it error" || report FAIL "no entry -> fix-it error" "$out"
 # 5. pin.kn runs once + pub surface
-mkdir -p "$P/proj/coco_libs/greet/code"
-printf 'var loads = 0;\nloads = loads + 1;\npub def load_count() -> int { return loads; }\npub def hi(who: string) -> string { return "hi " + who; }\n' > "$P/proj/coco_libs/greet/code/pin.kn"
+mkdir -p "$P/proj/pets/greet/code"
+printf 'var loads = 0;\nloads = loads + 1;\npub def load_count() -> int { return loads; }\npub def hi(who: string) -> string { return "hi " + who; }\n' > "$P/proj/pets/greet/code/pin.kn"
 printf 'import greet;\nimport greet as g2;\nimport greet as g3;\ndef main() {\n    print("count=", greet.load_count());\n    print(greet.hi("world"));\n}\n' > "$P/proj/main.kn"
 r=$(kirn_run "$P/proj" run "$P/proj"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "count= 1" && report PASS "pin.kn runs once (count=1)" || report FAIL "pin.kn runs once (count=1)" "$out"
 [ "$c" = 0 ] && echo "$out" | grep -q "hi world" && report PASS "pin.kn pub surface" || report FAIL "pin.kn pub surface" "$out"
 # 6. pin.kn discovered without manifest
-mkdir -p "$P/proj2/coco_libs/nomanifest/code"
-printf 'pub def poke() -> string { return "poked"; }\n' > "$P/proj2/coco_libs/nomanifest/code/pin.kn"
+mkdir -p "$P/proj2/pets/nomanifest/code"
+printf 'pub def poke() -> string { return "poked"; }\n' > "$P/proj2/pets/nomanifest/code/pin.kn"
 printf 'import nomanifest;\ndef main() { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
 r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
+
+echo "=== gate 6: test (stdlib via kirn driver) ==="
+rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
+out6=$(cd "$ROOT" && timeout "$WATCH" "$CO" test . 2>&1); c6=$?
+rm -f "$ROOT/.io_tmp_test.txt"
+if [ "$c6" = 0 ] && echo "$out6" | grep -q "9 passed, 0 failed"; then
+    report PASS "kirn test stdlib/pet" "$(echo "$out6" | grep -c 'PASS') tests"
+else
+    report FAIL "kirn test stdlib/pet" "rc=$c6: $(echo "$out6" | tail -1)"
+fi
+
+echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
+T7="$TMP/rt"; mkdir -p "$T7"
+(cd "$T7" && "$CO" new lib mypet >/dev/null 2>&1)
+printf 'pub def hello(who: string) -> string { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
+if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
+    PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
+    if [ -z "$PET" ]; then report FAIL "pack .pet" "no .pet produced in build/"
+    else
+        report PASS "pack .pet" "$(basename "$PET")"
+        (cd "$T7" && "$CO" new app >/dev/null 2>&1)
+        if (cd "$T7/app" && "$CO" install "$PET" >/dev/null 2>&1); then
+            if [ -f "$T7/app/pets/libs/mypet/code/pin.kn" ]; then report PASS "install .pet" "pets/libs/mypet"
+            else report FAIL "install .pet" "destination pets/libs/mypet missing"; fi
+            printf 'import mypet;\ndef main() { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
+            out7=$(cd "$T7/app" && timeout "$WATCH" "$CO" run "$T7/app" 2>&1); c7=$?
+            if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pets, world!"; then report PASS "consume .pet" "$out7"
+            else report FAIL "consume .pet" "rc=$c7: $out7"; fi
+        else report FAIL "install .pet" "kirn install failed"; fi
+    fi
+else report FAIL "pack .pet" "kirn build lib failed"; fi
 
 echo ""
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"

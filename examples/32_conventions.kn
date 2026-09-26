@@ -1,7 +1,7 @@
 # 32 — Convention files: main.kn & pin.kn       (plan §3)
 # main.kn is the executable ENTRY POINT; pin.kn is a package's INITIALIZER /
 # public-API aggregator. This file shows the pin.kn convention in action:
-#   - importing the `greet` package (examples/coco_libs/greet) runs its
+#   - importing the `greet` package (examples/pets/greet) runs its
 #     pin.kn exactly once, whatever the import count
 #   - pin.kn's `pub` surface is reachable on the package module object
 import greet;

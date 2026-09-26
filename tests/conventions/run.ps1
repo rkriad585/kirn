@@ -80,7 +80,7 @@ Write-Host "== pin.kn package initializer =="
 
 # 5. package run-once + pub surface across several imports
 $p = Join-Path $tmp "proj"
-SetFile (Join-Path $p "coco_libs\greet\code\pin.kn") @"
+SetFile (Join-Path $p "pets\greet\code\pin.kn") @"
 var loads = 0;
 loads = loads + 1;
 pub def load_count() -> int { return loads; }
@@ -101,7 +101,7 @@ Check "pin.kn pub surface" ($r.Code -eq 0 -and $r.Out -match "hi world") $r.Out
 
 # 6. pin.kn without a manifest, discovered in code/
 $p = Join-Path $tmp "proj2"
-SetFile (Join-Path $p "coco_libs\nomanifest\code\pin.kn") @"
+SetFile (Join-Path $p "pets\nomanifest\code\pin.kn") @"
 pub def poke() -> string { return "poked"; }
 "@
 SetFile (Join-Path $p "main.kn") @"

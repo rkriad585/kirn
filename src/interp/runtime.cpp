@@ -1203,7 +1203,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                 found = cand;
                 break;
             }
-            // package directory (installed under coco_libs/): use entry file
+            // package directory (installed under pets/): use entry file
             std::string pkgDir =
                 dir + "/" + rel.substr(0, rel.size() - 3);   // strip ".kn"
             if (!pkgDir.empty() && std::filesystem::is_directory(pkgDir) &&

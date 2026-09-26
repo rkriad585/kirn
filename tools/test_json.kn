@@ -1,4 +1,4 @@
-import lib.json;
+import pet.json;
 
 def main() {
     print("B");

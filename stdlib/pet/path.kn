@@ -1,6 +1,6 @@
-# stdlib/lib/path.kn - path manipulation (Coco-written, Phase 6).
+# stdlib/pet/path.kn - path manipulation (Coco-written, Phase 6).
 # Pure-Coco helpers; platform separator defaults to '/'. Import with:
-#   import lib.path;
+#   import pet.path;
 
 # Join path segments with the separator, collapsing empty parts.
 pub def join(parts: list) -> string {
@@ -21,7 +21,10 @@ pub def dirname(p: string) -> string {
     parts = p.split("/");
     if parts.len() <= 1 { return ""; }
     drops = parts[0..parts.len() - 1];
-    return join(drops);
+    out = join(drops);
+    if out == "" { return "/"; }
+    if p[0..1] == "/" { out = "/" + out; }
+    return out;
 }
 
 # The final component after the last separator.

@@ -1,4 +1,4 @@
-import lib.collections;
+import pet.collections;
 def main() {
     m = collections.HashMap();
     m.put("a", 1);

@@ -121,6 +121,15 @@ std::string lastSegment(const std::string& p) {
     return cut == std::string::npos ? p : p.substr(cut + 1);
 }
 
+// null device for shell probes: `nul` only means that on Windows.
+const char* shellNullDevice() {
+#ifdef _WIN32
+    return "nul";
+#else
+    return "/dev/null";
+#endif
+}
+
 std::string todayIso() {
     time_t t = time(nullptr);
     tm tmv{};
@@ -765,7 +774,7 @@ bool lookupRegistry(const std::string& name, std::string& url) {
 }
 
 std::string gitHeadSha(const fs::path& dir) {
-    std::string cmd = "git -C \"" + dir.string() + "\" rev-parse HEAD 2>nul";
+    std::string cmd = "git -C \"" + dir.string() + "\" rev-parse HEAD 2>" + shellNullDevice();
     // capture via temp file (system() has no portable pipe-back)
     std::string tmp = ".kirn-sha";
     std::string full = cmd + " > \"" + tmp + "\"";
@@ -792,7 +801,7 @@ bool materializePackage(const PkgRef& ref, const fs::path& dest,
         if (!copyTree(ref.spec, dest)) return false;
         commitSha.clear();
     } else {
-        if (std::system("git --version >nul 2>nul") != 0) {
+if (std::system(("git --version >" + std::string(shellNullDevice()) + " 2>" + shellNullDevice()).c_str()) != 0) {
             std::cerr << "kirn install: git not found on PATH\n";
             return false;
         }
@@ -1181,7 +1190,7 @@ int cmdList() {
 // ---------------------------------------------------------------------------
 
 int cmdClone(const std::string& spec, bool full) {
-    if (std::system("git --version >nul 2>nul") != 0) {
+    if (std::system(("git --version >" + std::string(shellNullDevice()) + " 2>" + shellNullDevice()).c_str()) != 0) {
         std::cerr << "kirn clone: git not found on PATH\n";
         return 1;
     }
@@ -1877,7 +1886,7 @@ bool validTarget(const std::string& t) { return findTarget(t) != nullptr; }
 
 bool toolchainWorks(const std::string& cxx) {
     std::string probe =
-        "cd . && \"" + cxx + "\" --version >nul 2>nul";
+        "cd . && \"" + cxx + "\" --version >" + shellNullDevice() + " 2>" + shellNullDevice();
     return std::system(probe.c_str()) == 0;
 }
 

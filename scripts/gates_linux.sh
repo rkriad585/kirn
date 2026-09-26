@@ -159,7 +159,7 @@ fi
 
 echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
 T7="$TMP/rt"; mkdir -p "$T7"
-(cd "$T7" && "$CO" new lib mypet >/dev/null 2>&1)
+(cd "$T7" && "$CO" new pet mypet >/dev/null 2>&1)
 printf 'pub def hello(who: string) -> string { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
 if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
     PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
@@ -170,15 +170,15 @@ if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
         report PASS "pack .pet" "$(basename "$PET")"
         (cd "$T7" && "$CO" new app >/dev/null 2>&1)
         if (cd "$T7/app" && "$CO" install "$PET" >/dev/null 2>&1); then
-            if [ -f "$T7/app/pets/libs/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/libs/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/libs/mypet"
-            else report FAIL "install .pet" "destination pets/libs/mypet missing"; fi
+            if [ -f "$T7/app/pets/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/mypet"
+            else report FAIL "install .pet" "destination pets/mypet missing"; fi
             printf 'import mypet;\ndef main() { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
             out7=$(cd "$T7/app" && timeout "$WATCH" "$CO" run "$T7/app" 2>&1); c7=$?
             if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pets, world!"; then report PASS "consume .pet" "$out7"
             else report FAIL "consume .pet" "rc=$c7: $out7"; fi
         else report FAIL "install .pet" "kirn install failed"; fi
     fi
-else report FAIL "pack .pet" "kirn build lib failed"; fi
+else report FAIL "pack .pet" "kirn build pet failed"; fi
 
 echo ""
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"

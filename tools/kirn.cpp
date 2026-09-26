@@ -1,20 +1,21 @@
 // kirn — driver CLI for the Kirn language.
 //
 //   kirn new <name>              scaffold an application project
-//   kirn new lib <name>          scaffold a library package
+//   kirn new pet <name>           scaffold a package (pet)
 //   kirn run [dir|file]          run a program or project
 //   kirn test [dir|file...]      run *_test.kn files
 //   kirn install|i [-g] <pkg>    install into ./pets or ~/.kirn/pets
 //   kirn update [name]           refresh installed dependencies
 //   kirn remove <name>           uninstall a dependency
 //   kirn build                   compile project -> standalone build/<name>.exe
-//   kirn build lib               check + pack library -> build/<n>-<v>.pet
+//   kirn build pet               check + pack pet -> build/<n>-<v>.pet
 //   kirn doc <lib|dir> [--port]  generate API docs + serve markdown viewer
 //   kirn list                    show installed libraries
 //
 // Projects are Rust-style but with Kirn's own folder names:
 //   kirn.toml | code/ | tests/ | docs/ | pets/ | build/
-// Packages installed globally live in ~/.kirn/pets (binaries in bin/).
+// Packages installed globally live in ~/.kirn/pets (app shims in
+// ~/.kirn/apps/bin).
 #include "ast/ast.h"
 #include "interp/runtime.h"
 #include "lex/lexer.h"
@@ -402,10 +403,19 @@ std::string resolveEntry(const Manifest& m, const fs::path& dir) {
     return "";
 }
 
+// globally installed packages (importable)
 std::string globalPkgDir() {
     const char* home = std::getenv("USERPROFILE");
     if (!home) home = std::getenv("HOME");
     return home ? std::string(home) + "/.kirn/pets" : "";
+}
+
+// app shims live under ~/.kirn/apps/bin for global installs (kept out of
+// the pets tree so /bin stays importable); local shims stay in ./pets/bin.
+std::string globalAppsBinDir() {
+    const char* home = std::getenv("USERPROFILE");
+    if (!home) home = std::getenv("HOME");
+    return home ? std::string(home) + "/.kirn/apps/bin" : "";
 }
 
 std::vector<std::string> libDirsFor(const std::string& script) {
@@ -419,12 +429,10 @@ std::vector<std::string> libDirsFor(const std::string& script) {
         (script.empty() || script == ".")
             ? "."
             : (fs::is_directory(sp) ? script : sp.parent_path().string());
-    // type-aware package roots: libs under <base>/libs, apps shimmed into
-    // <base>/bin; the bare roots stay for backward compatibility.
-    dirs.push_back(dir + "/pets/libs");
+    // package root: everything lands under <base>/pets (managed pets share the
+    // root with ad-hoc modules); apps additionally get a <base>/pets/bin shim.
     dirs.push_back(dir + "/pets");
     if (!globalPkgDir().empty()) {
-        dirs.push_back(globalPkgDir() + "/libs");
         dirs.push_back(globalPkgDir());
     }
     dirs.push_back(dir + "/../stdlib");
@@ -434,16 +442,25 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     return dirs;
 }
 
-// install destinations, by package type:
-//   lib -> <base>/libs/<name>   app -> <base>/apps/<name> (+ bin shim)
+// install destination: <base>/<name> for every package; apps additionally get
+// a shim (see appsBinDir). Project base = ./pets, global = ~/.kirn/pets
+// (relative .kirn/pets fallback when $HOME/$USERPROFILE is unset).
 fs::path pkgBase(bool global_) {
     if (global_) {
         std::string g = globalPkgDir();
-        return g.empty() ? fs::path(".kirn-pets") : fs::path(g);
+        return g.empty() ? fs::path(".kirn/pets") : fs::path(g);
     }
     return fs::path("pets");
 }
-fs::path pkgLibRoot(bool global_) { return pkgBase(global_) / "libs"; }
+
+// app shim directory: local ./pets/bin, global ~/.kirn/apps/bin
+fs::path appsBinDir(bool global_) {
+    if (global_) {
+        std::string b = globalAppsBinDir();
+        return b.empty() ? fs::path(".kirn/apps/bin") : fs::path(b);
+    }
+    return pkgBase(false) / "bin";
+}
 
 // append dir to the USER Path (registry-backed; survives new shells).
 bool ensureUserPathContains(const std::string& dirRaw) {
@@ -565,8 +582,8 @@ int cmdNew(const std::string& name, bool lib) {
     Manifest m;
     m.name = name;
     m.version = "0.0.1-beta";
-    m.type = lib ? "lib" : "app";
-    m.description = lib ? "A Kirn library" : "A Kirn application";
+    m.type = lib ? "pet" : "app";
+    m.description = lib ? "A Kirn pet" : "A Kirn application";
     m.license = "MIT";
     m.docs = "docs/index.md";
     m.readme = "README.md";
@@ -601,7 +618,7 @@ int cmdNew(const std::string& name, bool lib) {
         // once when the package is imported and re-exports the package's
         // `pub` surface (Python __init__ analogue).
         writeFile(root / "code" / "pin.kn",
-                  "## " + name + " - a Kirn library.\n"
+                  "## " + name + " - a Kirn pet.\n"
                   "##\n"
                   "## This pin.kn file is the package's public-API aggregator.\n"
                   "## It runs once when the package is imported, then the\n"
@@ -657,13 +674,13 @@ int cmdNew(const std::string& name, bool lib) {
                       "to deal in the Software without restriction.\n");
         writeFile(root / ".gitignore", gitignore);
 
-        std::cout << "created library '" << name << "'\n"
+        std::cout << "created pet '" << name << "'\n"
                   << "  " << name << "/kirn.toml      manifest\n"
                   << "  code/pin.kn   package initializer + pub API\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           markdown docs\n"
                   << "next:\n"
-                  << "  cd " << name << " && kirn build lib && kirn test .\n";
+                  << "  cd " << name << " && kirn build pet && kirn test .\n";
     } else {
         m.main = "code/main.kn";
         writeManifest(root, m);
@@ -891,7 +908,7 @@ static void installPkgDeps(const Manifest& pkg, const fs::path& pkgDir,
     if (depth > 8) return;
     for (const auto& [name, spec] : pkg.deps) {
         // already present in the target root?
-        if (fs::exists(pkgLibRoot(global_) / name)) continue;
+        if (fs::exists(pkgBase(global_) / name)) continue;
         PkgRef dref;
         dref.destName = name;
         if (spec.count("path")) {
@@ -920,16 +937,16 @@ static void installPkgDeps(const Manifest& pkg, const fs::path& pkgDir,
 }
 
 // Install one resolved reference. Returns process exit code.
-// Type-aware layout (like cargo/npm hybrids):
-//   lib -> <base>/libs/<name>          (importable)
-//   app -> <base>/libs/<name>          (sources stay importable/runnable)
-//          + <base>/bin/<name>.cmd     (shim launcher)
-//          + global installs append <base>/bin to the USER Path
+// Package layout (like cargo/npm hybrids):
+//   pet -> <base>/<name>              (importable, registered in the lock)
+//   app -> <base>/<name>              (sources stay importable/runnable)
+//          + <shim>/<name>.cmd         (local ./pets/bin, global
+//          ~/.kirn/apps/bin) + PATH entry for global round-trips
 int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                bool record, int depth) {
     fs::path base = pkgBase(global_);
-    const fs::path libDest = pkgLibRoot(global_) / ref.destName;
-    const fs::path binDir = base / "bin";
+    const fs::path libDest = pkgBase(global_) / ref.destName;
+    const fs::path binDir = appsBinDir(global_);
 
     Manifest pkg;
     std::string sha;
@@ -998,7 +1015,7 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
               << (ref.kind == PkgRef::Kind::Path ? raw : ref.spec);
     if (!ref.tag.empty()) std::cout << "@" << ref.tag;
     std::cout << " (" << (pkg.version.empty() ? "?" : pkg.version) << ", "
-              << (isApp ? "app" : "lib") << ") -> " << (libDest / "").string()
+              << (isApp ? "app" : "pet") << ") -> " << (libDest / "").string()
               << (global_ ? "  [global]" : "") << "\n";
     return 0;
 }
@@ -1059,7 +1076,7 @@ int cmdInstall(const std::string& raw, bool global_) {
 // `kirn add` — npm-install / go-mod-tidy style sync.
 //   kirn add <pkg>...   resolve + install + record each dependency
 //   kirn add            (no args) tidy: install every manifest dep that is
-//                       missing from pets/libs
+//                       missing from pets/
 int cmdAdd(const std::vector<std::string>& pkgs) {
     if (pkgs.empty()) {
         Manifest proj = readManifest(".");
@@ -1069,9 +1086,7 @@ int cmdAdd(const std::vector<std::string>& pkgs) {
         }
         int rc = 0, done = 0;
         for (const auto& [name, spec] : proj.deps) {
-            if (fs::exists(pkgLibRoot(false) / name) ||
-                fs::exists(fs::path("pets") / name))
-                continue;   // already present
+if (fs::exists(pkgBase(false) / name)) continue;
             PkgRef ref;
             ref.destName = name;
             if (spec.count("path")) {
@@ -1147,7 +1162,7 @@ int cmdUpdate(const std::string& only) {
 
         Manifest pkg;
         std::string sha;
-        if (!materializePackage(ref, pkgLibRoot(false) / name, pkg, sha)) {
+        if (!materializePackage(ref, pkgBase(false) / name, pkg, sha)) {
             rc = 1;
             continue;
         }
@@ -1179,8 +1194,7 @@ int cmdRemove(const std::string& name) {
                                }),
                 locks.end());
     std::error_code ec;
-    fs::remove_all(pkgLibRoot(false) / name, ec);
-    fs::remove_all(fs::path("pets") / name, ec);   // legacy layout
+    fs::remove_all(pkgBase(false) / name, ec);
     fs::remove_all(fs::path("pets") / "bin" / (name + ".cmd"), ec);
     writeManifest(".", proj);
     writeLock(".", locks);
@@ -1199,7 +1213,7 @@ int cmdList() {
              it.increment(ec)) {
             if (ec || !it->is_directory(ec)) continue;
             std::string fn = it->path().filename().string();
-            if (fn == "bin" || fn == "libs") continue;   // layout roots
+            if (fn == "bin") continue;   // app shims
             Manifest m = readManifest(it->path());
             std::cout << label << fn << " "
                       << (m.version.empty() ? "?" : m.version);
@@ -1208,14 +1222,12 @@ int cmdList() {
             std::cout << "\n";
         }
     };
-    show("", pkgLibRoot(false));
-    show("", fs::path("pets"));   // legacy layout
+    show("", fs::path("pets"));
     if (!globalPkgDir().empty()) {
-        show("[global] ", fs::path(globalPkgDir()) / "libs");
         show("[global] ", fs::path(globalPkgDir()));
-        // globally installed apps (bin shims)
+        // globally installed apps (bin shims under ~/.kirn/apps/bin)
         std::error_code ec;
-        fs::path bin = fs::path(globalPkgDir()) / "bin";
+        fs::path bin(globalAppsBinDir());
         if (fs::is_directory(bin))
             for (fs::directory_iterator it(bin, ec), end; !ec && it != end;
                  it.increment(ec)) {
@@ -1280,7 +1292,7 @@ int cmdClone(const std::string& spec, bool full) {
     if (!m.name.empty())
         std::cout << " - " << m.name << " v"
                   << (m.version.empty() ? "?" : m.version)
-                  << (m.type == "lib" ? " [lib]" : " [app]");
+                  << (m.type == "pet" ? " [pet]" : " [app]");
     std::cout << "\nnext:\n  cd " << name << " && kirn run | kirn test .\n";
     return 0;
 }
@@ -1708,23 +1720,15 @@ int cmdDoc(const std::string& target, int port) {
     // resolve target: dir | installed name
     fs::path libDir(target);
     if (!fs::is_directory(libDir)) {
-        fs::path local = pkgLibRoot(false) / target;
-        fs::path legacy = fs::path("pets") / target;
-        fs::path glob, globLegacy;
-        if (!globalPkgDir().empty()) {
-            glob = fs::path(globalPkgDir()) / "libs" / target;
-            globLegacy = fs::path(globalPkgDir()) / target;
-        }
+        fs::path local = fs::path("pets") / target;
+        fs::path glob;
+        if (!globalPkgDir().empty()) glob = fs::path(globalPkgDir()) / target;
         if (fs::is_directory(local))
             libDir = local;
-        else if (fs::is_directory(legacy))
-            libDir = legacy;
         else if (!glob.empty() && fs::is_directory(glob))
             libDir = glob;
-        else if (!globLegacy.empty() && fs::is_directory(globLegacy))
-            libDir = globLegacy;
         else {
-            std::cerr << "kirn doc: no project or installed library '"
+            std::cerr << "kirn doc: no project or installed pet '"
                       << target << "'\n";
             return 1;
         }
@@ -1755,7 +1759,7 @@ int cmdDoc(const std::string& target, int port) {
 
 // ---------------------------------------------------------------------------
 // kirn build — app: standalone .exe (sources embedded, interpreter linked)
-//              lib: type-check all sources + pack distributable .pet
+//              pet: type-check all sources + pack distributable .pet
 // ---------------------------------------------------------------------------
 
 // resolve a module name to a source file across the given dirs (loader rules)
@@ -1844,7 +1848,7 @@ std::string detectRuntimeFlags(const std::string& binRoot) {
 
 struct BuildOpts {
     bool release = false;
-    bool wantLib = false;
+    bool wantPet = false;
     bool sasm = false;       // -S  human-readable assembly listing (.sasm)
     bool obj = false;        // -O  native object file (.obj + .lib via lib.exe)
     bool singleFile = false; // `kirn build file.kn` (Go-style, no manifest)
@@ -1973,10 +1977,8 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
                     const std::vector<std::string>& extraDirs = {}) {
     std::vector<std::string> dirs = extraDirs;
     dirs.push_back("code");                 // sibling modules of the entry
-    dirs.push_back("pets/libs");
     dirs.push_back("pets");
     if (!globalPkgDir().empty()) {
-        dirs.push_back(globalPkgDir() + "/libs");
         dirs.push_back(globalPkgDir());
     }
     dirs.push_back("../stdlib");
@@ -2682,7 +2684,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         }
     }
     if (bad) {
-        std::cerr << "kirn build lib: " << bad << " file(s) failed checks\n";
+        std::cerr << "kirn build pet: " << bad << " file(s) failed checks\n";
         return 1;
     }
     regenerateDocs(m);
@@ -2743,7 +2745,11 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     std::string positional;
     for (size_t i = from; i < args.size(); ++i) {
         const std::string& a = args[i];
-        if (a == "lib") opts.wantLib = true;
+        if (a == "pet") opts.wantPet = true;
+        else if (a == "lib") {
+            std::cerr << "kirn build: `build lib` was renamed to `build pet`\n";
+            return 64;
+        }
         else if (a == "--release" || a == "-r") opts.release = true;
         else if (a == "--debug") opts.release = false;
         else if (a == "-S" || a == "-s" || a == "--asm") opts.sasm = true;
@@ -2811,9 +2817,9 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
                   << "(or compile a single file: kirn build main.kn)\n";
         return 1;
     }
-    if (opts.wantLib || m.type == "lib") {
+    if (opts.wantPet || m.type == "pet") {
         if (!fs::is_directory("code")) {
-            std::cerr << "kirn build lib: no code/ directory\n";
+            std::cerr << "kirn build pet: no code/ directory\n";
             return 1;
         }
         return packLib(m, opts);
@@ -2865,7 +2871,7 @@ int unpackPet(const std::string& raw, bool global_) {
         return 1;
     }
 
-    fs::path base = pkgLibRoot(global_);
+    fs::path base = pkgBase(global_);
     for (const auto& s : sections)
         writeFile(base / name / fs::path(s.path).generic_string(),
                   s.body);
@@ -2917,13 +2923,13 @@ void usage() {
         << "  kirn run [dir|file]              run a program or project\n"
         << "  kirn run <file.kn>              run a script or project\n"
         << "  kirn new <name>                  scaffold an application\n"
-        << "  kirn new lib <name>              scaffold a library package\n"
+        << "  kirn new pet <name>              scaffold a package (pet)\n"
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
-        << "  kirn install|i [-g] <pkg>        install into ./pets/libs\n"
-        << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry"
-               "-name> | file.pet\n"
-        << "      -g installs globally into ~/.kirn/pets/libs\n"
-        << "         (apps also get a bin shim + PATH entry)\n"
+        << "  kirn install|i [-g] <pkg>        install into ./pets\n"
+        << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry-"
+               "name> | file.pet\n"
+        << "      -g installs globally into ~/.kirn/pets\n"
+        << "         (apps get ~/.kirn/apps/bin shims + PATH entry)\n"
         << "  kirn add <pkg>...                install + record dependencies"
                "\n"
         << "  kirn add                         sync: install missing deps"
@@ -2947,10 +2953,10 @@ void usage() {
          << "           [-o <path>]               output path (Go build -o)\n"
         << "  kirn targets                     list all supported target "
                "triples\n"
-        << "  kirn build lib                   check + pack -> "
+        << "  kirn build pet                   check + pack -> "
                "build/<profile>/<t>/<n>-<v>.pet\n"
-        << "  kirn doc <lib|dir> [--port N]    serve markdown docs + API ref\n"
-        << "  kirn list                        list installed libraries\n"
+        << "  kirn doc <pet|dir> [--port N]    serve markdown docs + API ref\n"
+        << "  kirn list                        list installed pets\n"
         << "  kirn list online                 browse the Pets Registry\n";
 }
 
@@ -3001,13 +3007,17 @@ int main(int argc, char** argv) {
         return runProgram(file.string(), dirs, {}, progArgs);
     }
     if (cmd == "new" && args.size() >= 2) {
-        bool lib = args[1] == "lib";
-        size_t nameIdx = lib ? 2 : 1;
-        if ((lib && args.size() != 3) || (!lib && args.size() != 2)) {
+        if (args[1] == "lib") {
+            std::cerr << "kirn new: `new lib` was renamed to `new pet`\n";
+            return 64;
+        }
+        bool pet = args[1] == "pet";
+        size_t nameIdx = pet ? 2 : 1;
+        if ((pet && args.size() != 3) || (!pet && args.size() != 2)) {
             usage();
             return 64;
         }
-        return cmdNew(rest(nameIdx), lib);
+        return cmdNew(rest(nameIdx), pet);
     }
     if (cmd == "test" && args.size() >= 1) return cmdTest(args, 1);
     if (cmd == "install" || cmd == "i") {

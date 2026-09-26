@@ -115,7 +115,7 @@ mkdir -p "$P/a/code"; printf 'def main() { print("A"); }' > "$P/a/code/main.kn"
 r=$(kirn_run "$P/a" run "$P/a"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "A" && report PASS "code/main.kn entry" || report FAIL "code/main.kn entry" "$out"
 # 2. manifest main wins over code/main.kn
-mkdir -p "$P/b/code"; printf '[package]\nname="b"\nmain="start.kn"\n' > "$P/b/coco.toml"
+mkdir -p "$P/b/code"; printf '[package]\nname="b"\nmain="start.kn"\n' > "$P/b/kirn.toml"
 printf 'def main() { print("Bmain"); }' > "$P/b/start.kn"
 printf 'def main() { print("Bcode"); }' > "$P/b/code/main.kn"
 r=$(kirn_run "$P/b" run "$P/b"); c=${r%%|*}; out=${r#*|}
@@ -141,6 +141,11 @@ printf 'pub def poke() -> string { return "poked"; }\n' > "$P/proj2/pets/nomanif
 printf 'import nomanifest;\ndef main() { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
 r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
+# 7. stale coco.toml -> actionable rename hint (manifest renamed in this release)
+mkdir -p "$P/e/code"; printf '[package]\nname="e"\nmain="code/main.kn"\n' > "$P/e/coco.toml"
+printf 'def main() { print("E"); }' > "$P/e/code/main.kn"
+r=$(kirn_run "$P/e" run "$P/e"); c=${r%%|*}; out=${r#*|}
+[ "$c" = 0 ] && echo "$out" | grep -q "coco.toml" && echo "$out" | grep -q "kirn.toml" && report PASS "stale coco.toml -> rename hint" || report FAIL "stale coco.toml -> rename hint" "$out"
 
 echo "=== gate 6: test (stdlib via kirn driver) ==="
 rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
@@ -159,11 +164,13 @@ printf 'pub def hello(who: string) -> string { return "hi from pets, " + who + "
 if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
     PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
     if [ -z "$PET" ]; then report FAIL "pack .pet" "no .pet produced in build/"
+    elif [ ! -f "$T7/mypet/kirn.toml" ]; then report FAIL "pack .pet" "kirn.toml not scaffolded"
+    elif [ -e "$T7/mypet/coco.toml" ]; then report FAIL "pack .pet" "stale coco.toml present"
     else
         report PASS "pack .pet" "$(basename "$PET")"
         (cd "$T7" && "$CO" new app >/dev/null 2>&1)
         if (cd "$T7/app" && "$CO" install "$PET" >/dev/null 2>&1); then
-            if [ -f "$T7/app/pets/libs/mypet/code/pin.kn" ]; then report PASS "install .pet" "pets/libs/mypet"
+            if [ -f "$T7/app/pets/libs/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/libs/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/libs/mypet"
             else report FAIL "install .pet" "destination pets/libs/mypet missing"; fi
             printf 'import mypet;\ndef main() { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
             out7=$(cd "$T7/app" && timeout "$WATCH" "$CO" run "$T7/app" 2>&1); c7=$?

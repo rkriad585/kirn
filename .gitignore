@@ -11,9 +11,9 @@ _site/
 .bundle/
 Gemfile.lock
 
-# coco package manager temp files (created in cwd during install/update)
-.coco-registry-lib.toml
-.coco-sha
+# kirn package manager temp files (created in cwd during install/update)
+.pets-registry.toml
+.pets-sha
 # Python bytecode - never track (regenerates every py_compile; tracked .pyc was committed debt from before this session)
 __pycache__/
 *.pyc
@@ -22,4 +22,4 @@ __pycache__/
 
 # baseline stderr transcripts (empty when gates pass; regenerated every run)
 _rename/baseline/*.err
-
+AGENTS.md

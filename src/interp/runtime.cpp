@@ -1125,12 +1125,19 @@ static bool readFileIfExists(const std::string& path, std::string& out) {
 }
 
 // entry-file convention inside an installed package directory:
-//   coco.toml [package] main = "..."
+//   kirn.toml [package] main = "..."
 //     -> pin.kn (package initializer / public-API aggregator)
 //     -> mod.kn -> <dirname>.kn -> lone *.kn
 static bool resolvePackageEntry(const std::string& dir, std::string& out) {
     std::string manifest;
-    if (readFileIfExists(dir + "/coco.toml", manifest)) {
+    if (readFileIfExists(dir + "/kirn.toml", manifest)) {
+        // current manifest name
+    } else if (readFileIfExists(dir + "/coco.toml", manifest)) {
+        std::cerr << "note: found 'coco.toml' in '" << dir
+                  << "' but expected 'kirn.toml' (manifest renamed in this "
+                     "release); run:  mv coco.toml kirn.toml\n";
+    }
+    if (!manifest.empty()) {
         kirn::tomlmini::Doc doc = kirn::tomlmini::parse(manifest);
         std::string mainf = kirn::tomlmini::get(doc, "package", "main");
         std::string probe;

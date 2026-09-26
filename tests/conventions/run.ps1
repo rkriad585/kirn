@@ -57,7 +57,7 @@ Check "code/main.kn entry" ($r.Code -eq 0 -and $r.Out -match "A") $r.Out
 
 # 2. manifest main = other path wins over code/main.kn
 $p = Join-Path $tmp "b"
-SetFile (Join-Path $p "coco.toml") "[package]`nname=`"b`"`nmain=`"start.kn`"`n"
+SetFile (Join-Path $p "kirn.toml") "[package]`nname=`"b`"`nmain=`"start.kn`"`n"
 SetFile (Join-Path $p "start.kn") "def main() { print(`"Bmain`"); }"
 SetFile (Join-Path $p "code\main.kn") "def main() { print(`"Bcode`"); }"
 $r = RunCoco @("run", $p)

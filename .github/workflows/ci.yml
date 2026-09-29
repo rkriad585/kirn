@@ -105,6 +105,11 @@ jobs:
             }
             Write-Host "cross build failed as expected (exit $LASTEXITCODE)"
           } finally { Pop-Location }
+          # The cross build above is SUPPOSED to exit nonzero, and the assertion
+          # passed - but `pwsh -Command` exits with the last native command's
+          # code, so that expected failure would fail this step anyway. Exit 0
+          # explicitly: reaching here means the assertion held.
+          exit 0
 
       - name: Upload tools
         uses: actions/upload-artifact@v4

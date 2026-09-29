@@ -1,0 +1,313 @@
+name: release
+
+# Builds a single `kirn` executable on Linux, macOS and Windows, smoke-tests it,
+# and (on a v* tag) attaches the archives to a GitHub Release.
+#
+# A dispatch with no tag is a DRY RUN: the matrix still builds and is still
+# verified, but nothing is published. Use it to validate before cutting a tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release as (e.g. v0.1.0). Leave empty for a dry run."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # One source of truth for the version label, so the matrix and the release job
+  # can never disagree about what they are producing.
+  meta:
+    name: resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          REF: ${{ github.ref }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG:-}" ]; then
+            tag="$INPUT_TAG"
+            publish=true
+          elif [ "${REF#refs/tags/}" != "$REF" ]; then
+            tag="${REF#refs/tags/}"
+            publish=true
+          else
+            tag="nightly-$(git rev-parse --short HEAD)"
+            publish=false
+          fi
+          {
+            echo "version=${tag#v}"
+            echo "tag=$tag"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v} tag=$tag publish=$publish"
+
+  build:
+    name: build ${{ matrix.os }}
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      # One OS failing must not hide the state of the other two.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure cmake
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v cmake >/dev/null 2>&1; then
+            cmake --version | head -1
+            exit 0
+          fi
+          echo "cmake missing; installing"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            brew install cmake
+          elif [ "$(uname -s)" = "MINGW"* ] || [ "$(uname -s)" = "MSYS"* ] || \
+               [ "$(uname -s)" = "CYGWIN"* ]; then
+            choco install cmake --no-progress
+          else
+            sudo apt-get update
+            sudo apt-get install -y cmake
+          fi
+          cmake --version | head -1
+
+      - name: Configure and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      # Derive the target from the host rather than hardcoding it: `macos-latest`
+      # has moved between Intel and Apple Silicon, and guessing wrong would
+      # publish a mislabelled archive.
+      - name: Detect target
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          os="$(uname -s)"
+          arch="$(uname -m)"
+          case "$os" in
+            Linux)
+              case "$arch" in
+                x86_64|amd64) triple=linux-amd64 ;;
+                aarch64|arm64) triple=linux-arm64 ;;
+                *) triple="linux-$arch" ;;
+              esac
+              ;;
+            Darwin)
+              case "$arch" in
+                x86_64) triple=darwin-amd64 ;;
+                arm64|aarch64) triple=darwin-arm64 ;;
+                *) triple="darwin-$arch" ;;
+              esac
+              ;;
+            MINGW*|MSYS*|CYGWIN*|Windows_NT)
+              case "$arch" in
+                x86_64|amd64) triple=windows-amd64 ;;
+                aarch64|arm64) triple=windows-arm64 ;;
+                *) triple="windows-$arch" ;;
+              esac
+              ;;
+            *)
+              triple="unknown-$arch"
+              ;;
+          esac
+          echo "target=$triple" >> "$GITHUB_OUTPUT"
+          echo "building for $triple (uname $os/$arch)"
+
+      # A single executable. stdlib/ travels with it because `import pet.*`
+      # needs it, and src/ because `kirn build --native` compiles the runtime
+      # from it. Neither is an executable - this is still one binary.
+      - name: Stage distribution
+        shell: bash
+        env:
+          TARGET: ${{ steps.detect.outputs.target }}
+        run: |
+          set -euo pipefail
+          # MSVC is multi-config and drops binaries in build/Release; the
+          # single-config generators put them straight in build/.
+          if [ -f build/Release/kirn.exe ]; then bindir=build/Release; else bindir=build; fi
+          if [ -f "$bindir/kirn.exe" ]; then exe="$bindir/kirn.exe"; else exe="$bindir/kirn"; fi
+          if [ ! -f "$exe" ]; then
+            echo "::error::no kirn binary in $bindir"
+            exit 1
+          fi
+          stage="dist/kirn-$TARGET"
+          mkdir -p "$stage/bin"
+          cp "$exe" "$stage/bin/"
+          cp -R stdlib src "$stage/"
+          cp README.md "$stage/"
+
+      # The smoke test mirrors how a released copy is actually used: a project
+      # directory that sits NEXT TO the unpacked stdlib, which is the layout the
+      # loader searches (<script-dir>/../stdlib). KIRN_STDLIB is deliberately
+      # left set from the stage so the test does not depend on cwd.
+      - name: Smoke test
+        shell: bash
+        env:
+          TARGET: ${{ steps.detect.outputs.target }}
+        run: |
+          set -euo pipefail
+          stage="$PWD/dist/kirn-$TARGET"
+          if [ -f "$stage/bin/kirn.exe" ]; then exe="$stage/bin/kirn.exe"; else exe="$stage/bin/kirn"; fi
+
+          # 1. Compile and run a real program.
+          out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
+          echo "$out"
+          case "$out" in
+            *"Hello, World!"*) ;;
+            *)
+              echo "::error::smoke: expected 'Hello, World!', got: $out"
+              exit 1
+              ;;
+          esac
+
+          # 2. A project outside the repo, importing the standard library. The
+          #    project is a sibling of stdlib/ so the default <script-dir>/../
+          #    stdlib search resolves - i.e. exactly how an unpacked release is
+          #    used once the user sets KIRN_STDLIB (see the release notes).
+          work="$(mktemp -d)"
+          cp -R "$stage/stdlib" "$work/stdlib"
+          mkdir -p "$work/proj"
+          cat > "$work/proj/main.kn" <<'KN'
+          import pet.math;
+
+          def main() {
+              print(math.abs(-42));
+          }
+          KN
+          got=$(cd "$work/proj" && env -u KIRN_PETS KIRN_STDLIB="$work/stdlib" "$exe" run main.kn)
+          echo "$got"
+          case "$got" in
+            *42*) ;;
+            *)
+              echo "::error::smoke: expected 42 from the math module, got: $got"
+              exit 1
+              ;;
+          esac
+          echo "smoke ok: $TARGET"
+
+      - name: Archive
+        shell: bash
+        env:
+          TARGET: ${{ steps.detect.outputs.target }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Python ships on every runner, so this is one code path for all three
+          # operating systems rather than per-OS tar/zip invocations.
+          python3 - "$TARGET" "$VERSION" <<'PY'
+          import os, shutil, sys
+          target, version = sys.argv[1:3]
+          base = "kirn-%s-%s" % (target, version)
+          root = os.path.join("dist", "kirn-%s" % target)
+          # Windows users get a zip; everyone else gets a tarball.
+          if target.startswith("windows"):
+              fmt, ext = "zip", "zip"
+          else:
+              fmt, ext = "gztar", "tar.gz"
+          out = shutil.make_archive(os.path.join("dist", base), fmt, "dist",
+                                    os.path.basename(root))
+          print("archived %s" % out)
+          PY
+          ls -la dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kirn-${{ steps.detect.outputs.target }}
+          path: dist/kirn-${{ steps.detect.outputs.target }}-*
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    runs-on: ubuntu-latest
+    needs: [meta, build]
+    if: needs.meta.outputs.publish == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all target archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: kirn-*
+          merge-multiple: true
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          notes="$(mktemp)"
+          {
+            echo "Kirn, built from commit \`$GITHUB_SHA\`."
+            echo
+            echo 'Each archive unpacks to `kirn-<target>/`:'
+            echo
+            echo "- \`bin/kirn\` - the compiler and driver (a single executable)"
+            echo "- \`stdlib/\` - the standard library, required by \`import pet.*\`"
+            echo "- \`src/\` - runtime sources, used by \`kirn build --native\`"
+            echo
+            echo 'Put `bin/` on your PATH. `kirn run`, `kirn test` and `kirn check` need no C++ toolchain.'
+            echo
+            echo '### Pointing Kirn at the standard library'
+            echo
+            echo 'The loader searches for the standard library relative to the script being run,'
+            echo 'then falls back to `KIRN_STDLIB`. After unpacking, either keep your project'
+            echo 'beside the `stdlib/` directory, or set it once:'
+            echo
+            echo '```sh'
+            echo 'export KIRN_STDLIB=/path/to/kirn-<target>/stdlib'
+            echo '```'
+            echo
+            echo "Note: \`kirn build\` (bundled binaries) additionally needs the \`kirnrun\`"
+            echo "interpreter, which is not part of this single-executable distribution."
+            echo "\`kirn build --native\` works with any C++ toolchain."
+            echo
+            echo "| archive | target |"
+            echo "| --- | --- |"
+            for f in dist/*; do
+              name="$(basename "$f")"
+              target="${name%-*.tar.gz}"
+              target="${target%-*.zip}"
+              target="${target#kirn-}"
+              echo "| [$name]($release_url/$name) | \`$target\` |"
+            done
+          } > "$notes"
+          cat "$notes"
+          # Re-running a tag release must not fail on a duplicate, so update the
+          # existing release when one is already there.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file "$notes"
+          else
+            gh release create "$TAG" dist/* --notes-file "$notes" --title "$TAG"
+          fi

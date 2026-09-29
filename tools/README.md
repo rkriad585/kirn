@@ -19,6 +19,6 @@ repo: `frontEnd` (lex → parse → check), `resolveEntry`, `libDirsFor`,
 
 ## Scratch / tests
 
-The remaining `*.co` / `scratch_*` / `t?.co` / `u?.co` files and `out.txt` /
+The remaining `*.kn` / `scratch_*` / `t?.kn` / `u?.kn` files and `out.txt` /
 `err.txt` are ad-hoc developer scratch; they are not part of the public
 interface.

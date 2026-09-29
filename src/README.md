@@ -27,5 +27,5 @@ tools in [`tools/`](../tools/).
 - New files must fit the existing include/style habits (headers + `.cpp`
   pairs, `kirn::` namespaces matching directory names).
 - Every change to parsing/semantics should be validated against the example
-  corpus (`examples/*.co`) and the negative test suite (`tests/negative/*.co`)
+  corpus (`examples/*.kn`) and the negative test suite (`tests/negative/*.kn`)
   — see [`../scripts/`](../scripts/) harnesses.

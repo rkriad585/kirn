@@ -1,0 +1,83 @@
+# rename_verify.ps1 allowlist - intentional pre-rename references
+#
+# Format: <path-glob><TAB><reason>
+# Blank lines and #-comments are ignored. Every entry MUST carry a reason;
+# the gate fails on a missing or empty one.
+#
+# The allowlist is a BUDGET, not a registry. Keep it as small as the codebase
+# honestly allows: each entry is permanent debt, and a reviewer approving one is
+# approving a specific exemption. The gate additionally FAILS on any entry that
+# no longer matches a real violation, so this list cannot rot into a blanket
+# suppression - if you delete a file listed here, remove its line too.
+#
+# Exemptions are file-level, never line-level. A file-level grant is reviewable
+# ("we accept the old name in this whole file, for this reason"); a line-level
+# one invites sprinkling suppressions on genuine regressions.
+
+# --- This file -----------------------------------------------------------
+# Unavoidable: stating the reason for an exemption requires naming the token
+# being exempted. Without this entry the gate would flag its own allowlist.
+scripts/rename_allowlist.txt	the allowlist itself; reasons must name what they exempt.
+
+scripts/rename_verify.ps1	the gate itself. The old-extension pattern has to be a
+		literal regex, so the file cannot avoid containing the token it bans.
+docs/MIGRATION.md	the migration table. Its entire job is to name every old
+		form next to its replacement, so a rename gate cannot apply to it.
+
+# --- Frozen historical archives -------------------------------------------
+COCO_PLANS/*	the pre-rename design-plan archive, kept verbatim as the record of
+		what the language was before the rename. Never edited again.
+
+_rename/baseline/*	phase-1 pre-rename measurement transcripts. These ARE the
+		"before" half of the before/after census in _rename/report.md;
+		rewriting them would destroy the measurement.
+
+# --- Spent one-shot migration tooling -------------------------------------
+# These ran the rename and are kept only as a record of how it was done. None is
+# referenced by CI, a test, or a hook. They contain the old names because their
+# job was to write the old names.
+scripts/rename_kirn.py	the prose renamer itself; its token tables name the old forms.
+scripts/rename_dryrun.ps1	the pre-rename census tool; its search vocabulary is the old names.
+scripts/rename_native_ns.ps1	phase-3 namespace renamer; targets the pre-rename tree.
+scripts/rename_native_emitter.ps1	phase-3 emitted-namespace renamer; same.
+scripts/run_phase3_half2.ps1	phase-3 driver that ran the two scripts above.
+scripts/rename_baseline.ps1	live (referenced by .vscode/tasks.json and SECURITY.md);
+		its header comment points at the migration plan by name.
+
+# --- Live backward-compatibility shims ------------------------------------
+# These are user-facing MIGRATION HELP, not drift. The old name is the payload:
+# delete it and the helpful message it carries disappears. Each is covered by
+# the gate suite, so they cannot rot unnoticed.
+CMakeLists.txt	the one-time COCO_ASAN -> KIRN_ASAN cache migration and its
+		DEPRECATION message (phase 8).
+src/interp/runtime.cpp	detects a stale pre-rename manifest and prints the `mv` command.
+tools/kirn.cpp	detects a stale pre-rename manifest/lock and prints the fix; also
+		the COCO_* legacy-environment-variable detection table (phase 8).
+tools/kirnrun.cpp	reports the pre-rename environment variables it no longer reads.
+scripts/gates_linux.sh	LOAD-BEARING: creates a stale pre-rename manifest as a fixture and
+		asserts the rename hint fires. Renaming it would silently delete the test.
+
+# --- Deliberate "formerly known as" discoverability notes -----------------
+# Someone who searched the old name should land on the right project, so exactly
+# one visible mention is kept per surface. See docs/MIGRATION.md.
+README.md	the "formerly known as" banner plus links into the plan archive.
+CONTRIBUTING.md	same banner, plus the link to the migration record.
+CODE_OF_CONDUCT.md	header names the rename.
+package.json	the "formerly ..." clause in the tooling description.
+docs/README.md	index row for the migration table, plus the plan-archive link.
+docs/KIRN_PLAN.md	records the deliberate brand decisions (registry rename,
+		rejected lib-prefixed branding) and links the plan archive.
+commitlint.config.cjs	comment explaining why the commit-type vocabulary was widened.
+
+# --- Inert test data ------------------------------------------------------
+# Arbitrary string values where the old brand is the payload under test, not a
+# claim about the project. Renaming the value would change what is asserted
+# (and the doc-comment pair in the slug module would stop matching its example).
+stdlib/pet/strings_test.kn	asserts starts_with/ends_with against the literal value.
+stdlib/pet/os_test.kn	probes that a never-set environment variable reads as nil.
+stdlib/pet/json_test.kn	arbitrary JSON payload in a round-trip test.
+tools/json_test_copy.kn	ad-hoc scratch copy of the json test.
+tools/test_env.kn	ad-hoc scratch: prints one environment variable.
+examples/07_closures_captures.kn	demonstrates a string transform; the input is arbitrary.
+examples/21_modules_visibility.kn	slugify example whose comment documents its expected output.
+stdlib/text/slug.kn	doc-comment paired with that example, so the two must match.

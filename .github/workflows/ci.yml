@@ -7,6 +7,48 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The language was renamed once; this keeps it renamed. Cheap enough (a few
+  # git greps over ~250 files) to run on every change, and deliberately runs on
+  # BOTH platforms so the gate cannot pass on one OS and fail on the other.
+  rename-regression:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No pre-rename tokens outside the allowlist
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -File scripts/rename_verify.ps1 `
+            -Report _rename/gate-report.md
+
+      - name: Publish gate report
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $report = "_rename/gate-report.md"
+          if (Test-Path -LiteralPath $report) {
+            Get-Content -LiteralPath $report | Out-String |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            Write-Host "gate report written to $report"
+          }
+
+      - name: Upload gate report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rename-gate-report
+          path: _rename/gate-report.md
+          retention-days: 7
+          if-no-files-found: ignore
+
   build-test:
     runs-on: windows-latest
     steps:
@@ -116,5 +158,4 @@ jobs:
               exit 1
             }
             Write-Host "no-toolchain cross build failed as expected"
-          } finally { Pop-Location }
           } finally { Pop-Location }

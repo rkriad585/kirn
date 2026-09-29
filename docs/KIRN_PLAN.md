@@ -101,7 +101,7 @@ def main():
 
 ```bash
 $ kirn run main.kn     # compile + execute
-$ kirn build main.co   # emit ./main native binary
+$ kirn build main.kn   # emit ./main native binary
 ```
 
 ### 5.1 Lexical Structure
@@ -852,7 +852,7 @@ custom debug console deferred.
 | Unit (C++) | GoogleTest-style per-stage tests; lexer/parser golden files |
 | Grammar conformance | `grammar/*.ebnf` ↔ parser round-trip corpus |
 | **Differential** | Interpreter vs compiled output on the entire test suite + fuzz corpora — outputs must match bit-for-bit |
-| End-to-end | `tests/cases/**/*.co` each with expected stdout/stderr/exit-code; runner compares |
+| End-to-end | `tests/cases/**/*.kn` each with expected stdout/stderr/exit-code; runner compares |
 | Error-message tests | Diagnostic snapshot tests (message text, span, fix-it) |
 | Fuzzing | libFuzzer on lexer/parser/sema (AST-shape-aware mutators later); OSS-Fuzz integration in Phase 6 |
 | Sanitizers | ASan/UBSan builds run full suite nightly; MSan for frontend |

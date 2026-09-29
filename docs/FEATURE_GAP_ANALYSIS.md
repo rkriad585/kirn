@@ -25,7 +25,7 @@ Both reference trees were surveyed at the compiler level:
 Kirn's pipeline is a single-pass recursive-descent parser + AST + type checker
 (`src/parser`, `src/sema`) feeding a tree-walking interpreter (`src/interp`) that is
 also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
-`kirn build file.co`).
+`kirn build file.kn`).
 
 ---
 

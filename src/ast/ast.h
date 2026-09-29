@@ -1,5 +1,5 @@
 #pragma once
-// Abstract Syntax Tree for Kirn (grammar/coco.ebnf §3).
+// Abstract Syntax Tree for Kirn (grammar/kirn.ebnf §3).
 // Ownership: unique_ptr everywhere (plan §11.2); arenas arrive with MIR.
 #include <cstdint>
 #include <memory>
@@ -301,7 +301,7 @@ struct Stmt {
     std::vector<ExprP> seedExprs;     // Gather: seed items evaluated first
 };
 
-// pretty-printer (used by cocoparse --ast)
+// pretty-printer (used by kirnparse --ast)
 void dump(const Stmt& s, int indent = 0);
 
 } // namespace ast

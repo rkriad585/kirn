@@ -13,5 +13,5 @@ def main() {
     print("load_count =", greet.load_count());     # 1, not 3
     print("via        =", via.load_count());       # share the same greeting
     print("again      =", again.load_count());
-    print(greet.hello("Coco"));
+    print(greet.hello("Kirn"));
 }

@@ -1,5 +1,5 @@
 # 36 — OOP facade: class / interface / record / fn   (DO_FIRST_PLAN Phase 2)
-# `class Name { fields; methods }` desugars to a Coco struct + inherent impl
+# `class Name { fields; methods }` desugars to a Kirn struct + inherent impl
 # (the language's Rust/Go composition model). Methods stay on the struct, so
 # `x.method()` works directly; `implements I` also publishes the class as an
 # `impl I for X` that delegates to the inherent method, so passing it to a

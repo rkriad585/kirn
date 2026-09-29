@@ -93,20 +93,20 @@ Being explicit prevents scope creep:
 ### 5.0 Hello World
 
 ```python
-# main.co
+# main.kn
 def main():
     name = "World"
     print(f"Hello, {name}!")
 ```
 
 ```bash
-$ kirn run main.co     # compile + execute
+$ kirn run main.kn     # compile + execute
 $ kirn build main.co   # emit ./main native binary
 ```
 
 ### 5.1 Lexical Structure
 
-- **Encoding:** UTF-8 source files, extension `.co`.
+- **Encoding:** UTF-8 source files, extension `.kn`.
 - **Blocks:** indentation-based, exactly like Python. The lexer emits virtual
   `INDENT` / `DEDENT` / `NEWLINE` tokens (same algorithm as CPython:
   stack of indent widths; tabs forbidden — 4 spaces enforced by compiler & formatter).
@@ -127,7 +127,7 @@ and    or     not    is     as     true   false  none
 
 > **Frozen (Phase 0):** this list is final for v1 — `go` was dropped
 > (`spawn` covers it). Additions require an RFC + edition bump. See
-> `grammar/coco.ebnf` §1 and §4 for the full freeze record.
+> `grammar/kirn.ebnf` §1 and §4 for the full freeze record.
 
 (`let x = expr` = immutable alias/binding sugar; plain `x = expr` also binds immutably;
 `var x = expr` declares mutable.)
@@ -156,7 +156,7 @@ type           = prim_type | IDENT [ "[" type_list "]" ] | "*" type | "&" type |
 expr           = assignment ; /* precedence climbing, Python-like levels */
 ```
 
-Full machine-readable grammar ships as `grammar/coco.ebnf` and is tested against
+Full machine-readable grammar ships as `grammar/kirn.ebnf` and is tested against
 the parser via golden files (§15).
 
 ### 5.3 Variables & Mutability
@@ -366,12 +366,12 @@ import math                       # stdlib module
 import json                       # stdlib
 from utils.string import slugify  # named import
 
-# utils/string.co
+# utils/string.kn
 def _internal_helper(): ...       # leading underscore = module-private
 pub def slugify(s: string) -> string: ...   # pub = exported
 ```
 
-- File = module; directory = package with `__init__.co` (or `coco.toml` manifest).
+- File = module; directory = package with `__init__.kn` (or `kirn.toml` manifest).
 - No headers, no forward declarations: compiler does two-pass resolution like Go.
 - Visibility: `pub` (exported), `_`-prefixed (private), default = package-visible.
 
@@ -562,7 +562,7 @@ def c_printf_safely(msg: string):
 ### 10.1 Pipeline
 
 ```
- .co sources
+ .kn sources
      │
      ▼
 ┌─────────┐  tokens (+INDENT/DEDENT)   ┌──────────┐   AST    ┌─────────────┐
@@ -630,7 +630,7 @@ differential-testing oracle (§15) forever.
 | Go | Fast to write | GC pauses in compiler itself; LLVM via cgo = pain | Rejected |
 | Zig | Great cross story | Pre-1.0 churn risk | Watch-list |
 
-**Split:** `frontend + driver + codegen` in **C++20/23**; `libcoco_rt` runtime in **C11**
+**Split:** `frontend + driver + codegen` in **C++20/23**; `libkirn_rt` runtime in **C11**
 (plus tiny asm bits) so the runtime links cleanly into every produced binary regardless
 of host-toolchain politics.
 
@@ -647,8 +647,8 @@ of host-toolchain politics.
 ### 11.3 Repository Layout (compiler repo)
 
 ```
-coco/
-├── grammar/coco.ebnf           # normative grammar
+kirn/
+├── grammar/kirn.ebnf           # normative grammar
 ├── src/
 │   ├── lex/                    # lexer, token defs, indent engine
 │   ├── ast/                    # node defs (arena-allocated), printer
@@ -659,7 +659,7 @@ coco/
 │   ├── driver/                 # kirn CLI entry, job graph, caching
 │   ├── interp/                 # tree-walk interpreter
 │   └── support/                # diag engine, arena, hashing, paths
-├── rt/                         # libcoco_rt (C11): sched, chan, arc, panics
+├── rt/                         # libkirn_rt (C11): sched, chan, arc, panics
 ├── stdlib/                     # std modules written IN KIRN (§13)
 ├── tests/                      # §15 layout
 ├── tools/                      # fmt, lsp, bindgen, bench-runner
@@ -679,7 +679,7 @@ coco/
 
 ## 12. Runtime Library Design (C)
 
-Every Kirn binary embeds `libcoco_rt` (~50–150 KB):
+Every Kirn binary embeds `libkirn_rt` (~50–150 KB):
 
 | Component | Notes |
 |---|---|
@@ -713,7 +713,7 @@ Written **in Kirn itself** wherever possible (dogfooding):
 | `serialize` | derive-based JSON/TOML/CBOR via reflection-at-compile-time (trait derivation, not runtime reflection) | 6 |
 | `test` | built-in framework powering `kirn test` (assert_eq, fixtures, benches) | 3 |
 
-Non-negotiable rule: stdlib adds **zero runtime deps** beyond libcoco_rt/libc; networking
+Non-negotiable rule: stdlib adds **zero runtime deps** beyond libkirn_rt/libc; networking
 may shell to nothing — pure socket APIs.
 
 ---
@@ -755,7 +755,7 @@ All subcommands ship inside the one `kirn` binary (Go philosophy):
 
 | Command | Function |
 |---|---|
-| `kirn run x.co [-- args]` | compile (cached) + exec |
+| kirn run x.kn [-- args]` | compile (cached) + exec |
 | `kirn build [-O0..O3] [--target t] [-o out]` | produce binary/static-lib |
 | `kirn check` | full front-end only — IDE-speed diagnostics |
 | `kirn test [path]` | discovers `test "name" { }` blocks, parallel runner |
@@ -830,7 +830,7 @@ go-def/find-refs, rename, semantic highlight, inline errors — this is the sing
 leverage adoption tool after the compiler (scheduled in Phase 6).
 
 **k-docs — inline docs for Kirn (pydoc/godoc spirit, new syntax):** a dedicated
-`COCO_KIRN_DOCS_PLAN.md`-style plan tracks the k-doc comment syntax (`///` block + Kirn-
+`COCO_PLANS/COCO_DOCS_PLAN.md`-style plan tracks the k-doc comment syntax (`///` block + Kirn-
 specific directive markers), extraction into the `kirn doc` pipeline, and rendering to
 static HTML on the docs site (`https://rkriad585.github.io/kirn`) — see `COCO_PLANS/`. This
 is analogous to pydoc/godoc but with Kirn-native comment syntax; scheduled alongside
@@ -893,9 +893,9 @@ Each phase has **exit criteria**; no phase starts before the previous exits.
 
 | Phase | Deliverables | Exit criteria | Est. effort |
 |---|---|---|---|
-| **0. Spec freeze (v0.1)** | This doc ratified; `grammar/coco.ebnf` complete; 30 example programs that must parse someday | 3 independent people can hand-execute examples unambiguously | 2–4 wks |
+| **0. Spec freeze (v0.1)** | This doc ratified; `grammar/kirn.ebnf` complete; 30 example programs that must parse someday | 3 independent people can hand-execute examples unambiguously | 2–4 wks |
 | **1. Frontend + interpreter** | Lexer, parser, resolver/inference, tree-walk interpreter, `kirn repl`, diag engine | All Phase-0 examples run correctly in interpreter; error messages have spans+fix-its | 2–3 mo |
-| **2. MIR + codegen skeleton** | SSA MIR, lowering for core subset, LLVM emission, `kirn build` produces hello-world binary linking libcoco_rt (scheduler stubbed) | fib/nbody run compiled & match interpreter bit-for-bit | 2 mo |
+| **2. MIR + codegen skeleton** | SSA MIR, lowering for core subset, LLVM emission, `kirn build` produces hello-world binary linking libkirn_rt (scheduler stubbed) | fib/nbody run compiled & match interpreter bit-for-bit | 2 mo |
 | **3. Core language complete** | Generics/monomorphization, traits static+dynamic, match exhaustiveness, ARC runtime + cycle collector, bounds checks + elision, `test` framework | Suite §15 green incl. sanitizers; differential testing automated in CI | 3 mo |
 | **4. Concurrency + collections** | Full scheduler, channels/select, sendability checker, defer, collections+iterators, io/os/time/math | 10k-goroutine web crawler demo stable; ASan-clean | 2–3 mo |
 | **5. Stdlib + net + tooling** | net/text/serialize modules, `kirn fmt`, `kirn get` MVP + 20 published demo packages, bench infra online | Real project (JSON REST API server) builds & serves load with good p99 | 2–3 mo |
@@ -910,7 +910,7 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 ## 18. Versioning & Compatibility Policy
 
 - **Semver** for compiler AND language: breaking language changes require major bump.
-- Edition system (like Rust/C++): `edition = "2027"` in `coco.toml` lets old code keep compiling
+- Edition system (like Rust/C++): `edition = "2027"` in `kirn.toml` lets old code keep compiling
   while new editions clean up warts; migrations automated by `kirn fmt --migrate`.
 - Deprecation ladder: warn (≥2 minor releases) → error in next edition only.
 - Stdlib stability: anything exported from stdlib follows semver too; experimental modules
@@ -927,7 +927,7 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
   per release; playground (wasm-compiled interpreter) embedded in website.
 - **Community:** GitHub Discussions for Q&A, RFCs for design, Discord for chat;
   issue templates already in repo — extend with `rfc`, `stdlib-proposal`.
-- Fix repo inconsistencies found during review: unify canonical URL to `rkriad585/coco`,
+- Fix repo inconsistencies found during review: unify canonical URL to `rkriad585/kirn`,
   replace placeholder emails/Discord links in CONTRIBUTING.md, delete dead `index.md` links.
 
 ---

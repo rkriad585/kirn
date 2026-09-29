@@ -1,5 +1,5 @@
 #pragma once
-// Indentation-aware lexer implementing grammar/coco.ebnf §1:
+// Indentation-aware lexer implementing grammar/kirn.ebnf §1:
 // INDENT/DEDENT synthesis (CPython algorithm), frozen keyword/operator sets,
 // int/float/char/string literals (raw r"" byte b"" C c""), and f-strings
 // lexed as Start / Text / {L,R}Brace / Colon / Spec / End token runs.

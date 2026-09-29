@@ -1,7 +1,7 @@
 # =============================================================================
 #  Kirn Language — Normative Grammar (EBNF)
-#  File:       grammar/coco.ebnf
-#  Status:     PHASE 0 DRAFT v0.2  (ratification tracked in docs/COCO_PLAN.md §22)
+#  File:       grammar/kirn.ebnf
+#  Status:     PHASE 0 DRAFT v0.2  (ratification tracked in docs/KIRN_PLAN.md §22)
 #  Change rec: v0.2 (2026-09-03) fixes malformed EBNF and adds productions
 #              required by the example corpus (examples/01–44 + stdlib *_test.kn):
 #              try_stmt/catch, try-expr, match-as-expression, OOP facade

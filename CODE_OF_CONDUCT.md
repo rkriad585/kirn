@@ -1,4 +1,4 @@
-# Contributor Covenant v2.1 (coco -> Kirn migration repo).
+# Contributor Covenant v2.1 (Coco → Kirn migration repo).
 
 ## Our Pledge
 

@@ -1,5 +1,5 @@
 #pragma once
-// Token model for the Kirn lexer (grammar/coco.ebnf §1).
+// Token model for the Kirn lexer (grammar/kirn.ebnf §1).
 #include <cstdint>
 #include <string>
 #include <string_view>

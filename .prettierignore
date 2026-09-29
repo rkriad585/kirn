@@ -13,7 +13,7 @@ node_modules/
 *.hpp
 *.ps1
 *.bat
-*.co.ebnf
+*.ebnf
 *.toml
 *.exe
 *.png

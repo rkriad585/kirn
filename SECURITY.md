@@ -1,6 +1,6 @@
 # Security Policy
 
-Coco is a **0.0.x-beta** WIP compiler (see `.version`). It runs no daemons,
+Kirn is a **0.0.x-beta** WIP compiler (see `.version`). It runs no daemons,
 makes no network calls, and stores no credentials — but reports are still
 appreciated and handled.
 
@@ -21,8 +21,8 @@ public disclosure.
 ## What we ask you to include
 
 - Affected version(s) from `.version` / git ref.
-- Reproduction: the smallest `.co` file + the exact command line and harness
-  (`coco run`, `cococheck`, `cocoparse`, ...) that triggers it.
+- Reproduction: the smallest `.kn` file + the exact command line and harness
+  (`kirn run`, `kirncheck`, `kirnparse`, ...) that triggers it.
 - Expected vs actual behavior.
 
 ## Supported versions
@@ -32,7 +32,7 @@ are supported on a best-effort basis.
 
 ## Security-relevant areas
 
-Compiler/VM memory safety (parsing, type checking, codegen, the `coco`/`cocorun`
+Compiler/VM memory safety (parsing, type checking, codegen, the `kirn`/`kirnrun`
 runners) is the highest-priority area — memory corruption, UB, or out-of-bounds
 in the toolchain pipelines should be reported as above even though this is a
 language project.

@@ -10,7 +10,7 @@ def print_message(msg: string) { # safe wrapper around unsafe core
 }
 def main() {
     # raw pointers may only be TOUCHED inside `unsafe:` blocks:
-    msg = "Hello from Coco!";
+    msg = "Hello from Kirn!";
     unsafe {
         printf(c"%s!\n", msg.c_ptr());
 }

@@ -1,4 +1,4 @@
-# stdlib/pet/collections.kn - data-structure utilities (Coco-written, Phase 6).
+# stdlib/pet/collections.kn - data-structure utilities (Kirn-written, Phase 6).
 # Provides a HashMap struct plus functional list helpers. Import with:
 #   import pet.collections;
 

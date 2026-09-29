@@ -1,4 +1,4 @@
-# stdlib/pet/os.kn - operating-system helpers (Coco-written, Phase 6).
+# stdlib/pet/os.kn - operating-system helpers (Kirn-written, Phase 6).
 # Wraps the runtime `os` pseudo-module (exit/args/getenv). Import with:
 #   import pet.os;
 #

@@ -1,8 +1,8 @@
-# Contributing to Coco (Kirn)
+# Contributing to Kirn
 
-Coco is a Windows-first, C++20 compiled language that is being renamed to
-**Kirn** per [COCO_PLANS/COCO_TO_KIRN_PLAN.md](COCO_PLANS/COCO_TO_KIRN_PLAN.md).
-Anything you commit must keep the harnesses green at every phase.
+Kirn is a Windows-first, C++20 compiled language. It was formerly named Coco
+(see [COCO_PLANS/COCO_TO_KIRN_PLAN.md](COCO_PLANS/COCO_TO_KIRN_PLAN.md) for the
+rename). Anything you commit must keep the harnesses green at every phase.
 
 ## Environment
 
@@ -63,7 +63,7 @@ powershell -NoProfile -File scripts\rename_baseline.ps1
   emits no LF/CRLF warnings. Editors (VSCode, nvim, prettier) are configured to
   write LF.
 - Repo-scoped conventions files map to the same rule:
-  - `.co`/C++ = 4-space indent; `.yml/.yaml/.json/.toml` = 2-space; LF.
+  - `.kn`/C++ = 4-space indent; `.yml/.yaml/.json/.toml` = 2-space; LF.
 - Do **not** add CRLF anywhere; do **not** re-enable autocrlf.
 
 ## Commit conventions
@@ -81,8 +81,8 @@ inventory`).
 
 - `COCO_PLANS/COCO_TO_KIRN_PLAN.md` is the authoritative migration plan
   (Phases 1..13, decision log D1..D8). **Phase 1 (baseline snapshot) is done.**
-- New language/compiler behavior starts from `docs/COCO_PLAN.md` and
-  `grammar/coco.ebnf`; corpus examples live in `examples/`, negative cases in
+- New language/compiler behavior starts from `docs/KIRN_PLAN.md` and
+  `grammar/kirn.ebnf`; corpus examples live in `examples/`, negative cases in
   `tests/negative/`, type cases in `tests/types/`, vm-parity cases in
   `tests/vm_diff/`, and convention checks in `tests/conventions/`.
 - Each change that touches the corpus or grammar must be verified by the

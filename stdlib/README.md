@@ -1,6 +1,6 @@
 # Kirn Standard Library (`stdlib/`)
 
-The standard library ships with Kirn and lives in `stdlib/lib/`. Each module is
+The standard library ships with Kirn and lives in `stdlib/pet/`. Each module is
 written in Kirn (`.co`) and is accompanied by a matching `*_test.co` acceptance
 suite.
 

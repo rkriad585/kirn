@@ -1,5 +1,5 @@
-# stdlib/pet/json.kn - JSON encode/decode (Coco-written, Phase 6).
-# `dumps` delegates to the native serializer; `loads` is a pure-Coco recursive
+# stdlib/pet/json.kn - JSON encode/decode (Kirn-written, Phase 6).
+# `dumps` delegates to the native serializer; `loads` is a pure-Kirn recursive
 # descent parser producing dict/list/str/float/bool/nil. Import with:
 #   import pet.json;
 
@@ -12,7 +12,7 @@ pub def dumps(v) -> string {
     return priv_dumps(v);
 }
 
-# Parse a JSON string into Coco values. Parses objects, arrays, strings,
+# Parse a JSON string into Kirn values. Parses objects, arrays, strings,
 # numbers, true/false/null. Raises on malformed input.
 pub def loads(s: string) {
     p = Parser();

@@ -1,4 +1,4 @@
-# stdlib/pet/core.kn - core helper functions for the Coco stdlib.
+# stdlib/pet/core.kn - core helper functions for the Kirn stdlib.
 # These mirror the behaviour of the C++ runtime (src/interp/runtime.cpp) so
 # importers observe identical semantics.
 #

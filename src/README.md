@@ -11,7 +11,7 @@ tools in [`tools/`](../tools/).
 |-----------|-------|-----------|
 | `src/lex/` | Lexer | `lexer.{h,cpp}`, `token.h` — token kinds, keyword/operator tables, all string forms (normal/raw/byte/C/f-string) |
 | `src/ast/` | AST | `ast.h`, `ast.cpp`, `ast_dump.cpp` — node kinds, `Span{line,col,endLine,endCol}` extents, AST printer |
-| `src/parser/` | Parser | `parser.{h,cpp}` — recursive descent over `grammar/coco.ebnf`, `syncToStatementEnd` error recovery |
+| `src/parser/` | Parser | `parser.{h,cpp}` — recursive descent over `grammar/kirn.ebnf`, `syncToStatementEnd` error recovery |
 | `src/sema/` | Semantic analysis | `checker.*` (two-pass type check, `typeOf`), `borrow.*` (borrow checker), `symbols.h` (`Symbol`, `Scope`, `FuncSig`), `type.h` (`Ty`/`TyK`) |
 | `src/interp/` | Interpreter | `runtime.{h,cpp}`, `value.h` — tree-walking interpreter, `loadModuleFile` module resolution |
 | `src/vm/` | Bytecode VM | `compiler.*`, `bytecode.h` — bytecode compilation |

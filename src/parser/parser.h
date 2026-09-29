@@ -1,5 +1,5 @@
 #pragma once
-// Recursive-descent parser for Kirn (grammar/coco.ebnf §3).
+// Recursive-descent parser for Kirn (grammar/kirn.ebnf §3).
 #include "ast/ast.h"
 #include "support/diag.h"
 #include "lex/token.h"

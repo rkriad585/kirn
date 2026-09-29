@@ -195,4 +195,4 @@ Go `src/` stdlib groups and Kirn status:
 - Go grammar & pipeline: `go-master/doc/go_spec.html`, `go-master/src/go/ast/ast.go`
 - Rust AST enums: `rust-main/compiler/rustc_ast/src/ast.rs` (ItemKind, ExprKind,
   StmtKind, PatKind, TyKind, BinOpKind)
-- Kirn normative grammar: `grammar/coco.ebnf`
+- Kirn normative grammar: `grammar/kirn.ebnf`

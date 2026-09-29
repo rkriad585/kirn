@@ -1,7 +1,7 @@
 #pragma once
 // Semantic analysis for Kirn v1: symbol collection, name resolution,
 // type inference/checking over the parsed AST. Pragmatic ruleset aligned
-// with docs/COCO_PLAN.md §5 and the frozen example corpus.
+// with docs/KIRN_PLAN.md §5 and the frozen example corpus.
 #include "ast/ast.h"
 #include "sema/symbols.h"
 #include "support/diag.h"

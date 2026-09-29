@@ -21,7 +21,7 @@ def apply(op: fn(int, int) -> int, a: int, b: int) -> int {
 }
 def main() {
     greet();
-    greet(name: "Coco"); # named argument (colon syntax)
+    greet(name: "Kirn"); # named argument (colon syntax)
     print(add(2, 3), sum_all(1, 2, 3, 4));
     print(apply(op: add, a: 10, b: 20));
 }

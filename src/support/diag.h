@@ -4,7 +4,7 @@
 // Backward-compatible with the original minimal model:
 //   DiagEngine::report(line, col, msg)  ->  stores Diag{line,col,message}
 //   DiagEngine::diags() / ok() / count()  ->  unchanged
-// so existing callers (cocolex/cococheck/cocoparse/cocorun/coco/runtime)
+// so existing callers (kirnlex/kirncheck/kirnparse/kirnrun/kirn/runtime)
 // keep compiling. New code should prefer the fluent Diagnostics builder and
 // the SourceMap renderer described below.
 #include <cstdint>

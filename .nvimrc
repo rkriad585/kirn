@@ -1,4 +1,4 @@
-" .nvimrc - Neovim editor preferences for the coco repo.
+" .nvimrc - Neovim editor preferences for the kirn repo.
 " Line endings and encoding are LF/UTF-8 (see .editorconfig / .gitattributes);
 " do not override those here.
 set fileencoding=utf-8

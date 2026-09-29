@@ -34,7 +34,7 @@ function Invoke-Step($label, $script) {
     Write-Output ("[ok] {0}" -f $label)
 }
 
-$repo = 'C:\Users\rkriad585\Projects\coco'
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location -LiteralPath $repo
 
 # 1) dry-run scan (reads only) - THE GATE. Census must be 13/3 before any write.

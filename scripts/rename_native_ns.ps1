@@ -52,13 +52,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$RepoRoot = 'C:\Users\rkriad585\Projects\coco'
-if (-not (Test-Path -LiteralPath $RepoRoot)) {
-    # fall back to resolving from script location (avoids Join-Path doubling)
-    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-}
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
-# hardcoded absolute paths - no Join-Path, no double-src bug
+# resolve the repo root from the script location so a workspace folder rename
+# can never strand this on a stale absolute path
 $targets = @(
     (Join-Path $RepoRoot 'src\backend\native.cpp'),
     (Join-Path $RepoRoot 'src\backend\native.h'),

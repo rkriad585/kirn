@@ -6,6 +6,11 @@
 <h1 align="center">Kirn Programming Language</h1>
 
 <p align="center">
+  <em>Formerly known as <strong>Coco</strong> — see
+  <a href="docs/MIGRATION.md">docs/MIGRATION.md</a> for the full rename table.</em>
+</p>
+
+<p align="center">
   <em>A modern, expressive, and fast general-purpose programming language</em>
 </p>
 

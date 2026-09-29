@@ -1,10 +1,13 @@
 name: release
 
-# Builds a single `kirn` executable on Linux, macOS and Windows, smoke-tests it,
-# and (on a v* tag) attaches the archives to a GitHub Release.
+# Builds the Kirn toolchain for all six supported target triples and, on a v*
+# tag, publishes them to a GitHub Release together with a rust-style installer.
 #
-# A dispatch with no tag is a DRY RUN: the matrix still builds and is still
-# verified, but nothing is published. Use it to validate before cutting a tag.
+#   Linux / macOS / Windows x amd64 / arm64
+#
+# Three runners produce six targets: the native build of each runner, plus a
+# cross build for the sibling architecture. A dispatch with no tag is a DRY RUN:
+# the whole matrix still builds and is still verified, but nothing is published.
 on:
   push:
     tags: ["v*"]
@@ -24,8 +27,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # One source of truth for the version label, so the matrix and the release job
-  # can never disagree about what they are producing.
   meta:
     name: resolve version
     runs-on: ubuntu-latest
@@ -59,137 +60,236 @@ jobs:
           echo "version=${tag#v} tag=$tag publish=$publish"
 
   build:
-    name: build ${{ matrix.os }}
+    name: ${{ matrix.target }}
     needs: meta
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
-      # One OS failing must not hide the state of the other two.
+      # One target failing must not hide the state of the other five.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # --- Linux (x64 runner): native amd64, cross to arm64 -------------
+          - target: linux-amd64
+            os: ubuntu-latest
+            mode: native
+            runner_target: linux-amd64
+          - target: linux-arm64
+            os: ubuntu-latest
+            mode: cross
+            cc: aarch64-linux-gnu-g++
+            sysroot: /usr/aarch64-linux-gnu
+          # --- macOS (Apple Silicon runner): native arm64, cross to amd64 ---
+          - target: darwin-arm64
+            os: macos-latest
+            mode: native
+            runner_target: darwin-arm64
+          - target: darwin-amd64
+            os: macos-latest
+            mode: cross
+            osx_arch: x86_64
+          # --- Windows (x64 runner): native amd64, cross to arm64 -----------
+          - target: windows-amd64
+            os: windows-latest
+            mode: native
+            runner_target: windows-amd64
+          - target: windows-arm64
+            os: windows-latest
+            mode: cross
+            cc: aarch64-w64-mingw32-g++
 
     steps:
       - uses: actions/checkout@v4
 
+      # ubuntu-latest ships cmake; the Arch/macOS images do not guarantee it.
       - name: Ensure cmake
         shell: bash
         run: |
           set -euo pipefail
-          if command -v cmake >/dev/null 2>&1; then
-            cmake --version | head -1
-            exit 0
-          fi
+          if command -v cmake >/dev/null 2>&1; then cmake --version | head -1; exit 0; fi
           echo "cmake missing; installing"
-          if [ "$(uname -s)" = "Darwin" ]; then
-            brew install cmake
-          elif [ "$(uname -s)" = "MINGW"* ] || [ "$(uname -s)" = "MSYS"* ] || \
-               [ "$(uname -s)" = "CYGWIN"* ]; then
-            choco install cmake --no-progress
-          else
-            sudo apt-get update
-            sudo apt-get install -y cmake
-          fi
+          case "$(uname -s)" in
+            Darwin) brew install cmake ;;
+            MINGW*|MSYS*|CYGWIN*) choco install cmake --no-progress ;;
+            *) sudo apt-get update && sudo apt-get install -y cmake ;;
+          esac
           cmake --version | head -1
+
+      - name: Install cross toolchain (linux-arm64)
+        if: matrix.cc == 'aarch64-linux-gnu-g++'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y g++-aarch64-linux-gnu
+          aarch64-linux-gnu-g++ --version | head -1
+
+      - name: Install cross toolchain (windows-arm64)
+        if: matrix.cc == 'aarch64-w64-mingw32-g++'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = "20260616"
+          $zip = "$env:RUNNER_TEMP\llvm-mingw-$ver.zip"
+          Invoke-WebRequest -Uri `
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/$ver/llvm-mingw-$ver-ucrt-x86_64.zip" `
+            -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\llvm-mingw"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\llvm-mingw\llvm-mingw-$ver-ucrt-x86_64\bin"
+          aarch64-w64-mingw32-g++ --version | Select-Object -First 1
 
       - name: Configure and build
         shell: bash
+        env:
+          MODE: ${{ matrix.mode }}
+          CC: ${{ matrix.cc }}
+          SYSROOT: ${{ matrix.sysroot }}
+          OSX_ARCH: ${{ matrix.osx_arch }}
         run: |
           set -euo pipefail
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          case "$MODE" in
+            native)
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+              ;;
+            cross)
+              if [ -n "${CC:-}" ]; then
+                # Generic C++ cross build (ELF target).
+                cmake -S . -B build -G Ninja \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_SYSTEM_NAME=Linux \
+                  -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+                  -DCMAKE_CXX_COMPILER="$CC" \
+                  -DCMAKE_SYSROOT="$SYSROOT" \
+                  -DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
+                  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+                  -DCMAKE_EXE_LINKER_FLAGS="-static"
+              elif [ -n "${OSX_ARCH:-}" ]; then
+                # Apple clang cross-builds to the sibling arch off one SDK.
+                cmake -S . -B build \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_OSX_ARCHITECTURES="$OSX_ARCH"
+              else
+                echo "::error::cross mode needs cc or osx_arch"; exit 1
+              fi
+              ;;
+            *) echo "::error::unknown mode $MODE"; exit 1 ;;
+          esac
           cmake --build build --config Release
 
-      # Derive the target from the host rather than hardcoding it: `macos-latest`
-      # has moved between Intel and Apple Silicon, and guessing wrong would
-      # publish a mislabelled archive.
-      - name: Detect target
-        id: detect
+      # For a native target the host MUST match, otherwise the archive would be
+      # mislabelled (macos-latest has already moved between Intel and Apple
+      # Silicon once). Cross targets are verified structurally below instead.
+      - name: Verify native target matches the runner
+        if: matrix.mode == 'native'
         shell: bash
+        env:
+          EXPECTED: ${{ matrix.runner_target }}
         run: |
           set -euo pipefail
-          os="$(uname -s)"
-          arch="$(uname -m)"
-          case "$os" in
-            Linux)
-              case "$arch" in
-                x86_64|amd64) triple=linux-amd64 ;;
-                aarch64|arm64) triple=linux-arm64 ;;
-                *) triple="linux-$arch" ;;
-              esac
-              ;;
-            Darwin)
-              case "$arch" in
-                x86_64) triple=darwin-amd64 ;;
-                arm64|aarch64) triple=darwin-arm64 ;;
-                *) triple="darwin-$arch" ;;
-              esac
-              ;;
-            MINGW*|MSYS*|CYGWIN*|Windows_NT)
-              case "$arch" in
-                x86_64|amd64) triple=windows-amd64 ;;
-                aarch64|arm64) triple=windows-arm64 ;;
-                *) triple="windows-$arch" ;;
-              esac
-              ;;
-            *)
-              triple="unknown-$arch"
-              ;;
+          case "$(uname -s)" in
+            Linux) os=linux ;;
+            Darwin) os=darwin ;;
+            *) os=unknown ;;
           esac
-          echo "target=$triple" >> "$GITHUB_OUTPUT"
-          echo "building for $triple (uname $os/$arch)"
+          case "$(uname -m)" in
+            x86_64|amd64) arch=amd64 ;;
+            arm64|aarch64) arch=arm64 ;;
+            *) arch="$(uname -m)" ;;
+          esac
+          actual="$os-$arch"
+          echo "runner is $actual, matrix claims $EXPECTED"
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "::error::runner is $actual but this job is labelled $EXPECTED - fix the matrix"
+            exit 1
+          fi
 
-      # A single executable. stdlib/ travels with it because `import pet.*`
-      # needs it, and src/ because `kirn build --native` compiles the runtime
-      # from it. Neither is an executable - this is still one binary.
+      - name: Verify cross target architecture
+        if: matrix.mode == 'cross'
+        shell: bash
+        env:
+          EXPECTED: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          # A cross binary cannot run on the build machine, so assert on the
+          # header bytes instead. ELF e_machine, PE machine, and Mach-O cputype
+          # are all read straight out of the file.
+          python3 - "$EXPECTED" <<'PY'
+          import glob, struct, sys
+          expected = sys.argv[1]
+          want = {
+              "linux-arm64": (0xB7, "ELF AArch64"),
+              "darwin-amd64": (0x01000007, "Mach-O x86_64"),
+              "windows-arm64": (0xAA64, "PE ARM64"),
+          }[expected]
+          code, label = want
+          paths = glob.glob("build/kirn") + glob.glob("build/Release/kirn.exe") \
+              + glob.glob("build/kirn.exe")
+          if not paths:
+              sys.exit("no kirn binary found in build/")
+          path = paths[0]
+          with open(path, "rb") as f:
+              b = f.read()
+          if b[:4] == b"\x7fELF":
+              got = struct.unpack_from("<H", b, 18)[0]
+          elif b[:2] == b"MZ":
+              pe = struct.unpack_from("<I", b, 0x3C)[0]
+              got = struct.unpack_from("<H", b, pe + 4)[0]
+          elif b[:4] in (b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe"):
+              got = struct.unpack_from("<I", b, 4)[0] & 0xFFFFFFFF
+          else:
+              sys.exit(f"{path}: unrecognised binary format")
+          print(f"{path}: machine=0x{got:04X} (expected {label} 0x{code:04X})")
+          if got != code:
+              sys.exit(f"wrong architecture: got 0x{got:04X}, want {label}")
+          PY
+
+      # One executable plus the data it needs: stdlib/ for imports, src/ for
+      # `kirn build --native`. Neither is an executable - this is one binary.
       - name: Stage distribution
         shell: bash
         env:
-          TARGET: ${{ steps.detect.outputs.target }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          # MSVC is multi-config and drops binaries in build/Release; the
-          # single-config generators put them straight in build/.
+          # MSVC is multi-config and drops binaries in build/Release.
           if [ -f build/Release/kirn.exe ]; then bindir=build/Release; else bindir=build; fi
-          if [ -f "$bindir/kirn.exe" ]; then exe="$bindir/kirn.exe"; else exe="$bindir/kirn"; fi
-          if [ ! -f "$exe" ]; then
-            echo "::error::no kirn binary in $bindir"
-            exit 1
-          fi
+          if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=exe; else src="$bindir/kirn"; ext=""; fi
+          [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
+
           stage="dist/kirn-$TARGET"
           mkdir -p "$stage/bin"
-          cp "$exe" "$stage/bin/"
+          cp "$src" "$stage/bin/kirn$ext"
           cp -R stdlib src "$stage/"
           cp README.md "$stage/"
 
-      # The smoke test mirrors how a released copy is actually used: a project
-      # directory that sits NEXT TO the unpacked stdlib, which is the layout the
-      # loader searches (<script-dir>/../stdlib). KIRN_STDLIB is deliberately
-      # left set from the stage so the test does not depend on cwd.
+          # The raw executable as its own asset, so it can be fetched directly
+          # without unpacking an archive. Named per target because a release
+          # cannot hold two assets called `kirn`.
+          cp "$src" "dist/kirn-$TARGET$ext"
+          chmod +x "dist/kirn-$TARGET$ext" 2>/dev/null || true
+
+      # Native targets are executed; cross targets cannot run here, so they were
+      # verified structurally above.
       - name: Smoke test
+        if: matrix.mode == 'native'
         shell: bash
         env:
-          TARGET: ${{ steps.detect.outputs.target }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           stage="$PWD/dist/kirn-$TARGET"
           if [ -f "$stage/bin/kirn.exe" ]; then exe="$stage/bin/kirn.exe"; else exe="$stage/bin/kirn"; fi
 
-          # 1. Compile and run a real program.
           out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"
           case "$out" in
             *"Hello, World!"*) ;;
-            *)
-              echo "::error::smoke: expected 'Hello, World!', got: $out"
-              exit 1
-              ;;
+            *) echo "::error::smoke: expected 'Hello, World!', got: $out"; exit 1 ;;
           esac
 
-          # 2. A project outside the repo, importing the standard library. The
-          #    project is a sibling of stdlib/ so the default <script-dir>/../
-          #    stdlib search resolves - i.e. exactly how an unpacked release is
-          #    used once the user sets KIRN_STDLIB (see the release notes).
+          # A project outside the repo importing the standard library: exactly
+          # how an installed copy is used once KIRN_STDLIB is set.
           work="$(mktemp -d)"
           cp -R "$stage/stdlib" "$work/stdlib"
           mkdir -p "$work/proj"
@@ -204,34 +304,28 @@ jobs:
           echo "$got"
           case "$got" in
             *42*) ;;
-            *)
-              echo "::error::smoke: expected 42 from the math module, got: $got"
-              exit 1
-              ;;
+            *) echo "::error::smoke: expected 42 from the math module, got: $got"; exit 1 ;;
           esac
           echo "smoke ok: $TARGET"
 
+      # Asset names carry no version, so the installer can use the stable
+      # /releases/latest/download/<name> URL with no API call to resolve a tag.
       - name: Archive
         shell: bash
         env:
-          TARGET: ${{ steps.detect.outputs.target }}
-          VERSION: ${{ needs.meta.outputs.version }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          # Python ships on every runner, so this is one code path for all three
-          # operating systems rather than per-OS tar/zip invocations.
-          python3 - "$TARGET" "$VERSION" <<'PY'
+          python3 - "$TARGET" <<'PY'
           import os, shutil, sys
-          target, version = sys.argv[1:3]
-          base = "kirn-%s-%s" % (target, version)
+          target = sys.argv[1]
           root = os.path.join("dist", "kirn-%s" % target)
-          # Windows users get a zip; everyone else gets a tarball.
           if target.startswith("windows"):
               fmt, ext = "zip", "zip"
           else:
               fmt, ext = "gztar", "tar.gz"
-          out = shutil.make_archive(os.path.join("dist", base), fmt, "dist",
-                                    os.path.basename(root))
+          out = shutil.make_archive(os.path.join("dist", "kirn-%s" % target), fmt,
+                                    "dist", os.path.basename(root))
           print("archived %s" % out)
           PY
           ls -la dist
@@ -239,8 +333,12 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kirn-${{ steps.detect.outputs.target }}
-          path: dist/kirn-${{ steps.detect.outputs.target }}-*
+          name: kirn-${{ matrix.target }}
+          path: |
+            dist/kirn-${{ matrix.target }}/*.tar.gz
+            dist/kirn-${{ matrix.target }}.zip
+            dist/kirn-${{ matrix.target }}
+            dist/kirn-${{ matrix.target }}.exe
           retention-days: 14
           if-no-files-found: error
 
@@ -252,12 +350,34 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all target archives
+      - name: Download all target artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: kirn-*
           merge-multiple: true
+
+      - name: Collect installers
+        run: |
+          set -euo pipefail
+          cp install/install.sh dist/install.sh
+          cp install/install.ps1 dist/install.ps1
+          chmod +x dist/install.sh
+          ls -la dist
+
+      # Checksums are generated before publishing so install.sh can verify what
+      # it downloaded, and users can verify the raw binaries too.
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum install.sh install.ps1 ./* > checksums.txt 2>/dev/null || true
+          else
+            shasum -a 256 install.sh install.ps1 ./* > checksums.txt
+          fi
+          cat checksums.txt
 
       - name: Create or update the release
         env:
@@ -265,49 +385,56 @@ jobs:
           TAG: ${{ needs.meta.outputs.tag }}
         run: |
           set -euo pipefail
-          release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
           notes="$(mktemp)"
           {
-            echo "Kirn, built from commit \`$GITHUB_SHA\`."
+            echo "Kirn \`$TAG\`."
             echo
-            echo 'Each archive unpacks to `kirn-<target>/`:'
+            echo '## Install'
             echo
-            echo "- \`bin/kirn\` - the compiler and driver (a single executable)"
-            echo "- \`stdlib/\` - the standard library, required by \`import pet.*\`"
-            echo "- \`src/\` - runtime sources, used by \`kirn build --native\`"
-            echo
-            echo 'Put `bin/` on your PATH. `kirn run`, `kirn test` and `kirn check` need no C++ toolchain.'
-            echo
-            echo '### Pointing Kirn at the standard library'
-            echo
-            echo 'The loader searches for the standard library relative to the script being run,'
-            echo 'then falls back to `KIRN_STDLIB`. After unpacking, either keep your project'
-            echo 'beside the `stdlib/` directory, or set it once:'
+            echo 'Linux and macOS:'
             echo
             echo '```sh'
-            echo 'export KIRN_STDLIB=/path/to/kirn-<target>/stdlib'
+            echo "curl --proto '=https' --tlsv1.2 -sSf $release_url/install.sh | sh"
             echo '```'
             echo
-            echo "Note: \`kirn build\` (bundled binaries) additionally needs the \`kirnrun\`"
-            echo "interpreter, which is not part of this single-executable distribution."
-            echo "\`kirn build --native\` works with any C++ toolchain."
+            echo 'Windows (PowerShell):'
             echo
-            echo "| archive | target |"
-            echo "| --- | --- |"
-            for f in dist/*; do
+            echo '```powershell'
+            echo "irm $release_url/install.ps1 | iex"
+            echo '```'
+            echo
+            echo 'The installer detects your platform, verifies the download against'
+            echo '`checksums.txt`, and installs to `~/.kirn` (`%USERPROFILE%\.kirn` on Windows).'
+            echo 'It also sets `KIRN_STDLIB` so `import pet.*` works from any directory.'
+            echo
+            echo '## Downloads'
+            echo
+            echo '| asset | target | what it is |'
+            echo '| --- | --- | --- |'
+            for f in dist/kirn-*; do
               name="$(basename "$f")"
-              target="${name%-*.tar.gz}"
-              target="${target%-*.zip}"
-              target="${target#kirn-}"
-              echo "| [$name]($release_url/$name) | \`$target\` |"
+              case "$name" in
+                kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
+                kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
+                kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
+                kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
+                *)             t="?"; kind="?" ;;
+              esac
+              echo "| [\`$name\`]($release_url/$name) | \`$t\` | $kind |"
             done
+            echo
+            echo 'Raw executables are provided for convenience, but they need the standard'
+            echo 'library next to them (or `KIRN_STDLIB` set) for `import pet.*` to resolve - the'
+            echo 'archive is the supported way to install.'
           } > "$notes"
           cat "$notes"
-          # Re-running a tag release must not fail on a duplicate, so update the
-          # existing release when one is already there.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
-            gh release edit "$TAG" --notes-file "$notes"
+          # --repo is required: this job has no checkout, and gh otherwise
+          # resolves the repository from the local git remote.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
           else
-            gh release create "$TAG" dist/* --notes-file "$notes" --title "$TAG"
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+              --notes-file "$notes" --title "Kirn $TAG"
           fi

@@ -282,7 +282,10 @@ jobs:
           set -euo pipefail
           # MSVC is multi-config and drops binaries in build/Release.
           if [ -f build/Release/kirn.exe ]; then bindir=build/Release; else bindir=build; fi
-          if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=exe; else src="$bindir/kirn"; ext=""; fi
+          # $ext carries its own leading dot: it is concatenated directly, and
+          # without the dot the copies below are named "kirnexe" and
+          # "kirn-windows-amd64exe".
+          if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=".exe"; else src="$bindir/kirn"; ext=""; fi
           [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
 
           stage="dist/kirn-$TARGET"

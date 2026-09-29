@@ -49,6 +49,27 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # The full seven-suite matrix (runall/types/negative/vm_diff/conventions/
+  # test/pets) against a from-scratch cmake build. build-test covers the same
+  # suites on Windows via the PowerShell harnesses; this job is the Linux
+  # equivalent, and it is the job that proves `cmake --build` output - not just
+  # a locally hand-rolled build - still passes the whole corpus.
+  corpus:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build -j "$(nproc)"
+
+      - name: Full corpus matrix
+        run: bash scripts/gates_linux.sh
+
   build-test:
     runs-on: windows-latest
     steps:

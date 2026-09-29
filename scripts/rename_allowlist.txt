@@ -32,6 +32,12 @@ _rename/baseline/*	phase-1 pre-rename measurement transcripts. These ARE the
 		"before" half of the before/after census in _rename/report.md;
 		rewriting them would destroy the measurement.
 
+_rename/report.md	the phase-12 before/after report. Quoting the old names is
+		its entire subject: the "before" column, the per-case-form table, and
+		the compat-shim section all have to name what was replaced or they
+		would not document anything. This is the one live document that must
+		spell the old brand, and it is scoped to this single file on purpose.
+
 # --- Spent one-shot migration tooling -------------------------------------
 # These ran the rename and are kept only as a record of how it was done. None is
 # referenced by CI, a test, or a hook. They contain the old names because their

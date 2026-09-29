@@ -376,12 +376,17 @@ jobs:
           PY
           ls -la dist
 
+      # Only the archives and the raw executable are uploaded. Listing the bare
+      # staged directory here would make upload-artifact ship the whole tree
+      # (bin/ + src/ + stdlib/ - already inside the archive) and recreate it as a
+      # directory on download, which gh release upload then rejects with
+      # "read ...: is a directory".
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kirn-${{ matrix.target }}
           path: |
-            dist/kirn-${{ matrix.target }}/*.tar.gz
+            dist/kirn-${{ matrix.target }}.tar.gz
             dist/kirn-${{ matrix.target }}.zip
             dist/kirn-${{ matrix.target }}
             dist/kirn-${{ matrix.target }}.exe
@@ -436,6 +441,12 @@ jobs:
         run: |
           set -euo pipefail
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          # Files only: dist/ also holds the staged kirn-<target>/ directories,
+          # and gh release upload fails on a directory ("is a directory").
+          mapfile -t assets < <(find dist -maxdepth 1 -type f | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::no assets to publish"; exit 1
+          fi
           notes="$(mktemp)"
           {
             echo "Kirn \`$TAG\`."
@@ -462,14 +473,14 @@ jobs:
             echo
             echo '| asset | target | what it is |'
             echo '| --- | --- | --- |'
-            for f in dist/kirn-*; do
+            for f in "${assets[@]}"; do
               name="$(basename "$f")"
               case "$name" in
                 kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
                 kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
                 kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
                 kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
-                *)             t="?"; kind="?" ;;
+                *)             t="-"; kind="installer / checksum" ;;
               esac
               echo "| [\`$name\`]($release_url/$name) | \`$t\` | $kind |"
             done
@@ -479,12 +490,10 @@ jobs:
             echo 'archive is the supported way to install.'
           } > "$notes"
           cat "$notes"
-          # --repo is required: this job has no checkout, and gh otherwise
-          # resolves the repository from the local git remote.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
           else
-            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
               --notes-file "$notes" --title "Kirn $TAG"
           fi

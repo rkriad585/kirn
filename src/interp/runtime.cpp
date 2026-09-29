@@ -4701,7 +4701,7 @@ void Interpreter::enableVm() {
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));
-    if (envGet("COCO_VM_DUMP")) {
+    if (envGet("KIRN_VM_DUMP")) {
         for (size_t i = 0; i < vmProg_->prog.funcs.size(); ++i) {
             const vm::VmFunction& F = vmProg_->prog.funcs[i];
             std::cerr << "[vm fn " << i << "] '" << F.name << "' interp="

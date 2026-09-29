@@ -420,7 +420,7 @@ std::string globalAppsBinDir() {
 
 std::vector<std::string> libDirsFor(const std::string& script) {
     std::vector<std::string> dirs;
-    if (const char* env = std::getenv("COCO_LIBS")) dirs.push_back(env);
+    if (const char* env = std::getenv("KIRN_PETS")) dirs.push_back(env);
     // The `script` is either a directory (project root) or a file path whose
     // parent is the project root. Resolve robustly regardless of trailing
     // slashes / relative prefixes like "./proj".
@@ -437,7 +437,7 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     }
     dirs.push_back(dir + "/../stdlib");
     dirs.push_back(dir + "/../../stdlib");
-    if (const char* env = std::getenv("COCO_STDLIB")) dirs.push_back(env);
+    if (const char* env = std::getenv("KIRN_STDLIB")) dirs.push_back(env);
     dirs.push_back(dir);   // a project/package can import itself
     return dirs;
 }
@@ -1911,7 +1911,7 @@ struct BuildOpts {
     bool singleFile = false; // `kirn build file.kn` (Go-style, no manifest)
     bool native_ = false;    // --native  lower scalar user fns to real C++
     bool asan = false;       // --asan    build with AddressSanitizer
-    std::string target;      // --target=<os>-<arch>; empty -> $COCO_TARGET -> host
+    std::string target;      // --target=<os>-<arch>; empty -> $KIRN_TARGET -> host
     std::string outPath;     // -o <path> (Go build -o)
     std::string defaultOut;  // single-file: extensionless default in CWD
 };
@@ -1937,7 +1937,7 @@ std::string hostTarget() {
 // ---- target matrix (Go's GOOS/GOARCH model) ---------------------------------
 // Like `go tool dist list`, this table is the source of truth for what can be
 // built. Each entry knows its binary suffix and which cross C++ toolchains can
-// produce it; users override via COCO_CXX_<TARGET> (e.g. COCO_CXX_LINUX_AMD64).
+// produce it; users override via KIRN_CXX_<TARGET> (e.g. KIRN_CXX_LINUX_AMD64).
 struct TargetInfo {
     const char* triple;
     const char* exeExt;      // ".exe" or ""
@@ -1979,9 +1979,9 @@ bool toolchainWorks(const std::string& cxx) {
     return std::system(probe.c_str()) == 0;
 }
 
-// CC_FOR_<GOOS>_<GOARCH>-style override: COCO_CXX_<TRIPLE>, then PATH probing
+// CC_FOR_<GOOS>_<GOARCH>-style override: KIRN_CXX_<TRIPLE>, then PATH probing
 std::string resolveCrossCxx(const TargetInfo* ti) {
-    std::string envName = "COCO_CXX_";
+    std::string envName = "KIRN_CXX_";
     for (const char* p = ti->triple; *p; ++p)
         envName += (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
     if (const char* env = std::getenv(envName.c_str())) {
@@ -1989,21 +1989,51 @@ std::string resolveCrossCxx(const TargetInfo* ti) {
         std::cerr << "kirn build: warning: $" << envName << "=" << env
                   << " is not runnable, probing PATH\n";
     }
-    if (const char* any = std::getenv("COCO_CXX"))
+    if (const char* any = std::getenv("KIRN_CXX"))
         if (toolchainWorks(any)) return any;
     for (const auto& cand : ti->cxxCandidates)
         if (toolchainWorks(cand)) return cand;
     return "";
 }
 
-// Find the MSVC cl.exe the host build uses (COCO_CL -> hardcoded toolchain ->
-// PATH `where cl`). Empty string means no MSVC toolchain is reachable.
+// Phase 8: the COCO_* environment variables are renamed to KIRN_* and are a
+// hard cut - the old names are never read. If a user/script still exports one,
+// say so once (aggregated) rather than silently discarding it: a stale var
+// losing effect quietly is exactly how module paths and toolchains silently
+// stop applying (the IOWarp "unset variable is not an error" failure mode).
+void warnLegacyEnv() {
+    const char* const legacy[] = {"COCO_LIBS", "COCO_STDLIB", "COCO_CXX",
+                                  "COCO_CL", "COCO_VERBOSE", "COCO_TARGET",
+                                  "COCO_LIB_TOOL"};
+    const char* const now[] = {"KIRN_PETS", "KIRN_STDLIB", "KIRN_CXX",
+                               "KIRN_CL", "KIRN_VERBOSE", "KIRN_TARGET",
+                               "KIRN_LIB_TOOL"};
+    std::string found;
+    for (size_t i = 0; i < sizeof(legacy) / sizeof(legacy[0]); ++i)
+        if (std::getenv(legacy[i])) {
+            if (!found.empty()) found += ", ";
+            found += std::string(legacy[i]) + " -> " + now[i];
+        }
+    // per-target compiler override: COCO_CXX_<TRIPLE> (e.g. COCO_CXX_LINUX_AMD64)
+    for (const auto& ti : targetMatrix()) {
+        std::string old = "COCO_CXX_";
+        for (const char* p = ti.triple; *p; ++p)
+            old += (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
+        if (std::getenv(old.c_str())) {
+            if (!found.empty()) found += ", ";
+            found += old + " -> KIRN_CXX_<TRIPLE>";
+        }
+    }
+    if (!found.empty())
+        std::cerr << "warning: " << found
+                  << " are no longer supported; use the KIRN_* names\n";
+}
+
+// Find the MSVC cl.exe the host build uses (KIRN_CL -> PATH `where cl`).
+// Empty string means no MSVC toolchain is reachable.
 std::string resolveHostCl() {
-    if (const char* env = std::getenv("COCO_CL"))
+    if (const char* env = std::getenv("KIRN_CL"))
         if (*env) return env;
-    const std::string hard =
-        "C:/msvc/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe";
-    if (toolchainWorks(hard)) return hard;
 #ifdef _WIN32
     // PATH probe: `where cl` returns zero if found; on POSIX `nul` is not the
     // null device, so probing would litter a stray `nul` file and can never
@@ -2109,8 +2139,8 @@ std::string ensureRunner() {
     }
     std::string cmd;
 #if defined(_WIN32)
-    std::string cxx = std::getenv("COCO_CL") && *std::getenv("COCO_CL")
-                          ? std::getenv("COCO_CL")
+    std::string cxx = std::getenv("KIRN_CL") && *std::getenv("KIRN_CL")
+                          ? std::getenv("KIRN_CL")
                           : resolveHostCl();
     if (cxx.empty()) {
         std::cerr << "kirnrt: no MSVC toolchain to warm up the runner\n";
@@ -2122,8 +2152,8 @@ std::string ensureRunner() {
           "\" \"" + runnerCpp + "\" /Fe:" + cached + " /link /LIBPATH:\"" +
           binDir + "\" kirn_interp.lib";
 #else
-    std::string cxx = std::getenv("COCO_CXX") && *std::getenv("COCO_CXX")
-                          ? std::getenv("COCO_CXX")
+    std::string cxx = std::getenv("KIRN_CXX") && *std::getenv("KIRN_CXX")
+                          ? std::getenv("KIRN_CXX")
                           : "g++";
     std::ostringstream r;
     r << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS -O1 -w -I\"" << srcRoot
@@ -2135,7 +2165,7 @@ std::string ensureRunner() {
 #endif
     std::cout << "warming up interpreter runtime " << cached
               << " (first use only)\n";
-    if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+    if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
     int rc = std::system(cmd.c_str());
     return rc == 0 && fs::is_regular_file(cached) ? cached : "";
 }
@@ -2559,7 +2589,7 @@ int buildProgram(const std::string& name, const std::string& version,
     if (!isHost && crossCxx.empty()) {
         // No cross toolchain for this target: no portable .cob bundle exists
         // anymore (bytecode bundles were removed), so this is a hard failure.
-        std::string envName = "COCO_CXX_";
+        std::string envName = "KIRN_CXX_";
         for (char c : opts.target)
             envName +=
                 (c == '-') ? '_' : (char)toupper((unsigned char)c);
@@ -2777,7 +2807,7 @@ int buildProgram(const std::string& name, const std::string& version,
         std::string cmd =
             "cd . && \"" + crossCxx + "\" @\"" +
             fs::absolute(rsp).generic_string() + "\"";
-        if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+        if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
             std::cerr << "kirn build: cross-compilation failed (" << rc
@@ -2790,8 +2820,8 @@ int buildProgram(const std::string& name, const std::string& version,
 
     // ---- host build via the prebuilt MSVC runtime libs -------------------
     // compile with the same toolchain cmake uses
-    std::string clPath = std::getenv("COCO_CL") && *std::getenv("COCO_CL")
-                             ? std::getenv("COCO_CL")
+    std::string clPath = std::getenv("KIRN_CL") && *std::getenv("KIRN_CL")
+                             ? std::getenv("KIRN_CL")
                              : resolveHostCl();
 
     // NOTE: must not start with '"' — cmd /c strips leading quotes.
@@ -2813,14 +2843,14 @@ int buildProgram(const std::string& name, const std::string& version,
             "cd . && \"" + clPath + "\" /nologo /EHsc /c " +
             detectRuntimeFlags(binRoot) + " /std:c++20" + " /I\"" + binRoot +
             "\\..\\src\"" + " /Fo\"" + outBase + ".obj\" " + genCpp;
-        if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+        if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
         std::cout << "compiling " << outBase << ".obj ...\n";
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
             std::cerr << "kirn build: compilation failed (" << rc << ")\n";
             return rc == 0 ? 1 : rc;
         }
-        const char* libTool = std::getenv("COCO_LIB_TOOL");
+        const char* libTool = std::getenv("KIRN_LIB_TOOL");
         std::string libPath =
             libTool ? libTool
                     : clPath.substr(0, clPath.find_last_of("/\\")) +
@@ -2862,7 +2892,7 @@ int buildProgram(const std::string& name, const std::string& version,
         " /Fe:" + exeOut + " /link /LIBPATH:\"" + binRoot +
         "\" kirn_interp.lib kirn_vm.lib kirn_sema.lib kirn_parser.lib"
         " kirn_ast.lib kirn_lex.lib";
-    if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+    if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
     std::cout << "compiling " << exeOut << " ...\n";
     int rc = std::system(cmd.c_str());
     if (rc != 0) {
@@ -2979,8 +3009,8 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
             return 64;
         }
     }
-    if (opts.target.empty() && std::getenv("COCO_TARGET"))
-        opts.target = std::getenv("COCO_TARGET");   // GOOS/GOARCH analogue
+    if (opts.target.empty() && std::getenv("KIRN_TARGET"))
+        opts.target = std::getenv("KIRN_TARGET");   // GOOS/GOARCH analogue
     if (opts.target.empty()) opts.target = hostTarget();
     if (!validTarget(opts.target)) {
         std::cerr << "kirn build: unknown target '" << opts.target
@@ -3112,7 +3142,7 @@ int cmdTargets() {
             if (!cxx.empty())
                 std::cout << cxx << "\n";
             else {
-                std::string envName = "COCO_CXX_";
+                std::string envName = "KIRN_CXX_";
                 for (const char* p = ti.triple; *p; ++p)
                     envName +=
                         (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
@@ -3152,7 +3182,7 @@ void usage() {
                "\n"
         << "           [--release|--debug]     optimization profile\n"
         << "           [--target=<os>-<arch>]    like GOOS/GOARCH; default "
-               "$COCO_TARGET or host\n"
+               "$KIRN_TARGET or host\n"
          << "           [-S|-O]                    -S asm listing, -O .obj+."
                "lib\n"
          << "           [--native]                 lower scalar user fns to "
@@ -3171,6 +3201,7 @@ void usage() {
 } // namespace
 
 int main(int argc, char** argv) {
+    warnLegacyEnv();
     std::vector<std::string> args(argv + (argc > 0 ? 1 : 0), argv + argc);
     if (args.empty()) {
         usage();

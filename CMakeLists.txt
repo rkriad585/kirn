@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(coco CXX)
+project(kirn CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,9 +12,17 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-# COCO_ASAN=ON instruments every target with AddressSanitizer (scripts/asanall.ps1).
-option(COCO_ASAN "Build with AddressSanitizer" OFF)
-if(COCO_ASAN)
+# KIRN_ASAN=ON instruments every target with AddressSanitizer (scripts/asanall.ps1).
+# Phase 8: the old COCO_ASAN cache slot is gone. Re-use its value once so an
+# existing ASan build dir re-configures cleanly, then point the user at the
+# new name (LLVM warn-and-correct pattern); do NOT keep reading COCO_ASAN.
+# Runs BEFORE option() so a stale -DCOCO_ASAN can still be seen/emigrated.
+if(NOT CACHE{KIRN_ASAN} AND DEFINED COCO_ASAN)
+    set(KIRN_ASAN "${COCO_ASAN}" CACHE BOOL "Build with AddressSanitizer" FORCE)
+    message(DEPRECATION "COCO_ASAN has been renamed to KIRN_ASAN; update your build command to -DKIRN_ASAN=ON")
+endif()
+option(KIRN_ASAN "Build with AddressSanitizer" OFF)
+if(KIRN_ASAN)
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
     add_link_options(-fsanitize=address)
 endif()

@@ -194,10 +194,22 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pets, bundle!" && echo "$out8r" | grep -q "3.0"; then
             report PASS "bundle runs (imports+stdlib)" "$out8r"
         else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
-        out8b=$(cd "$T8" && COCO_VERBOSE=1 timeout 240 "$CO" build main.kn -o out2 2>&1); c8b=$?
+        out8b=$(cd "$T8" && KIRN_VERBOSE=1 timeout 240 "$CO" build main.kn -o out2 2>&1); c8b=$?
         if [ "$c8b" = 0 ] && ! echo "$out8b" | grep -q '\[cmd\]'; then
             report PASS "rebuild needs no toolchain" "cached runner reused"
         else report FAIL "rebuild needs no toolchain" "rc=$c8b: $out8b"; fi
+        # positive KIRN_VERBOSE check: a COLD runner warmup must emit [cmd],
+        # proving the renamed switch is live (not a silent no-op - Homebrew
+        # HOMEBREW_NO_ENV_FILTERING-shaped gate rot guard).
+        T8c="$TMP/pv"; rm -rf "$T8c"; mkdir -p "$T8c/build" "$T8c/tools"
+        cp "$CO" "$T8c/build/kirn"
+        cp -r "$ROOT/src" "$T8c/src"
+        cp "$ROOT/tools/runner.cpp" "$T8c/tools/runner.cpp"
+        printf 'def main() { print("verbose check"); }\n' > "$T8c/main.kn"
+        out8c=$(cd "$T8c/build" && KIRN_VERBOSE=1 timeout 300 ./kirn build ../main.kn -o ../out-verb 2>&1); c8c=$?
+        if [ "$c8c" = 0 ] && echo "$out8c" | grep -q '\[cmd\]'; then
+            report PASS "KIRN_VERBOSE logs [cmd] on cold runner warmup" "positive probe"
+        else report FAIL "KIRN_VERBOSE logs [cmd] on cold runner warmup" "rc=$c8c: $out8c"; fi
     else report FAIL "bundle is ELF binary" "got magic: $(head -c2 "$T8/out")"; fi
 else report FAIL "bundle build" "rc=$c8: $out8"; fi
 

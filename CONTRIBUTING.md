@@ -29,7 +29,7 @@ cmake --build build-rel
 ASan tree (must be configured separately):
 
 ```powershell
-cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCOCO_ASAN=ON
+cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKIRN_ASAN=ON
 cmake --build build-asan
 ```
 

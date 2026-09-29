@@ -31,17 +31,17 @@ bool readFile(const std::string& path, std::string& out) {
 }
 
 // Module search paths, in priority order:
-//   1. $COCO_LIBS
+//   1. $KIRN_PETS
 //   2. <script dir>/pets      (per-project packages + ad-hoc modules)
 //   3. ~/.kirn/pets            (global installs)
 //   4. <script dir>/../stdlib       (repo checkout layout)
 //   5. ./stdlib
-//   6. $COCO_STDLIB
+//   6. $KIRN_STDLIB
 void addModuleDirs(kirn::interp::Interpreter& interp,
                    const std::string& script) {
     size_t p = script.find_last_of("/\\");
     std::string dir = p == std::string::npos ? "." : script.substr(0, p);
-    if (const char* env = std::getenv("COCO_LIBS"))
+    if (const char* env = std::getenv("KIRN_PETS"))
         interp.addStdlibDir(env);
     interp.addStdlibDir(dir + "/pets");
     if (const char* home = std::getenv("USERPROFILE")) {
@@ -53,7 +53,23 @@ void addModuleDirs(kirn::interp::Interpreter& interp,
     }
     interp.addStdlibDir(dir + "/../stdlib");
     interp.addStdlibDir("stdlib");
-    if (const char* env = std::getenv("COCO_STDLIB")) interp.addStdlibDir(env);
+    if (const char* env = std::getenv("KIRN_STDLIB")) interp.addStdlibDir(env);
+}
+
+// Phase 8: the COCO_* env vars became KIRN_* and are a hard cut - never read.
+// If a user/script still exports the old names, say so once instead of silently
+// dropping the value (a stale var quietly losing effect is how module paths
+// silently stop applying).
+void warnLegacyEnv() {
+    std::string found;
+    if (std::getenv("COCO_LIBS")) found = "COCO_LIBS -> KIRN_PETS";
+    if (std::getenv("COCO_STDLIB")) {
+        if (!found.empty()) found += ", ";
+        found += "COCO_STDLIB -> KIRN_STDLIB";
+    }
+    if (!found.empty())
+        std::cerr << "warning: " << found
+                  << " are no longer supported; use the KIRN_* names\n";
 }
 
 } // namespace
@@ -121,6 +137,7 @@ static int runSources(const std::string& label, const std::string& src,
 }
 
 int main(int argc, char** argv) {
+    warnLegacyEnv();
     std::string file;
     bool afterFile = false;
     std::vector<std::string> progArgs;

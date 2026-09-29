@@ -15,7 +15,7 @@ $root = Split-Path -Parent $PSScriptRoot
 # --- 1. configure + build an ASan-instrumented tree ------------------------
 $bdir = "$root\build-asan"
 if (-not (Test-Path "$bdir\CMakeCache.txt")) {
-    & cmake -S $root -B $bdir -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCOCO_ASAN=ON
+    & cmake -S $root -B $bdir -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKIRN_ASAN=ON
     if ($LASTEXITCODE -ne 0) { Write-Error "cmake configure failed" }
 }
 & cmake --build $bdir --config Debug

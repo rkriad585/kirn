@@ -140,7 +140,12 @@ fetch "$base/$archive" "$tmp/$archive" || die "download failed: $base/$archive"
 # Verify integrity when the release publishes checksums.txt. A missing file is
 # not fatal: older releases may not have one.
 if fetch "$base/checksums.txt" "$tmp/checksums.txt" 2>/dev/null; then
-  expected=$(grep "  *$archive\$" "$tmp/checksums.txt" | head -1 | cut -d' ' -f1 || true)
+  # Compare the filename as an exact string rather than a regex - the name is
+  # full of dots, and a ./ prefix must be tolerated because some releases were
+  # generated from inside the download directory.
+  expected=$(awk -v f="$archive" '
+    { n = $2; sub(/^\.\//, "", n); if (n == f) { print $1; exit } }
+  ' "$tmp/checksums.txt")
   if [ -n "${expected:-}" ]; then
     actual=$(sha256_of "$tmp/$archive")
     if [ "$expected" != "$actual" ]; then

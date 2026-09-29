@@ -185,3 +185,7 @@ jobs:
             }
             Write-Host "no-toolchain cross build failed as expected"
           } finally { Pop-Location }
+          # Same trap as the build-test step: that nonzero exit is the expected
+          # result, but GitHub's pwsh shell ends the step with $LASTEXITCODE, so
+          # without this the step fails even though every assertion above passed.
+          exit 0

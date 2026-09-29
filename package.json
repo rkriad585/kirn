@@ -1,5 +1,5 @@
 {
-  "name": "coco",
+  "name": "kirn",
   "version": "0.0.1-beta",
   "private": true,
   "description": "Local repo-tooling manifest for the Kirn (formerly Coco) compiler project. Hooks live under .husky/ and are wired by husky v9; these tools only touch repo metadata (md/yml/json), never the C++20 toolchain.",

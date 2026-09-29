@@ -28,11 +28,11 @@ function SetFile($path, $content) {
 
 # Run a kirn subcommand, capturing exit code and combined output without
 # letting native stderr trips PowerShell's error handling.
-function RunCoco {
-    param([string[]]$CocoArgs)
+function RunKirn {
+    param([string[]]$KirnArgs)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $kirn
-    $psi.Arguments = ($CocoArgs -join " ")
+    $psi.Arguments = ($KirnArgs -join " ")
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -52,7 +52,7 @@ Write-Host "== run-entry resolution =="
 # 1. code/main.kn entry (the classic scaffold)
 $p = Join-Path $tmp "a"
 SetFile (Join-Path $p "code\main.kn") "def main() { print(`"A`"); }"
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "code/main.kn entry" ($r.Code -eq 0 -and $r.Out -match "A") $r.Out
 
 # 2. manifest main = other path wins over code/main.kn
@@ -60,20 +60,20 @@ $p = Join-Path $tmp "b"
 SetFile (Join-Path $p "kirn.toml") "[package]`nname=`"b`"`nmain=`"start.kn`"`n"
 SetFile (Join-Path $p "start.kn") "def main() { print(`"Bmain`"); }"
 SetFile (Join-Path $p "code\main.kn") "def main() { print(`"Bcode`"); }"
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "manifest main preferred" ($r.Code -eq 0 -and $r.Out -match "Bmain") $r.Out
 
 # 3. pin.kn as the only entry (library-style, run directly)
 $p = Join-Path $tmp "c"
 SetFile (Join-Path $p "pin.kn") "pub def main() { print(`"C`"); }"
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "pin.kn as run entry" ($r.Code -eq 0 -and $r.Out -match "C") $r.Out
 
 # 4. no entry -> helpful fix-it error
 $p = Join-Path $tmp "d"
 New-Item -ItemType Directory -Path $p -Force | Out-Null
 SetFile (Join-Path $p "code\util.kn") "pub def u() -> int { return 1; }"
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "no entry -> fix-it error" ($r.Code -ne 0 -and $r.Out -match "no entry point") $r.Out
 
 Write-Host "== pin.kn package initializer =="
@@ -95,7 +95,7 @@ def main() {
     print(greet.hi("world"));
 }
 "@
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "pin.kn runs once (count=1)" ($r.Code -eq 0 -and $r.Out -match "count= 1") $r.Out
 Check "pin.kn pub surface" ($r.Code -eq 0 -and $r.Out -match "hi world") $r.Out
 
@@ -108,7 +108,7 @@ SetFile (Join-Path $p "main.kn") @"
 import nomanifest;
 def main() { print(nomanifest.poke()); }
 "@
-$r = RunCoco @("run", $p)
+$r = RunKirn @("run", $p)
 Check "pin.kn discovered w/o manifest" ($r.Code -eq 0 -and $r.Out -match "poked") $r.Out
 
 Write-Host ""

@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "coco: build (Debug, NMake)",
+      "label": "kirn: build (Debug, NMake)",
       "type": "shell",
       "command": "cmake",
       "args": ["--build", "${workspaceFolder}/build", "--config", "Debug"],
@@ -10,10 +10,16 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "coco: verify (all harness gates)",
+      "label": "kirn: verify (all harness gates)",
       "type": "shell",
       "command": "powershell",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/rename_baseline.ps1"],
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/rename_baseline.ps1"
+      ],
       "group": "build",
       "problemMatcher": []
     }

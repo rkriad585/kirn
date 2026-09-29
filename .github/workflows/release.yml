@@ -396,6 +396,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Needed to publish install.sh / install.ps1 as release assets. gh is still
+      # given --repo below so it never depends on the checkout's remote.
+      - uses: actions/checkout@v4
+
       - name: Download all target artifacts
         uses: actions/download-artifact@v4
         with:

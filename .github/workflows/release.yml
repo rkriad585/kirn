@@ -150,9 +150,9 @@ jobs:
         shell: bash
         env:
           MODE: ${{ matrix.mode }}
+          TARGET: ${{ matrix.target }}
           CC: ${{ matrix.cc }}
           SYSROOT: ${{ matrix.sysroot }}
-          OSX_ARCH: ${{ matrix.osx_arch }}
         run: |
           set -euo pipefail
           case "$MODE" in
@@ -160,26 +160,41 @@ jobs:
               cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
               ;;
             cross)
-              if [ -n "${CC:-}" ]; then
-                # Generic C++ cross build (ELF target). Deliberately NOT -static:
-                # the Ubuntu cross toolchain ships no static libc/libm, and a
-                # dynamic link is what every other distribution of a C++ tool
-                # does anyway. The glibc floor is set by the build runner - see
-                # the release notes.
-                cmake -S . -B build -G Ninja \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_SYSTEM_NAME=Linux \
-                  -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-                  -DCMAKE_CXX_COMPILER="$CC" \
-                  -DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
-                  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
-              elif [ -n "${OSX_ARCH:-}" ]; then
+              # Everything below is derived from the target triple. Hardcoding the
+              # system name is a trap: a "Linux" system name for the Windows
+              # cross build silently drops if(WIN32) from CMakeLists, so ws2_32
+              # is never linked and the link fails on WSAStartup.
+              os="${TARGET%%-*}"
+              arch="${TARGET#*-}"
+              case "$arch" in
+                arm64) proc=aarch64 ;;
+                amd64) proc=x86_64 ;;
+                *) echo "::error::cannot map arch '$arch'"; exit 1 ;;
+              esac
+              if [ "$os" = "darwin" ]; then
                 # Apple clang cross-builds to the sibling arch off one SDK.
                 cmake -S . -B build \
                   -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_OSX_ARCHITECTURES="$OSX_ARCH"
+                  -DCMAKE_OSX_ARCHITECTURES="$proc"
               else
-                echo "::error::cross mode needs cc or osx_arch"; exit 1
+                case "$os" in
+                  linux) sysname=Linux ;;
+                  windows) sysname=Windows ;;
+                  *) echo "::error::cannot map os '$os'"; exit 1 ;;
+                esac
+                # Deliberately NOT -static on the ELF target: the Ubuntu cross
+                # toolchain ships no static libc/libm. The glibc floor is set by
+                # the build runner - see the release notes.
+                cmake -S . -B build -G Ninja \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_SYSTEM_NAME="$sysname" \
+                  -DCMAKE_SYSTEM_PROCESSOR="$proc" \
+                  -DCMAKE_CXX_COMPILER="$CC" \
+                  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
+                if [ "$os" = "linux" ]; then
+                  cmake -S . -B build \
+                    -DCMAKE_FIND_ROOT_PATH="$SYSROOT"
+                fi
               fi
               ;;
             *) echo "::error::unknown mode $MODE"; exit 1 ;;
@@ -282,6 +297,12 @@ jobs:
           cp "$src" "dist/kirn-$TARGET$ext"
           chmod +x "dist/kirn-$TARGET$ext" 2>/dev/null || true
 
+          # Print what was actually staged: a silent cp failure here used to
+          # surface much later as a confusing "no such file" in the smoke test.
+          echo "staged $TARGET from $src"
+          ls -la "$stage/bin"
+          ls -la dist
+
       # Native targets are executed; cross targets cannot run here, so they were
       # verified structurally above.
       - name: Smoke test
@@ -293,6 +314,15 @@ jobs:
           set -euo pipefail
           stage="$PWD/dist/kirn-$TARGET"
           if [ -f "$stage/bin/kirn.exe" ]; then exe="$stage/bin/kirn.exe"; else exe="$stage/bin/kirn"; fi
+          if [ ! -f "$exe" ]; then
+            echo "::error::no staged executable at $exe"
+            echo "::error::what the stage step produced:"
+            ls -la "$stage" 2>&1 || true
+            ls -la "$stage/bin" 2>&1 || true
+            ls -la "$PWD/dist" 2>&1 || true
+            exit 1
+          fi
+          echo "smoke testing $exe"
 
           out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"

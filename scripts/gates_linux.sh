@@ -180,6 +180,27 @@ if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
     fi
 else report FAIL "pack .pet" "kirn build pet failed"; fi
 
+echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
+T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
+printf 'pub def hey(who: string) -> string { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
+printf 'import greet;\nimport math;\ndef main() {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
+out8=$(cd "$T8" && timeout 240 "$CO" build main.kn -o out 2>&1); c8=$?
+if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
+    # real native binary (ELF magic), not a script
+    magic=$(head -c4 "$T8/out")
+    if [ "$magic" = "$(printf '\177ELF')" ]; then
+        report PASS "bundle is ELF binary" "not a script"
+        out8r=$(cd "$T8" && timeout "$WATCH" ./out 2>&1); c8r=$?
+        if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pets, bundle!" && echo "$out8r" | grep -q "3.0"; then
+            report PASS "bundle runs (imports+stdlib)" "$out8r"
+        else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
+        out8b=$(cd "$T8" && COCO_VERBOSE=1 timeout 240 "$CO" build main.kn -o out2 2>&1); c8b=$?
+        if [ "$c8b" = 0 ] && ! echo "$out8b" | grep -q '\[cmd\]'; then
+            report PASS "rebuild needs no toolchain" "cached runner reused"
+        else report FAIL "rebuild needs no toolchain" "rc=$c8b: $out8b"; fi
+    else report FAIL "bundle is ELF binary" "got magic: $(head -c2 "$T8/out")"; fi
+else report FAIL "bundle build" "rc=$c8: $out8"; fi
+
 echo ""
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
 [ "$fail" -eq 0 ]

@@ -7,14 +7,14 @@
 //   kirn install|i [-g] <pkg>    install into ./pets or ~/.kirn/pets
 //   kirn update [name]           refresh installed dependencies
 //   kirn remove <name>           uninstall a dependency
-//   kirn build                   compile project -> standalone build/<name>.exe
+//   kirn build                   compile project -> standalone build/<name>
 //   kirn build pet               check + pack pet -> build/<n>-<v>.pet
 //   kirn doc <lib|dir> [--port]  generate API docs + serve markdown viewer
 //   kirn list                    show installed libraries
 //
 // Projects are Rust-style but with Kirn's own folder names:
 //   kirn.toml | code/ | tests/ | docs/ | pets/ | build/
-// Packages installed globally live in ~/.kirn/pets (app shims in
+// Packages installed globally live in ~/.kirn/pets (app binaries in
 // ~/.kirn/apps/bin).
 #include "ast/ast.h"
 #include "interp/runtime.h"
@@ -430,7 +430,7 @@ std::vector<std::string> libDirsFor(const std::string& script) {
             ? "."
             : (fs::is_directory(sp) ? script : sp.parent_path().string());
     // package root: everything lands under <base>/pets (managed pets share the
-    // root with ad-hoc modules); apps additionally get a <base>/pets/bin shim.
+    // root with ad-hoc modules); apps additionally get a <base>/pets/bin binary.
     dirs.push_back(dir + "/pets");
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir());
@@ -453,7 +453,7 @@ fs::path pkgBase(bool global_) {
     return fs::path("pets");
 }
 
-// app shim directory: local ./pets/bin, global ~/.kirn/apps/bin
+// app binary directory: local ./pets/bin, global ~/.kirn/apps/bin
 fs::path appsBinDir(bool global_) {
     if (global_) {
         std::string b = globalAppsBinDir();
@@ -936,17 +936,40 @@ static void installPkgDeps(const Manifest& pkg, const fs::path& pkgDir,
     }
 }
 
+// bundled standalone binaries (P1): helpers defined with the build plumbing
+std::string hostTarget();
+std::string hostExeSuffix();
+std::string ensureRunner();
+std::string bundleTail(const std::string& name, const std::string& version,
+                       const std::string& target, const std::string& entry,
+                       const std::string& entrySrc,
+                       const std::map<std::string, std::string>& embedded);
+bool bundleBinary(const std::string& runner, const fs::path& out,
+                  const std::string& payload, std::string& err);
+bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
+                    std::map<std::string, std::string>& embedded,
+                    const std::vector<std::string>& extraDirs = {});
+
+// directory containing this kirn executable (for exe-relative stdlib etc.)
+std::string selfExeDir() {
+    char exeBuf[MAX_PATH * 2];
+    GetModuleFileNameA(nullptr, exeBuf, sizeof exeBuf);
+    std::string self(exeBuf);
+    size_t ds = self.find_last_of("/\\");
+    return ds == std::string::npos ? "." : self.substr(0, ds);
+}
+
 // Install one resolved reference. Returns process exit code.
 // Package layout (like cargo/npm hybrids):
 //   pet -> <base>/<name>              (importable, registered in the lock)
 //   app -> <base>/<name>              (sources stay importable/runnable)
-//          + <shim>/<name>.cmd         (local ./pets/bin, global
-//          ~/.kirn/apps/bin) + PATH entry for global round-trips
+//          + <bin>/<name>              real bundled executable: local
+//          ./pets/bin, global ~/.kirn/apps/bin (+ PATH entry for global)
 int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                bool record, int depth) {
     fs::path base = pkgBase(global_);
     const fs::path libDest = pkgBase(global_) / ref.destName;
-    const fs::path binDir = appsBinDir(global_);
+    const fs::path appBin = appsBinDir(global_);
 
     Manifest pkg;
     std::string sha;
@@ -957,32 +980,58 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
 
     bool isApp = pkg.type == "app";
     if (isApp) {
+        // Install a REAL executable (prebuilt runner + appended app sources),
+        // like `go install`. The old Windows-only .cmd batch shim was dead
+        // weight on POSIX.
         std::error_code ec;
-        fs::create_directories(binDir, ec);
-        // resolve this kirn executable so the shim works off-PATH too
-        char kirnBuf[MAX_PATH * 2];
-        GetModuleFileNameA(nullptr, kirnBuf, sizeof kirnBuf);
-        std::string kirnExe = kirnBuf;
-        for (char& c : kirnExe)
-            if (c == '/') c = '\\';
-        fs::path absLib = fs::weakly_canonical(libDest, ec);
-        if (absLib.empty()) absLib = fs::absolute(libDest);
-        std::ostringstream sh;
-        sh << "@echo off\r\n"
-           << "\"" << kirnExe << "\" run \""
-           << absLib.string() << "\" %*\r\n";
-        writeFile(binDir / (ref.destName + ".cmd"), sh.str());
+        fs::create_directories(appBin, ec);
+        std::string binFile =
+            (appBin / (ref.destName + hostExeSuffix())).generic_string();
+        std::string entry = resolveEntry(pkg, libDest);
+        if (entry.empty()) {
+            std::cerr << "  warning: app '" << ref.destName
+                      << "' has no entry point; sources installed but not "
+                         "launchable\n";
+        } else {
+            std::string mainSrc;
+            if (!readFile((libDest / entry).generic_string(), mainSrc)) {
+                std::cerr << "  warning: cannot read " << entry << "\n";
+            } else {
+                // resolve the app's local modules from inside its tree
+                std::string old = fs::current_path().generic_string();
+                std::error_code cec;
+                fs::current_path(libDest, cec);
+                std::map<std::string, std::string> embedded;
+                // gatherEmbedded's probing dirs resolve against CWD (= libDest
+                // here); hand it the tool's own stdlib explicitly
+                gatherEmbedded(entry, mainSrc, embedded,
+                               {(fs::path(selfExeDir()) / ".." / "stdlib")
+                                    .generic_string()});
+                fs::current_path(old, cec);
+                std::string runner = ensureRunner();
+                std::string err;
+                if (runner.empty())
+                    std::cerr
+                        << "  warning: interpreter runner unavailable; app "
+                           "sources installed but not launchable\n";
+                else if (!bundleBinary(runner, binFile,
+                                       bundleTail(pkg.name, pkg.version,
+                                                  hostTarget(), entry,
+                                                  mainSrc, embedded),
+                                       err))
+                    std::cerr << "  warning: " << err << "\n";
+            }
+        }
         if (global_) {
-            if (ensureUserPathContains((fs::absolute(binDir) / "").string()))
+            if (ensureUserPathContains((fs::absolute(appBin) / "").string()))
                 std::cout << "  PATH updated - restart your shell to use '"
                           << ref.destName << "' anywhere\n";
             else
                 std::cerr << "  warning: could not update PATH\n";
         } else {
-            std::cout << "  app shim: "
-                      << (fs::absolute(binDir) / (ref.destName + ".cmd"))
-                             .string()
-                      << "\n";
+            std::cout << "  app binary: "
+                      << fs::absolute(appBin).generic_string() << "/"
+                      << ref.destName << hostExeSuffix() << "\n";
         }
     }
 
@@ -1195,7 +1244,8 @@ int cmdRemove(const std::string& name) {
                 locks.end());
     std::error_code ec;
     fs::remove_all(pkgBase(false) / name, ec);
-    fs::remove_all(fs::path("pets") / "bin" / (name + ".cmd"), ec);
+    fs::remove_all(fs::path("pets") / "bin" / name, ec);
+    fs::remove_all(fs::path("pets") / "bin" / (name + ".exe"), ec);
     writeManifest(".", proj);
     writeLock(".", locks);
     std::cout << "removed " << name;
@@ -1213,7 +1263,7 @@ int cmdList() {
              it.increment(ec)) {
             if (ec || !it->is_directory(ec)) continue;
             std::string fn = it->path().filename().string();
-            if (fn == "bin") continue;   // app shims
+            if (fn == "bin") continue;   // app bins
             Manifest m = readManifest(it->path());
             std::cout << label << fn << " "
                       << (m.version.empty() ? "?" : m.version);
@@ -1225,16 +1275,18 @@ int cmdList() {
     show("", fs::path("pets"));
     if (!globalPkgDir().empty()) {
         show("[global] ", fs::path(globalPkgDir()));
-        // globally installed apps (bin shims under ~/.kirn/apps/bin)
+        // globally installed apps (real binaries under ~/.kirn/apps/bin)
         std::error_code ec;
         fs::path bin(globalAppsBinDir());
         if (fs::is_directory(bin))
             for (fs::directory_iterator it(bin, ec), end; !ec && it != end;
                  it.increment(ec)) {
                 if (ec || !it->is_regular_file(ec)) continue;
-                if (it->path().extension() == ".cmd")
-                    std::cout << "[global:bin] "
-                              << it->path().stem().string() << "\n";
+                std::string fn = it->path().filename().string();
+                if (fn == "kirnrt" || fn == "kirnrt.exe") continue;
+                if (fn.ends_with(".exe"))
+                    fn = fn.substr(0, fn.size() - 4);
+                std::cout << "[global:bin] " << fn << "\n";
             }
     }
     return 0;
@@ -1758,7 +1810,8 @@ int cmdDoc(const std::string& target, int port) {
 }
 
 // ---------------------------------------------------------------------------
-// kirn build — app: standalone .exe (sources embedded, interpreter linked)
+// kirn build — app: standalone bundle (prebuilt runtime + appended sources;
+//              native/A-san/cross variants go through the C++ toolchain)
 //              pet: type-check all sources + pack distributable .pet
 // ---------------------------------------------------------------------------
 
@@ -1780,10 +1833,14 @@ bool resolveSource(const std::string& dotted,
         }
         std::string pkgDir = d + "/" + rel.substr(0, rel.size() - 3);
         if (!pkgDir.empty() && fs::is_directory(pkgDir)) {
-            // package entry: kirn.toml main / mod.kn / <dir>.kn / lone *.kn
+            // package entry: kirn.toml main / code{/pin.kn,/mod.kn} /
+            // pin.kn / mod.kn / <dir>.kn / lone *.kn
             Manifest pm = readManifest(pkgDir);
             std::vector<std::string> cands;
             if (!pm.main.empty()) cands.push_back(pm.main);
+            cands.push_back("code/pin.kn");
+            cands.push_back("code/mod.kn");
+            cands.push_back("pin.kn");
             cands.push_back("mod.kn");
             cands.push_back(lastSegment(trimSlashes(pkgDir)) + ".kn");
             for (const auto& rel2 : cands)
@@ -1971,10 +2028,122 @@ std::vector<std::string> collectRuntimeSources(const std::string& srcRoot) {
     return out;
 }
 
+// ---------------- bundled standalone binaries (P1) -------------------------
+// `kirn build` (host, plain flags) and app installs used to recompile the whole
+// C++ runtime with g++/cl per app. Now a prebuilt interpreter "runner"
+// (tools/runner.cpp) is cached next to the driver and the app's sources are
+// appended as a KIRNBUNDLE/1 payload - a real native executable, zero C++
+// toolchain at user time, mirroring the `go build`/`go install` contract.
+
+std::string hostExeSuffix() {
+#if defined(_WIN32)
+    return ".exe";
+#else
+    return "";
+#endif
+}
+
+// Serialize the KIRNBUNDLE tail: a @meta section, the entry section, then one
+// section per imported module. The runner (tools/runner.cpp) parses it back.
+std::string bundleTail(const std::string& name, const std::string& version,
+                       const std::string& target, const std::string& entry,
+                       const std::string& entrySrc,
+                       const std::map<std::string, std::string>& embedded) {
+    std::ostringstream o;
+    o << "\nKIRNBUNDLE/1\n"
+      << "@@FILE @meta\n" << name << "\n"
+      << (version.empty() ? "0.0.0" : version) << "\n" << target << "\n"
+      << entry << "\n@@END\n"
+      << "@@FILE " << entry << "\n" << entrySrc << "\n@@END\n";
+    for (const auto& [k, src] : embedded)
+        if (k != entry) o << "@@FILE " << k << "\n" << src << "\n@@END\n";
+    return o.str();
+}
+
+// copy the runner to out, append the payload, make it executable
+bool bundleBinary(const std::string& runner, const fs::path& out,
+                  const std::string& payload, std::string& err) {
+    std::error_code ec;
+    fs::copy(runner, out, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        err = "copy runner: " + ec.message();
+        return false;
+    }
+    {
+        std::ofstream f(out, std::ios::binary | std::ios::app);
+        if (!f) {
+            err = "cannot append payload to " + out.string();
+            return false;
+        }
+        f << payload;
+    }
+#if !defined(_WIN32)
+    fs::permissions(out, fs::perms::owner_exec | fs::perms::group_exec |
+                             fs::perms::others_exec,
+                    fs::perm_options::add, ec);
+#endif
+    return true;
+}
+
+// Locate the cached interpreter runner, building it once if missing (lazy
+// warmup). KIRN_RT overrides the cache path. Steady-state builds never call a
+// C++ toolchain - only the driver's own tool build ever does.
+std::string ensureRunner() {
+    const char* ov = std::getenv("KIRN_RT");
+    if (ov && *ov && fs::is_regular_file(ov)) return ov;
+
+    std::string binDir = selfExeDir();
+    std::string cached =
+        (fs::path(binDir) / "kirnrt").generic_string() + hostExeSuffix();
+    if (fs::is_regular_file(cached)) return cached;
+
+    const std::string srcRoot =
+        (fs::path(binDir) / ".." / "src").generic_string();
+    const std::string runnerCpp =
+        (fs::path(binDir) / ".." / "tools" / "runner.cpp").generic_string();
+    auto srcs = collectRuntimeSources(srcRoot);
+    if (srcs.empty() || !fs::is_regular_file(runnerCpp)) {
+        std::cerr << "kirnrt: runtime sources not found at " << srcRoot
+                  << "\n";
+        return "";
+    }
+    std::string cmd;
+#if defined(_WIN32)
+    std::string cxx = std::getenv("COCO_CL") && *std::getenv("COCO_CL")
+                          ? std::getenv("COCO_CL")
+                          : resolveHostCl();
+    if (cxx.empty()) {
+        std::cerr << "kirnrt: no MSVC toolchain to warm up the runner\n";
+        return "";
+    }
+    // compile runner.cpp against the prebuilt interpreter lib (ci-tested path)
+    cmd = "cd . && \"" + cxx + "\" /nologo /EHsc " +
+          detectRuntimeFlags(binDir) + " /std:c++20 /I\"" + srcRoot +
+          "\" \"" + runnerCpp + "\" /Fe:" + cached + " /link /LIBPATH:\"" +
+          binDir + "\" kirn_interp.lib";
+#else
+    std::string cxx = std::getenv("COCO_CXX") && *std::getenv("COCO_CXX")
+                          ? std::getenv("COCO_CXX")
+                          : "g++";
+    std::ostringstream r;
+    r << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS -O1 -w -I\"" << srcRoot
+      << "\" -o \"" << cached << "\" \"" << runnerCpp << "\"";
+    for (const auto& s : srcs) r << " \"" << s << "\"";
+    writeFile((fs::path(binDir) / "kirnrt.rsp").generic_string(), r.str());
+    cmd = "cd . && \"" + cxx + "\" @\"" +
+          (fs::path(binDir) / "kirnrt.rsp").generic_string() + "\"";
+#endif
+    std::cout << "warming up interpreter runtime " << cached
+              << " (first use only)\n";
+    if (std::getenv("COCO_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+    int rc = std::system(cmd.c_str());
+    return rc == 0 && fs::is_regular_file(cached) ? cached : "";
+}
+
 // resolve module sources transitively from the entry file
 bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
                     std::map<std::string, std::string>& embedded,
-                    const std::vector<std::string>& extraDirs = {}) {
+                    const std::vector<std::string>& extraDirs) {
     std::vector<std::string> dirs = extraDirs;
     dirs.push_back("code");                 // sibling modules of the entry
     dirs.push_back("pets");
@@ -2398,6 +2567,45 @@ int buildProgram(const std::string& name, const std::string& version,
                   << "'\n  install e.g. llvm-mingw / aarch64-linux-gnu-g++"
                   << " or set " << envName << "=<path-to-g++>\n";
         return 1;
+    }
+
+    // ---- P1 bundled build: a real executable, NO C++ toolchain ------------
+    // Host builds with plain flags copy the prebuilt interpreter runner and
+    // append the app's sources as a KIRNBUNDLE/1 payload (see tools/runner.cpp),
+    // mirroring `go build`. The launcher/native pipelines below stay for
+    // --sasm / -O / --native / --asan / cross (foreign) targets.
+    if (isHost && !opts.obj && !opts.native_ && !opts.asan) {
+        const std::string outName =
+            !opts.outPath.empty()
+                ? opts.outPath
+                : !opts.defaultOut.empty()
+                      ? opts.defaultOut + hostExeSuffix()
+                      : (outDir / (name + (ti ? ti->exeExt : "")))
+                            .generic_string();
+        {
+            fs::path op(outName);
+            if (op.has_parent_path())
+                fs::create_directories(op.parent_path());
+        }
+        std::string runner = ensureRunner();
+        if (runner.empty()) {
+            std::cerr << "kirn build: bundled build needs the interpreter "
+                         "runner\n"
+                      << "  set KIRN_RT to a prebuilt one, or run a first "
+                         "build on a host with a C++ toolchain\n";
+            return 1;
+        }
+        std::string err;
+        if (!bundleBinary(runner, outName,
+                          bundleTail(name, version, opts.target, entry,
+                                     mainSrc, embedded),
+                          err)) {
+            std::cerr << "kirn build: " << err << "\n";
+            return 1;
+        }
+        std::cout << "bundled " << outName
+                  << " (prebuilt runtime, no toolchain)\n";
+        return 0;
     }
 
     // --native: parse+check once at build time, lower scalar user fns to C++
@@ -2929,7 +3137,7 @@ void usage() {
         << "      pkg := [github.com/]user/repo[@tag] | <path> | <registry-"
                "name> | file.pet\n"
         << "      -g installs globally into ~/.kirn/pets\n"
-        << "         (apps get ~/.kirn/apps/bin shims + PATH entry)\n"
+        << "         (apps get ~/.kirn/apps/bin binaries + PATH entry)\n"
         << "  kirn add <pkg>...                install + record dependencies"
                "\n"
         << "  kirn add                         sync: install missing deps"
@@ -2941,7 +3149,7 @@ void usage() {
         << "  kirn build                       compile project (needs "
                "kirn.toml)\n"
         << "  kirn build <file.kn>             compile one file -> ./<stem>"
-               ".exe\n"
+               "\n"
         << "           [--release|--debug]     optimization profile\n"
         << "           [--target=<os>-<arch>]    like GOOS/GOARCH; default "
                "$COCO_TARGET or host\n"

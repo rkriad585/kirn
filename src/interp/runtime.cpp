@@ -1751,14 +1751,28 @@ void Interpreter::exec(const Stmt& s, Env env) {
             return;
         }
 
-        case ast::StKind::If:
-            // block bodies get a fresh child frame so `var` shadowing matches
-            // the checker's lexical scopes (previously the same env was used).
-            if (truthy(eval(*s.exprs[0], env)))
-                execBlock(s.body, makeChild(env));
-            else
-                for (const auto& eb : s.elseBody) exec(*eb, makeChild(env));
-            return;
+            case ast::StKind::If:
+                // block bodies get a fresh child frame so `var` shadowing matches
+                // the checker's lexical scopes (previously the same env was used).
+                //
+                // The else branch used to iterate its statements and give each
+                // one its own makeChild(env), which is not the same thing: a
+                // declaration in one statement became invisible to the next, so
+                //
+                //     if false { print(0) } else { var y = 2; print(y) }
+                //
+                // panicked with "undefined variable 'y'". When the outer scope
+                // happened to have a binding of the same name it was worse --
+                // silently reading the wrong one. One child env for the whole
+                // block, matching the then branch and the elif branch below, is
+                // what the language means. (The bytecode fast path was correct
+                // here by accident, which is why gate 4's tree-vs-VM comparison
+                // is the thing that found it.)
+                if (truthy(eval(*s.exprs[0], env)))
+                    execBlock(s.body, makeChild(env));
+                else if (!s.elseBody.empty())
+                    execBlock(s.elseBody, makeChild(env));
+                return;
 
         case ast::StKind::Try: {
             try {
@@ -5314,6 +5328,19 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
 
             case OP_SCOPE_ENTER: env = makeChild(env); break;
             case OP_SCOPE_LEAVE: env = env->parent; break;
+
+            case OP_DEFINE: {
+                // A declaration always creates a NEW binding in the current
+                // frame. It must not use OP_STORE's findRef, which walks to the
+                // nearest enclosing binding: that turns `var x = 2` inside a
+                // block into an assignment to the outer x, so the block-local
+                // declaration escapes the block. The tree-walker draws the same
+                // line in bindDecl ("a declaration ALWAYS creates a new binding
+                // in the current frame (shadowing) ... mirrors the checker").
+                const std::string& n = SCC[(size_t)ins.a];
+                env->vars[n] = pop().take();
+                break;
+            }
 
             case OP_EXPR: pop(); break;
 

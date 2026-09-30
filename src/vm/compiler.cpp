@@ -278,12 +278,40 @@ public:
         return idx;
     }
 
-    void compileBlock(Emitter& em, const std::vector<StmtP>& body) {
-        for (const auto& sp : body) {
-            if (em.f.interpreted) return;
-            compileStmt(em, *sp);
-        }
-    }
+      void compileBlock(Emitter& em, const std::vector<StmtP>& body) {
+          for (const auto& sp : body) {
+              if (em.f.interpreted) return;
+              compileStmt(em, *sp);
+          }
+      }
+
+      // Compile `body` inside a fresh child Env, matching the tree-walker's
+      // makeChild(env) for `if` branches and `while` bodies.
+      //
+      // This was missing, and the consequence was a miscompile rather than a
+      // missed optimisation. The tree-walker gives every block a child frame so
+      // a block-local `var` that shadows an outer binding dies with the block;
+      // the fast path stored it into the shared frame instead, so
+      //
+      //     var x = 1; if true { var x = 2; print(x) } print(x)
+      //
+      // printed `2` then `2` here, where the tree-walker prints `2` then `1`.
+      // That contradicts bytecode.h's own claim that the VM is "always a
+      // correct superset path", so it violated the file's stated invariant and
+      // not merely a test. 164 gates and 215 goldens could not see it: shadowing
+      // is only a W0105 warning, and no corpus file shadows a variable while
+      // staying on the fast path.
+      //
+      // Raising em.scopeDepth is what makes the existing unwind machinery work:
+      // a `break`/`continue` inside this block computes
+      // `scopeDepth - scopeDepthAtLoop` and emits that many OP_SCOPE_LEAVEs.
+      void compileScopedBlock(Emitter& em, const std::vector<StmtP>& body) {
+          em.emit(OP_SCOPE_ENTER);
+          em.scopeDepth++;
+          compileBlock(em, body);
+          em.emit(OP_SCOPE_LEAVE);
+          em.scopeDepth--;
+      }
 
     void compileStmt(Emitter& em, const Stmt& s) {
         switch (s.kind) {
@@ -292,7 +320,7 @@ public:
             case StKind::ConstDecl:
             case StKind::VarDecl:
                 compileExpr(em, *s.value);
-                emitStore(em, *s.target);
+                emitDefine(em, *s.target);
                 break;
 
             case StKind::ExprStmt:
@@ -344,19 +372,33 @@ public:
                 std::vector<int32_t> endings;
                 compileExpr(em, *s.exprs[0]);
                 int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
-                compileBlock(em, s.body);
+                // Each branch gets its own child Env, and each therefore needs
+                // its own enter/leave pair -- the diamond cannot share one
+                // scope around both sides, or a `var` in the taken branch would
+                // still be live in the other.
+                compileScopedBlock(em, s.body);
                 int32_t jDone = em.here(); em.emit(OP_JUMP, 0);
                 endings.push_back(jDone);
                 em.at(jF).a = em.here() - jF;
+                // NOTE: elifConds/elifBodies are never assigned by the parser
+                // (it nests `elif` as a synthetic If in elseBody[0]), so this
+                // loop is dead. Kept scoped anyway so it stays correct if the
+                // parser ever populates the fields.
                 for (size_t i = 0; i < s.elifConds.size(); ++i) {
                     compileExpr(em, *s.elifConds[i]);
                     int32_t jF2 = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+                    em.emit(OP_SCOPE_ENTER); em.scopeDepth++;
                     compileStmt(em, *s.elifBodies[i]);
+                    em.emit(OP_SCOPE_LEAVE); em.scopeDepth--;
                     int32_t jD2 = em.here(); em.emit(OP_JUMP, 0);
                     endings.push_back(jD2);
                     em.at(jF2).a = em.here() - jF2;
                 }
-                if (!s.elseBody.empty()) compileBlock(em, s.elseBody);
+                if (!s.elseBody.empty()) {
+                    em.emit(OP_SCOPE_ENTER); em.scopeDepth++;
+                    compileBlock(em, s.elseBody);
+                    em.emit(OP_SCOPE_LEAVE); em.scopeDepth--;
+                }
                 for (int32_t tj : endings) em.at(tj).a = em.here() - tj;
                 break;
             }
@@ -367,7 +409,14 @@ public:
                 int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
                 LoopCtx L; L.scopeDepthAtLoop = em.scopeDepth; L.top = top; L.label = s.label;
                 loops.push_back(L);
+                // The scope opens *after* the JUMP_IF_FALSE, so the loop-exit
+                // edge needs no matching leave -- and scopeDepthAtLoop above is
+                // captured before it, so a `break`/`continue` from inside the
+                // body unwinds exactly this one scope. Same arrangement as the
+                // `for` case below.
+                em.emit(OP_SCOPE_ENTER); em.scopeDepth++;
                 compileBlock(em, s.body);
+                em.emit(OP_SCOPE_LEAVE); em.scopeDepth--;
                 auto& LR = loops.back();   // Break/Continue mutate this very element
                 for (int32_t cj : LR.contJumps) em.at(cj).a = top - (int32_t)cj;
                 em.emit(OP_JUMP, top - em.here());
@@ -419,12 +468,26 @@ public:
         }
     }
 
-    void emitStore(Emitter& em, const Expr& t) {
-        if (t.kind != ExKind::Ident) { em.f.interpreted = true; return; }
-        int32_t s = slotUse_ ? slotOf(t.text) : -1;
-        if (s >= 0) em.emit(OP_STORE_LOCAL, s);
-        else em.emit(OP_STORE, em.strId(t.text));
-    }
+      void emitStore(Emitter& em, const Expr& t) {
+          if (t.kind != ExKind::Ident) { em.f.interpreted = true; return; }
+          int32_t s = slotUse_ ? slotOf(t.text) : -1;
+          if (s >= 0) em.emit(OP_STORE_LOCAL, s);
+          else em.emit(OP_STORE, em.strId(t.text));
+      }
+
+      // `var` / `const` / `local` bind in the CURRENT frame; `=` / `+=` write
+      // through to the nearest enclosing binding. Conflating them is what made
+      // the fast path disagree with the tree-walker on shadowing.
+      void emitDefine(Emitter& em, const Expr& t) {
+          if (t.kind != ExKind::Ident) { em.f.interpreted = true; return; }
+          // Slots are per-function frame storage, so a define into a slot is
+          // already "the current binding" and needs no distinct opcode. planSlots
+          // disables slots outright when a name is redeclared in a nested scope,
+          // so a shadowing define can never reach the slot path.
+          int32_t s = slotUse_ ? slotOf(t.text) : -1;
+          if (s >= 0) em.emit(OP_STORE_LOCAL, s);
+          else em.emit(OP_DEFINE, em.strId(t.text));
+      }
 
     void compileExpr(Emitter& em, const Expr& e) {
         if (em.f.interpreted) return;

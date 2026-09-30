@@ -1,0 +1,136 @@
+# Lexical scoping, pinned by gate 4 (vm_diff) which runs this file twice: once
+# with --no-vm (the tree-walker, authoritative) and once on the bytecode fast
+# path, requiring identical stdout+stderr and exit code.
+#
+# Every case here is one the fast path got wrong at least once. This is a
+# separate corpus rather than more examples/ because gate 4 previously ran only
+# examples/[0-9]*.kn, and because these are regression fixtures, not demos.
+#
+# The bug being pinned: OP_STORE used env->findRef, which writes an *assignment*
+# through to the nearest enclosing binding of that name. A `var` is a
+# *declaration* and must bind in the current frame, so a shadowing `var` was
+# compiled as an assignment to the outer variable and escaped its block.
+# bytecode.h calls the VM "always a correct superset path"; that was false, and
+# nothing tested it, because shadowing is only a W0105 warning and no example
+# shadowed a variable while staying on the fast path. See the OP_DEFINE and
+# compileScopedBlock comments in src/vm/bytecode.h and src/vm/compiler.cpp.
+
+def shadow_in_if() {
+    var x = 1;
+    if true {
+        var x = 2;
+        print(x);        # 2
+    }
+    print(x);            # 1 -- the block-local binding died with the block
+}
+
+def shadow_in_else() {
+    var x = 1;
+    if false {
+        print(99);
+    } else {
+        var x = 2;
+        print(x);        # 2
+    }
+    print(x);            # 1
+}
+
+def shadow_in_elif() {
+    var x = 1;
+    if false {
+        var x = 9;
+        print(x);
+    } elif true {        # arrives as a synthetic If in elseBody[0]
+        var x = 2;
+        print(x);        # 2
+    }
+    print(x);            # 1
+}
+
+def shadow_in_while() {
+    var x = 1;
+    while true {
+        var x = 2;
+        print(x);        # 2
+        break;
+    }
+    print(x);            # 1
+}
+
+def shadow_in_for() {
+    var x = 1;
+    for i in 0..2 {
+        var x = 2;
+        print(x);        # 2, 2, 2 -- once per iteration
+    }
+    print(x);            # 1
+}
+
+def shadow_two_levels() {
+    var x = 1;
+    while true {
+        var x = 2;
+        if true {
+            var x = 3;
+            print(x);    # 3
+        }
+        print(x);        # 2
+        break;
+    }
+    print(x);            # 1
+}
+
+def break_out_of_if_in_loop() {
+    # The `if` scope must be unwound before the branch leaves the loop frame, or
+    # the break lands one frame too high.
+    var hits = 0;
+    while true {
+        var y = 7;
+        if y == 7 {
+            hits = hits + 1;
+            break;
+        }
+        y = 0;
+        print(y);
+    }
+    print(hits);         # 1
+}
+
+def continue_out_of_if_in_loop() {
+    var n = 0;
+    var seen = 0;
+    while n < 4 {
+        n = n + 1;
+        var guard = 0;
+        if n == 2 {
+            continue;    # must leave the `if` scope and the loop body scope
+        }
+        guard = guard + 1;
+        seen = seen + 1;
+    }
+    print(seen);         # 3
+}
+
+def assign_writes_through() {
+    # The other direction: a plain `=` must still reach the outer binding. This
+    # is the case OP_DEFINE must not break, and it is why OP_STORE was not simply
+    # changed to always bind locally.
+    var x = 1;
+    if true {
+        x = 2;           # assignment, not a declaration
+        print(x);        # 2
+    }
+    print(x);            # 2
+}
+
+def main() {
+    shadow_in_if();
+    shadow_in_else();
+    shadow_in_elif();
+    shadow_in_while();
+    shadow_in_for();
+    shadow_two_levels();
+    break_out_of_if_in_loop();
+    continue_out_of_if_in_loop();
+    assign_writes_through();
+}

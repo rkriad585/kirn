@@ -55,7 +55,14 @@ enum Op : uint16_t {
     OP_LOAD_LOCAL, // a = local slot index; push frame locals[slot]
     OP_LOAD_FN,    // a = name const index; push VK::Fn for a named/user function
     OP_LOAD_MOD,   // a = name const index; push struct/enum marker module
-    OP_STORE,      // a = name const index; assign top into env frame (bind local)
+    OP_STORE,      // a = name const index; ASSIGN: write through to the nearest
+                   // enclosing binding of this name (env->findRef), creating one
+                   // in the current frame only if none exists.
+    OP_DEFINE,     // a = name const index; DECLARE: bind in the CURRENT env frame
+                   // unconditionally, shadowing any outer binding. `var`/`const`/
+                   // `local` need this and must not use OP_STORE -- see the
+                   // compileScopedBlock comment in compiler.cpp for the
+                   // miscompile that collapsing the two produced.
     OP_STORE_LOCAL,// a = local slot index; assign top into frame locals[slot]
     OP_ASSIGNTO,   // pop value; a = target expr kind (handled by assignTo)
 
@@ -105,9 +112,15 @@ enum Op : uint16_t {
     // iterable iteration handle life-cycle
 
     // flow / scope
-    OP_JUMP,           // a = signed absolute target
-    OP_JUMP_IF_FALSE,  // pop cond
-    OP_JUMP_IF_TRUE,   // pop cond
+    OP_JUMP,           // a = target - here()  (SIGNED RELATIVE, not absolute:
+                       // measured from this instruction's own index. This comment
+                       // used to say "signed absolute target", which was wrong and
+                       // dangerous to believe -- a CFG builder reading the header
+                       // would produce a subtly broken graph rather than crash.
+                       // See the jmp() lambda in runtime.cpp and the
+                       // `em.at(tj).a = em.here() - tj` patch sites.)
+    OP_JUMP_IF_FALSE,  // pop cond; a = relative offset, fallthrough is a+1
+    OP_JUMP_IF_TRUE,   // pop cond; a = relative offset, fallthrough is a+1
     OP_POP,
     OP_SCOPE_ENTER,    // push child Env
     OP_SCOPE_LEAVE,    // pop frame (trivial in Env model: no-op, kept for parity)

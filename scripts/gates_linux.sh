@@ -88,9 +88,9 @@ for t in "$ROOT"/tests/negative/n*.kn; do
     fi
 done
 
-echo "=== gate 4: vm_diff (examples ^[0-9], tree vs VM) ==="
+echo "=== gate 4: vm_diff (tree vs VM) ==="
 hung=0
-for f in "$ROOT"/examples/[0-9]*.kn; do
+for f in "$ROOT"/examples/*.kn "$ROOT"/tests/vm_parity/*.kn; do
     name="$(basename "$f")"
     a_out="$(mktemp "$TMP/a.XXXX")"; b_out="$(mktemp "$TMP/b.XXXX")"
     timeout "$WATCH" "$CR" --no-vm "$f" >"$a_out" 2>&1; a_code=$?

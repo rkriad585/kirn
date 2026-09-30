@@ -43,6 +43,15 @@ public:
     // backend uses to lower statically-typed expressions (PLAN Phase 8.2).
     TyP typeOf(const ast::Expr& e) const;
 
+
+    // Every name predeclareBuiltins() put in the root scope, in declaration
+    // order. Published rather than re-listed by consumers, because two
+    // hand-maintained copies already exist: kBuiltins() in src/vm/compiler.cpp
+    // and its twin in enableVm() in src/interp/runtime.cpp. A builtin added to
+    // the Checker but not to those lists silently loses its fast path, and one
+    // added to the lists but not here fails to resolve. HIR needs the same
+    // answer and should not add a third copy.
+    const std::vector<std::string>& builtinNames() const { return builtinNames_; }
 private:
     // ---- infrastructure ----
     void error(uint32_t line, uint32_t col, const std::string& msg);
@@ -127,6 +136,7 @@ private:
 
     DiagEngine& diags_;
     Scope* scope_ = nullptr;
+    std::vector<std::string> builtinNames_;
     int rootScopeId_ = 0;             // module top-level scope id (for local/global/temp)
     std::map<std::string, SymP> structs_;
     std::map<std::string, const ast::Stmt*> structDecls_;  // name -> StructDef node

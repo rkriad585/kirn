@@ -61,6 +61,18 @@ add_library(kirn_sema STATIC
 )
 target_link_libraries(kirn_sema PUBLIC kirn_parser)
 
+# HIR: a lowered, sugar-free IR over the checked AST (BUILDER-PLAN phase 3).
+# It reads sema::Checker's resolved types, so it links kirn_sema rather than
+# kirn_ast. Sits after sema and before the VM: the tree-walker and the bytecode
+# compiler stay where they are, and this is a new plane beside them, not a
+# replacement -- BUILDER-PLAN 4.5 requires the bytecode compiler to remain a
+# separate specializer.
+add_library(kirn_hir STATIC
+    src/hir/hir.cpp
+    src/hir/hir_verify.cpp
+)
+target_link_libraries(kirn_hir PUBLIC kirn_sema)
+
 add_library(kirn_vm STATIC
     src/vm/compiler.cpp
 )
@@ -90,7 +102,7 @@ target_link_libraries(kirn_backend PUBLIC kirn_sema)
 add_library(kirn_driver STATIC
     src/driver/driver.cpp
 )
-target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro)
+target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro kirn_hir)
 
 # Phase 1: the stage drivers are thin front ends over the shared library, so all
 # three link kirn_driver instead of the narrow lexer/parser/sema libs. They stay
@@ -132,7 +144,7 @@ endif()
 # kirn_driver is in the list so the refactored code keeps the same warning
 # budget as the libraries around it; leaving it out would have exempted exactly
 # the code being moved from -Wall -Wextra -Wpedantic.
-foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_vm kirn_interp kirn_backend kirn_driver)
+foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_hir kirn_vm kirn_interp kirn_backend kirn_driver)
     if(MSVC)
         target_compile_options(${tgt} PRIVATE /W4 /permissive-)
     else()

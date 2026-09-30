@@ -21,6 +21,7 @@
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "prepro/prepro.h"
+#include "hir/hir.h"
 #include "sema/checker.h"
 #include "util/tomlmini.h"
 
@@ -499,10 +500,31 @@ bool ensureUserPathContains(const std::string& dirRaw) {
 // compile pipeline shared by run/test/build
 // ---------------------------------------------------------------------------
 
+// Defined below; declared here because the 3-argument form forwards to it.
+std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
+                                       const std::string& src,
+                                       kirn::DiagEngine& diags,
+                                       std::unique_ptr<kirn::sema::Checker>& chkOut);
+
 // check one source; returns program or empty vector on error (diags printed)
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags) {
+    std::unique_ptr<kirn::sema::Checker> chk;
+    return frontEnd(path, src, diags, chk);
+}
+
+// Same pipeline, but hands back the Checker.
+//
+// The Checker was previously a local that died with the function, so anything
+// downstream of type checking had to re-lex and re-parse to get one -- the
+// --native path does exactly that (and now does not), and HIR needs the
+// resolved types. Keeping the AST and the thing that typed it together is the
+// whole point; a second pass risks a second opinion.
+std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
+                                       const std::string& src,
+                                       kirn::DiagEngine& diags,
+                                       std::unique_ptr<kirn::sema::Checker>& chkOut) {
     auto toks = kirn::Lexer(src, path, diags).lexAll();
     if (diags.errorCount()) return {};
     // Preprocess between lex and parse (phase 2). Placed here rather than in the
@@ -513,8 +535,8 @@ std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
     if (diags.errorCount()) return {};
     auto body = kirn::Parser(toks, diags).parseProgram();
     if (diags.errorCount()) return {};
-    kirn::sema::Checker chk(diags);
-    chk.checkModule(body);
+    chkOut = std::make_unique<kirn::sema::Checker>(diags);
+    chkOut->checkModule(body);
     return body;
 }
 
@@ -893,10 +915,92 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
     return 0;
 }
 
-int runProgram(const std::string& entryPath,
-               const std::vector<std::string>& dirs,
-               const std::map<std::string, std::string>& embedded = {},
-               const std::vector<std::string>& progArgs = {}) {
+  // --emit-hir / `kirnc hir`: lower the checked AST to HIR, verify it
+  // structurally, and print the dump. Phase 3.
+  //
+  // The verify step runs unconditionally and is not optional. BUILDER-PLAN 4.5
+  // keeps MIR a non-executable AOT feeder, and no phase introduces a MIR
+  // interpreter, so the plan's original criterion for this phase ("preserves
+  // results ... run after lower-verify vs direct run") is not satisfiable --
+  // `lower-verify` is not defined anywhere in the repository. A structural
+  // verifier is the honest replacement, and it is what LLVM and Swift rely on
+  // at the equivalent stage. A dump that verifies is worth something; a dump
+  // that does not is a screenshot of a bug.
+  int cmdHir(const std::vector<std::string>& args, const char* toolName) {
+      std::vector<std::string> files;
+      for (const auto& a : args) {
+          if (a == "-h" || a == "--help") {
+              std::cout << "usage: " << toolName << " <file.kn>\n"
+                        << "  lower to HIR, verify it, print the dump\n";
+              return 0;
+          }
+          if (!a.empty() && a[0] == '-') continue;
+          files.push_back(a);
+      }
+      if (files.empty()) {
+          std::cerr << "usage: " << toolName << " <file.kn>\n";
+          return 2;
+      }
+      if (files.size() > 1) {
+          std::cerr << toolName
+                    << ": --emit-hir takes one file (HIR is built per module)\n";
+          return 2;
+      }
+      const std::string& file = files[0];
+      std::string src;
+      if (!readSourceVerbatim(file, src)) {
+          std::cerr << toolName << ": cannot open '" << file << "'\n";
+          return 66;
+      }
+  
+      kirn::DiagEngine diags;
+      std::unique_ptr<kirn::sema::Checker> chk;
+      auto body = frontEnd(file, src, diags, chk);
+      if (diags.count()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          std::cout << out;
+          std::cout << file << ": " << diags.errorCount() << " error(s)\n";
+          return 1;
+      }
+  
+      kirn::hir::Context ctx;
+      kirn::hir::Module mod =
+          kirn::hir::lower(body, *chk, ctx, diags, kirn::hir::LowerOptions{});
+      if (diags.errorCount()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          std::cout << out;
+          std::cout << file << ": " << diags.errorCount() << " error(s)\n";
+          return 1;
+      }
+  
+      // Verification is part of producing the dump, not a separate mode.
+      auto violations = kirn::hir::verify(mod, ctx);
+      if (!violations.empty()) {
+          for (const auto& v : violations) {
+              std::cout << file << ":" << v.span.line << ":" << v.span.col
+                        << ": error[W9100]: HIR verification failed: " << v.message
+                        << "\n";
+          }
+          std::cout << file << ": " << violations.size()
+                    << " HIR verification failure(s)\n";
+          return 65;
+      }
+  
+      kirn::hir::dump(mod, ctx, std::cout);
+      std::cout << file << ": OK (" << mod.items.size() << " item(s), "
+                << mod.funcs.size() << " function(s), " << ctx.decls.size()
+                << " decl(s), " << ctx.scopes.size() << " scope(s))\n";
+      return 0;
+  }
+  
+  int runProgram(const std::string& entryPath,
+                 const std::vector<std::string>& dirs,
+                 const std::map<std::string, std::string>& embedded = {},
+                 const std::vector<std::string>& progArgs = {}) {
     std::string src;
     if (!readFile(entryPath, src)) {
         std::cerr << "kirn: cannot read '" << entryPath << "'\n";
@@ -3757,6 +3861,10 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
 
 int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdPreprocess(args, toolName);
+}
+
+int cmdHir(const std::vector<std::string>& args, const char* toolName) {
+    return ::cmdHir(args, toolName);
 }
 
 bool resolveSource(const std::string& dotted,

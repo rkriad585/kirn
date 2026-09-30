@@ -16,6 +16,7 @@
 #include "vm/compiler.h"
 #include "vm/bytecode.h"
 #include "interp/escapes.h"
+#include "support/literals.h"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -492,8 +493,8 @@ public:
     void compileExpr(Emitter& em, const Expr& e) {
         if (em.f.interpreted) return;
         switch (e.kind) {
-            case ExKind::Int: em.emit(OP_INT, em.constId(Value::integer(parseInt(e.text)))); break;
-            case ExKind::Float: em.emit(OP_FLOAT, em.constId(Value::floating(strtod(e.text.c_str(), nullptr)))); break;
+            case ExKind::Int: em.emit(OP_INT, em.constId(Value::integer(kirn::parseIntLiteral(e.text)))); break;
+            case ExKind::Float: em.emit(OP_FLOAT, em.constId(Value::floating(kirn::parseFloatLiteral(e.text)))); break;
             case ExKind::CharLit: em.emit(OP_CHAR, em.constId(Value::chr(decodeCharText(e.text)))); break;
             case ExKind::Str: {
                 switch (e.flavor) {
@@ -663,18 +664,6 @@ public:
         em.emit(OP_CALL, (int32_t)e.args.size());
     }
 
-    static int64_t parseInt(const std::string& raw) {
-        std::string t;
-        for (char c : raw) if (c != '_') t += c;
-        int base = 10;
-        if (t.size() > 2 && t[0] == '0') {
-            char p = (char)tolower((unsigned char)t[1]);
-            if (p == 'x') { base = 16; t = t.substr(2); }
-            else if (p == 'b') { base = 2; t = t.substr(2); }
-            else if (p == 'o') { base = 8; t = t.substr(2); }
-        }
-        return (int64_t)strtoll(t.c_str(), nullptr, base);
-    }
 };
 
 } // namespace

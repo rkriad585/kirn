@@ -1209,6 +1209,116 @@ _Not done in this increment,_ recorded rather than left to be discovered:
 _Verify:_ AST→HIR→MIR preserves results on a corpus subset (run after
 lower-verify vs direct run).
 
+_Status 2026-09-30: HIR has landed and verifies; MIR has not started._ Two
+things about this phase were wrong in the plan before any of it could be
+written, and one of them is a defect in the verify criterion itself.
+
+**1. The verify criterion is not satisfiable as written.** It says *"run after
+lower-verify vs direct run"*, which requires MIR to be executable. But §4.5 says
+MIR "stays a separate specializer [from the bytecode compiler] ... MIR feeds
+AOT", and phases 4 and 5 are LLVM codegen and linking — **no phase in this plan
+introduces a MIR interpreter**. So the criterion asks for a thing the plan never
+builds. `lower-verify` is also a term defined nowhere: it appears exactly once in
+this repository, in that sentence. The criterion has been **replaced with
+structural verification**, which is what LLVM (`Verifier.cpp`), Swift
+(`SILVerifier.cpp`) and rustc (`hir_id_validator.rs`) actually use at the
+equivalent stage, and which is honestly available when nothing executes yet.
+LLVM's LangRef states the intended scope and it is the right one to adopt: the
+verifier's violations "indicate bugs in transformation passes or input to the
+parser" — it finds compiler bugs, it does not validate user programs.
+
+**2. `rt` means two incompatible things.** §3.3 line 184, the note at 191-194 and
+phase 1 at 1084 all read `rt` as "run through the runtime" (build a bundle and
+execute it). Lines 115, 169, 872, 879 and this phase's own line 1208 read it as
+"dump MIR". §3.4.5 and §3.4.12 group `rt` with the stop-at-stage verbs, which is
+the dumper reading. **Resolved for this phase as the dumper**, because the
+phase-3 text says so explicitly; the runner meaning is deferred to the phase
+that retires the bundle (§6), where `run` and `rt` have to be settled together.
+
+**3. The ownership split in §4.4 has no precedent and inverts the real
+consensus.** §4.4 says "for HIR keep `unique_ptr` ownership to match house
+style, revisit at MIR", and §4.5 says "this is the moment arenas arrive". The
+surveyed evidence is the opposite: **rustc arena-allocates HIR too** (there is
+no "box tree for HIR, arena for body IR" precedent), while Swift, MLIR and
+Kotlin use pointer-stable trees for *every* stage. The transferable rule is
+**do not mix ownership strategies across stages** — which is the opposite of what
+§4.4/§4.5 prescribe. HIR is therefore `unique_ptr`, matching the house style,
+and **the MIR ownership decision must be made explicitly rather than inherited
+from this paragraph.**
+
+Two further plan terms did not survive checking and should not be cited:
+"destructor-free" is **not a documented IR term** from any major compiler (it is
+local coinage here), and LLVM is a counter-example — `llvm::Value` is non-copyable
+*by design*. "Every instruction has at least one use" is **not an LLVM
+invariant**; the LLVM verifier has no such check, so building it here would be
+inventing a rule rather than copying one. And "LLVM SSA is in infinite use form"
+could not be verified from any primary source; the citable subject is Braun et
+al.'s sealed-block / pruned-SSA construction.
+
+Landed — HIR (`src/hir/`, `kirn_hir`, between `kirn_sema` and `kirn_vm`):
+
+- **A per-kind payload union, replacing the fat node.** `ast::Expr` is one struct
+  with a kind tag and 20 members (5 owning pointers, 9 vectors) for any one of 24
+  kinds; `ast::Stmt` has 43 members for 37. HIR uses `std::variant`, which is
+  what Nim, Swift, Kotlin, LLVM and MLIR all do, and which makes the
+  "field invalid for this kind" state unrepresentable rather than merely
+  discouraged. The whole language has a mapping: all 24 `ExKind` and every
+  body-level `StKind`; anything without one becomes `Item::Unhandled` carrying a
+  note, never a silent drop.
+- **Names resolved to `DeclId`s** in a `Context` that owns the table, mirroring
+  Swift's `ASTContext` and rustc's interner, with a `NO_DECL` sentinel. Builtins
+  are read from `sema::Checker::builtinNames()`, which this phase added, because
+  two hand-maintained builtin name lists already exist (in `vm/compiler.cpp` and
+  `interp/runtime.cpp`) and a third would drift.
+- **Scopes are explicit `ScopeId`s on `Block` nodes.** This is not cosmetic: both
+  interpreter bugs fixed earlier in this phase were "which frame does this
+  binding go in" questions the tree could not answer.
+- **`frontEnd` no longer throws the `Checker` away.** It was a local that died
+  with the function, so every consumer needing resolved types re-lexed and
+  re-parsed. There is now a 4-argument overload that hands it back.
+- `--emit-hir`, and a `hir` verb: `kirnc hir f.kn` and `kirnc check --emit-hir
+  f.kn`. Verification runs unconditionally and is not a separate mode — a dump
+  that verifies is worth something.
+- `src/support/literals.h`: the underscore/`0x`/`0b`/`0o` integer and float
+  decoders, promoted out of two duplicate copies (`parseInt` in
+  `vm/compiler.cpp`, `parseIntText` in `interp/runtime.cpp`) rather than adding a
+  third.
+- `grammar/kirn.ebnf` still has no HIR/MIR content, which is correct — it is the
+  surface grammar — but the normative file now has to be aware of the IR.
+
+_Verification:_ **gate 8** adds four properties: every supported corpus file
+lowers, verifies and dumps (**44 files**); the verifier *rejects* real broken
+output rather than passing everything; HIR does not lower code that failed type
+checking; and the dump is byte-for-byte deterministic across runs, without which
+a golden comparison means nothing. The first version of the verifier had a
+hand-written table of `std::variant` indices and it was wrong in nine places the
+moment it ran against real input — which is the argument for the rejection test,
+and the reason the table was replaced with a check that cannot drift
+("the active payload implies this kind", derived in the same `if constexpr` arm
+that has to check it).
+
+_Not done, and recorded rather than left to be discovered:_
+
+1. **MIR does not exist.** No `src/mir/`, no CFG, no arena, no `--emit-mir`, and
+   `rt` is still unimplemented. This is the larger half of the phase.
+2. **9 of 53 corpus files do not lower**, and `gates_linux.sh` pins that list by
+   name so a *new* failure is visible and shrinking it is a deliberate edit. The
+   gaps are pattern rest-captures (`..name` in slice/tuple patterns), arena
+   temporaries (`TempDecl`/`BucketDecl`), and a few binding forms; each leaves the
+   names it binds unresolved, which the verifier reports.
+3. **Declaration types are not resolved.** `sema::Checker` keeps `resolveType()`
+   private, so a declaration records the type *as written* (`Decl::declaredType`)
+   while expressions are fully typed through the public `typeOf()`. Widening the
+   Checker's API is the follow-on; re-resolving types here would risk a second
+   opinion disagreeing with the one that already checked the program.
+4. **Multi-target assignment infers its arity.** The AST flattens `a, b = b, a`
+   into `exprs = [a, b, b, a]` and records nowhere how many are targets, so the
+   lowering assumes `size/2` (exact for every form in the corpus, inferred in
+   general). The parser should record the split.
+5. **Nested named functions are lowered but reach `Module::funcs` via a parallel
+   `items` entry**, which is inelegant; a real nested-function item form is
+   cleaner.
+
 **Phase 4 — LLVM codegen (opt-in).** `KIRN_WITH_LLVM=ON`; MIR→LLVM IR for the
 scalar subset; `--emit-llvm`; `mem2reg` for SSA; `-fbackend=llvm`.
 _Verify:_ emitted `.ll` passes `opt -verify` and `lli`; scalar corpus programs

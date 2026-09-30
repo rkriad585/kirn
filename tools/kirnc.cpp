@@ -35,12 +35,14 @@ const char* const kUsage =
     "  check   lex + parse + type-check only; exit 1 on error\n"
     "  lex     lex only (--emit-tokens to print the token stream)\n"
     "  parse   lex + parse (--emit-ast to print the AST)\n"
+    "  hir     lower to HIR, verify structurally, print the dump\n"
     "  run     not implemented yet (see the note below)\n"
     "  build   build an executable (default verb)\n"
     "\n"
     "flags:\n"
     "  --emit-tokens   print the token stream (lex)\n"
     "  --emit-ast      print the AST (parse)\n"
+    "  --emit-hir      lower to HIR, verify it, print the dump (check)\n"
     "  -E              preprocess only; print the expanded token stream\n"
     "  -D name[=val]   define a macro (with -E)\n"
     "  -U name         undefine a macro (with -E)\n"
@@ -59,9 +61,13 @@ bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 //
 // -E is NOT here any more: it landed with the preprocessor in phase 2, and
 // kirnc dispatches it below.
+// --emit-hir was here and has landed (phase 3). --emit-mir stays, and lands
+// with the MIR CFG. Both dash spellings are listed for each because the plan
+// uses zig-style single dash in one place and gcc-style in another; dropping
+// either would make it a filename.
 const char* const kLaterFlags[] = {"-c", "-###", "-v", "--verbose",
-                                   "-emit-hir", "--emit-hir", "-emit-mir",
-                                   "--emit-mir", "-emit-llvm", "--emit-llvm",
+                                   "-emit-mir", "--emit-mir",
+                                   "-emit-llvm", "--emit-llvm",
                                    "-emit-sasm", "--emit-sasm"};
 
 bool isLaterFlag(const std::string& a) {
@@ -82,7 +88,9 @@ std::vector<std::string> stripFor(const std::vector<std::string>& in,
                                   bool keepDiagFlags) {
     std::vector<std::string> out;
     for (const auto& a : in) {
-        if (a == "--emit-tokens" || a == "--emit-ast") continue;
+        if (a == "--emit-tokens" || a == "--emit-ast" || a == "--emit-hir" ||
+            a == "-emit-hir")
+            continue;
         if (!keepDiagFlags &&
             (a == "--plain" || a == "--color" || a == "--no-color"))
             continue;
@@ -116,7 +124,7 @@ int main(int argc, char** argv) {
     }
 
     if (verb != "check" && verb != "lex" && verb != "parse" && verb != "run" &&
-        verb != "build") {
+        verb != "hir" && verb != "build") {
         std::cerr << "kirnc: unknown verb '" << verb << "'\n";
         std::cerr << kUsage;
         return 2;
@@ -126,8 +134,8 @@ int main(int argc, char** argv) {
         if (!isLaterFlag(a)) continue;
         std::cerr << "kirnc " << verb << ": '" << a
                   << "' is not implemented yet\n"
-                  << "  the stage grammar lands with the preprocessor (phase 2) "
-                     "and codegen (phase 5); see BUILDER-PLAN.md section 6\n";
+                  << "  --emit-mir lands with the MIR CFG, and -S/-c/-###/-v with "
+                     "codegen; see BUILDER-PLAN.md section 6\n";
         return 2;
     }
 
@@ -179,6 +187,15 @@ int main(int argc, char** argv) {
         std::vector<std::string> a = stripFor(rest, false);
         if (hasFlag("--emit-ast")) a.push_back("--ast");
         return kirn::driver::cmdParse(a, "kirnc");
+    }
+    if (verb == "hir" || hasFlag("--emit-hir")) {
+        // `kirnc hir f.kn` and `kirnc check --emit-hir f.kn` are the same thing,
+        // matching how --emit-ast rides on `parse`. The flag form exists so
+        // `--emit-hir` composes with a verb, the way rustc's --emit= does.
+        std::vector<std::string> a;
+        for (const auto& s : rest)
+            if (s != "--emit-hir" && s != "-emit-hir") a.push_back(s);
+        return kirn::driver::cmdHir(a, "kirnc");
     }
     if (verb == "check") {
         // --plain/--color/--no-color are cmdCheck's own flags; pass them

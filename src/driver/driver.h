@@ -29,6 +29,13 @@ using StmtP = std::unique_ptr<Stmt>;
 }  // namespace ast
 
 class DiagEngine;
+
+namespace sema {
+// Only ever held behind a std::unique_ptr reference parameter, so an incomplete
+// type is enough here; the pointee is complete in driver.cpp, which is the only
+// place the unique_ptr is destroyed.
+class Checker;
+}  // namespace sema
 }  // namespace kirn
 
 namespace kirn {
@@ -112,6 +119,13 @@ std::string selfExeDir();
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags);
+// Same pipeline, but returns the Checker that produced the types. The Checker
+// used to be a local that died with frontEnd, so every consumer that needed
+// resolved types had to re-lex and re-parse to obtain one.
+std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
+                                       const std::string& src,
+                                       kirn::DiagEngine& diags,
+                                       std::unique_ptr<kirn::sema::Checker>& chkOut);
 void printDiags(const std::string& path, const kirn::DiagEngine& diags);
 int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
@@ -138,6 +152,8 @@ int cmdParse(const std::vector<std::string>& args, const char* toolName);
 int cmdCheck(const std::vector<std::string>& args, const char* toolName);
 // -E: preprocess only, print the expanded token stream. Phase 2.
 int cmdPreprocess(const std::vector<std::string>& args, const char* toolName);
+// --emit-hir: lower to HIR, verify it structurally, and print the dump. Phase 3.
+int cmdHir(const std::vector<std::string>& args, const char* toolName);
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

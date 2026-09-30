@@ -474,6 +474,19 @@ void Checker::predeclareBuiltins() {
     // importRoots_ set alone makes bare references resolve dynamically.
     for (const char* mod : {"time", "mem", "io", "os", "json", "math"})
         importRoots_.insert(mod);
+
+    // Publish what was predeclared, so consumers resolve builtins from the single
+    // source of truth instead of maintaining their own name list.
+    // Everything in the root scope, not only the symbols flagged `builtin`.
+    // `true` / `false` / `none` are registered with declareConst and are not
+    // flagged, and filtering them out left the three most-referenced names in the
+    // language unresolvable.
+    builtinNames_.clear();
+    builtinNames_.reserve(scope_->syms.size());
+    for (const auto& [n, sym] : scope_->syms) {
+        (void)sym;
+        builtinNames_.push_back(n);
+    }
 }
 
 SymP Checker::declareConst(std::string name, TyP t) {

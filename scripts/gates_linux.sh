@@ -357,5 +357,87 @@ else
     report FAIL "bundled build still works without macros" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
 fi
 
+# ---- HIR (phase 3) ---------------------------------------------------------
+# `kirnc hir` lowers to HIR, runs the structural verifier, and prints the dump.
+# Two properties, and the second is the one that matters:
+#
+#  1. Every file HIR claims to support verifies. The known-unsupported set is
+#     pinned below rather than left to a glob, so adding a construct that breaks
+#     HIR lowering shows up as a new name in the failure output, and shrinking
+#     the list is a deliberate edit.
+#  2. The verifier FAILS when handed a broken IR. A verifier that only ever
+#     passes is indistinguishable from no verifier, and the first version of
+#     hir_verify.cpp had a hand-written table of variant indices that was wrong in
+#     nine places -- it was caught only because it ran against real input. So the
+#     gate pins that a mutation of a known-good dump is still rejected, which is
+#     the only way to know the checks have teeth.
+# Constructs HIR does not lower yet. Each is a real language form whose
+# declaring form is still an Item::Unhandled or an unlowered pattern, so names it
+# binds do not resolve. Named explicitly so a NEW failure is visible.
+HIR_KNOWN_UNSUPPORTED="17_tuples_swap.kn 20_defer_panic.kn 23_select_multiplex.kn 29_arena_allocation.kn 30_capstone_wordcount.kn 31_advanced_patterns.kn 38_patterns_power.kn 40_keywords.kn scoping.kn"
+echo "=== gate 8: HIR structural verification ==="
+HIR_OK=0
+HIR_FAILED=""
+for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn; do
+    [ -e "$src" ] || continue
+    base="$(basename "$src")"
+    case " $HIR_KNOWN_UNSUPPORTED " in
+        *" $base "*) continue ;;
+    esac
+    if "$KN" hir "$src" >/dev/null 2>&1; then
+        HIR_OK=$((HIR_OK+1))
+    else
+        HIR_FAILED="$HIR_FAILED $base"
+    fi
+done
+if [ -z "$HIR_FAILED" ]; then
+    report PASS "HIR verifies on every supported corpus file" "$HIR_OK files lowered, verified and dumped"
+else
+    report FAIL "HIR verifies on every supported corpus file" "failed:$HIR_FAILED"
+fi
+# ...and the verifier REJECTS, rather than passing everything. A verifier that
+# only ever passes is indistinguishable from no verifier.
+#
+# The input is a real corpus file whose declarations HIR does not lower yet, so
+# this is genuine broken output rather than an injected fault. An earlier version
+# of this test used a hand-written file with an undefined name, which was wrong:
+# sema::Checker rejects that first, so HIR never runs and the test proved nothing
+# about the verifier. It also pins the ordering that matters -- HIR must not
+# lower code that failed type checking.
+cat > "$TMP/hirunchecked.kn" <<'KN'
+def main() {
+    print(no_such_name_anywhere);
+}
+KN
+if "$KN" hir "$TMP/hirunchecked.kn" 2>&1 | grep -q 'error.*undefined'; then
+    report PASS "HIR does not lower code that failed type checking" "the checker rejects it first, as it must"
+else
+    report FAIL "HIR does not lower code that failed type checking" "a checker error was not reported"
+fi
+first_unsupported=""
+for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn; do
+    [ -e "$src" ] || continue
+    base="$(basename "$src")"
+    case " $HIR_KNOWN_UNSUPPORTED " in *" $base "*) first_unsupported="$src"; break ;; esac
+done
+if [ -n "$first_unsupported" ]; then
+    if "$KN" hir "$first_unsupported" 2>&1 | grep -q 'verification failed'; then
+        report PASS "HIR verifier rejects broken output" "$(basename "$first_unsupported"): violations reported, exit 65"
+    else
+        report FAIL "HIR verifier rejects broken output" "$(basename "$first_unsupported") produced no verification diagnostic"
+    fi
+else
+    report FAIL "HIR verifier rejects broken output" "no known-unsupported file to test against"
+fi
+# The dump must be deterministic: a golden comparison is only meaningful if the
+# text does not move between runs. Two runs, byte for byte.
+"$KN" hir "$ROOT/examples/05_loops_ranges.kn" > "$TMP/h1" 2>&1
+"$KN" hir "$ROOT/examples/05_loops_ranges.kn" > "$TMP/h2" 2>&1
+if cmp -s "$TMP/h1" "$TMP/h2"; then
+    report PASS "HIR dump is deterministic" "two runs byte-identical"
+else
+    report FAIL "HIR dump is deterministic" "dump differs between runs"
+fi
+
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
 [ "$fail" -eq 0 ]

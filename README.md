@@ -259,7 +259,12 @@ and cross-compilation. The Coco → Kirn rebrand is recorded in
 
 ## License
 
-Kirn is open-source software released under the [MIT License](LICENSE.txt).
+Kirn is open-source software, dual-licensed under either of:
+
+- [Apache License 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
+
+You may choose either.
 
 ---
 

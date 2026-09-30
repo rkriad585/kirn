@@ -20,6 +20,7 @@
 #include "interp/runtime.h"
 #include "lex/lexer.h"
 #include "parser/parser.h"
+#include "prepro/prepro.h"
 #include "sema/checker.h"
 #include "util/tomlmini.h"
 
@@ -504,6 +505,12 @@ std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        kirn::DiagEngine& diags) {
     auto toks = kirn::Lexer(src, path, diags).lexAll();
     if (diags.errorCount()) return {};
+    // Preprocess between lex and parse (phase 2). Placed here rather than in the
+    // callers so that `kirn run`, `kirn test` and `kirn build` all see the same
+    // expansion, and so that a file with no directives is provably unaffected:
+    // scanDirectives finds nothing and expand() copies the stream through.
+    toks = kirn::prepro::Preprocessor(path, diags).run(std::move(toks));
+    if (diags.errorCount()) return {};
     auto body = kirn::Parser(toks, diags).parseProgram();
     if (diags.errorCount()) return {};
     kirn::sema::Checker chk(diags);
@@ -683,6 +690,13 @@ int cmdParse(const std::vector<std::string>& args, const char* toolName) {
     size_t lexErrors = diags.count();
     size_t parseErrors = 0;
     if (lexErrors == 0) {
+        // Preprocess before parsing, exactly as frontEnd does. Without this the
+        // directive tokens reached the parser and it reported
+        // "expected expression, found '.'" on the {.def.} line.
+        toks = kirn::prepro::Preprocessor(file, diags).run(std::move(toks));
+        lexErrors = diags.count();
+    }
+    if (lexErrors == 0) {
         auto prog = kirn::Parser(toks, diags).parseProgram();
         parseErrors = diags.count() - lexErrors;
         // The partial AST is dumped even when the parse failed, and it is
@@ -737,6 +751,13 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
     auto toks = kirn::Lexer(src, file, diags).lexAll();
     size_t front = diags.count();
     if (front == 0) {
+        // Same seam as frontEnd: preprocess, then parse. A macro must be
+        // invisible to `kirnc check` exactly as it is to `kirn run`; if the two
+        // disagree, a program that runs is a program `check` rejects.
+        toks = kirn::prepro::Preprocessor(file, diags).run(std::move(toks));
+        front = diags.count();
+    }
+    if (front == 0) {
         auto prog = kirn::Parser(toks, diags).parseProgram();
         front = diags.count();
         if (front == 0) {
@@ -761,6 +782,114 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
         return diags.errorCount() ? 1 : 0;
     }
     std::cout << file << ": OK\n";
+    return 0;
+}
+
+// --- -E: preprocess only ---------------------------------------------------
+//
+// The stop-at-stage dump. Deliberately the same shape as cmdLex's --dump -- one
+// `KIND\tline:col\ttext` line per token -- rather than reconstructed source
+// text, for two reasons that the research settled rather than taste:
+// gcc/clang print text, but rustc's text output is documented as lossy in a way
+// that matters (expanded code can parse fine and compute a different answer),
+// and this project's verification strategy is byte-exact goldens, which text
+// spacing cannot support. Reusing the existing format also means the `-E` and
+// `lex` goldens are directly comparable and the lexer dump stays the one
+// documented token format.
+int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
+    std::string file;
+    bool haveFile = false;
+    // -D/-U are collected in order and applied in order, so a later -U can undo
+    // an earlier -D. gcc processes them left to right for the same reason.
+    std::vector<std::pair<char, std::string>> defines;  // 'D' or 'U'
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a == "-h" || a == "--help") {
+            std::cout << "usage: " << toolName
+                      << " [-D name[=value]] [-U name] <file.kn>\n"
+                      << "  preprocess only; print the expanded token stream\n";
+            return 0;
+        }
+        if (a.rfind("-D", 0) == 0 || a.rfind("-U", 0) == 0) {
+            const char kind = a[1];
+            std::string rest = a.substr(2);
+            // Both the joined (-DNAME=V) and the separated (-D NAME=V) gcc
+            // spellings are accepted. Supporting only one of them is a trap:
+            // the other is silently treated as a filename.
+            if (rest.empty()) {
+                if (i + 1 >= args.size()) {
+                    std::cerr << toolName << ": " << a << " requires an argument\n";
+                    return 2;
+                }
+                rest = args[++i];
+            }
+            if (rest.rfind("-", 0) == 0) {
+                std::cerr << toolName << ": " << a << " requires an argument\n";
+                return 2;
+            }
+            defines.emplace_back(kind, rest);
+            continue;
+        }
+        // Anything else is the input. Last one wins, matching cmdParse/cmdCheck
+        // so the three stage verbs share one argument convention.
+        file = a;
+        haveFile = true;
+    }
+    if (!haveFile) {
+        std::cerr << "usage: " << toolName
+                  << " [-D name[=value]] [-U name] <file.kn>\n";
+        return 2;
+    }
+
+    std::string src;
+    if (!readSourceVerbatim(file, src)) {
+        std::cerr << toolName << ": cannot open '" << file << "'\n";
+        return 2;
+    }
+
+    kirn::DiagEngine diags;
+    auto toks = kirn::Lexer(src, file, diags).lexAll();
+    if (diags.errorCount()) {
+        for (const auto& d : diags.diags())
+            std::cout << file << ':' << d.line << ':' << d.col << ": error: "
+                      << d.message << '\n';
+        std::cout << file << ": " << diags.count() << " error(s) (lex)\n";
+        return 1;
+    }
+
+    // The filename is threaded in explicitly: Token carries no file id, so
+    // __FILE__ cannot come from the stream.
+    kirn::prepro::Preprocessor pp(file, diags);
+    for (const auto& [kind, spec] : defines) {
+        const size_t eq = spec.find('=');
+        const std::string name = (eq == std::string::npos) ? spec : spec.substr(0, eq);
+        const std::string value = (eq == std::string::npos) ? "" : spec.substr(eq + 1);
+        if (kind == 'D') {
+            pp.define(name, value);
+        } else {
+            pp.undefine(name);
+        }
+    }
+    toks = pp.run(std::move(toks));
+
+    if (diags.count()) {
+        // Same stdout + renderDiags contract as cmdCheck, so a `-E` diagnostic
+        // and a `check` diagnostic for the same file look the same.
+        kirn::SourceMap sm(src);
+        std::string out;
+        kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+        std::cout << out;
+        std::cout << file << ": " << diags.errorCount() << " error(s)\n";
+        return 1;
+    }
+
+    for (const auto& t : toks)
+        std::cout << kirn::tokName(t.kind) << '\t' << t.line << ':' << t.col
+                  << '\t' << t.text << '\n';
+    // Same trailing-Eof-excluded count cmdLex prints, for the same reason: the
+    // Eof token is in the dump but is not a token of the program.
+    std::cout << file << ": OK (" << (toks.empty() ? 0 : toks.size() - 1)
+              << " tokens)\n";
     return 0;
 }
 
@@ -2868,13 +2997,47 @@ int buildProgram(const std::string& name, const std::string& version,
         // multi-file programs: the checker treats unresolved imports as
         // unknowns, which is why `kirn run` already checks the entry alone.
         {
-            kirn::DiagEngine buildDiags;
-            frontEnd(entry, mainSrc, buildDiags);
-            if (buildDiags.errorCount()) {
-                printDiags(entry, buildDiags);
-                return 65;
-            }
-        }
+              kirn::DiagEngine buildDiags;
+              frontEnd(entry, mainSrc, buildDiags);
+              if (buildDiags.errorCount()) {
+                  printDiags(entry, buildDiags);
+                  return 65;
+              }
+          }
+          // A bundle is RAW SOURCE plus a prebuilt launcher that re-lexes it, and
+          // the launcher does not preprocess. So a program using macros passes
+          // the check above (frontEnd expands them) and then produces a binary
+          // that dies with a parse error on the {.def.} line. Refusing here is
+          // the same lesson as section 5.6 one branch up: shipping an artefact
+          // that cannot run is worse than refusing to ship it. Lifted to
+          // kirn_interp/the generated launcher in a later increment.
+          {
+              auto usesMacros = [](const std::string& src, const std::string& path) {
+                  kirn::DiagEngine d;
+                  auto t = kirn::Lexer(src, path, d).lexAll();
+                  return !d.errorCount() && kirn::prepro::hasDirective(t);
+              };
+              bool macros = usesMacros(mainSrc, entry);
+              std::string where = entry;
+              for (const auto& [name, src] : embedded) {
+                  if (macros) break;
+                  if (usesMacros(src, name)) {
+                      macros = true;
+                      where = name;
+                  }
+              }
+              if (macros) {
+                  std::cerr << "kirn build: '" << where
+                            << "' uses preprocessor macros, which a bundled "
+                               "build cannot run yet\n"
+                            << "  the bundle embeds raw source and the prebuilt "
+                               "launcher re-lexes it without preprocessing, so "
+                               "the binary would fail at startup\n"
+                            << "  use `kirn run` while this is unsupported, or "
+                               "build with --native/-S for a real compile\n";
+                  return 65;
+              }
+          }
         const std::string outName =
             !opts.outPath.empty()
                 ? opts.outPath
@@ -3590,6 +3753,10 @@ int cmdParse(const std::vector<std::string>& args, const char* toolName) {
 
 int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdCheck(args, toolName);
+}
+
+int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
+    return ::cmdPreprocess(args, toolName);
 }
 
 bool resolveSource(const std::string& dotted,

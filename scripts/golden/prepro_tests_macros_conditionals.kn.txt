@@ -1,0 +1,25 @@
+$ <ROOT>/build/kirnc -E <ROOT>/tests/macros/conditionals.kn
+Ident	26:1	def
+Ident	26:5	main
+Punct	26:9	(
+Punct	26:10	)
+Punct	26:12	{
+Ident	27:3	print
+Punct	27:8	(
+Str	27:9	A off
+Punct	27:14	)
+Punct	27:15	;
+Ident	28:3	print
+Punct	28:8	(
+Str	28:9	B off
+Punct	28:14	)
+Punct	28:15	;
+Ident	29:3	print
+Punct	29:8	(
+Str	29:9	math works
+Punct	29:13	)
+Punct	29:14	;
+Punct	33:1	}
+Eof	33:1	
+<ROOT>/tests/macros/conditionals.kn: OK (21 tokens)
+[exit 0]

@@ -39,13 +39,13 @@ driver that also drives C/C++).
 
 Important reality check: several things the ask assumes **do not exist yet**.
 
-| The ask assumes…                        | Reality today                                                                                                                                                                            | Evidence                                                                                            |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| The ask assumes…                        | Reality today                                                                                                                                                                            | Evidence                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | LLVM backend ("Code Generation & LLVM") | **No LLVM anywhere in the repo.** The backends are (a) bundle source text into a copy of the interpreted `kirnrt`, or (b) emit a C++ launcher and shell out to `g++`/`clang++`/`cl.exe`. | `kirn_driver::buildProgram` (bundle branch) (bundle), `:2787-2811` (C++ shell-out); grep for `LLVM` = zero in `src/` |
-| A preprocessor with macros              | **None.** No `#define`, no macro table, no `__FILE__`.                                                                                                                                   | grep `macro                                                                                         | prepro`= zero hits in`src/`+`tools/` |
-| HIR / MIR / SSA / optimizer             | **None.** Closest IR is the bytecode VM (`src/vm/`), which is a _running_ VM, not a transformable IR. `ast.h:3` and `interp/runtime.h:3` say the "MIR/LLVM backend" is a _future_ goal.  | `src/vm/bytecode.h`, `src/vm/compiler.cpp`                                                          |
-| An assembler + linker as named stages   | No assembler stage; linking is folded into one `g++`/`cl.exe` call. Only MSVC `lib.exe` is invoked explicitly.                                                                           | `kirn_driver::buildProgram`                                                   |
-| A `kirnc` binary                        | Stage-oracle tools already exist and are a proto-`kirnc`: `kirnlex` (tokens), `kirnparse` (AST), `kirncheck` (type-check only), `kirnrun` (type-check + interpret).                      | `CMakeLists.txt:72-82`                                                                              |
+| A preprocessor with macros              | **None.** No `#define`, no macro table, no `__FILE__`. _The `prepro` half of this row's own grep was inaccurate: it has 3 hits, all a directory name in the driver's runtime sweep plus two error strings. The `macro` half was right — zero._ | grep `macro` = 0 hits in `src/`+`tools/` |
+| HIR / MIR / SSA / optimizer             | **None.** Closest IR is the bytecode VM (`src/vm/`), which is a _running_ VM, not a transformable IR. `ast.h:3` and `interp/runtime.h:3` say the "MIR/LLVM backend" is a _future_ goal.  | `src/vm/bytecode.h`, `src/vm/compiler.cpp`                                                                           |
+| An assembler + linker as named stages   | No assembler stage; linking is folded into one `g++`/`cl.exe` call. Only MSVC `lib.exe` is invoked explicitly.                                                                           | `kirn_driver::buildProgram`                                                                                          |
+| A `kirnc` binary                        | Stage-oracle tools already exist and are a proto-`kirnc`: `kirnlex` (tokens), `kirnparse` (AST), `kirncheck` (type-check only), `kirnrun` (type-check + interpret).                      | `CMakeLists.txt:72-82`                                                                                               |
 
 What **does** exist and is solid:
 
@@ -721,36 +721,116 @@ And the whole 5-pass story is documented at the top of compile.c:
 
 ## 4. Design by stage
 
-### 4.0 Preprocessor / macros (`prepro`) — NEW module `src/prepro/`
+### 4.0 Preprocessor / macros (`prepro`) — module `src/prepro/`
 
-Nothing exists today. Design a small, hygienic-by-default macro layer, not
-C-style:
+**The `#` premise in this section was wrong, and the error mattered.** The
+original text proposed C-style `#def` / `#if` / `#undef` and justified the sigil
+with "`#` is unused today except in comments — verify in lexer". Verifying it
+(`src/lex/lexer.cpp:186-189`, `grammar/kirn.ebnf:43`) came back the other way:
+`#` is the _active, normative_ line-comment sigil, the lexer erases from `#` to
+end-of-line before producing any token, and the plan's own suggested verify step
+("verify in lexer") is exactly what catches it.
 
-- **Unit**: the token stream, _before_ parsing (so macros can synthesize
-  syntax, like Nim/Elixir-lite).
-- **Syntax proposal** (extends the language; must not clash with `#` since
-  `#` is unused today except in comments — verify in lexer):
-  - `#def NAME(args) = <tokens>, <tokens> …` block form
-  - `#undef`, `#ifdef NAME` / `#ifndef NAME` / `#if EXPR` / `#else` / `#endif`
-  - built-ins: `__FILE__`, `__LINE__`, `__KIRN__`, `__TARGET__`, `__VERSION__`
-  - capture-free hygiene: macro params bind to _macro call_ sites; gensym via
-    a fresh ident for locals the macro introduces.
-- `-D`/`-U` at the `kirnc` level feed the defined-table.
-- Interaction with `import`: `#include`-style textual inclusion is **not**
-  adopted; module imports stay semantic (`import pet.math`).
-- Deliverable: `kirnc -E` prints the expanded token stream (or source text).
+The consequence is worse than a syntax clash, and it is the reason this is
+recorded rather than quietly fixed. A file written in the proposed syntax is not
+an error today — it is a **silent no-op**:
 
-> Grounding: §3.4.4 — rustc's `fully_expand_fragment` (collect invocations →
-> expand → re-collect, to fixpoint) is the shape to copy, not C's cpp.
+```
+$ cat probe.kn
+#def SQR(x) = x * x
+#ifdef DEBUG
+print("debug");
+#endif
+def main() { print("hi"); }
+$ kirnlex --dump probe.kn      # every directive silently gone, exit 0
+$ kirncheck probe.kn           # probe.kn: OK     exit 0
+```
 
-Placement: `src/prepro/` library (`kirn_prepro` in CMake), format contract with
-the lexer: prepro consumes `Token` stream, returns expanded `Token` stream.
+A preprocessor whose directives vanish without complaint is the worst failure
+mode available to one, and it would have shipped.
+
+Design as built:
+
+- **Unit**: the token stream _before_ parsing, so a macro can synthesize syntax.
+- **Syntax**: Nim's `{. … .}`, which is what Nim itself uses in a language whose
+  comment sigil is also `#`.
+  - `{.def NAME. body.}` and `{.def NAME = body.}` — object-like, two spellings
+  - `{.def NAME(a, b) = body.}` — function-like
+  - `{.undef NAME.}`, `{.ifdef NAME.}`, `{.ifndef NAME.}`, `{.if EXPR.}`,
+    `{.elif EXPR.}`, `{.else.}`, `{.endif.}`
+  - built-ins: `__FILE__`, `__LINE__`, `__KIRN__`, `__VERSION__`
+    (`__TARGET__` deliberately **not** seeded: the target is a host property, and
+    inventing a value here would let a macro observe a lie. The driver passes it
+    via `-D`.)
+- **The decisive engineering consequence of the sigil choice: no lexer change.**
+  `{.` already lexes as two ordinary `Punct` tokens (`{` and `.` are both in
+  `kPunct1`), so the whole directive layer is token pattern-matching over the
+  existing `Tok` vocabulary. That means no new `Tok` enumerator, **no edit to the
+  normative `COMMENT` production in `grammar/kirn.ebnf`**, and — measured — zero
+  of the 199 pre-existing goldens changed when the preprocessor was switched on
+  (`golden_linux.sh --record` rewrote all of them byte-identically). A `#`-based
+  design would have re-recorded 53 of the 63 lex goldens, every one of which has
+  a source beginning with a `#` comment.
+- **Line-scoped directives.** Necessary, not stylistic: the lexer emits no
+  newline token, so "end of line" is observable only as a change in
+  `Token::line`. The terminator is a `.` _immediately_ followed by `}`, which is
+  what lets a body contain both `.` and `}` — `1.5` and `{ return 1; }` both
+  round-trip.
+- **Hygiene — capture-free, which is this phase's verify criterion.**
+  Parameters bind at the **call site**; every other identifier written in a
+  body is alpha-renamed at **definition time** into a private per-macro
+  namespace (`__kirnpre<N>_`). Two kinds of identifier are exempt: one followed
+  by `(` (a call, resolved at the call site, so a macro body can call a
+  function the caller defines) and one that already names a defined macro (so
+  macro bodies compose). This is Rust's mixed-site hygiene restricted to what
+  tokens alone can decide.
+  Two consequences worth stating because they are not obvious:
+  - Macro-to-macro composition is **backward-only** — the table is consulted at
+    definition time, so `INNER` must be defined before `OUTER` names it.
+  - Mutual recursion is therefore **structurally impossible**, not merely
+    bounded: a body can only name a macro that already existed, so the reference
+    graph only ever points backwards. `{.def A. A.}` is caught at definition time
+    with a message that names the cause. `kMaxSteps` remains as defence in depth.
+- **No `#include`.** Module imports stay semantic (`import pet.math`), as
+  originally decided.
+- **Deliverable**: `kirnc -E` prints the expanded token stream.
+
+> On the `-E` output shape: every real driver prints source text under `-E`, but
+> `cargo expand`'s own disclaimer is the deciding evidence against it here —
+> expansion to text is lossy in a way that _silently changes behaviour_ (expanded
+> code can parse fine and compute a different answer). This project's oracle is
+> byte-exact goldens, which reconstructed text spacing cannot support. So `-E`
+> reuses the `KIND\tline:col\ttext` format `cmdLex` already emits
+> (`src/driver/driver.cpp`), making `-E` and `lex` goldens directly comparable.
+> Text output remains available as a later `--emit-source`.
+
+Placement: `src/prepro/` library (`kirn_prepro` in CMake), consuming a `Token`
+stream and returning an expanded `Token` stream.
 
 ### 4.1 Scanning (lexing) — exists
 
-`kirn::Lexer` (`src/lex/lexer.cpp:1-716`), `kirnlex --dump`. No changes needed
-beyond exposing through `kirnc lex`. Output format: `kind\tline:col\ttext`
-like today (`tools/kirnlex.cpp:68-72`).
+`kirn::Lexer` (`src/lex/lexer.cpp`), `kirnlex --dump`. No changes needed beyond
+exposing through `kirnc lex`. Output format: `kind\tline:col\ttext`, printed in
+`kirn_driver::cmdLex` (`src/driver/driver.cpp`) — the earlier citation of
+`tools/kirnlex.cpp:68-72` was wrong: that file is 19 lines and holds no printing
+code at all, phase 1 having reduced it to a front end over the library.
+`kirnc -E` reuses this exact format; see §4.0.
+
+Three facts about the token stream that constrain every later stage, all
+verified rather than assumed:
+
+- **`Token` carries no filename or file id** (`src/lex/token.h`). The lexer
+  *takes* one and discards it — `Lexer::filename_` is written and never read — so
+  `__FILE__` has to be threaded in explicitly, which is why the `prepro`
+  constructor takes a filename. `ast::Span` has no file field either.
+- **There is no newline, indent or dedent token.** The `Tok` enumerators exist
+  but the lexer never emits them; the INDENT/DEDENT engine was deleted when the
+  grammar moved to braces-plus-semicolons, and `src/lex/lexer.h` still advertises
+  "INDENT/DEDENT synthesis (CPython algorithm)" in its header comment — stale.
+  Line structure is observable only as a change in `Token::line`.
+- **No raw or multi-line strings exist** (`scanString` breaks at EOL
+  unconditionally), so a macro body cannot contain a multi-line literal. There
+  are no block comments either; `#` is the only comment form.
 
 ### 4.2 Parsing — exists
 
@@ -976,9 +1056,8 @@ having oracles at all — none was visible in "199 goldens pass, 153 gates pass"
 1. **`libDirsFor` broke bare filenames** (a regression this phase introduced).
    `fs::path("main.kn").parent_path()` is empty, so the derived search dirs
    became `/pets`, `/../stdlib`, `/../../stdlib` — absolute paths off the
-   filesystem root. `kirnrun main.kn` panicked `unknown module 'greet'` (exit
-   70) where `kirnrun ./main.kn` worked. The recorded golden could not see it,
-   because the fixture passes an *absolute* path, which always has a directory
+   filesystem root. `kirnrun main.kn` panicked `unknown module 'greet'` (exit 70) where `kirnrun ./main.kn` worked. The recorded golden could not see it,
+   because the fixture passes an _absolute_ path, which always has a directory
    component. Fixed by mapping an empty parent to `.`.
 2. **`collectRuntimeSources` swept the driver into the interpreter runtime.**
    It globs `src/**/*.cpp` with no exclusions, and moving the driver from
@@ -1013,14 +1092,14 @@ is deliberately not implemented yet._ `tools/kirnc.cpp` is ~200 lines and links
 not reimplementations: `cmdLex`/`cmdParse`/`cmdCheck` were extracted from the
 `kirnlex`/`kirnparse`/`kirncheck` main()s into the library, and those three
 binaries are now thin front ends over the same functions, so the two paths
-*cannot* drift. `build` forwards to the existing `cmdBuild`, so the pipeline has
+_cannot_ drift. `build` forwards to the existing `cmdBuild`, so the pipeline has
 one implementation. `run` is rejected with an explanation instead of guessed —
 see below.
 
 Three things the research changed about this phase:
 
 1. **"Reuse the oracle code" meant an extraction the plan did not schedule.**
-   The four old tools shared *no* code: each had its own private `readFile`,
+   The four old tools shared _no_ code: each had its own private `readFile`,
    two incompatible `printDiags`, and `kirnrun` re-implemented `warnLegacyEnv`
    that the library already exported. So the phase required a third extraction,
    which is why the stage verbs live in `kirn_driver` rather than in
@@ -1028,14 +1107,14 @@ Three things the research changed about this phase:
 2. **`readFile` is unusable for the stage verbs — a BOM trap.** The driver's
    `readFile` strips a UTF-8 BOM; the tools' copies do not. 7 files in
    `tests/negative/` start with a BOM, and `renderDiags` echoes the offending
-   source line verbatim, so 7 recorded `check_*` goldens *contain the BOM
-   bytes*. Calling the driver's `readFile` from `kirnc check` would render
+   source line verbatim, so 7 recorded `check_*` goldens _contain the BOM
+   bytes_. Calling the driver's `readFile` from `kirnc check` would render
    `" 1 | ;"` where the golden says `" 1 | <BOM>;"`. Hence a separate
    `readSourceVerbatim`. (The lexer strips a BOM itself, so token positions are
    unaffected — only the echoed line, which is exactly what the golden pins.)
 3. **Seven cases can never be byte-identical, and must not be.** The usage and
    "cannot open" paths print the invoked tool's name, so `usage: kirncheck
-   <file.kn>` can never equal `usage: kirnc <file.kn>`. The cross-check
+<file.kn>` can never equal `usage: kirnc <file.kn>`. The cross-check
    normalises the program name for exactly those cases and requires everything
    else — including the exit code — to match byte for byte.
 
@@ -1053,9 +1132,77 @@ flags `-E/-S/-c/-###/-v` (they are recognised and rejected with a pointer to the
 phase that lands them, rather than silently treated as filenames, which is what
 the old tools did with any unrecognised argument), and `rt`.
 
-**Phase 2 — Preprocessor.** `src/prepro/` with `#def/#if/#undef/#if defined`
-syntax, `-D/-U`, `__FILE__`-style builtins. `kirnc -E` dumps expanded tokens.
+**Phase 2 — Preprocessor.** `src/prepro/` with a macro layer, `-D/-U`, and
+`__FILE__`-style builtins. `kirnc -E` dumps the expanded token stream.
 _Verify:_ golden-file macro tests; macros cannot capture caller locals.
+
+_Status 2026-09-30: first increment landed; the phase's headline syntax decision
+had to be reversed before any of it could be written._ The plan proposed
+C-style `#def` / `#if` / `#undef`. That is not a clash to be negotiated but a
+silent data-loss bug: `#` is Kirn's line-comment sigil
+(`src/lex/lexer.cpp:186-189`), so the plan's directives were being discarded as
+comments and the file still type-checked at exit 0. See §4.0 for the measured
+demonstration and for why `{. … .}` was chosen instead.
+
+Landed:
+
+- `src/prepro/prepro.{h,cpp}` as `kirn_prepro`, between `kirn_lex` and
+  `kirn_parser`. Two stages: a directive scan that applies
+  `def`/`undef`/conditionals and emits the surviving tokens, then a fixpoint
+  expansion worklist. **No lexer change and no new `Tok` enumerator** — `{.`
+  already lexes as two `Punct` tokens, so the layer is pure pattern-matching.
+- Hooked into all four front-end paths: `frontEnd` (`kirn run`/`test`/`build`),
+  `cmdCheck`, `cmdParse`, and `tools/kirnrun.cpp`. The last one is its own copy
+  of the pipeline, and missing it produced a real divergence — a macro file
+  type-checked under `kirn run` and failed to _parse_ under `kirnrun` with
+  "expected expression, found '.'". Two tools disagreeing about one file is
+  exactly the failure the phase-1 differential oracle was built to catch, and it
+  was found by a phase-2 fixture instead.
+- `kirnc -E` (both as `kirnc -E f.kn` and `kirnc check -E f.kn`), `-D`, `-U`, in
+  both the joined and separated spellings, applied left to right so a later `-U`
+  undoes an earlier `-D`. `-E` left `kLaterFlags`; `-D`/`-U` on a non-`-E` verb
+  are now rejected explicitly, because they were previously _silently_ treated as
+  filenames by `cmdLex` and silently accepted-and-ignored by `cmdCheck`.
+- Hygiene as specified in §4.0: call-site parameters, definition-time
+  alpha-renaming for everything else, with the two documented exemptions.
+
+_Verification:_ 16 new goldens (`tests/macros/*.kn` through `-E` and `check`,
+plus the `-D`/`-U` cases) and **9 new gates** asserting the properties rather than
+only snapshotting them — that a macro cannot capture a caller local, that a
+macro's own binding does not leak to the caller, that parameters bind at the call
+site, that bodies compose, that a dead branch is elided, that `-U` undoes a `-D`
+and that order matters, that self-reference is rejected by name, and that mutual
+recursion cannot hang. A golden would happily record a macro that _did_ capture
+a caller local; the gate fails if one ever does.
+
+_The no-op property is measured, not asserted:_ `golden_linux.sh --record`
+rewrote all 199 pre-existing goldens **byte-identically** when the preprocessor
+was switched on. Final state: 215 goldens, 162 gates (153 + 9), 519 cross-check,
+all green, with zero new compiler warnings (37 pre-existing, unchanged, and none
+in `src/prepro/` or `tools/kirnc.cpp`).
+
+_Not done in this increment,_ recorded rather than left to be discovered:
+
+1. **`-D`/`-U` only reach `-E`.** The preprocessor runs in front of `check`,
+   `parse` and `run`, but the flags are only parsed by `cmdPreprocess`, so
+   `kirnc check -DFOO=1 f.kn` is still rejected rather than accepted. Threading
+   them into the other verbs is mechanical and unblocked.
+2. **Macros are per-file.** Each source is preprocessed with its own fresh table,
+   so a macro defined in an imported module is invisible to the entry file, and a
+   macro cannot gate an `import`. This is forced by the architecture, not chosen:
+   modules are lexed independently in `collectImports`
+   (`kirn_driver::collectImports`), in `Interpreter::loadModuleFile`
+   (`src/interp/runtime.cpp`), and in the generated `kirnrt` launcher, each with
+   its own `DiagEngine`. Sharing a table across those boundaries is a real design
+   question — it makes `kirn_interp` depend on `kirn_prepro` — and is deliberately
+   not guessed at here.
+3. **No forward references.** A body may only name a macro defined earlier
+   (§4.0). Consequence: mutual recursion is impossible rather than diagnosed.
+4. **`{.elif.}`, `.` bodies and other syntax corners are gated but lightly
+   covered**; `__TARGET__` is a `-D` away, not seeded.
+5. The `grammar/kirn.ebnf` `COMMENT` production is untouched and still correct,
+   but the new directive syntax is **not yet in the grammar file**, which
+   declares itself normative. That is the outstanding must-do for this phase.
 
 **Phase 3 — HIR/MIR.** `src/hir/`, `src/mir/` (arena CFG). `--emit-hir`,
 `--emit-mir`. `kirnc rt` dumps MIR.
@@ -1169,11 +1316,11 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    undefined: `run` has **three** incompatible existing behaviours, and the
    plan never says which one `kirnc run` must match —
 
-   | tool | type errors on | exit | summary line | panic frames |
-   |---|---|---|---|---|
-   | `kirnrun`      | stdout | 1  | `N error(s)` | yes |
-   | `kirn run`     | stderr | 65 | none        | no  |
-   | bundled binary | *(nothing printed at all)* | 65 | none | no |
+   | tool           | type errors on             | exit | summary line | panic frames |
+   | -------------- | -------------------------- | ---- | ------------ | ------------ |
+   | `kirnrun`      | stdout                     | 1    | `N error(s)` | yes          |
+   | `kirn run`     | stderr                     | 65   | none         | no           |
+   | bundled binary | _(nothing printed at all)_ | 65   | none         | no           |
 
    So "kirnc X output == old tool output" is currently unanswerable for
    `run`/`rt`, and phase 1 therefore implements neither. `kirnc run` exits 2
@@ -1185,6 +1332,7 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    mean "run through the runtime", with the MIR dump owned solely by
    `--emit-mir` from phase 3, which removes the contradiction with lines
    115/799/1061.
+
 2. **Macro scope.** Token-level macros (Nim-style, can synthesize syntax) vs
    expression-level only. The plan assumes token-level `#def`.
 3. **C/C++ driver backend.** Wrap the _system_ compiler (whatever

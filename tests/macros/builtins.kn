@@ -1,0 +1,7 @@
+# Built-in macros. __FILE__ and __LINE__ resolve at the USE site, which is the
+# whole point: a macro body has no line of its own.
+def main() {
+  print(__KIRN__);
+  print(__VERSION__);
+  print(__LINE__);
+}

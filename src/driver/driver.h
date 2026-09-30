@@ -136,6 +136,8 @@ int runProgram(const std::string& entryPath,
 int cmdLex(const std::vector<std::string>& args, const char* toolName);
 int cmdParse(const std::vector<std::string>& args, const char* toolName);
 int cmdCheck(const std::vector<std::string>& args, const char* toolName);
+// -E: preprocess only, print the expanded token stream. Phase 2.
+int cmdPreprocess(const std::vector<std::string>& args, const char* toolName);
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

@@ -1,8 +1,14 @@
 #pragma once
-// Indentation-aware lexer implementing grammar/kirn.ebnf §1:
-// INDENT/DEDENT synthesis (CPython algorithm), frozen keyword/operator sets,
-// int/float/char/string literals (raw r"" byte b"" C c""), and f-strings
-// lexed as Start / Text / {L,R}Brace / Colon / Spec / End token runs.
+// Lexer implementing grammar/kirn.ebnf §1: frozen keyword/operator sets,
+// int/float/char/string literals (raw r"" byte b"" C c""), and f-strings lexed
+// as Start / Text / {L,R}Brace / Colon / Spec / End token runs.
+//
+// NOT indentation-aware. This comment used to claim "INDENT/DEDENT synthesis
+// (CPython algorithm)"; that engine was deleted when the grammar moved to
+// C-style braces plus ';' terminators, and the Tok::Indent / Tok::Dedent /
+// Tok::Newline enumerators are retained but never emitted. Anything that needs
+// to know where a line ended must compare Token::line -- there is no newline
+// token. Do not reintroduce code that assumes one.
 #include "support/diag.h"
 #include "lex/token.h"
 

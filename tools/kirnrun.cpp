@@ -6,6 +6,7 @@
 #include "interp/runtime.h"
 #include "lex/lexer.h"
 #include "parser/parser.h"
+#include "prepro/prepro.h"
 #include "sema/checker.h"
 
 #include <cstdio>
@@ -80,6 +81,16 @@ static int runSources(const std::string& label, const std::string& src,
     kirn::DiagEngine diags;
     auto toks = kirn::Lexer(src, label, diags).lexAll();
     int ret = 0;
+    if (diags.errorCount() == 0) {
+        // Preprocess between lex and parse, the same seam as
+        // kirn_driver::frontEnd and kirn_driver::cmdCheck. kirnrun keeps
+        // its own copy of the pipeline (it drives the Interpreter
+        // directly rather than just wanting an AST), so without this line
+        // a file using macros type-checks under `kirn run` and fails to
+        // PARSE under `kirnrun` with "expected expression, found '.'" on
+        // the {.def.} line: two tools disagreeing about the same file.
+        toks = kirn::prepro::Preprocessor(label, diags).run(std::move(toks));
+    }
     if (diags.errorCount() == 0) {
         auto body = kirn::Parser(toks, diags).parseProgram();
         if (diags.errorCount() == 0) {

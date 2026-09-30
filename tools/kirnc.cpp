@@ -41,19 +41,25 @@ const char* const kUsage =
     "flags:\n"
     "  --emit-tokens   print the token stream (lex)\n"
     "  --emit-ast      print the AST (parse)\n"
+    "  -E              preprocess only; print the expanded token stream\n"
+    "  -D name[=val]   define a macro (with -E)\n"
+    "  -U name         undefine a macro (with -E)\n"
     "  -o <path>       output path (build)\n"
     "  --plain         no source/caret lines in diagnostics (check)\n"
     "  --color         force ANSI colour in diagnostics (check)\n"
     "  -h, --help      this message\n"
     "\n"
-    "stop-at-stage (-E, -S, -c, -###, -v) lands in phase 2 and 5.\n";
+    "stop-at-stage (-S, -c, -###, -v) lands in phase 5.\n";
 
 bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 
 // Stage flags the plan schedules for later phases. Rejecting them loudly beats
 // silently treating "-c" as an input filename, which is what the old tools did
 // with any unrecognised argument.
-const char* const kLaterFlags[] = {"-E", "-c", "-###", "-v", "--verbose",
+//
+// -E is NOT here any more: it landed with the preprocessor in phase 2, and
+// kirnc dispatches it below.
+const char* const kLaterFlags[] = {"-c", "-###", "-v", "--verbose",
                                    "-emit-hir", "--emit-hir", "-emit-mir",
                                    "--emit-mir", "-emit-llvm", "--emit-llvm",
                                    "-emit-sasm", "--emit-sasm"};
@@ -102,6 +108,13 @@ int main(int argc, char** argv) {
     const std::string verb = args.front();
     std::vector<std::string> rest(args.begin() + 1, args.end());
 
+    // `kirnc -E file.kn` -- the gcc spelling, where -E acts as the verb. This is
+    // checked before verb validation because "-E" is not a verb name, and a user
+    // who types it first means "preprocess", not "unknown verb".
+    if (verb == "-E") {
+        return kirn::driver::cmdPreprocess(rest, "kirnc");
+    }
+
     if (verb != "check" && verb != "lex" && verb != "parse" && verb != "run" &&
         verb != "build") {
         std::cerr << "kirnc: unknown verb '" << verb << "'\n";
@@ -127,6 +140,35 @@ int main(int argc, char** argv) {
             if (a == f) return true;
         return false;
     };
+
+    // -E is a stop-at-stage flag, not a verb: it selects the preprocessor as
+    // the last stage to run, whatever verb was named. Handled before dispatch
+    // because a stage flag must not depend on which verb it follows -- the gcc
+    // grammar puts -E/-S/-c at the driver level, not inside a subcommand.
+    if (hasFlag("-E")) {
+        std::vector<std::string> a;
+        for (const auto& s : rest) {
+            if (s == "-E") continue;
+            a.push_back(s);
+        }
+        return kirn::driver::cmdPreprocess(a, "kirnc");
+    }
+
+    // -D/-U only have an effect on -E for now. The preprocessor does run in
+    // front of `check` (see frontEnd), so threading the flags into every verb is
+    // real remaining work -- but rejecting them is strictly better than the
+    // alternative, which is that `kirnc check -DFOO=1 f.kn` today silently
+    // accepts the flag and `kirnc lex -DFOO=1 f.kn` treats it as a FILENAME and
+    // reports "cannot read file". An unrecognised flag must never be a path.
+    for (const auto& a : rest) {
+        if (a.rfind("-D", 0) != 0 && a.rfind("-U", 0) != 0) continue;
+        std::cerr << "kirnc " << verb << ": '" << a
+                  << "' is only accepted together with -E\n"
+                  << "  macro definitions reach the other verbs once -D/-U are "
+                     "threaded into the front end; use 'kirnc -E " << a
+                  << " ...' to see the expansion\n";
+        return 2;
+    }
 
     if (verb == "lex") {
         std::vector<std::string> a = stripFor(rest, false);

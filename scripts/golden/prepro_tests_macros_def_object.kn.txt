@@ -1,0 +1,39 @@
+$ <ROOT>/build/kirnc -E <ROOT>/tests/macros/def_object.kn
+Ident	8:1	def
+Ident	8:5	main
+Punct	8:9	(
+Punct	8:10	)
+Punct	8:12	{
+Ident	9:3	print
+Punct	9:8	(
+Int	9:9	10
+Punct	9:14	)
+Punct	9:15	;
+Ident	10:3	print
+Punct	10:8	(
+Int	10:9	42
+Punct	10:15	)
+Punct	10:16	;
+Ident	11:3	print
+Punct	11:8	(
+Int	11:9	7
+Op	11:9	*
+Int	11:9	7
+Punct	11:15	)
+Punct	11:16	;
+Ident	12:3	print
+Punct	12:8	(
+Punct	12:9	{
+Int	12:9	1
+Punct	12:9	}
+Punct	12:16	)
+Punct	12:17	;
+Ident	13:3	print
+Punct	13:8	(
+Float	13:9	1.5
+Punct	13:17	)
+Punct	13:18	;
+Punct	14:1	}
+Eof	14:1	
+<ROOT>/tests/macros/def_object.kn: OK (35 tokens)
+[exit 0]

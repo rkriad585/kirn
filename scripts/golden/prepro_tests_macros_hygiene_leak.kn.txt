@@ -1,0 +1,30 @@
+$ <ROOT>/build/kirnc -E <ROOT>/tests/macros/hygiene_leak.kn
+Ident	6:1	def
+Ident	6:5	main
+Punct	6:9	(
+Punct	6:10	)
+Punct	6:12	{
+Ident	7:3	tmp
+Op	7:7	=
+Int	7:9	1
+Punct	7:10	;
+Ident	8:3	__kirnpre1_tmp
+Op	8:3	=
+Int	8:3	7
+Punct	8:3	;
+Ident	8:3	print
+Punct	8:3	(
+Ident	8:3	__kirnpre1_tmp
+Op	8:3	*
+Int	8:3	2
+Punct	8:3	)
+Punct	8:3	;
+Ident	9:3	print
+Punct	9:8	(
+Ident	9:9	tmp
+Punct	9:12	)
+Punct	9:13	;
+Punct	10:1	}
+Eof	10:1	
+<ROOT>/tests/macros/hygiene_leak.kn: OK (26 tokens)
+[exit 0]

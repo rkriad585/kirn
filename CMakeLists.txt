@@ -41,6 +41,15 @@ add_library(kirn_ast STATIC
 )
 target_link_libraries(kirn_ast PUBLIC kirn_support)
 
+add_library(kirn_prepro STATIC
+    src/prepro/prepro.cpp
+)
+# Consumes Token/DiagEngine and returns a Token stream, so it sits between the
+# lexer and the parser. Linking kirn_lex (rather than kirn_support directly)
+# means the preprocessor can never drift from the lexer's token vocabulary: if
+# Tok gains an enumerator, this library sees it through the same header.
+target_link_libraries(kirn_prepro PUBLIC kirn_lex)
+
 add_library(kirn_parser STATIC
     src/parser/parser.cpp
 )
@@ -81,7 +90,7 @@ target_link_libraries(kirn_backend PUBLIC kirn_sema)
 add_library(kirn_driver STATIC
     src/driver/driver.cpp
 )
-target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend)
+target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro)
 
 # Phase 1: the stage drivers are thin front ends over the shared library, so all
 # three link kirn_driver instead of the narrow lexer/parser/sema libs. They stay
@@ -123,7 +132,7 @@ endif()
 # kirn_driver is in the list so the refactored code keeps the same warning
 # budget as the libraries around it; leaving it out would have exempted exactly
 # the code being moved from -Wall -Wextra -Wpedantic.
-foreach(tgt kirn_lex kirn_ast kirn_parser kirn_sema kirn_vm kirn_interp kirn_backend kirn_driver)
+foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_vm kirn_interp kirn_backend kirn_driver)
     if(MSVC)
         target_compile_options(${tgt} PRIVATE /W4 /permissive-)
     else()

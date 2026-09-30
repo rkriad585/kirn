@@ -141,7 +141,7 @@ check_targets() {
 }
 
 # ---------------------------------------------------------------- preflight
-for t in kirn kirnlex kirnparse kirncheck kirnrun; do
+for t in kirn kirnc kirnlex kirnparse kirncheck kirnrun; do
   if [ ! -x "$BIN/$t" ]; then
     echo "missing executable: $BIN/$t" >&2
     echo "build first:  cmake -S . -B build && cmake --build build -j \$(nproc)" >&2
@@ -161,6 +161,27 @@ for f in "$ROOT"/examples/*.kn "$ROOT"/tests/negative/*.kn; do
   check "parse_${rel}" "$BIN/kirnparse" --ast   "$f"
   check "check_${rel}" "$BIN/kirncheck"         "$f"
 done
+
+# ------------------------------------------------------------- preprocessor
+# Phase 2. `kirnc -E` is the stop-at-stage dump: preprocess only, print the
+# expanded token stream, in the same `KIND\tline:col\ttext` format cmdLex
+# already uses. These are the phase's byte-level oracle, and they are recorded
+# against kirnc rather than a new binary so the -E and lex dumps stay directly
+# comparable.
+for f in "$ROOT"/tests/macros/*.kn; do
+  [ -e "$f" ] || continue
+  rel=${f#"$ROOT"/}
+  rel=${rel//\//_}
+  check "prepro_${rel}"        "$BIN/kirnc" -E "$f"
+  check "prepro_check_${rel}"  "$BIN/kirnc" check "$f"
+done
+
+# -D/-U: the defined-table from the command line, both spellings, and the
+# left-to-right ordering that lets a later -U undo an earlier -D.
+check "prepro_d_define"    "$BIN/kirnc" -E -DFEATURE=1 "$ROOT/tests/macros/cmdline.kn"
+check "prepro_d_separated" "$BIN/kirnc" -E -D FEATURE=1 "$ROOT/tests/macros/cmdline.kn"
+check "prepro_d_undef"     "$BIN/kirnc" -E -DGONE=1 -UGONE "$ROOT/tests/macros/cmdline.kn"
+check "prepro_d_undef_rerun" "$BIN/kirnc" -E -UGONE -DGONE=1 "$ROOT/tests/macros/cmdline.kn"
 
 # --------------------------------------------------------------- kirnrun
 # Three distinct exit paths worth pinning: success (program's own output),

@@ -1,0 +1,15 @@
+$ <ROOT>/build/kirnc -E -DGONE=1 -UGONE <ROOT>/tests/macros/cmdline.kn
+Ident	5:1	def
+Ident	5:5	main
+Punct	5:9	(
+Punct	5:10	)
+Punct	5:12	{
+Ident	9:3	print
+Punct	9:8	(
+Str	9:9	feature off
+Punct	9:22	)
+Punct	9:23	;
+Punct	14:1	}
+Eof	14:1	
+<ROOT>/tests/macros/cmdline.kn: OK (11 tokens)
+[exit 0]

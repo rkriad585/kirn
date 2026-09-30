@@ -1,0 +1,33 @@
+# Conditional compilation gating real code inside a function: ifdef / ifndef /
+# else / endif and nesting. A dead branch is never even emitted -- the -E dump
+# shows its text absent, not blanked -- so an undefined name inside one cannot
+# reach the checker. The guarded use of DEEP below is what makes that visible:
+# with FEATURE_A undefined, DEEP is never defined and never referenced.
+{.ifdef FEATURE_A.}
+{.def LABEL. "A on".}
+{.else.}
+{.def LABEL. "A off".}
+{.endif.}
+{.ifndef FEATURE_B.}
+{.def OTHER. "B off".}
+{.endif.}
+{.if 1 + 1 == 2.}
+{.def MATH. "math works".}
+{.else.}
+{.def MATH. "math broken".}
+{.endif.}
+{.ifdef FEATURE_A.}
+{.ifdef NESTED.}
+{.def DEEP. "nested on".}
+{.else.}
+{.def DEEP. "nested off".}
+{.endif.}
+{.endif.}
+def main() {
+  print(LABEL);
+  print(OTHER);
+  print(MATH);
+  {.ifdef FEATURE_A.}
+  print(DEEP);
+  {.endif.}
+}

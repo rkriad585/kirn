@@ -1,0 +1,25 @@
+$ <ROOT>/build/kirnc -E <ROOT>/tests/macros/builtins.kn
+Ident	3:1	def
+Ident	3:5	main
+Punct	3:9	(
+Punct	3:10	)
+Punct	3:12	{
+Ident	4:3	print
+Punct	4:8	(
+Int	4:9	1
+Punct	4:17	)
+Punct	4:18	;
+Ident	5:3	print
+Punct	5:8	(
+Str	5:9	0.0.1-beta
+Punct	5:20	)
+Punct	5:21	;
+Ident	6:3	print
+Punct	6:8	(
+Int	6:9	6
+Punct	6:17	)
+Punct	6:18	;
+Punct	7:1	}
+Eof	7:1	
+<ROOT>/tests/macros/builtins.kn: OK (21 tokens)
+[exit 0]

@@ -1,0 +1,80 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/27_value_semantics_copy.kn
+StructDef "Sensor"
+  Field "id" : int
+  Field "reading" var : f64
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "s1"
+      Value 
+        Call
+          Callee Ident "Sensor"
+          Arg name=id
+            Value Int "1"
+          Arg name=reading
+            Value Float "20.5"
+    Assign
+      Target Ident "s2"
+      Value Ident "s1"
+    Assign
+      Target 
+        Member name="reading"
+          Obj Ident "s2"
+      Value Float "99.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="reading"
+                Obj Ident "s1"
+          Arg
+            Value 
+              Member name="reading"
+                Obj Ident "s2"
+    Assign
+      Target Ident "sensors"
+      Value 
+        List len=2
+          Item Ident "s1"
+          Item Ident "s2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="id"
+                Obj 
+                  Index
+                    Obj Ident "sensors"
+                    At Int "0"
+    Assign
+      Target Ident "shared"
+      Value 
+        Call
+          Callee 
+            New type=Sensor
+          Arg name=id
+            Value Int "3"
+          Arg name=reading
+            Value Float "0.0"
+    Assign
+      Target Ident "alias"
+      Value Ident "shared"
+    Assign
+      Target 
+        Member name="reading"
+          Obj Ident "alias"
+      Value Float "42.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="reading"
+                Obj Ident "shared"
+<ROOT>/examples/27_value_semantics_copy.kn: OK (2 top-level statements)
+[exit 0]

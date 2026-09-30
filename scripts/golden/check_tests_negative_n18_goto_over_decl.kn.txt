@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n18_goto_over_decl.kn
+<ROOT>/tests/negative/n18_goto_over_decl.kn:3:5: error: goto may not jump over a declaration
+ 3 |     goto over;
+   |     ^^^^
+<ROOT>/tests/negative/n18_goto_over_decl.kn: 1 error(s)
+[exit 1]

@@ -1,0 +1,112 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/25_operator_precedence.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "r1"
+      Value 
+        Unary op="-"
+          Operand 
+            Binary op="**"
+              Lhs Int "2"
+              Rhs Int "2"
+    Assign
+      Target Ident "r2"
+      Value 
+        Binary op="**"
+          Lhs 
+            Unary op="-"
+              Operand Int "2"
+          Rhs Int "2"
+    Assign
+      Target Ident "r3"
+      Value 
+        Binary op="//"
+          Lhs Int "7"
+          Rhs Int "2"
+    Assign
+      Target Ident "r4"
+      Value 
+        Binary op="%"
+          Lhs Int "7"
+          Rhs Int "3"
+    Assign
+      Target Ident "r5"
+      Value 
+        Binary op="|"
+          Lhs 
+            Binary op="<<"
+              Lhs Int "1"
+              Rhs Int "4"
+          Rhs 
+            Binary op="&"
+              Lhs Int "3"
+              Rhs Int "1"
+    Assign
+      Target Ident "r6"
+      Value 
+        Binary op="**"
+          Lhs Int "2"
+          Rhs 
+            Binary op="**"
+              Lhs Int "3"
+              Rhs Int "2"
+    Assign
+      Target Ident "xs"
+      Value 
+        List len=3
+          Item Int "5"
+          Item Int "10"
+          Item Int "15"
+    Assign
+      Target Ident "i"
+      Value Int "1"
+    Assign
+      Target Ident "chained"
+      Value 
+        Binary op="<"
+          Lhs 
+            Binary op="<="
+              Lhs Int "0"
+              Rhs Ident "i"
+          Rhs 
+            Call
+              Callee Ident "len"
+              Arg
+                Value Ident "xs"
+    Assign
+      Target Ident "logic"
+      Value 
+        Binary op="or"
+          Lhs 
+            Binary op="and"
+              Lhs 
+                Unary op="not"
+                  Operand Ident "chained"
+              Rhs Ident "true"
+          Rhs Ident "false"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "r1"
+          Arg
+            Value Ident "r2"
+          Arg
+            Value Ident "r3"
+          Arg
+            Value Ident "r4"
+          Arg
+            Value Ident "r5"
+          Arg
+            Value Ident "r6"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "chained"
+          Arg
+            Value Ident "logic"
+<ROOT>/examples/25_operator_precedence.kn: OK (1 top-level statements)
+[exit 0]

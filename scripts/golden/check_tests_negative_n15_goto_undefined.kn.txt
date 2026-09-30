@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n15_goto_undefined.kn
+<ROOT>/tests/negative/n15_goto_undefined.kn:3:5: error: goto: label 'missing' is not declared in this block or an enclosing block
+ 3 |     goto missing;
+   |     ^^^^
+<ROOT>/tests/negative/n15_goto_undefined.kn: 1 error(s)
+[exit 1]

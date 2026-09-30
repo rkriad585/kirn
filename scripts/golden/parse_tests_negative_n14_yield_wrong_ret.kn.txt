@@ -1,0 +1,18 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n14_yield_wrong_ret.kn
+FuncDef "gen"
+  Ret int
+  Body
+    Yield
+      Int "1"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "gen"
+<ROOT>/tests/negative/n14_yield_wrong_ret.kn: OK (2 top-level statements)
+[exit 0]

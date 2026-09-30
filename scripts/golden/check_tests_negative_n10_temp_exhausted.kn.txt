@@ -1,0 +1,15 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n10_temp_exhausted.kn
+<ROOT>/tests/negative/n10_temp_exhausted.kn:6:9: error: temp 't' exhausted (2 uses)
+ 6 |     c = t;
+   |         ^
+<ROOT>/tests/negative/n10_temp_exhausted.kn:4:5: warning[W0102]: unused variable 'a'
+ 4 |     a = t;
+   |     ^
+<ROOT>/tests/negative/n10_temp_exhausted.kn:5:5: warning[W0102]: unused variable 'b'
+ 5 |     b = t;
+   |     ^
+<ROOT>/tests/negative/n10_temp_exhausted.kn:6:5: warning[W0102]: unused variable 'c'
+ 6 |     c = t;
+   |     ^
+<ROOT>/tests/negative/n10_temp_exhausted.kn: 1 error(s), 3 warning(s)
+[exit 1]

@@ -1,0 +1,56 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/32_conventions.kn
+Import greet
+Import greet as via
+Import greet as again
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "load_count ="
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="load_count"
+                    Obj Ident "greet"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "via        ="
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="load_count"
+                    Obj Ident "via"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "again      ="
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="load_count"
+                    Obj Ident "again"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="hello"
+                    Obj Ident "greet"
+                Arg
+                  Value Str "Kirn"
+<ROOT>/examples/32_conventions.kn: OK (4 top-level statements)
+[exit 0]

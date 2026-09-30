@@ -1,0 +1,74 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/29_arena_allocation.kn
+FuncDef "render_frame"
+  Body
+    Assign
+      Target Ident "arena"
+      Value 
+        Call
+          Callee 
+            Member name="Arena"
+              Obj Ident "mem"
+    Defer
+      Call 
+        Call
+          Callee 
+            Member name="reset"
+              Obj Ident "arena"
+    Assign
+      Target Ident "parts"
+      Value 
+        List len=0
+    For
+      PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "0"
+          Rhs Int "1000"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "parts"
+              Arg
+                Value 
+                  Call
+                    Callee 
+                      Member name="alloc"
+                        Obj Ident "arena"
+                    Arg
+                      Value 
+                        FString
+                          Text "sprite-"
+                          Interp
+                            Value Ident "i"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "parts"
+          Arg
+            Value 
+              Index
+                Obj Ident "parts"
+                At Int "0"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "render_frame"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "frame memory released in one operation"
+<ROOT>/examples/29_arena_allocation.kn: OK (2 top-level statements)
+[exit 0]

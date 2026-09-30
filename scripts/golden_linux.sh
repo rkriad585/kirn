@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# golden_linux.sh - capture (--record) or verify (default) the observable
+# behavior of every driver/tool against scripts/golden/.
+#
+# Why this exists: gates_linux.sh asserts only exit codes, substring greps, and
+# one stdout==stdout comparison. It stays green while whitespace, ordering,
+# stderr wording, and the kirnrun-vs-`kirn run` resolver divergence all change
+# freely. Phase 0 (driver-core extraction) is a behavior-preserving refactor,
+# so it needs an oracle that actually pins bytes.
+#
+#   bash scripts/golden_linux.sh --record   # rewrite scripts/golden/ from the
+#                                           # current binaries
+#   bash scripts/golden_linux.sh            # compare, print a unified diff
+#
+# Exit: 0 when every snapshot matches, 1 otherwise.
+
+set -uo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+BIN="$ROOT/build"
+GOLD="$ROOT/scripts/golden"
+
+RECORD=0
+[ "${1:-}" = "--record" ] && RECORD=1
+
+pass=0
+fail=0
+
+# normalize - scrub the few things that legitimately vary between runs: the
+# absolute repo path, the throwaway fixture directory, and ISO timestamps.
+# Everything else is the contract: wording, ordering, whitespace, which stream a
+# line went to, and the exit code.
+#
+# TMPDIR is set by the caller before the fixtures are created; scrubbing it is
+# what keeps the run/panic probes from flapping on a fresh mktemp name.
+#
+# The last rule scrubs the TOOLCHAIN column of `kirn targets`. That column is a
+# live probe: resolveCrossCxx() honours $KIRN_CXX_<TRIPLE> and $KIRN_CXX, then
+# falls back to spawning each candidate from PATH and asking for --version. So
+# the recorded value is a property of the machine, not of the program, and a
+# snapshot of it fails on a runner that has a different cross toolchain
+# installed. The TARGET and BINARY columns stay pinned, because those ARE the
+# contract. This is a deliberate split: a snapshot records behaviour, and
+# "the host toolchain actually works" is an environment assertion -- that one
+# belongs in gates_linux.sh, which really does compile.
+normalize() {
+  sed -e "s#$ROOT#<ROOT>#g" \
+      -e "s#${TMPDIR:-/nonexistent}#<TMP>#g" \
+      -e 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9:.+-]*Z\?/<TIMESTAMP>/g'
+}
+
+# normalize_targets - additionally scrub the TOOLCHAIN column of `kirn targets`.
+# Applied only to that one snapshot: the pattern is anchored to a target triple
+# in column 1 with a literal <name> binary in column 2, so it cannot touch a
+# source path (an earlier, broader version of this rule matched every
+# "*-amd64  ...  " line and broke 198 unrelated snapshots -- which is itself the
+# argument for keeping environment scrubbing narrow and explicit).
+normalize_targets() {
+  normalize | sed -E 's/^((linux|darwin|windows)-(amd64|arm64)[[:space:]]+<name>(\.exe)?[[:space:]]+).*/\1<TOOLCHAIN>/'
+}
+
+# snapshot <command...> - run a command and render its entire observable
+# behavior: the argv, stdout+stderr interleaved as a user sees them in a
+# terminal, and the exit status. Capturing the two streams together is
+# deliberate: a refactor that moves a diagnostic from stdout to stderr is a
+# behavior change and must be caught.
+snapshot() {
+  local out rc
+  out=$("$@" 2>&1)
+  rc=$?
+  {
+    printf '$ %s\n' "$*"
+    printf '%s\n' "$out"
+    printf '[exit %s]\n' "$rc"
+  } | normalize
+}
+
+# same, for `kirn targets`, whose toolchain column is a live environment probe
+snapshot_targets() {
+  local out rc
+  out=$("$@" 2>&1)
+  rc=$?
+  {
+    printf '$ %s\n' "$*"
+    printf '%s\n' "$out"
+    printf '[exit %s]\n' "$rc"
+  } | normalize_targets
+}
+
+check() {
+  local name="$1"; shift
+  local body file
+  body=$(snapshot "$@")
+  file="$GOLD/$name.txt"
+  if [ "$RECORD" = 1 ]; then
+    mkdir -p "$GOLD"
+    printf '%s\n' "$body" > "$file"
+    return
+  fi
+  if [ ! -f "$file" ]; then
+    printf 'MISSING %s (no golden file; run with --record)\n' "$name"
+    fail=$((fail + 1))
+    return
+  fi
+  if printf '%s\n' "$body" | diff -u "$file" - > /tmp/golden.diff 2>&1; then
+    printf 'PASS    %s\n' "$name"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL    %s\n' "$name"
+    sed 's/^/        /' /tmp/golden.diff | head -40
+    fail=$((fail + 1))
+  fi
+}
+
+# check_targets <name> <cmd...> - as check(), but scrubs the environment-dependent
+# toolchain column (see normalize_targets). Used for `kirn targets` only, so the
+# narrow scrub can never be applied to an unrelated snapshot by accident.
+check_targets() {
+  local name="$1"; shift
+  local body file
+  body=$(snapshot_targets "$@")
+  file="$GOLD/$name.txt"
+  if [ "$RECORD" = 1 ]; then
+    mkdir -p "$GOLD"
+    printf '%s\n' "$body" > "$file"
+    return
+  fi
+  if [ ! -f "$file" ]; then
+    printf 'MISSING %s (no golden file; run with --record)\n' "$name"
+    fail=$((fail + 1))
+    return
+  fi
+  if printf '%s\n' "$body" | diff -u "$file" - > /tmp/golden.diff 2>&1; then
+    printf 'PASS    %s\n' "$name"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL    %s\n' "$name"
+    sed 's/^/        /' /tmp/golden.diff | head -40
+    fail=$((fail + 1))
+  fi
+}
+
+# ---------------------------------------------------------------- preflight
+for t in kirn kirnlex kirnparse kirncheck kirnrun; do
+  if [ ! -x "$BIN/$t" ]; then
+    echo "missing executable: $BIN/$t" >&2
+    echo "build first:  cmake -S . -B build && cmake --build build -j \$(nproc)" >&2
+    exit 1
+  fi
+done
+
+# ------------------------------------------------------------- stage oracles
+# Every example and every negative test goes through all three front-end oracles.
+# The tool-specific exit codes (0/1/2, plus 70 for a panic) are part of the
+# contract, so snapshot() records them rather than this script asserting on them.
+for f in "$ROOT"/examples/*.kn "$ROOT"/tests/negative/*.kn; do
+  [ -e "$f" ] || continue
+  rel=${f#"$ROOT"/}
+  rel=${rel//\//_}
+  check "lex_${rel}"   "$BIN/kirnlex"   --dump "$f"
+  check "parse_${rel}" "$BIN/kirnparse" --ast   "$f"
+  check "check_${rel}" "$BIN/kirncheck"         "$f"
+done
+
+# --------------------------------------------------------------- kirnrun
+# Three distinct exit paths worth pinning: success (program's own output),
+# a type error (exit 1, diagnostics), and a panic (exit 70).
+#
+# The fixture directory is deliberately deterministic (no mktemp suffix) so the
+# recorded argv is byte-stable across runs; normalize() scrubs TMPDIR itself.
+export TMPDIR=/tmp/kirn-golden.$$
+rm -rf "$TMPDIR"
+mkdir -p "$TMPDIR"
+TMP="$TMPDIR"
+
+printf 'import greet;\n\ndef main() {\n  print(greet.hello());\n}\n' > "$TMP/main.kn"
+printf 'pub def hello() {\n  return "SIBLING-GREET";\n}\n'          > "$TMP/greet.kn"
+check "kirnrun_sibling_module" "$BIN/kirnrun" "$TMP/main.kn"
+
+printf 'def main() {\n  print(y + 1);\n}\n' > "$TMP/undef.kn"
+check "kirnrun_type_error" "$BIN/kirnrun" "$TMP/undef.kn"
+
+printf 'def main() {\n  panic("boom");\n}\n' > "$TMP/panic.kn"
+check "kirnrun_panic" "$BIN/kirnrun" "$TMP/panic.kn"
+
+# ----------------------------------------------------------------- kirn CLI
+# The driver's own surface: usage text, the verb list, and the exit code for a
+# missing entry point. The resolver order that Phase 0 unifies shows up here.
+check_targets "kirn_targets" "$BIN/kirn" targets
+check "kirn_help"    "$BIN/kirn" help
+check "kirn_noargs"  "$BIN/kirn"
+check "kirn_run_sibling_module" "$BIN/kirn" run "$TMP/main.kn"
+check "kirn_run_type_error"     "$BIN/kirn" run "$TMP/undef.kn"
+check "kirn_run_no_entry"       "$BIN/kirn" run "$TMP"
+
+# `kirn test` with no args discovers *_test.kn under the CWD, which means it runs
+# the real stdlib suite -- and stdlib/pet/io_test.kn writes .io_tmp_test.txt
+# into the CWD. Left behind, that file makes the next run's discovery differ, so
+# the snapshot would flap. Run it from a scratch directory and clean up, the same
+# way scripts/gates_linux.sh does.
+rm -f "$ROOT/.io_tmp_test.txt"
+GOLD_BODY=$(cd "$ROOT" && snapshot "$BIN/kirn" test)
+rm -f "$ROOT/.io_tmp_test.txt"
+if [ "$RECORD" = 1 ]; then
+  mkdir -p "$GOLD"
+  printf '%s\n' "$GOLD_BODY" > "$GOLD/kirn_test_no_args.txt"
+else
+  if [ ! -f "$GOLD/kirn_test_no_args.txt" ]; then
+    printf 'MISSING kirn_test_no_args (run with --record)\n'
+    fail=$((fail + 1))
+  elif printf '%s\n' "$GOLD_BODY" | diff -u "$GOLD/kirn_test_no_args.txt" - \
+         > /tmp/golden.diff 2>&1; then
+    printf 'PASS    kirn_test_no_args\n'
+    pass=$((pass + 1))
+  else
+    printf 'FAIL    kirn_test_no_args\n'
+    sed 's/^/        /' /tmp/golden.diff | head -40
+    fail=$((fail + 1))
+  fi
+fi
+
+echo
+if [ "$RECORD" = 1 ]; then
+  echo "GOLDEN RECORDED: $GOLD ($(find "$GOLD" -name '*.txt' | wc -l) files)"
+  exit 0
+fi
+echo "GOLDEN RESULT: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]

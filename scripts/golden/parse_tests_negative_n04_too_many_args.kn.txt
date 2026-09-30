@@ -1,0 +1,22 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n04_too_many_args.kn
+FuncDef "f"
+  Param "a" : int
+  Ret int
+  Body
+    Return
+      Value Ident "a"
+ExprStmt
+  Value 
+    Call
+      Callee Ident "print"
+      Arg
+        Value 
+          Call
+            Callee Ident "f"
+            Arg
+              Value Int "1"
+            Arg
+              Value Int "2"
+<ROOT>/tests/negative/n04_too_many_args.kn:1:1: error: expected expression, found ';'
+<ROOT>/tests/negative/n04_too_many_args.kn: 1 error(s) (0 lex, 1 parse)
+[exit 1]

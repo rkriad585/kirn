@@ -1,0 +1,62 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/24_ffi_unsafe.kn
+FuncDef "printf" extern
+  Param "fmt" : *char
+  Param "" variadic : <inferred>
+  Ret i32
+  Body
+FuncDef "strlen" extern
+  Param "s" : *char
+  Ret usize
+  Body
+FuncDef "print_message"
+  Param "msg" : string
+  Body
+    Unsafe
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "printf"
+            Arg
+              Value Str "%s (len=%zu)\\n" c
+            Arg
+              Value 
+                Call
+                  Callee 
+                    Member name="c_ptr"
+                      Obj Ident "msg"
+            Arg
+              Value 
+                Call
+                  Callee Ident "strlen"
+                  Arg
+                    Value 
+                      Call
+                        Callee 
+                          Member name="c_ptr"
+                            Obj Ident "msg"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "msg"
+      Value Str "Hello from Kirn!"
+    Unsafe
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "printf"
+            Arg
+              Value Str "%s!\\n" c
+            Arg
+              Value 
+                Call
+                  Callee 
+                    Member name="c_ptr"
+                      Obj Ident "msg"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print_message"
+          Arg
+            Value Ident "msg"
+<ROOT>/examples/24_ffi_unsafe.kn: OK (4 top-level statements)
+[exit 0]

@@ -1,0 +1,113 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/14_generics_bounds.kn
+FuncDef "first" generics=[T]
+  Param "items" : list[T]
+  Ret T
+  Body
+    Return
+      Value 
+        Index
+          Obj Ident "items"
+          At Int "0"
+StructDef "Pair"
+  Field "first" : A
+  Field "second" : B
+TraitDef "Hashable"
+  Sig hash(self: <inferred>) -> u64
+StructDef "Key"
+  Field "code" : int
+ImplDef Hashable for Key
+  FuncDef "hash"
+    Param "self" self : <inferred>
+    Ret u64
+    Body
+      Return
+        Value 
+          Binary op="%"
+            Lhs 
+              Binary op="*"
+                Lhs 
+                  Cast as u64
+                    Operand 
+                      Member name="code"
+                        Obj Ident "self"
+                Rhs Int "2654435761"
+            Rhs Int "4294967296"
+FuncDef "hash_bucket" generics=[T is Hashable]
+  Param "item" : T
+  Ret u64
+  Body
+    Return
+      Value 
+        Binary op="%"
+          Lhs 
+            Call
+              Callee 
+                Member name="hash"
+                  Obj Ident "item"
+          Rhs Int "256"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "first"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "10"
+                      Item Int "20"
+                      Item Int "30"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "first"
+                Arg
+                  Value 
+                    List len=2
+                      Item Str "a"
+                      Item Str "b"
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Pair"
+          Arg name=first
+            Value Int "1"
+          Arg name=second
+            Value Str "two"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="first"
+                Obj Ident "p"
+          Arg
+            Value 
+              Member name="second"
+                Obj Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "hash_bucket"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "Key"
+                      Arg name=code
+                        Value Int "7"
+<ROOT>/examples/14_generics_bounds.kn: OK (7 top-level statements)
+[exit 0]

@@ -1,0 +1,27 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n18_goto_over_decl.kn
+Ident	2:1	def
+Ident	2:5	main
+Punct	2:9	(
+Punct	2:10	)
+Punct	2:12	{
+Ident	3:5	goto
+Ident	3:10	over
+Punct	3:14	;
+Ident	4:5	const
+Ident	4:11	A
+Op	4:13	=
+Int	4:15	10
+Punct	4:17	;
+Ident	5:1	over
+Punct	5:5	:
+Ident	6:5	print
+Punct	6:10	(
+Ident	6:11	A
+Punct	6:12	)
+Punct	6:13	;
+Punct	7:1	}
+Eof	8:1	
+<ROOT>/tests/negative/n18_goto_over_decl.kn: OK (21 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

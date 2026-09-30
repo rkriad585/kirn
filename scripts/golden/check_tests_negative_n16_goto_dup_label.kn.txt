@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n16_goto_dup_label.kn
+<ROOT>/tests/negative/n16_goto_dup_label.kn:6:4: error: label 'dup' is defined more than once
+ 6 | dup:
+   |    ^
+<ROOT>/tests/negative/n16_goto_dup_label.kn: 1 error(s)
+[exit 1]

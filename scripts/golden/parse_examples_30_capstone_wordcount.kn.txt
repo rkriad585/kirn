@@ -1,0 +1,245 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/30_capstone_wordcount.kn
+FuncDef "count_chunk"
+  Param "words" : list[string]
+  Param "out" : chan[dict[string, int]]
+  Body
+    Assign
+      Target Ident "counts"
+      Value 
+        Dict len=0
+    For
+      PatBind w
+      Iter Ident "words"
+      Body
+        Assign
+          Target Ident "w"
+          Value 
+            Call
+              Callee 
+                Member name="to_lower"
+                  Obj Ident "w"
+        If
+          Cond 
+            Binary op="in"
+              Lhs Ident "w"
+              Rhs Ident "counts"
+          Then
+            AugAssign op="+="
+              Target 
+                Index
+                  Obj Ident "counts"
+                  At Ident "w"
+              Value Int "1"
+          Else
+            Assign
+              Target 
+                Index
+                  Obj Ident "counts"
+                  At Ident "w"
+              Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "out"
+          Arg
+            Value Ident "counts"
+FuncDef "merge"
+  Param "target" : dict[string, int]
+  Param "src" : dict[string, int]
+  Body
+    For
+      PatBind k
+      Iter 
+        Call
+          Callee 
+            Member name="keys"
+              Obj Ident "src"
+      Body
+        If
+          Cond 
+            Binary op="in"
+              Lhs Ident "k"
+              Rhs Ident "target"
+          Then
+            AugAssign op="+="
+              Target 
+                Index
+                  Obj Ident "target"
+                  At Ident "k"
+              Value 
+                Index
+                  Obj Ident "src"
+                  At Ident "k"
+          Else
+            Assign
+              Target 
+                Index
+                  Obj Ident "target"
+                  At Ident "k"
+              Value 
+                Index
+                  Obj Ident "src"
+                  At Ident "k"
+FuncDef "top3"
+  Param "counts" : dict[string, int]
+  Ret list[(string, int)]
+  Body
+    Assign
+      Target Ident "pairs"
+      Value 
+        List len=0
+    For
+      PatBind k
+      Iter 
+        Call
+          Callee 
+            Member name="keys"
+              Obj Ident "counts"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "pairs"
+              Arg
+                Value 
+                  Tuple len=2
+                    Item Ident "k"
+                    Item 
+                      Index
+                        Obj Ident "counts"
+                        At Ident "k"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="sort"
+              Obj Ident "pairs"
+          Arg name=key
+            Value 
+              Lambda params=(p)
+                Body 
+                  Index
+                    Obj Ident "p"
+                    At Int "1"
+          Arg name=reverse
+            Value Ident "true"
+    Return
+      Value 
+        Index
+          Obj Ident "pairs"
+          At 
+            Binary op=".."
+              Lhs Int "0"
+              Rhs Int "3"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "text"
+      Value Str "the quick brown fox the lazy dog the fox"
+    Assign
+      Target Ident "chunks"
+      Value 
+        List len=2
+          Item 
+            Index
+              Obj 
+                Call
+                  Callee 
+                    Member name="split"
+                      Obj Ident "text"
+                  Arg
+                    Value Str " "
+              At 
+                Binary op=".."
+                  Lhs Int "0"
+                  Rhs Int "8"
+          Item 
+            Index
+              Obj 
+                Call
+                  Callee 
+                    Member name="split"
+                      Obj Ident "text"
+                  Arg
+                    Value Str " "
+              At 
+                Binary op=".."
+                  Lhs Int "8"
+    Assign
+      Target Ident "out"
+      Value 
+        Call
+          Callee 
+            New type=chan[dict[string, int]]
+    For
+      PatBind c
+      Iter Ident "chunks"
+      Body
+        Spawn
+          Call 
+            Call
+              Callee Ident "count_chunk"
+              Arg
+                Value Ident "c"
+              Arg
+                Value Ident "out"
+    Assign
+      Target Ident "total"
+      Value 
+        Dict len=0
+    For
+      PatWild
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs 
+            Call
+              Callee Ident "len"
+              Arg
+                Value Ident "chunks"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "merge"
+              Arg
+                Value Ident "total"
+              Arg
+                Value 
+                  Call
+                    Callee 
+                      Member name="recv"
+                        Obj Ident "out"
+    For
+      PatBind pair
+      Iter 
+        Call
+          Callee Ident "top3"
+          Arg
+            Value Ident "total"
+      Body
+        Match
+          Subject Ident "pair"
+          Arm
+            PatTuple len=2
+              PatBind word
+              PatBind n
+            Body
+              ExprStmt
+                Value 
+                  Call
+                    Callee Ident "print"
+                    Arg
+                      Value 
+                        FString
+                          Interp
+                            Value Ident "word"
+                          Text ": "
+                          Interp
+                            Value Ident "n"
+<ROOT>/examples/30_capstone_wordcount.kn: OK (4 top-level statements)
+[exit 0]

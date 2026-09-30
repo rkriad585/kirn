@@ -1,0 +1,151 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/22_spawn_channels_join.kn
+FuncDef "worker"
+  Param "jobs" : chan[int]
+  Param "done" : chan[int]
+  Body
+    For
+      PatBind j
+      Iter Ident "jobs"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="send"
+                  Obj Ident "done"
+              Arg
+                Value Ident "j"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "jobs"
+      Value 
+        Call
+          Callee 
+            New type=chan[int]
+          Arg name=cap
+            Value Int "8"
+    Assign
+      Target Ident "done"
+      Value 
+        Call
+          Callee 
+            New type=chan[int]
+    Assign
+      Target Ident "handles"
+      Value 
+        List len=0
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "3"
+      Body
+        Assign
+          Target Ident "h"
+          Value 
+            Unary op="spawn"
+              Operand 
+                Call
+                  Callee Ident "worker"
+                  Arg
+                    Value Ident "jobs"
+                  Arg
+                    Value Ident "done"
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "handles"
+              Arg
+                Value Ident "h"
+    For
+      PatBind j
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "5"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="send"
+                  Obj Ident "jobs"
+              Arg
+                Value Ident "j"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "jobs"
+    Assign
+      Target Ident "results"
+      Value 
+        List len=0
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "5"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "results"
+              Arg
+                Value 
+                  Call
+                    Callee 
+                      Member name="recv"
+                        Obj Ident "done"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="sort"
+              Obj Ident "results"
+    For
+      PatBind r
+      Iter Ident "results"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs Str "job "
+                        Rhs 
+                          Call
+                            Callee Ident "str"
+                            Arg
+                              Value Ident "r"
+                    Rhs Str " finished"
+    For
+      PatBind h
+      Iter Ident "handles"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="join"
+                  Obj Ident "h"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "all workers joined"
+<ROOT>/examples/22_spawn_channels_join.kn: OK (2 top-level statements)
+[exit 0]

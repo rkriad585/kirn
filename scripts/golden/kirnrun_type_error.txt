@@ -1,0 +1,4 @@
+$ <ROOT>/build/kirnrun <TMP>/undef.kn
+<TMP>/undef.kn:2:9: error: undefined variable 'y'
+<TMP>/undef.kn: 1 error(s)
+[exit 1]

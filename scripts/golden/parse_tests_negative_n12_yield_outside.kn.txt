@@ -1,0 +1,5 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n12_yield_outside.kn
+Yield
+  Int "5"
+<ROOT>/tests/negative/n12_yield_outside.kn: OK (1 top-level statements)
+[exit 0]

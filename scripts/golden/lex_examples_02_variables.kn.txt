@@ -1,0 +1,63 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/02_variables.kn
+Ident	2:1	const
+Ident	2:7	MAX_USERS
+Op	2:17	=
+Int	2:19	1000
+Punct	2:23	;
+Ident	4:1	def
+Ident	4:5	main
+Punct	4:9	(
+Punct	4:10	)
+Punct	4:12	{
+Ident	5:5	x
+Op	5:7	=
+Int	5:9	42
+Punct	5:11	;
+Ident	7:5	var
+Ident	7:9	y
+Op	7:11	=
+Int	7:13	10
+Punct	7:15	;
+Ident	8:5	y
+Op	8:7	+=
+Int	8:10	1
+Punct	8:11	;
+Ident	10:5	z
+Punct	10:6	:
+Ident	10:8	f64
+Op	10:12	=
+Float	10:14	3.14
+Punct	10:18	;
+Ident	11:5	flag
+Punct	11:9	:
+Ident	11:11	bool
+Op	11:16	=
+Ident	11:18	true
+Punct	11:22	;
+Ident	12:5	alias
+Op	12:11	=
+Ident	12:13	x
+Punct	12:14	;
+Ident	14:5	_
+Op	14:7	=
+Ident	14:9	flag
+Punct	14:13	;
+Ident	15:5	print
+Punct	15:10	(
+Ident	15:11	MAX_USERS
+Punct	15:20	,
+Ident	15:22	x
+Punct	15:23	,
+Ident	15:25	y
+Punct	15:26	,
+Ident	15:28	z
+Punct	15:29	,
+Ident	15:31	alias
+Punct	15:36	)
+Punct	15:37	;
+Punct	16:1	}
+Eof	17:1	
+<ROOT>/examples/02_variables.kn: OK (57 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

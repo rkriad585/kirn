@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n16_goto_dup_label.kn
+FuncDef "main"
+  Body
+    Goto 'dup'
+<ROOT>/tests/negative/n16_goto_dup_label.kn: OK (1 top-level statements)
+[exit 0]

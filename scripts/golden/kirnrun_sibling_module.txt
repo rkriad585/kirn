@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirnrun <TMP>/main.kn
+SIBLING-GREET
+[exit 0]

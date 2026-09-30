@@ -1,0 +1,116 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/20_defer_panic.kn
+FuncDef "process"
+  Param "path" : string
+  Body
+    Assign
+      Target Ident "f"
+      Value 
+        Call
+          Callee 
+            Member name="open"
+              Obj Ident "io"
+          Arg
+            Value Ident "path"
+    Defer
+      Call 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "f"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "processing "
+                Interp
+                  Value Ident "path"
+FuncDef "risky"
+  Param "n" : int
+  Ret int
+  Body
+    If
+      Cond 
+        Binary op="<"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "panic"
+              Arg
+                Value Str "n must be >= 0"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs Ident "n"
+FuncDef "try_risky"
+  Ret int
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "risky"
+          Arg
+            Value 
+              Unary op="-"
+                Operand Int "1"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "process"
+          Arg
+            Value Str "data.txt"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "risky"
+                Arg
+                  Value Int "9"
+    Assign
+      Target Ident "outcome"
+      Value 
+        Call
+          Callee Ident "catch_panic"
+          Arg
+            Value Ident "try_risky"
+    Match
+      Subject Ident "outcome"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind msg
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "recovered from: "
+                      Interp
+                        Value Ident "msg"
+<ROOT>/examples/20_defer_panic.kn: OK (4 top-level statements)
+[exit 0]

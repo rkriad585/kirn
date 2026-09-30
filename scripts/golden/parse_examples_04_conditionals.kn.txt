@@ -1,0 +1,72 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/04_conditionals.kn
+FuncDef "grade"
+  Param "score" : int
+  Ret string
+  Body
+    If
+      Cond 
+        Binary op=">="
+          Lhs Ident "score"
+          Rhs Int "90"
+      Then
+        Return
+          Value Str "A"
+    If
+      Cond 
+        Binary op=">="
+          Lhs Ident "score"
+          Rhs Int "80"
+      Then
+        Return
+          Value Str "B"
+    If
+      Cond 
+        Binary op=">="
+          Lhs Ident "score"
+          Rhs Int "70"
+      Then
+        Return
+          Value Str "C"
+      Else
+        Return
+          Value Str "F"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "score"
+      Value Int "83"
+    Assign
+      Target Ident "letter"
+      Value 
+        Call
+          Callee Ident "grade"
+          Arg
+            Value Ident "score"
+    Assign
+      Target Ident "verdict"
+      Value 
+        Cond
+          If 
+            Binary op="=="
+              Lhs Ident "letter"
+              Rhs Str "A"
+          Then Str "outstanding"
+          Else Str "keep pushing"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Interp
+                  Value Ident "score"
+                Text "-> "
+                Interp
+                  Value Ident "letter"
+                Text "("
+                Interp
+                  Value Ident "verdict"
+                Text ")"
+<ROOT>/examples/04_conditionals.kn: OK (2 top-level statements)
+[exit 0]

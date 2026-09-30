@@ -1,0 +1,54 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/native_main.kn
+Ident	1:1	def
+Ident	1:5	square
+Punct	1:11	(
+Ident	1:12	n
+Punct	1:13	:
+Ident	1:15	int
+Punct	1:18	)
+Op	1:20	->
+Ident	1:23	int
+Punct	1:27	{
+Ident	2:5	return
+Ident	2:12	n
+Op	2:14	*
+Ident	2:16	n
+Punct	2:17	;
+Punct	3:1	}
+Ident	5:1	def
+Ident	5:5	main
+Punct	5:9	(
+Punct	5:10	)
+Op	5:12	->
+Ident	5:15	int
+Punct	5:19	{
+Ident	6:5	total
+Op	6:11	=
+Int	6:13	0
+Punct	6:14	;
+Ident	7:5	for
+Ident	7:9	i
+Ident	7:11	in
+Int	7:14	0
+Op	7:15	..
+Int	7:17	100
+Punct	7:21	{
+Ident	8:9	total
+Op	8:15	+=
+Ident	8:18	square
+Punct	8:24	(
+Ident	8:25	i
+Punct	8:26	)
+Punct	8:27	;
+Punct	9:5	}
+Ident	10:5	return
+Ident	10:12	total
+Op	10:18	%
+Int	10:20	1000
+Punct	10:24	;
+Punct	11:1	}
+Eof	12:19	
+<ROOT>/examples/native_main.kn: OK (48 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

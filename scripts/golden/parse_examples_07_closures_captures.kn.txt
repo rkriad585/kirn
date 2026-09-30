@@ -1,0 +1,108 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/07_closures_captures.kn
+FuncDef "make_counter"
+  Body
+    Assign
+      Target Ident "count"
+      Value Int "0"
+    FuncDef "tick"
+      Ret int
+      Body
+        AugAssign op="+="
+          Target Ident "count"
+          Value Int "1"
+        Return
+          Value Ident "count"
+    Return
+      Value Ident "tick"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "square"
+      Value 
+        Lambda params=(x)
+          Body 
+            Binary op="*"
+              Lhs Ident "x"
+              Rhs Ident "x"
+    Assign
+      Target Ident "shout"
+      Value 
+        Lambda params=(s)
+          Body 
+            FString
+              Interp
+                Value 
+                  Call
+                    Callee 
+                      Member name="upper"
+                        Obj Ident "s"
+              Text "!"
+    Assign
+      Target Ident "next_id"
+      Value 
+        Call
+          Callee Ident "make_counter"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "square"
+                Arg
+                  Value Int "9"
+          Arg
+            Value 
+              Call
+                Callee Ident "shout"
+                Arg
+                  Value Str "coco"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "next_id"
+          Arg
+            Value 
+              Call
+                Callee Ident "next_id"
+          Arg
+            Value 
+              Call
+                Callee Ident "next_id"
+    Assign
+      Target Ident "ops"
+      Value 
+        List len=2
+          Item 
+            Lambda params=(a)
+              Body 
+                Binary op="*"
+                  Lhs Ident "a"
+                  Rhs Int "10"
+          Item 
+            Lambda params=(a)
+              Body 
+                Binary op="+"
+                  Lhs Ident "a"
+                  Rhs Int "1"
+    For
+      PatBind op
+      Iter Ident "ops"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Call
+                    Callee Ident "op"
+                    Arg
+                      Value Int "5"
+<ROOT>/examples/07_closures_captures.kn: OK (2 top-level statements)
+[exit 0]

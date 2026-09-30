@@ -1,0 +1,15 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n11_del_undefined.kn
+Ident	2:1	def
+Ident	2:5	main
+Punct	2:9	(
+Punct	2:10	)
+Punct	2:12	{
+Ident	3:5	del
+Ident	3:9	nope
+Punct	3:13	;
+Punct	4:1	}
+Eof	4:2	
+<ROOT>/tests/negative/n11_del_undefined.kn: OK (9 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

@@ -1,0 +1,98 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/12_enums_exhaustive.kn
+EnumDef "Status"
+  Variant Idle
+  Variant Running {pid: int}
+  Variant Failed {code: int, msg: string}
+FuncDef "render"
+  Param "s" : Status
+  Ret string
+  Body
+    Match
+      Subject Ident "s"
+      Arm
+        PatBind Idle
+        Body
+          Return
+            Value Str "idle"
+      Arm
+        PatCtor Running
+          Field
+            PatBind pid
+        Body
+          Return
+            Value 
+              FString
+                Text "running pid="
+                Interp
+                  Value Ident "pid"
+      Arm
+        PatCtor Failed
+          Field name=code
+            PatLiteral
+              Value Int "500"
+          Field
+            PatBind msg
+        Body
+          Return
+            Value 
+              FString
+                Text "server error: "
+                Interp
+                  Value Ident "msg"
+      Arm
+        PatCtor Failed
+          Field
+            PatBind code
+          Field
+            PatBind msg
+        Body
+          Return
+            Value 
+              FString
+                Text "error "
+                Interp
+                  Value Ident "code"
+                Text ": "
+                Interp
+                  Value Ident "msg"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "states"
+      Value 
+        List len=3
+          Item 
+            Member name="Idle"
+              Obj Ident "Status"
+          Item 
+            Call
+              Callee 
+                Member name="Running"
+                  Obj Ident "Status"
+              Arg name=pid
+                Value Int "42"
+          Item 
+            Call
+              Callee 
+                Member name="Failed"
+                  Obj Ident "Status"
+              Arg name=code
+                Value Int "404"
+              Arg name=msg
+                Value Str "not found"
+    For
+      PatBind s
+      Iter Ident "states"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Call
+                    Callee Ident "render"
+                    Arg
+                      Value Ident "s"
+<ROOT>/examples/12_enums_exhaustive.kn: OK (3 top-level statements)
+[exit 0]

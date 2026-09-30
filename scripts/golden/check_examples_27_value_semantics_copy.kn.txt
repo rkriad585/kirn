@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/27_value_semantics_copy.kn
+<ROOT>/examples/27_value_semantics_copy.kn: OK
+[exit 0]

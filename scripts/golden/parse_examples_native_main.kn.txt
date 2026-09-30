@@ -1,0 +1,37 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/native_main.kn
+FuncDef "square"
+  Param "n" : int
+  Ret int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs Ident "n"
+FuncDef "main"
+  Ret int
+  Body
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "100"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value 
+            Call
+              Callee Ident "square"
+              Arg
+                Value Ident "i"
+    Return
+      Value 
+        Binary op="%"
+          Lhs Ident "total"
+          Rhs Int "1000"
+<ROOT>/examples/native_main.kn: OK (2 top-level statements)
+[exit 0]

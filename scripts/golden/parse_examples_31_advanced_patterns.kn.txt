@@ -1,0 +1,287 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/31_advanced_patterns.kn
+FuncDef "fizzbuzz" pub
+  Param "n" : int
+  Ret string
+  Body
+    Match
+      Subject Ident "n"
+      Arm
+        PatBind x
+        Guard 
+          Binary op="=="
+            Lhs 
+              Binary op="%"
+                Lhs Ident "x"
+                Rhs Int "15"
+            Rhs Int "0"
+        Body
+          Return
+            Value Str "fizzbuzz"
+      Arm
+        PatBindAlias x
+          PatOr
+            PatLiteral
+              Value Int "3"
+            PatLiteral
+              Value Int "6"
+            PatLiteral
+              Value Int "9"
+            PatLiteral
+              Value Int "12"
+        Body
+          If
+            Cond 
+              Binary op="=="
+                Lhs 
+                  Binary op="%"
+                    Lhs Ident "x"
+                    Rhs Int "2"
+                Rhs Int "0"
+            Then
+              Return
+                Value Str "fizz"
+          Return
+            Value Str "fizz"
+      Arm
+        PatOr
+          PatLiteral
+            Value Int "5"
+          PatLiteral
+            Value Int "10"
+        Body
+          Return
+            Value Str "buzz"
+      Arm
+        PatWild
+        Body
+          Return
+            Value Str "n"
+    Return
+      Value Str "?"
+FuncDef "classify" pub
+  Param "inputs" : list[int]
+  Ret list[string]
+  Body
+    Assign
+      Target Ident "out"
+      Value 
+        List len=0
+    For
+      PatBind v
+      Iter Ident "inputs"
+      Body
+        Assign
+          Target Ident "out"
+          Value 
+            Binary op="+"
+              Lhs Ident "out"
+              Rhs 
+                List len=1
+                  Item 
+                    Call
+                      Callee Ident "fizzbuzz"
+                      Arg
+                        Value Ident "v"
+    Return
+      Value Ident "out"
+FuncDef "main" pub
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "classify"
+                Arg
+                  Value 
+                    List len=7
+                      Item Int "1"
+                      Item Int "3"
+                      Item Int "5"
+                      Item Int "15"
+                      Item Int "6"
+                      Item Int "10"
+                      Item Int "7"
+    Match
+      Subject 
+        Tuple len=2
+          Item Int "42"
+          Item Int "7"
+      Arm
+        PatBindAlias t
+          PatTuple len=2
+            PatBind even
+            PatLiteral
+              Value Int "7"
+        Guard 
+          Binary op="=="
+            Lhs 
+              Binary op="%"
+                Lhs Ident "even"
+                Rhs Int "2"
+            Rhs Int "0"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "tuple alias even="
+                      Interp
+                        Value Ident "even"
+                      Text "whole="
+                      Interp
+                        Value Ident "t"
+      Arm
+        PatWild
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "no"
+    Match
+      Subject 
+        List len=4
+          Item Int "10"
+          Item Int "20"
+          Item Int "30"
+          Item Int "40"
+      Arm
+        PatSlice elems=1 ..tail
+          PatBind head
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "head="
+                      Interp
+                        Value Ident "head"
+                      Text "tail="
+                      Interp
+                        Value Ident "tail"
+    Match
+      Subject 
+        Tuple len=4
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+      Arm
+        PatTuple len=2
+          PatBind a
+          PatBind b
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "a="
+                      Interp
+                        Value Ident "a"
+                      Text "b="
+                      Interp
+                        Value Ident "b"
+                      Text "rest="
+                      Interp
+                        Value Ident "rest"
+    For
+      PatBind i
+      Iter 
+        List len=3
+          Item Int "0"
+          Item Int "1"
+          Item Int "2"
+      Body
+        For
+          PatBind j
+          Iter 
+            List len=3
+              Item Int "0"
+              Item Int "1"
+              Item Int "2"
+          Body
+            If
+              Cond 
+                Binary op="=="
+                  Lhs Ident "i"
+                  Rhs Int "1"
+              Then
+                Break
+            ExprStmt
+              Value 
+                Call
+                  Callee Ident "print"
+                  Arg
+                    Value 
+                      FString
+                        Text "("
+                        Interp
+                          Value Ident "i"
+                        Text ","
+                        Interp
+                          Value Ident "j"
+                        Text ")"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "after-labeled-break"
+    For
+      PatBind i
+      Iter 
+        List len=3
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+      Body
+        For
+          PatBind j
+          Iter 
+            List len=3
+              Item Int "1"
+              Item Int "2"
+              Item Int "3"
+          Body
+            If
+              Cond 
+                Binary op="=="
+                  Lhs Ident "j"
+                  Rhs Int "3"
+              Then
+                Continue
+            ExprStmt
+              Value 
+                Call
+                  Callee Ident "print"
+                  Arg
+                    Value 
+                      FString
+                        Text "["
+                        Interp
+                          Value Ident "i"
+                        Text ","
+                        Interp
+                          Value Ident "j"
+                        Text "]"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "done"
+<ROOT>/examples/31_advanced_patterns.kn: OK (3 top-level statements)
+[exit 0]

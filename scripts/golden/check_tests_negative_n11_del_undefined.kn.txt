@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n11_del_undefined.kn
+<ROOT>/tests/negative/n11_del_undefined.kn:3:9: error: del: undefined variable 'nope'
+ 3 |     del nope;
+   |         ^^^^
+<ROOT>/tests/negative/n11_del_undefined.kn: 1 error(s)
+[exit 1]

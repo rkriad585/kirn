@@ -1,0 +1,74 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/28_weak_references.kn
+StructDef "Node"
+  Field "name" : string
+  Field "parent" var : Node?
+  Field "child" var weak : Node?
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "parent"
+      Value 
+        Call
+          Callee 
+            New type=Node
+          Arg name=name
+            Value Str "parent"
+    Assign
+      Target Ident "child"
+      Value 
+        Call
+          Callee 
+            New type=Node
+          Arg name=name
+            Value Str "child"
+    Assign
+      Target 
+        Member name="parent"
+          Obj Ident "child"
+      Value Ident "parent"
+    Assign
+      Target 
+        Member name="child"
+          Obj Ident "parent"
+      Value Ident "child"
+    Match
+      Subject 
+        Member name="child"
+          Obj Ident "parent"
+      Arm
+        PatBind c
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "child is "
+                      Interp
+                        Value 
+                          Member name="name"
+                            Obj Ident "c"
+      Arm
+        PatLiteral
+          Value Ident "none"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "child was deallocated"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="name"
+                Obj 
+                  Member name="parent"
+                    Obj Ident "child"
+<ROOT>/examples/28_weak_references.kn: OK (2 top-level statements)
+[exit 0]

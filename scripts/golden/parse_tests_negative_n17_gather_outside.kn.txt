@@ -1,0 +1,13 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n17_gather_outside.kn
+FuncDef "main"
+  Body
+    GatherItem
+      Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "hi"
+<ROOT>/tests/negative/n17_gather_outside.kn: OK (1 top-level statements)
+[exit 0]

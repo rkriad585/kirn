@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/11_structs_methods.kn
+<ROOT>/examples/11_structs_methods.kn: OK
+[exit 0]

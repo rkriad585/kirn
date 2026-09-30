@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n06_break_outside.kn
+<ROOT>/tests/negative/n06_break_outside.kn:1:1: error: expected expression, found ';'
+ 1 | ﻿; # expect: 'break' outside of a loop
+   | ^
+<ROOT>/tests/negative/n06_break_outside.kn: 1 error(s)
+[exit 1]

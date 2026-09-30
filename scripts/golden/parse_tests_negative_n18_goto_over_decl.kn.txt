@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n18_goto_over_decl.kn
+FuncDef "main"
+  Body
+    Goto 'over'
+    ConstDecl
+      Target Ident "A"
+      Value Int "10"
+<ROOT>/tests/negative/n18_goto_over_decl.kn: OK (1 top-level statements)
+[exit 0]

@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n04_too_many_args.kn
+<ROOT>/tests/negative/n04_too_many_args.kn:1:1: error: expected expression, found ';'
+ 1 | ﻿; # expect: too many arguments
+   | ^
+<ROOT>/tests/negative/n04_too_many_args.kn: 1 error(s)
+[exit 1]

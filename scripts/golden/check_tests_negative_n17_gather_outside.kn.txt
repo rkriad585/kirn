@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n17_gather_outside.kn
+<ROOT>/tests/negative/n17_gather_outside.kn:3:12: error: 'gather <expr>,' may only appear inside a gather { } loop
+ 3 |     gather 5,
+   |            ^
+<ROOT>/tests/negative/n17_gather_outside.kn: 1 error(s)
+[exit 1]

@@ -1,0 +1,31 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n04_too_many_args.kn
+Punct	1:1	;
+Ident	2:1	def
+Ident	2:5	f
+Punct	2:6	(
+Ident	2:7	a
+Punct	2:8	:
+Ident	2:10	int
+Punct	2:13	)
+Op	2:15	->
+Ident	2:18	int
+Punct	2:22	{
+Ident	3:5	return
+Ident	3:12	a
+Punct	3:13	;
+Punct	4:1	}
+Ident	5:1	print
+Punct	5:6	(
+Ident	5:7	f
+Punct	5:8	(
+Int	5:9	1
+Punct	5:10	,
+Int	5:12	2
+Punct	5:13	)
+Punct	5:14	)
+Punct	5:15	;
+Eof	6:1	
+<ROOT>/tests/negative/n04_too_many_args.kn: OK (25 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

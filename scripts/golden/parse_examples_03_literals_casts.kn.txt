@@ -1,0 +1,68 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/03_literals_casts.kn
+FuncDef "main"
+  Body
+    VarDecl : i64
+      Target Ident "big"
+      Value Int "9_000_000_000"
+    VarDecl : i8
+      Target Ident "tiny"
+      Value Int "127"
+    VarDecl : u32
+      Target Ident "mask"
+      Value Int "0xFF_FF"
+    Assign
+      Target Ident "bits"
+      Value Int "0b1010_1010"
+    Assign
+      Target Ident "mode"
+      Value Int "0o755"
+    VarDecl : f64
+      Target Ident "ratio"
+      Value Float "1e-9"
+    VarDecl : char
+      Target Ident "letter"
+      Value Char "A"
+    Assign
+      Target Ident "raw"
+      Value Str "C:\\path\\with\\noescape" r
+    Assign
+      Target Ident "blob"
+      Value Str "\\x00\\x01" b
+    Assign
+      Target Ident "wide"
+      Value 
+        Cast as i64
+          Operand Ident "tiny"
+    Assign
+      Target Ident "back"
+      Value 
+        Cast as i8
+          Operand Ident "wide"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "big"
+          Arg
+            Value Ident "tiny"
+          Arg
+            Value Ident "mask"
+          Arg
+            Value Ident "bits"
+          Arg
+            Value Ident "mode"
+          Arg
+            Value Ident "ratio"
+          Arg
+            Value Ident "letter"
+          Arg
+            Value Ident "raw"
+          Arg
+            Value Ident "blob"
+          Arg
+            Value Ident "wide"
+          Arg
+            Value Ident "back"
+<ROOT>/examples/03_literals_casts.kn: OK (1 top-level statements)
+[exit 0]

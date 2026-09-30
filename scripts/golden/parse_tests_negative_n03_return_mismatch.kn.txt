@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n03_return_mismatch.kn
+FuncDef "f"
+  Ret int
+  Body
+    Return
+      Value Str "oops"
+<ROOT>/tests/negative/n03_return_mismatch.kn:1:1: error: expected expression, found ';'
+<ROOT>/tests/negative/n03_return_mismatch.kn: 1 error(s) (0 lex, 1 parse)
+[exit 1]

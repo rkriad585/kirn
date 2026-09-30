@@ -1,0 +1,260 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/38_patterns_power.kn
+StructDef "Point"
+  Field "x" var : int
+    Default Int "0"
+  Field "y" var : int
+    Default Int "0"
+FuncDef "describe"
+  Param "xs" : <inferred>
+  Ret string
+  Body
+    Return
+      Value 
+        Match
+          Subject Ident "xs"
+          Arm
+            PatSlice elems=0
+            ExprStmt
+              Value Str "empty"
+          Arm
+            PatSlice elems=2 ..rest
+              PatBind a
+              PatBind b
+            ExprStmt
+              Value 
+                Binary op="+"
+                  Lhs 
+                    Binary op="+"
+                      Lhs 
+                        Binary op="+"
+                          Lhs 
+                            Binary op="+"
+                              Lhs 
+                                Binary op="+"
+                                  Lhs Str "a="
+                                  Rhs 
+                                    Call
+                                      Callee Ident "str"
+                                      Arg
+                                        Value Ident "a"
+                              Rhs Str " b="
+                          Rhs 
+                            Call
+                              Callee Ident "str"
+                              Arg
+                                Value Ident "b"
+                      Rhs Str " rest="
+                  Rhs 
+                    Call
+                      Callee Ident "str"
+                      Arg
+                        Value Ident "rest"
+          Arm
+            PatSlice elems=1 ..
+              PatBind a
+            ExprStmt
+              Value 
+                Binary op="+"
+                  Lhs Str "front="
+                  Rhs 
+                    Call
+                      Callee Ident "str"
+                      Arg
+                        Value Ident "a"
+          Arm
+            PatWild
+            ExprStmt
+              Value Str "other"
+FuncDef "tup_sum"
+  Param "t" : <inferred>
+  Ret string
+  Body
+    Return
+      Value 
+        Match
+          Subject Ident "t"
+          Arm
+            PatTuple len=2
+              PatBind x
+              PatBind y
+            ExprStmt
+              Value 
+                Binary op="+"
+                  Lhs 
+                    Binary op="+"
+                      Lhs 
+                        Binary op="+"
+                          Lhs Str "t="
+                          Rhs 
+                            Call
+                              Callee Ident "str"
+                              Arg
+                                Value Ident "x"
+                      Rhs Str ","
+                  Rhs 
+                    Call
+                      Callee Ident "str"
+                      Arg
+                        Value Ident "y"
+          Arm
+            PatTuple len=1
+              PatBind x
+            ExprStmt
+              Value 
+                Binary op="+"
+                  Lhs Str "one="
+                  Rhs 
+                    Call
+                      Callee Ident "str"
+                      Arg
+                        Value Ident "x"
+          Arm
+            PatWild
+            ExprStmt
+              Value Str "none"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value 
+                    List len=0
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value 
+                    List len=4
+                      Item Int "1"
+                      Item Int "2"
+                      Item Int "3"
+                      Item Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value 
+                    List len=1
+                      Item Int "9"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value Str "nope"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "tup_sum"
+                Arg
+                  Value 
+                    Tuple len=4
+                      Item Int "10"
+                      Item Int "20"
+                      Item Int "30"
+                      Item Int "40"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "tup_sum"
+                Arg
+                  Value 
+                    Tuple len=1
+                      Item Int "7"
+    Assign
+      Target Ident "n"
+      Value Int "3"
+    Assign
+      Target Ident "s"
+      Value 
+        Match
+          Subject Ident "n"
+          Arm
+            PatBindAlias v
+              PatRange ..=
+                Lo Int "1"
+                Hi Int "5"
+            ExprStmt
+              Value 
+                Binary op="+"
+                  Lhs Str "small "
+                  Rhs 
+                    Call
+                      Callee Ident "str"
+                      Arg
+                        Value Ident "v"
+          Arm
+            PatWild
+            ExprStmt
+              Value Str "big"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "nested @ => "
+                Rhs Ident "s"
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value Int "1"
+          Arg name=y
+            Value Int "2"
+    Assign
+      Target Ident "m"
+      Value 
+        Match
+          Subject Ident "p"
+          Arm
+            PatRef
+              PatBind Point
+            ExprStmt
+              Value Str "borrowed point"
+          Arm
+            PatWild
+            ExprStmt
+              Value Str "other"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "ref pattern => "
+                Rhs Ident "m"
+<ROOT>/examples/38_patterns_power.kn: OK (4 top-level statements)
+[exit 0]

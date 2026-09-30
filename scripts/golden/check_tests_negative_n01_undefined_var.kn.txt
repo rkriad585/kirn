@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n01_undefined_var.kn
+<ROOT>/tests/negative/n01_undefined_var.kn:2:5: error: undefined variable 'y'
+ 2 | x = y + 1;
+   |     ^
+<ROOT>/tests/negative/n01_undefined_var.kn:2:1: warning[W0102]: unused variable 'x'
+ 2 | x = y + 1;
+   | ^
+<ROOT>/tests/negative/n01_undefined_var.kn: 1 error(s), 1 warning(s)
+[exit 1]

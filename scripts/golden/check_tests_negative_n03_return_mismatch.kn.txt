@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n03_return_mismatch.kn
+<ROOT>/tests/negative/n03_return_mismatch.kn:1:1: error: expected expression, found ';'
+ 1 | ﻿; # expect: return type mismatch
+   | ^
+<ROOT>/tests/negative/n03_return_mismatch.kn: 1 error(s)
+[exit 1]

@@ -1,0 +1,104 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/26_iterators_views.kn
+StructDef "Range"
+  Field "cur" : int
+  Field "limit" : int
+ImplDef Iterator for Range
+  FuncDef "next"
+    Param "self" self : <inferred>
+    Ret int?
+    Body
+      If
+        Cond 
+          Binary op=">="
+            Lhs 
+              Member name="cur"
+                Obj Ident "self"
+            Rhs 
+              Member name="limit"
+                Obj Ident "self"
+        Then
+          Return
+            Value Ident "none"
+      Assign
+        Target Ident "val"
+        Value 
+          Member name="cur"
+            Obj Ident "self"
+      AugAssign op="+="
+        Target 
+          Member name="cur"
+            Obj Ident "self"
+        Value Int "1"
+      Return
+        Value Ident "val"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "r"
+      Value 
+        Call
+          Callee Ident "Range"
+          Arg name=cur
+            Value Int "0"
+          Arg name=limit
+            Value Int "5"
+    For
+      PatBind n
+      Iter Ident "r"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Ident "n"
+    Assign
+      Target Ident "nums"
+      Value 
+        List len=6
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+          Item Int "5"
+          Item Int "6"
+    Assign
+      Target Ident "total"
+      Value 
+        Call
+          Callee 
+            Member name="sum"
+              Obj 
+                Call
+                  Callee 
+                    Member name="map"
+                      Obj 
+                        Call
+                          Callee 
+                            Member name="filter"
+                              Obj Ident "nums"
+                          Arg
+                            Value 
+                              Lambda params=(x)
+                                Body 
+                                  Binary op="=="
+                                    Lhs 
+                                      Binary op="%"
+                                        Lhs Ident "x"
+                                        Rhs Int "2"
+                                    Rhs Int "0"
+                  Arg
+                    Value 
+                      Lambda params=(x)
+                        Body 
+                          Binary op="*"
+                            Lhs Ident "x"
+                            Rhs Int "10"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "total"
+<ROOT>/examples/26_iterators_views.kn: OK (3 top-level statements)
+[exit 0]

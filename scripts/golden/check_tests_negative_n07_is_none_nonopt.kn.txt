@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n07_is_none_nonopt.kn
+<ROOT>/tests/negative/n07_is_none_nonopt.kn:1:1: error: expected expression, found ';'
+ 1 | ﻿; # expect: 'is none' expects an optional
+   | ^
+<ROOT>/tests/negative/n07_is_none_nonopt.kn: 1 error(s)
+[exit 1]

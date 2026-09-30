@@ -1,0 +1,94 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/24_ffi_unsafe.kn
+Ident	2:1	extern
+Ident	2:8	def
+Ident	2:12	printf
+Punct	2:18	(
+Ident	2:19	fmt
+Punct	2:22	:
+Op	2:24	*
+Ident	2:25	char
+Punct	2:29	,
+Op	2:31	..
+Punct	2:33	.
+Punct	2:34	)
+Op	2:36	->
+Ident	2:39	i32
+Punct	2:42	;
+Ident	3:1	extern
+Ident	3:8	def
+Ident	3:12	strlen
+Punct	3:18	(
+Ident	3:19	s
+Punct	3:20	:
+Op	3:22	*
+Ident	3:23	char
+Punct	3:27	)
+Op	3:29	->
+Ident	3:32	usize
+Punct	3:37	;
+Ident	5:1	def
+Ident	5:5	print_message
+Punct	5:18	(
+Ident	5:19	msg
+Punct	5:22	:
+Ident	5:24	string
+Punct	5:30	)
+Punct	5:32	{
+Ident	6:5	unsafe
+Punct	6:12	{
+Ident	7:9	printf
+Punct	7:15	(
+StrC	7:16	%s (len=%zu)\n
+Punct	7:33	,
+Ident	7:35	msg
+Punct	7:38	.
+Ident	7:39	c_ptr
+Punct	7:44	(
+Punct	7:45	)
+Punct	7:46	,
+Ident	7:48	strlen
+Punct	7:54	(
+Ident	7:55	msg
+Punct	7:58	.
+Ident	7:59	c_ptr
+Punct	7:64	(
+Punct	7:65	)
+Punct	7:66	)
+Punct	7:67	)
+Punct	7:68	;
+Punct	9:1	}
+Punct	10:1	}
+Ident	11:1	def
+Ident	11:5	main
+Punct	11:9	(
+Punct	11:10	)
+Punct	11:12	{
+Ident	13:5	msg
+Op	13:9	=
+Str	13:11	Hello from Kirn!
+Punct	13:29	;
+Ident	14:5	unsafe
+Punct	14:12	{
+Ident	15:9	printf
+Punct	15:15	(
+StrC	15:16	%s!\n
+Punct	15:24	,
+Ident	15:26	msg
+Punct	15:29	.
+Ident	15:30	c_ptr
+Punct	15:35	(
+Punct	15:36	)
+Punct	15:37	)
+Punct	15:38	;
+Punct	16:1	}
+Ident	17:5	print_message
+Punct	17:18	(
+Ident	17:19	msg
+Punct	17:22	)
+Punct	17:23	;
+Punct	18:1	}
+Eof	19:1	
+<ROOT>/examples/24_ffi_unsafe.kn: OK (88 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

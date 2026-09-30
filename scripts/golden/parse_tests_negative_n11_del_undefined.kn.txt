@@ -1,0 +1,7 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n11_del_undefined.kn
+FuncDef "main"
+  Body
+    Del
+      Ident "nope"
+<ROOT>/tests/negative/n11_del_undefined.kn: OK (1 top-level statements)
+[exit 0]

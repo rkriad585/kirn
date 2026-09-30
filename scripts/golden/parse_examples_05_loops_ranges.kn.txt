@@ -1,0 +1,93 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/05_loops_ranges.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "0"
+          Rhs Int "10"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value Ident "i"
+    Assign
+      Target Ident "evens"
+      Value 
+        List len=0
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "20"
+      Body
+        If
+          Cond 
+            Binary op="!="
+              Lhs 
+                Binary op="%"
+                  Lhs Ident "i"
+                  Rhs Int "2"
+              Rhs Int "0"
+          Then
+            Continue
+        If
+          Cond 
+            Binary op=">"
+              Lhs Ident "i"
+              Rhs Int "12"
+          Then
+            Break
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "evens"
+              Arg
+                Value Ident "i"
+    Assign
+      Target Ident "words"
+      Value 
+        List len=3
+          Item Str "alpha"
+          Item Str "beta"
+          Item Str "gamma"
+    For
+      PatBind w
+      Iter Ident "words"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Ident "w"
+    Assign
+      Target Ident "n"
+      Value Int "3"
+    While
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Body
+        AugAssign op="-="
+          Target Ident "n"
+          Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "total"
+          Arg
+            Value Ident "evens"
+          Arg
+            Value Ident "n"
+<ROOT>/examples/05_loops_ranges.kn: OK (1 top-level statements)
+[exit 0]

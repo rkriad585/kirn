@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n01_undefined_var.kn
+Assign
+  Target Ident "x"
+  Value 
+    Binary op="+"
+      Lhs Ident "y"
+      Rhs Int "1"
+<ROOT>/tests/negative/n01_undefined_var.kn: OK (1 top-level statements)
+[exit 0]

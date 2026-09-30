@@ -1,0 +1,80 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/09_match_guards_ranges.kn
+FuncDef "describe"
+  Param "n" : int
+  Ret string
+  Body
+    Match
+      Subject Ident "n"
+      Arm
+        PatLiteral
+          Value Int "0"
+        Body
+          Return
+            Value Str "zero"
+      Arm
+        PatRange ..=
+          Lo Int "1"
+          Hi Int "9"
+        Body
+          Return
+            Value Str "single digit"
+      Arm
+        PatBind v
+        Guard 
+          Binary op="<"
+            Lhs Ident "v"
+            Rhs Int "0"
+        Body
+          Return
+            Value Str "negative"
+      Arm
+        PatWild
+        Body
+          Return
+            Value Str "many"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value 
+                    Unary op="-"
+                      Operand Int "7"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "describe"
+                Arg
+                  Value Int "123"
+<ROOT>/examples/09_match_guards_ranges.kn: OK (2 top-level statements)
+[exit 0]

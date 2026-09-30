@@ -1,0 +1,85 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/29_arena_allocation.kn
+Ident	2:1	def
+Ident	2:5	render_frame
+Punct	2:17	(
+Punct	2:18	)
+Punct	2:20	{
+Ident	3:5	arena
+Op	3:11	=
+Ident	3:13	mem
+Punct	3:16	.
+Ident	3:17	Arena
+Punct	3:22	(
+Punct	3:23	)
+Punct	3:24	;
+Ident	4:5	defer
+Ident	4:11	arena
+Punct	4:16	.
+Ident	4:17	reset
+Punct	4:22	(
+Punct	4:23	)
+Punct	4:24	;
+Ident	6:5	parts
+Op	6:11	=
+Punct	6:13	[
+Punct	6:14	]
+Punct	6:15	;
+Ident	7:5	for
+Ident	7:9	i
+Ident	7:11	in
+Int	7:14	0
+Op	7:15	..=
+Int	7:18	1000
+Punct	7:23	{
+Ident	8:9	parts
+Punct	8:14	.
+Ident	8:15	append
+Punct	8:21	(
+Ident	8:22	arena
+Punct	8:27	.
+Ident	8:28	alloc
+Punct	8:33	(
+FStr#	8:34	f"
+FStrTxt	8:44	sprite-
+FStr{	8:43	{
+Ident	8:44	i
+FStr}	8:45	}
+FStrEnd	8:47	"
+Punct	8:47	)
+Punct	8:48	)
+Punct	8:49	;
+Punct	11:1	}
+Ident	12:5	print
+Punct	12:10	(
+Ident	12:11	len
+Punct	12:14	(
+Ident	12:15	parts
+Punct	12:20	)
+Punct	12:21	,
+Ident	12:23	parts
+Punct	12:28	[
+Int	12:29	0
+Punct	12:30	]
+Punct	12:31	)
+Punct	12:32	;
+Punct	14:1	}
+Ident	15:1	def
+Ident	15:5	main
+Punct	15:9	(
+Punct	15:10	)
+Punct	15:12	{
+Ident	16:5	render_frame
+Punct	16:17	(
+Punct	16:18	)
+Punct	16:19	;
+Ident	17:5	print
+Punct	17:10	(
+Str	17:11	frame memory released in one operation
+Punct	17:51	)
+Punct	17:52	;
+Punct	18:1	}
+Eof	19:1	
+<ROOT>/examples/29_arena_allocation.kn: OK (79 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

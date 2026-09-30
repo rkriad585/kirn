@@ -1,0 +1,340 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/44_block_closures.kn
+FuncDef "dmap"
+  Param "xs" : <inferred>
+  Param "f" : fn(int) -> int
+  Ret list
+  Body
+    Assign
+      Target Ident "out"
+      Value 
+        List len=0
+    For
+      PatBind x
+      Iter Ident "xs"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "out"
+              Arg
+                Value 
+                  Call
+                    Callee Ident "f"
+                    Arg
+                      Value Ident "x"
+    Return
+      Value Ident "out"
+FuncDef "makeScaler"
+  Param "factor" : <inferred>
+  Body
+    Return
+      Value 
+        Lambda params=(x: int)
+          Ret int
+          Body
+            Return
+              Value 
+                Binary op="*"
+                  Lhs Ident "x"
+                  Rhs Ident "factor"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "ys"
+      Value 
+        Call
+          Callee Ident "dmap"
+          Arg
+            Value 
+              List len=3
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+          Arg
+            Value 
+              Lambda params=(v: <inferred>)
+                Body
+                  Assign
+                    Target Ident "doubled"
+                    Value 
+                      Binary op="*"
+                        Lhs Ident "v"
+                        Rhs Int "2"
+                  Return
+                    Value 
+                      Binary op="+"
+                        Lhs Ident "doubled"
+                        Rhs Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "dmap="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "ys"
+    Assign
+      Target Ident "sum_"
+      Value 
+        Call
+          Callee 
+            Member name="fold"
+              Obj 
+                Call
+                  Callee Ident "dmap"
+                  Arg
+                    Value 
+                      List len=2
+                        Item Int "1"
+                        Item Int "2"
+                  Arg
+                    Value 
+                      Lambda params=(a: <inferred>)
+                        Body
+                          Return
+                            Value Ident "a"
+          Arg
+            Value 
+              Lambda params=(acc: <inferred>, b: <inferred>)
+                Body
+                  Return
+                    Value 
+                      Binary op="+"
+                        Lhs Ident "acc"
+                        Rhs Ident "b"
+    Assign
+      Target Ident "typed"
+      Value Ident "sum_"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "typed="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "typed"
+    Assign
+      Target Ident "scale"
+      Value 
+        Call
+          Callee Ident "makeScaler"
+          Arg
+            Value Int "100"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "scale="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "scale"
+                          Arg
+                            Value Int "7"
+    Assign
+      Target Ident "count"
+      Value Int "0"
+    Assign
+      Target Ident "bump"
+      Value 
+        Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs 
+                          Binary op="+"
+                            Lhs 
+                              Binary op="+"
+                                Lhs Str "counter="
+                                Rhs 
+                                  Call
+                                    Callee Ident "str"
+                                    Arg
+                                      Value 
+                                        Call
+                                          Callee Ident "bump"
+                            Rhs Str " "
+                        Rhs 
+                          Call
+                            Callee Ident "str"
+                            Arg
+                              Value 
+                                Call
+                                  Callee Ident "bump"
+                    Rhs Str " "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "bump"
+    Assign
+      Target Ident "probe"
+      Value 
+        Lambda params=(n: <inferred>)
+          Body
+            If
+              Cond 
+                Binary op=">"
+                  Lhs Ident "n"
+                  Rhs Int "10"
+              Then
+                Return
+                  Value Int "6"
+            Return
+              Value Ident "n"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "early="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "probe"
+                          Arg
+                            Value Int "99"
+    Assign
+      Target Ident "pipe"
+      Value 
+        Lambda params=(x: int)
+          Ret int
+          Body
+            Assign
+              Target Ident "y"
+              Value 
+                Binary op="+"
+                  Lhs Ident "x"
+                  Rhs Int "1"
+            Assign
+              Target Ident "z"
+              Value 
+                Binary op="*"
+                  Lhs Ident "y"
+                  Rhs Int "2"
+            Return
+              Value Ident "z"
+    Assign
+      Target Ident "thru"
+      Value 
+        Call
+          Callee Ident "dmap"
+          Arg
+            Value 
+              List len=2
+                Item Int "3"
+                Item Int "2"
+          Arg
+            Value Ident "pipe"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "pipeline="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="next"
+                              Obj Ident "thru"
+    Assign
+      Target Ident "folded"
+      Value 
+        Call
+          Callee 
+            Member name="fold"
+              Obj 
+                List len=3
+                  Item Int "10"
+                  Item Int "20"
+                  Item Int "30"
+          Arg
+            Value 
+              Lambda params=(acc: <inferred>, v: <inferred>)
+                Body
+                  Return
+                    Value 
+                      Binary op="+"
+                        Lhs Ident "acc"
+                        Rhs Ident "v"
+          Arg
+            Value Int "100"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "folded="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "folded"
+    Assign
+      Target Ident "sq"
+      Value 
+        Lambda params=(x)
+          Body 
+            Binary op="*"
+              Lhs Ident "x"
+              Rhs Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "arrow="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "sq"
+                          Arg
+                            Value Int "9"
+<ROOT>/examples/44_block_closures.kn: OK (3 top-level statements)
+[exit 0]

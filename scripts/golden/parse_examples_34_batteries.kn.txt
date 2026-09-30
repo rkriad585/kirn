@@ -1,0 +1,344 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/34_batteries.kn
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "str"
+                Arg
+                  Value Int "42"
+          Arg
+            Value 
+              Call
+                Callee Ident "str"
+                Arg
+                  Value Float "3.14"
+          Arg
+            Value 
+              Call
+                Callee Ident "str"
+                Arg
+                  Value Ident "true"
+          Arg
+            Value 
+              Call
+                Callee Ident "str"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "1"
+                      Item Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Call
+                    Callee Ident "int"
+                    Arg
+                      Value Str "42"
+                Rhs Int "1"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Call
+                    Callee Ident "float"
+                    Arg
+                      Value Str "2.5"
+                Rhs Float "0.5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "bool"
+                Arg
+                  Value Int "0"
+          Arg
+            Value 
+              Call
+                Callee Ident "bool"
+                Arg
+                  Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "type"
+                Arg
+                  Value Int "42"
+          Arg
+            Value 
+              Call
+                Callee Ident "type"
+                Arg
+                  Value Str "x"
+          Arg
+            Value 
+              Call
+                Callee Ident "type"
+                Arg
+                  Value 
+                    List len=1
+                      Item Int "1"
+          Arg
+            Value 
+              Call
+                Callee Ident "type"
+                Arg
+                  Value 
+                    Dict len=1
+                      Pair
+                        Key Int "1"
+                        Val Int "2"
+    Assign
+      Target Ident "nums"
+      Value 
+        List len=5
+          Item Int "3"
+          Item Int "1"
+          Item Int "4"
+          Item Int "1"
+          Item Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "sum"
+                Arg
+                  Value Ident "nums"
+          Arg
+            Value 
+              Call
+                Callee Ident "min"
+                Arg
+                  Value Ident "nums"
+          Arg
+            Value 
+              Call
+                Callee Ident "max"
+                Arg
+                  Value Ident "nums"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "sorted"
+                Arg
+                  Value Ident "nums"
+          Arg
+            Value 
+              Call
+                Callee Ident "reversed"
+                Arg
+                  Value Ident "nums"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "any"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "0"
+                      Item Int "0"
+                      Item Int "1"
+          Arg
+            Value 
+              Call
+                Callee Ident "all"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "1"
+                      Item Int "1"
+                      Item Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "map"
+                Arg
+                  Value 
+                    Lambda params=(x)
+                      Body 
+                        Binary op="*"
+                          Lhs Ident "x"
+                          Rhs Ident "x"
+                Arg
+                  Value Ident "nums"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "filter"
+                Arg
+                  Value 
+                    Lambda params=(x)
+                      Body 
+                        Binary op="=="
+                          Lhs 
+                            Binary op="%"
+                              Lhs Ident "x"
+                              Rhs Int "2"
+                          Rhs Int "1"
+                Arg
+                  Value Ident "nums"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "reduce"
+                Arg
+                  Value 
+                    Lambda params=(a, b)
+                      Body 
+                        Binary op="+"
+                          Lhs Ident "a"
+                          Rhs Ident "b"
+                Arg
+                  Value Ident "nums"
+                Arg
+                  Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "enumerate"
+                Arg
+                  Value 
+                    List len=2
+                      Item Str "a"
+                      Item Str "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "upper"
+                Arg
+                  Value Str "HeLLo"
+          Arg
+            Value 
+              Call
+                Callee Ident "lower"
+                Arg
+                  Value Str "HeLLo"
+          Arg
+            Value 
+              Call
+                Callee Ident "trim"
+                Arg
+                  Value Str "  hi  "
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "contains"
+                Arg
+                  Value Str "hello"
+                Arg
+                  Value Str "ell"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "starts_with"
+                Arg
+                  Value Str "hello"
+                Arg
+                  Value Str "he"
+          Arg
+            Value 
+              Call
+                Callee Ident "ends_with"
+                Arg
+                  Value Str "hello"
+                Arg
+                  Value Str "lo"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "replace"
+                Arg
+                  Value Str "a-b-c"
+                Arg
+                  Value Str "-"
+                Arg
+                  Value Str "+"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "split"
+                Arg
+                  Value Str "a,b,c"
+                Arg
+                  Value Str ","
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "join"
+                Arg
+                  Value Str "-"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "1"
+                      Item Int "2"
+                      Item Int "3"
+<ROOT>/examples/34_batteries.kn: OK (1 top-level statements)
+[exit 0]

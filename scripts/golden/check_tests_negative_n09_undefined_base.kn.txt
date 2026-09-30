@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n09_undefined_base.kn
+<ROOT>/tests/negative/n09_undefined_base.kn:1:1: error: expected expression, found ';'
+ 1 | ; # expect: base class 'Ghost' is not defined
+   | ^
+<ROOT>/tests/negative/n09_undefined_base.kn: 1 error(s)
+[exit 1]

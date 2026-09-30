@@ -1,0 +1,99 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/13_traits_dispatch.kn
+TraitDef "Drawable"
+  Sig draw(self: <inferred>)
+  FuncDef "name"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "drawable"
+StructDef "Circle"
+  Field "r" : f64
+  FuncDef "draw"
+    Param "self" self : <inferred>
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                FString
+                  Text "inherent draw r="
+                  Interp
+                    Value 
+                      Member name="r"
+                        Obj Ident "self"
+ImplDef Drawable for Circle
+  FuncDef "draw"
+    Param "self" self : <inferred>
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                FString
+                  Text "circle r="
+                  Interp
+                    Value 
+                      Member name="r"
+                        Obj Ident "self"
+  FuncDef "name"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "circle"
+FuncDef "render"
+  Param "d" : Drawable
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="draw"
+              Obj Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="name"
+                    Obj Ident "d"
+FuncDef "render_fast" generics=[T is Drawable]
+  Param "d" : T
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="draw"
+              Obj Ident "d"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "c"
+      Value 
+        Call
+          Callee Ident "Circle"
+          Arg name=r
+            Value Float "2.5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "render"
+          Arg
+            Value Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "render_fast"
+          Arg
+            Value Ident "c"
+<ROOT>/examples/13_traits_dispatch.kn: OK (6 top-level statements)
+[exit 0]

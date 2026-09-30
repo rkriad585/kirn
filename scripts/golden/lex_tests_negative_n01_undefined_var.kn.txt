@@ -1,0 +1,12 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n01_undefined_var.kn
+Ident	2:1	x
+Op	2:3	=
+Ident	2:5	y
+Op	2:7	+
+Int	2:9	1
+Punct	2:10	;
+Eof	3:1	
+<ROOT>/tests/negative/n01_undefined_var.kn: OK (6 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

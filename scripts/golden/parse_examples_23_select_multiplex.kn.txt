@@ -1,0 +1,74 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/23_select_multiplex.kn
+FuncDef "slow_producer"
+  Param "ch" : chan[string]
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="sleep"
+              Obj Ident "time"
+          Arg name=ms
+            Value Int "1000"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ch"
+          Arg
+            Value Str "late value"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "ch"
+      Value 
+        Call
+          Callee 
+            New type=chan[string]
+    Spawn
+      Call 
+        Call
+          Callee Ident "slow_producer"
+          Arg
+            Value Ident "ch"
+    While
+      Cond Ident "true"
+      Body
+        Select
+          SelArm bind=msg
+            ChanOp 
+              Call
+                Callee 
+                  Member name="recv"
+                    Obj Ident "ch"
+            Body
+              ExprStmt
+                Value 
+                  Call
+                    Callee Ident "print"
+                    Arg
+                      Value 
+                        FString
+                          Text "got "
+                          Interp
+                            Value Ident "msg"
+              Break
+          SelArm
+            ChanOp 
+              Call
+                Callee 
+                  Member name="after"
+                    Obj Ident "time"
+                Arg name=ms
+                  Value Int "500"
+            Body
+              ExprStmt
+                Value 
+                  Call
+                    Callee Ident "print"
+                    Arg
+                      Value Str "timed out waiting"
+              Break
+<ROOT>/examples/23_select_multiplex.kn: OK (2 top-level statements)
+[exit 0]

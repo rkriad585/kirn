@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n13_yield_return_value.kn
+<ROOT>/tests/negative/n13_yield_return_value.kn:4:5: error: generator functions cannot 'return' a value; use 'yield'
+ 4 |     return 42;
+   |     ^^^^^^
+<ROOT>/tests/negative/n13_yield_return_value.kn: 1 error(s)
+[exit 1]

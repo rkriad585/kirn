@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n12_yield_outside.kn
+<ROOT>/tests/negative/n12_yield_outside.kn:2:1: error: 'yield' outside of a generator function
+ 2 | yield 5;
+   | ^^^^^
+<ROOT>/tests/negative/n12_yield_outside.kn: 1 error(s)
+[exit 1]

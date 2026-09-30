@@ -1,0 +1,17 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n10_temp_exhausted.kn
+FuncDef "main"
+  Body
+    TempDecl 't' x2
+      Type
+      Int "5"
+    Assign
+      Target Ident "a"
+      Value Ident "t"
+    Assign
+      Target Ident "b"
+      Value Ident "t"
+    Assign
+      Target Ident "c"
+      Value Ident "t"
+<ROOT>/tests/negative/n10_temp_exhausted.kn: OK (1 top-level statements)
+[exit 0]

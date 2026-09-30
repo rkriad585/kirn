@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n05_unknown_field.kn
+<ROOT>/tests/negative/n05_unknown_field.kn:1:1: error: expected expression, found ';'
+ 1 | ﻿; # expect: struct 'Point' has no field 'zzz'
+   | ^
+<ROOT>/tests/negative/n05_unknown_field.kn: 1 error(s)
+[exit 1]

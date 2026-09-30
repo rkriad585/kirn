@@ -2,6 +2,7 @@
 //   kirnrun <file.kn> [args...]
 //                                 run program; main()'s Int return is the
 //                                 process exit code (default 0)
+#include "driver/driver.h"
 #include "interp/runtime.h"
 #include "lex/lexer.h"
 #include "parser/parser.h"
@@ -30,30 +31,24 @@ bool readFile(const std::string& path, std::string& out) {
     return true;
 }
 
-// Module search paths, in priority order:
-//   1. $KIRN_PETS
-//   2. <script dir>/pets      (per-project packages + ad-hoc modules)
-//   3. ~/.kirn/pets            (global installs)
-//   4. <script dir>/../stdlib       (repo checkout layout)
-//   5. ./stdlib
-//   6. $KIRN_STDLIB
+// Module search paths come from the driver library, so `kirnrun` and `kirn run`
+// resolve imports identically (BUILDER-PLAN.md phase 0, §5.2). They used to keep
+// separate lists: this one searched `<dir>/pets` and a CWD-relative bare
+// `stdlib` but never the project directory itself, so a module sitting next to
+// the entry file resolved under `kirn run` and panicked here with
+// "unknown module". `libDirsFor` is the superset, and it is the one the driver
+// already uses, so it is the one both callers share.
 void addModuleDirs(kirn::interp::Interpreter& interp,
                    const std::string& script) {
-    size_t p = script.find_last_of("/\\");
-    std::string dir = p == std::string::npos ? "." : script.substr(0, p);
-    if (const char* env = std::getenv("KIRN_PETS"))
-        interp.addStdlibDir(env);
-    interp.addStdlibDir(dir + "/pets");
-    if (const char* home = std::getenv("USERPROFILE")) {
-        std::string g = std::string(home) + "/.kirn/pets";
-        interp.addStdlibDir(g);
-    } else if (const char* home2 = std::getenv("HOME")) {
-        std::string g = std::string(home2) + "/.kirn/pets";
-        interp.addStdlibDir(g);
-    }
-    interp.addStdlibDir(dir + "/../stdlib");
-    interp.addStdlibDir("stdlib");
-    if (const char* env = std::getenv("KIRN_STDLIB")) interp.addStdlibDir(env);
+    for (const auto& d : kirn::driver::libDirsFor(script))
+        interp.addStdlibDir(d);
+    // Sibling modules of the entry file are importable too, matching the
+    // `kirn run` path in tools/kirn.cpp.
+    std::string dir = script;
+    size_t cut = dir.find_last_of("/\\");
+    dir = cut == std::string::npos ? std::string(".") : dir.substr(0, cut);
+    if (!dir.empty() && dir != ".")
+        interp.addStdlibDir(dir);
 }
 
 // Phase 8: the COCO_* env vars became KIRN_* and are a hard cut - never read.

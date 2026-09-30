@@ -1,0 +1,39 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n09_undefined_base.kn
+Punct	1:1	;
+Ident	2:1	class
+Ident	2:7	Phantom
+Ident	2:15	extends
+Ident	2:23	Ghost
+Punct	2:29	{
+Ident	3:5	var
+Ident	3:9	y
+Punct	3:10	:
+Ident	3:12	int
+Op	3:16	=
+Int	3:18	2
+Punct	3:19	;
+Punct	4:1	}
+Ident	6:1	def
+Ident	6:5	main
+Punct	6:9	(
+Punct	6:10	)
+Op	6:12	->
+Ident	6:15	int
+Punct	6:19	{
+Ident	7:5	p
+Op	7:7	=
+Ident	7:9	Phantom
+Punct	7:16	(
+Punct	7:17	)
+Punct	7:18	;
+Ident	8:5	return
+Ident	8:12	p
+Punct	8:13	.
+Ident	8:14	y
+Punct	8:15	;
+Punct	9:1	}
+Eof	9:2	
+<ROOT>/tests/negative/n09_undefined_base.kn: OK (33 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

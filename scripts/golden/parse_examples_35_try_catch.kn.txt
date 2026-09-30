@@ -1,0 +1,210 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/35_try_catch.kn
+FuncDef "risky"
+  Param "n" : int
+  Ret int
+  Body
+    If
+      Cond 
+        Binary op="<"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        Raise
+          Value Str "n must be >= 0"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs Ident "n"
+FuncDef "main"
+  Body
+    Try
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                Call
+                  Callee Ident "risky"
+                  Arg
+                    Value 
+                      Unary op="-"
+                        Operand Int "1"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Str "recovered: "
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value Ident "e"
+    Try
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                Call
+                  Callee Ident "risky"
+                  Arg
+                    Value Int "3"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Str "should not print: "
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value Ident "e"
+    VarDecl
+      Target Ident "discarded"
+      Value Str "no"
+    Try
+      Raise
+        Value Str "swallowed"
+      Catch
+        Assign
+          Target Ident "discarded"
+          Value Str "yes"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "discarded="
+                Rhs Ident "discarded"
+    Try
+      Raise
+        Value Int "42"
+      Catch bind=n
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Str "num="
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value 
+                            Binary op="+"
+                              Lhs Ident "n"
+                              Rhs Int "1"
+    VarDecl
+      Target Ident "outer"
+      Value Str "none"
+    Try
+      Try
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "risky"
+              Arg
+                Value 
+                  Unary op="-"
+                    Operand Int "5"
+        Catch bind=inner
+          Raise
+            Value 
+              Binary op="+"
+                Lhs Str "rethrown: "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "inner"
+      Catch bind=outer_e
+        Assign
+          Target Ident "outer"
+          Value 
+            Call
+              Callee Ident "str"
+              Arg
+                Value Ident "outer_e"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "outer="
+                Rhs Ident "outer"
+    VarDecl
+      Target Ident "count"
+      Value Int "0"
+    For
+      PatBind i
+      Iter 
+        List len=3
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+      Body
+        Try
+          If
+            Cond 
+              Binary op="=="
+                Lhs Ident "i"
+                Rhs Int "2"
+            Then
+              Raise
+                Value 
+                  Binary op="+"
+                    Lhs Str "boom "
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value Ident "i"
+          AugAssign op="+="
+            Target Ident "count"
+            Value Int "1"
+          Catch bind=e
+            ExprStmt
+              Value 
+                Call
+                  Callee Ident "print"
+                  Arg
+                    Value 
+                      Binary op="+"
+                        Lhs Str "in loop: "
+                        Rhs 
+                          Call
+                            Callee Ident "str"
+                            Arg
+                              Value Ident "e"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "count="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "count"
+<ROOT>/examples/35_try_catch.kn: OK (2 top-level statements)
+[exit 0]

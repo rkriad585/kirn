@@ -1,0 +1,43 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/02_variables.kn
+ConstDecl
+  Target Ident "MAX_USERS"
+  Value Int "1000"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "x"
+      Value Int "42"
+    VarDecl
+      Target Ident "y"
+      Value Int "10"
+    AugAssign op="+="
+      Target Ident "y"
+      Value Int "1"
+    VarDecl : f64
+      Target Ident "z"
+      Value Float "3.14"
+    VarDecl : bool
+      Target Ident "flag"
+      Value Ident "true"
+    Assign
+      Target Ident "alias"
+      Value Ident "x"
+    Assign
+      Target Ident "_"
+      Value Ident "flag"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "MAX_USERS"
+          Arg
+            Value Ident "x"
+          Arg
+            Value Ident "y"
+          Arg
+            Value Ident "z"
+          Arg
+            Value Ident "alias"
+<ROOT>/examples/02_variables.kn: OK (2 top-level statements)
+[exit 0]

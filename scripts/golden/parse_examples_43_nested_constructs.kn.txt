@@ -1,0 +1,230 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/43_nested_constructs.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "n"
+      Value Int "60"
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "100"
+      Then
+        Assign
+          Target Ident "n"
+          Value Int "1"
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "50"
+      Then
+        Assign
+          Target Ident "n"
+          Value Int "60"
+      Else
+        Assign
+          Target Ident "n"
+          Value Int "0"
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        If
+          Cond 
+            Binary op=">"
+              Lhs Ident "n"
+              Rhs Int "10"
+          Then
+            Assign
+              Target Ident "n"
+              Value 
+                Binary op="+"
+                  Lhs Ident "n"
+                  Rhs Int "5"
+          Else
+            Assign
+              Target Ident "n"
+              Value 
+                Binary op="-"
+                  Lhs Ident "n"
+                  Rhs Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "nestedIf="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "n"
+    Assign
+      Target Ident "pairs"
+      Value 
+        List len=0
+    For
+      PatBind x
+      Iter 
+        Binary op=".."
+          Lhs Int "1"
+          Rhs Int "3"
+      Body
+        For
+          PatBind y
+          Iter 
+            Binary op=".."
+              Lhs Int "1"
+              Rhs Int "3"
+          Body
+            If
+              Cond 
+                Binary op="=="
+                  Lhs 
+                    Binary op="%"
+                      Lhs 
+                        Binary op="+"
+                          Lhs Ident "x"
+                          Rhs Ident "y"
+                      Rhs Int "2"
+                  Rhs Int "0"
+              Then
+                ExprStmt
+                  Value 
+                    Call
+                      Callee 
+                        Member name="append"
+                          Obj Ident "pairs"
+                      Arg
+                        Value 
+                          Binary op="*"
+                            Lhs Ident "x"
+                            Rhs Ident "y"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "doubleNest="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "len"
+                          Arg
+                            Value Ident "pairs"
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "1"
+          Rhs Int "3"
+      Body
+        For
+          PatBind j
+          Iter 
+            Binary op=".."
+              Lhs Int "1"
+              Rhs Int "3"
+          Body
+            If
+              Cond 
+                Binary op="and"
+                  Lhs 
+                    Binary op="=="
+                      Lhs Ident "i"
+                      Rhs Int "2"
+                  Rhs 
+                    Binary op="=="
+                      Lhs Ident "j"
+                      Rhs Int "2"
+              Then
+                Break
+            AugAssign op="+="
+              Target Ident "total"
+              Value Int "1"
+        AugAssign op="+="
+          Target Ident "total"
+          Value Int "100"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "deepFor="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "total"
+    Assign
+      Target Ident "sum"
+      Value Int "0"
+    Gather
+      Seeds
+        Int "1"
+        Int "2"
+        Int "3"
+        Int "4"
+        Int "5"
+        Int "6"
+      Body
+        AugAssign op="+="
+          Target Ident "sum"
+          Value Ident "item"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "doGatherSum="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "sum"
+    Assign
+      Target Ident "acc"
+      Value Int "0"
+    For
+      PatWild
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "20"
+      Body
+        For
+          PatWild
+          Iter 
+            Binary op=".."
+              Lhs Int "0"
+              Rhs Int "20"
+          Body
+            AugAssign op="+="
+              Target Ident "acc"
+              Value Int "1"
+            If
+              Cond 
+                Binary op="=="
+                  Lhs Ident "acc"
+                  Rhs Int "3"
+              Then
+                Goto 'done2'
+<ROOT>/examples/43_nested_constructs.kn: OK (1 top-level statements)
+[exit 0]

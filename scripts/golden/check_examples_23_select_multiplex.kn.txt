@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/23_select_multiplex.kn
+<ROOT>/examples/23_select_multiplex.kn: OK
+[exit 0]

@@ -1,0 +1,19 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n07_is_none_nonopt.kn
+Assign
+  Target Ident "v"
+  Value Int "5"
+If
+  Cond 
+    Binary op="is"
+      Lhs Ident "v"
+      Rhs Ident "none"
+  Then
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Int "1"
+<ROOT>/tests/negative/n07_is_none_nonopt.kn:1:1: error: expected expression, found ';'
+<ROOT>/tests/negative/n07_is_none_nonopt.kn: 1 error(s) (0 lex, 1 parse)
+[exit 1]

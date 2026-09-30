@@ -1,0 +1,134 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/19_results_try_propagation.kn
+StructDef "ParseError"
+  Field "bad" : string
+FuncDef "parse_port"
+  Param "text" : string
+  Ret result[int, ParseError]
+  Body
+    Assign
+      Target Ident "port"
+      Value 
+        Call
+          Callee 
+            Member name="to_int"
+              Obj Ident "text"
+    If
+      Cond 
+        Binary op="is"
+          Lhs Ident "port"
+          Rhs Ident "none"
+      Then
+        Raise
+          Value 
+            Call
+              Callee Ident "ParseError"
+              Arg name=bad
+                Value Ident "text"
+    Return
+      Value Ident "port"
+FuncDef "read_config"
+  Ret result[int, ParseError]
+  Body
+    Assign
+      Target Ident "raw"
+      Value Str "8080"
+    Assign
+      Target Ident "port"
+      Value 
+        Unary op="try"
+          Operand 
+            Call
+              Callee Ident "parse_port"
+              Arg
+                Value Ident "raw"
+    Assign
+      Target Ident "doubled"
+      Value 
+        Try '?'
+          Operand 
+            Call
+              Callee Ident "parse_port"
+              Arg
+                Value Ident "raw"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "doubled"
+    Return
+      Value Ident "port"
+FuncDef "main"
+  Body
+    Match
+      Subject 
+        Call
+          Callee Ident "read_config"
+      Arm
+        PatCtor ok
+          Field
+            PatBind p
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "port = "
+                      Interp
+                        Value Ident "p"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "failed: "
+                      Interp
+                        Value 
+                          Member name="bad"
+                            Obj Ident "e"
+    Assign
+      Target Ident "r"
+      Value 
+        Call
+          Callee Ident "parse_port"
+          Arg
+            Value Str "not-a-number"
+    If
+      Cond 
+        Call
+          Callee 
+            Member name="is_err"
+              Obj Ident "r"
+      Then
+        Assign
+          Target Ident "e"
+          Value 
+            Call
+              Callee 
+                Member name="unwrap_err"
+                  Obj Ident "r"
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  FString
+                    Text "rejected '"
+                    Interp
+                      Value 
+                        Member name="bad"
+                          Obj Ident "e"
+                    Text "'"
+<ROOT>/examples/19_results_try_propagation.kn: OK (4 top-level statements)
+[exit 0]

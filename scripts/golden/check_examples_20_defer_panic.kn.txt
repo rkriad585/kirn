@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/20_defer_panic.kn
+<ROOT>/examples/20_defer_panic.kn: OK
+[exit 0]

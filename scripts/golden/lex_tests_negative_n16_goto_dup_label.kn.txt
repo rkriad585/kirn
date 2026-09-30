@@ -1,0 +1,29 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n16_goto_dup_label.kn
+Ident	2:1	def
+Ident	2:5	main
+Punct	2:9	(
+Punct	2:10	)
+Punct	2:12	{
+Ident	3:5	goto
+Ident	3:10	dup
+Punct	3:13	;
+Ident	4:1	dup
+Punct	4:4	:
+Ident	5:5	print
+Punct	5:10	(
+Str	5:11	a
+Punct	5:14	)
+Punct	5:15	;
+Ident	6:1	dup
+Punct	6:4	:
+Ident	7:5	print
+Punct	7:10	(
+Str	7:11	b
+Punct	7:14	)
+Punct	7:15	;
+Punct	8:1	}
+Eof	9:1	
+<ROOT>/tests/negative/n16_goto_dup_label.kn: OK (23 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

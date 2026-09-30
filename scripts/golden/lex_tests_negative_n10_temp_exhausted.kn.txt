@@ -1,0 +1,32 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n10_temp_exhausted.kn
+Ident	2:1	def
+Ident	2:5	main
+Punct	2:9	(
+Punct	2:10	)
+Punct	2:12	{
+Ident	3:5	temp
+Ident	3:10	t
+Int	3:12	2
+Punct	3:13	:
+Ident	3:15	int
+Op	3:19	=
+Int	3:21	5
+Punct	3:22	;
+Ident	4:5	a
+Op	4:7	=
+Ident	4:9	t
+Punct	4:10	;
+Ident	5:5	b
+Op	5:7	=
+Ident	5:9	t
+Punct	5:10	;
+Ident	6:5	c
+Op	6:7	=
+Ident	6:9	t
+Punct	6:10	;
+Punct	7:1	}
+Eof	7:2	
+<ROOT>/tests/negative/n10_temp_exhausted.kn: OK (26 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

@@ -1,0 +1,248 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/41_generators.kn
+FuncDef "counter"
+  Param "n" : <inferred>
+  Ret gen[int]
+  Body
+    For
+      PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Ident "n"
+      Body
+        Yield
+          Ident "i"
+FuncDef "fib"
+  Param "limit" : <inferred>
+  Body
+    VarDecl
+      Target Ident "a"
+      Value Int "1"
+    VarDecl
+      Target Ident "b"
+      Value Int "1"
+    While
+      Cond 
+        Binary op="<="
+          Lhs Ident "a"
+          Rhs Ident "limit"
+      Body
+        Yield
+          Ident "a"
+        Assign
+          Target 
+            Tuple len=2
+              Item Ident "a"
+              Item Ident "b"
+          Value 
+            Tuple len=2
+              Item Ident "b"
+              Item 
+                Binary op="+"
+                  Lhs Ident "a"
+                  Rhs Ident "b"
+FuncDef "combine"
+  Param "items" : <inferred>
+  Body
+    Yield
+      Str "start"
+    For
+      PatBind x
+      Iter Ident "items"
+      Body
+        Yield
+          Ident "x"
+    Yield
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "s"
+      Value Int "0"
+    For
+      PatBind x
+      Iter 
+        Call
+          Callee Ident "counter"
+          Arg
+            Value Int "5"
+      Body
+        Assign
+          Target Ident "s"
+          Value 
+            Binary op="+"
+              Lhs Ident "s"
+              Rhs Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "sum="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "s"
+    Assign
+      Target Ident "fibs"
+      Value 
+        Call
+          Callee 
+            Member name="collect"
+              Obj 
+                Call
+                  Callee Ident "fib"
+                  Arg
+                    Value Int "50"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "fibs="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "fibs"
+    Assign
+      Target Ident "even"
+      Value 
+        Call
+          Callee 
+            Member name="filter"
+              Obj 
+                Call
+                  Callee Ident "counter"
+                  Arg
+                    Value Int "10"
+          Arg
+            Value 
+              Lambda params=(x)
+                Body 
+                  Binary op="=="
+                    Lhs 
+                      Binary op="%"
+                        Lhs Ident "x"
+                        Rhs Int "2"
+                    Rhs Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "even="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="collect"
+                              Obj Ident "even"
+    Assign
+      Target Ident "sq"
+      Value 
+        Call
+          Callee 
+            Member name="collect"
+              Obj 
+                Call
+                  Callee 
+                    Member name="map"
+                      Obj 
+                        Call
+                          Callee Ident "counter"
+                          Arg
+                            Value Int "4"
+                  Arg
+                    Value 
+                      Lambda params=(x)
+                        Body 
+                          Binary op="*"
+                            Lhs Ident "x"
+                            Rhs Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "sq="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "sq"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "len="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="len"
+                              Obj 
+                                Call
+                                  Callee Ident "counter"
+                                  Arg
+                                    Value Int "7"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "mixed="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="collect"
+                              Obj 
+                                Call
+                                  Callee Ident "combine"
+                                  Arg
+                                    Value 
+                                      List len=2
+                                        Item Int "9"
+                                        Item Int "8"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "fresh="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "counter"
+                          Arg
+                            Value Int "3"
+<ROOT>/examples/41_generators.kn: OK (4 top-level statements)
+[exit 0]

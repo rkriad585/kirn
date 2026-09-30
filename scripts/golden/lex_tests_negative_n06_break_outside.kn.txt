@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n06_break_outside.kn
+Punct	1:1	;
+Ident	2:1	break
+Punct	2:6	;
+Eof	3:1	
+<ROOT>/tests/negative/n06_break_outside.kn: OK (3 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

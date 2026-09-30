@@ -1,0 +1,253 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/42_control_goto_gather.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "n"
+      Value Int "5"
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    DoWhile
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value Ident "n"
+        AugAssign op="-="
+          Target Ident "n"
+          Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "doTotal="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "total"
+    Assign
+      Target Ident "z"
+      Value Int "0"
+    DoWhile
+      Cond Ident "false"
+      Body
+        Assign
+          Target Ident "z"
+          Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "doOnce="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "z"
+    Assign
+      Target Ident "xs"
+      Value 
+        List len=5
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+          Item Int "0"
+    Assign
+      Target Ident "i"
+      Value Int "0"
+    Assign
+      Target Ident "sum"
+      Value Int "0"
+    Assign
+      Target Ident "x"
+      Value 
+        Index
+          Obj Ident "xs"
+          At Int "0"
+    DoWhile
+      PatBind x
+      Search 
+        Index
+          Obj Ident "xs"
+          At Ident "i"
+      Body
+        AugAssign op="+="
+          Target Ident "sum"
+          Value Ident "x"
+        AugAssign op="+="
+          Target Ident "i"
+          Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "searchSum="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "sum"
+    Assign
+      Target Ident "total2"
+      Value Int "0"
+    For
+      PatBind k
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "1000"
+      Body
+        If
+          Cond 
+            Binary op="=="
+              Lhs Ident "k"
+              Rhs Int "5"
+          Then
+            Goto 'done'
+        AugAssign op="+="
+          Target Ident "total2"
+          Value Ident "k"
+    Assign
+      Target Ident "visited"
+      Value 
+        List len=0
+    Gather
+      Seeds
+        Int "0"
+      Body
+        If
+          Cond 
+            Binary op=">="
+              Lhs 
+                Call
+                  Callee Ident "len"
+                  Arg
+                    Value Ident "visited"
+              Rhs Int "5"
+          Then
+            Break
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "visited"
+              Arg
+                Value Ident "item"
+        GatherItem
+          Binary op="+"
+            Lhs Ident "item"
+            Rhs Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "gatherVisited="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "visited"
+    Assign
+      Target Ident "out"
+      Value 
+        List len=0
+    Gather
+      Seeds
+        Int "1"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "out"
+              Arg
+                Value Ident "item"
+        If
+          Cond 
+            Binary op="<"
+              Lhs Ident "item"
+              Rhs Int "16"
+          Then
+            GatherItem
+              Binary op="*"
+                Lhs Ident "item"
+                Rhs Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "gatherBfs="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "out"
+    Assign
+      Target Ident "v"
+      Value Ident "nil"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "nilv="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "v"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs Str "nan=|"
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value Ident "NaN"
+                Rhs Str "|"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "inf="
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "inf"
+<ROOT>/examples/42_control_goto_gather.kn: OK (1 top-level statements)
+[exit 0]

@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/37_dynamic_any.kn
+<ROOT>/examples/37_dynamic_any.kn: OK
+[exit 0]

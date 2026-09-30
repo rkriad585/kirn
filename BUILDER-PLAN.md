@@ -1,0 +1,1197 @@
+# BUILDER-PLAN: A staged AOT toolchain with `kirn` + `kirnc`
+
+Date: 2026-09-30
+Scope: how the Kirn build path becomes a real ahead-of-time (AOT) compilation
+pipeline described by `prepro -> compile -> assemb -> executable`, exposed as
+**two binaries** (`kirn` = user-facing operations, `kirnc` = the compiler
+driver that also drives C/C++).
+
+---
+
+## 1. The ask, restated
+
+1. The build must be a staged AOT pipeline:
+
+   ```
+   source -> prepro (preprocessor)
+           -> compile (compiler: front end + optimizer + codegen)
+           -> assemb (assembler)
+           -> executable (linker)
+   ```
+
+   with the intermediate forms from the current literature made explicit:
+
+   ```
+   scanning/lexing -> parsing -> macro expansion -> type checking
+   -> HIR -> MIR -> optimization -> SSA -> LLVM codegen -> assembling -> linking
+   ```
+
+2. Exactly **two** tools:
+
+   - `kirn` — "compile, run, and more kirn operations" (the user-facing driver,
+     today's `kirn` extended: `run`, `build`, `test`, `new`, `install`, `doc`, …).
+   - `kirnc` — the low-level compiler driver: can _run or compile_ Kirn _and_
+     C/C++; exposes stage flags `check`, `lex`, `parse`, `rt`, `run`, plus more.
+
+---
+
+## 2. Current state (verified by code reading, 2026-09-30)
+
+Important reality check: several things the ask assumes **do not exist yet**.
+
+| The ask assumes…                        | Reality today                                                                                                                                                                            | Evidence                                                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| LLVM backend ("Code Generation & LLVM") | **No LLVM anywhere in the repo.** The backends are (a) bundle source text into a copy of the interpreted `kirnrt`, or (b) emit a C++ launcher and shell out to `g++`/`clang++`/`cl.exe`. | `kirn_driver::buildProgram` (bundle branch) (bundle), `:2787-2811` (C++ shell-out); grep for `LLVM` = zero in `src/` |
+| A preprocessor with macros              | **None.** No `#define`, no macro table, no `__FILE__`.                                                                                                                                   | grep `macro                                                                                         | prepro`= zero hits in`src/`+`tools/` |
+| HIR / MIR / SSA / optimizer             | **None.** Closest IR is the bytecode VM (`src/vm/`), which is a _running_ VM, not a transformable IR. `ast.h:3` and `interp/runtime.h:3` say the "MIR/LLVM backend" is a _future_ goal.  | `src/vm/bytecode.h`, `src/vm/compiler.cpp`                                                          |
+| An assembler + linker as named stages   | No assembler stage; linking is folded into one `g++`/`cl.exe` call. Only MSVC `lib.exe` is invoked explicitly.                                                                           | `kirn_driver::buildProgram`                                                   |
+| A `kirnc` binary                        | Stage-oracle tools already exist and are a proto-`kirnc`: `kirnlex` (tokens), `kirnparse` (AST), `kirncheck` (type-check only), `kirnrun` (type-check + interpret).                      | `CMakeLists.txt:72-82`                                                                              |
+
+What **does** exist and is solid:
+
+- Full front end, already factored as static libs: `kirn_lex` → `kirn_ast` →
+  `kirn_parser` → `kirn_sema` → `kirn_vm` → `kirn_interp`, plus `kirn_backend`
+  (C++ emission, scalar subset). `CMakeLists.txt:33-91`.
+- Two runtime execution engines: tree-walking `Interpreter` and a bytecode VM,
+  dispatch preference `native -> bytecode VM -> tree-walker`
+  (`src/interp/runtime.cpp:2675-2679`).
+- One shared `frontEnd()` = lex + parse + `sema::Checker::checkModule`
+  (`kirn_driver::readManifest`).
+- `kirn build` modes today: `-S` sasm listing, default host bundle, GNU C++
+  cross/native (used on Linux), MSVC `-O`/link, pet pack
+  (`kirn_driver::buildProgram`).
+- FFI to C via `extern def` + `unsafe` (`examples/24_ffi_unsafe.kn`); symbols
+  resolve through the process's linked C runtime
+  (`src/interp/runtime.cpp:823`).
+- `LintConfig` exists but is dead code — a free hook for a lint surface
+  (`src/sema/checker.h:22-25`).
+
+### Conventions from real-world drivers (research summary)
+
+| Pattern                                   | Source of truth                                 | Spelling                                                                     |
+| ----------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| Stage-selection is a **verb**, not a flag | Nim, cargo, Zig                                 | `nim check`, `cargo check`, `zig run`                                        |
+| `check` = front end only, no codegen      | `cargo check`, `nim check`, `gcc -fsyntax-only` | bare word                                                                    |
+| `run` implies build-then-execute          | `zig run`, `go run`, `nim r`                    | verb, or `-r` flag                                                           |
+| Stop-at-stage flags                       | GCC/Clang driver                                | `-E`, `-S`, `-c`, `-###` (print pipeline)                                    |
+| C driver in the same tool                 | Zig                                             | `zig cc`/`zig c++` accepts clang flags verbatim, forwards unknowns           |
+| Emit-at-stage flags                       | Zig                                             | `-femit-llvm-ir`, `-femit-asm`, `-femit-bin`                                 |
+| LLVM stage mapping                        | LLVM tooling                                    | `opt` = passes/O levels, `llc` = IR→asm/obj, `lld` = link; SSA via `mem2reg` |
+
+---
+
+## 3. Target architecture
+
+### 3.1 The pipeline
+
+```
+ source .kn/.c/.cpp
+   │
+   │  prepro ──────────── macro expansion (-D defs, #include-like imports)
+   ▼
+ compile
+   ├─ scan/lex ────────── token stream              (kirn_lex today)
+   ├─ parse ───────────── AST                       (kirn_parser today)
+   ├─ type check ──────── resolved symbols, types   (kirn_sema today)
+   ├─ HIR ─────────────── lowered, named, typed AST (NEW src/hir/)
+   ├─ MIR ─────────────── CFG + values, still high-level (NEW src/mir/)
+   ├─ optimize/SSA ────── SSA IR + optimization      (NEW, or LLVM passes)
+   └─ LLVM codegen ────── LLVM IR                    (NEW src/backends/llvm/)
+   │
+   assemb ─────────────── machine code / object      (LLVM MC or host as)
+   ▼
+ executable ───────────── linked binary              (LLD or host linker)
+```
+
+Spelling per stage, matching the ask:
+
+| Stage                                            | Kirn IR/form                      | Stop-at flag or verb           |
+| ------------------------------------------------ | --------------------------------- | ------------------------------ |
+| prepro                                           | token-level, macros expanded      | `kirnc -E` / `kirnc prepro`    |
+| scanning (lexing)                                | `std::vector<Token>`              | `kirnc lex`                    |
+| parsing (+ macro expansion is baked into prepro) | `kirn::ast::Program`              | `kirnc parse`                  |
+| type checking                                    | `sema::Checker` results           | `kirnc check`                  |
+| HIR                                              | `src/hir/` lowered AST (no sugar) | `kirnc -emit-hir`              |
+| MIR                                              | `src/mir/` CFG, no-destructors    | `kirnc -emit-mir` / `kirnc rt` |
+| optimization + SSA                               | LLVM `opt` new pass manager       | `-O0..3` / `-emit-llvm`        |
+| LLVM codegen                                     | LLVM IR module                    | `-emit-llvm` / `-S`            |
+| assembling                                       | object file                       | `-c`                           |
+| linking                                          | executable                        | default / `-o`                 |
+
+### 3.2 The two tools
+
+```
+kirn  = cargo/zig-style orchestrator (user operations)
+kirnc = rustc/gcc-style driver (the compiler proper)
+```
+
+- `kirn build` / `kirn run` / `kirn check` become thin: resolve the project,
+  pick target/profile, then invoke `kirnc` with the right flags and hand off
+  artifacts/exit codes. (`kirn` keeps everything that is not pure compilation:
+  `test`, `new`, `install`, `add`, `doc`, `targets`, `fmt`, `doctor`, …)
+- `kirnc` owns: source → IR → asm → obj → exe, the `-E/-S/-c/-o/-###` grammar,
+  C/C++ driving, and every stage dump.
+- Exactly two shipped executables: `kirn` + `kirnc`. The stage-oracle binaries
+  (`kirnlex`, `kirnparse`, `kirncheck`, `kirnrun`) are consolidated into
+  `kirnc` verbs (kept working as hidden aliases for scripts first, removed
+  later). `kirnrt` (the bundled interpreter) is treated as a _data artifact_,
+  not a user tool, and is dropped when real AOT is the default.
+
+### 3.3 `kirnc` CLI surface (initial proposal)
+
+```
+kirnc <verb> [inputs] [flags]
+
+verbs:
+  check            lex + parse + type-check only (cargo check); exit 1 on error
+  lex              lex only; print tokens            (was kirnlex --dump)
+  parse            lex + parse; print AST            (was kirnparse --ast)
+  rt               type-check + lower to MIR/bytecode and print IR / run via runtime
+  run              full AOT pipeline then execute with [args...]
+  build            full AOT pipeline to executable/object (default verb)
+
+language selection:
+  -x kirn|c|c++    force language (default from extension: .kn/.c/.cpp/.h)
+  cc c++           alias: drive the C/C++ front end (wraps clang)
+
+stop-at-stage (GCC grammar):
+  -E               preprocess only (macro dumps)
+  -S               assemble -> assembly? no: to LLVM-asm/object listing
+  -c               compile+assemble to .o, no link
+  -o <path>        output path
+  -###             print the composed stage commands without running (gcc -###)
+  -v / --verbose   print each stage's actual command
+
+front-end / analysis flags:
+  --emit-tokens    print token stream                   (lex)
+  --emit-ast       print AST                            (parse)
+  --emit-hir       print HIR after lowering
+  --emit-mir       print MIR (CFG/dumps)  = `rt` dump   (see rt)
+  --emit-llvm      write LLVM IR (.ll/.bc)              (zig -femit-llvm-ir)
+  --emit-sasm      keep today's KIRN-SASM v1 listing (-S compat)
+  -D name[=val]    define macro at prepro
+  -U name          undefine macro
+  -W flags, -A, -D (lint)  first-class surface for the dormant LintConfig
+
+codegen/backend flags:
+  -O0/-O1/-O2/-O3 / --debug / --release
+  -target <os>-<arch>        KIRN_TARGET / host default (GOOS-GOARCH style)
+  -fbackend=llvm|cpp         LLVM IR backend (future) vs C++-text backend (today)
+  -fno-vectorize, -ffast-math etc. once LLVM passes land
+  --asan
+
+runtime/execution:
+  rt file.kn [args...]       build via bundled runtime then execute  (today's default)
+  run file.kn [args...]      full AOT then execute
+  -- args                    split program args (zig/go idiom)
+```
+
+Notes:
+
+- `rt` is interpreted here as **"run through the runtime"** — the current
+  bundle-and-interpret path — versus `run` = true AOT. This is an assumption;
+  see Open Questions. (The codebase already uses "rt" = runtime:
+  `kirnrt`, `KIRN_RT`.)
+- `cc`/`c++` verbs make `kirnc` a drop-in for C/C++ (Zig model): unknown flags
+  forward to the wrapped compiler; `-E`, `-S`, `-c`, `-fsyntax-only`,
+  `-emit-llvm`, `-o` all pass through.
+- Empty args → `usage()` like `kirn` today (`kirn_driver::usage`).
+- Stage-verb/flag grammar grounded in real drivers: verbs ↔ Ruby's
+  `--dump=` bitset (`yydebug`/`parsetree`/`syntax`/`insns`, §3.4.12);
+  `--emit-*` ↔ rustc's `OutputType` + `should_codegen()/should_link()`
+  predicates (§3.4.5); dry-run ↔ Go's `Shell` + `-n`/`-x` (§3.4.6).
+
+### 3.4 Reference code: how Go, Rust, Ruby and CPython implement each stage
+
+This section quotes the _actual_ compiler sources (local trees in
+`/home/rkriad585/Projects/go-rust-ruby-cpython-source-code`) that the Kirn
+design below borrows from. Every snippet is `file:line`-verified. Paths are
+relative to each tree: `go-master`, `rust-main`, `ruby-master`, `cpython-main`.
+
+#### 3.4.1 Two-tool split (`kirn` vs `kirnc`) — modeled on Go's `cmd/go` ↔ `cmd/compile`
+
+Go is the cleanest example of a user-facing tool that _never links_ the
+compiler; it finds the tool by name in a tool dir and execs it:
+
+`go-master/src/cmd/go/internal/base/tool.go:30-42`
+
+```go
+// ToolPath returns the path at which we expect to find the named tool
+// (for example, "vet"), and the error (if any) from statting that path.
+func ToolPath(toolName string) (string, error) {
+	if !ValidToolName(toolName) {
+		return "", fmt.Errorf("bad tool name: %q", toolName)
+	}
+	toolPath := filepath.Join(build.ToolDir, toolName) + cfg.ToolExeSuffix()
+	err := toolStatCache.Do(toolPath, func() error {
+		_, err := os.Stat(toolPath)
+		return err
+	})
+	return toolPath, err
+}
+```
+
+`compile` is behind an interface, so the build graph never names the binary:
+
+`go-master/src/cmd/go/internal/work/gc.go:35-43` and `build.go:276-286`
+
+```go
+type gcToolchain struct{}
+
+func (gcToolchain) compiler() string { return base.Tool("compile") }
+func (gcToolchain) linker()  string  { return base.Tool("link") }
+
+func (c buildCompiler) Set(value string) error {
+	switch value {
+	case "gc":
+		BuildToolchain = gcToolchain{}
+	case "gccgo":
+		BuildToolchain = gccgoToolchain{}
+	default:
+		return fmt.Errorf("unknown compiler %q", value)
+	}
+	cfg.BuildToolchainName = value
+}
+```
+
+The `compile` argv is built in one place and handed to a single Shell choke
+point:
+
+`go-master/src/cmd/go/internal/work/gc.go:136`
+
+```go
+	args := []any{cfg.BuildToolexec, base.Tool("compile"), "-o", ofile, "-trimpath", a.trimpath(), defaultGcFlags, gcflags}
+```
+
+> **Adopt in Kirn:** `kirn` locates `kirnc` (env override `KIRN_CC`, then
+> `<toolroot>/kirnc`, then exe-relative) and execs it; a `Toolchain`
+> interface keeps a second backend (e.g. a JIT) swappable. `kirn build -x`
+> / `-n` semantics come for free (see 3.4.6).
+
+#### 3.4.2 Driver phase list — modeled on `gc.Main` (Go) and rustc's query spine
+
+Go's driver is a straight-line function with an explicit ordered phase list —
+parse+typecheck → walk → escape → SSA → obj — and the README states the phases:
+
+`go-master/src/cmd/compile/README.md:9-11` and `98-119`
+
+```markdown
+`cmd/compile` contains the main packages that form the Go compiler. The compiler
+may be logically split in four phases ...
+
+### 1. Parsing (... src/cmd/compile/internal/syntax)
+
+### 2. Type checking (... typecheck)
+
+### 3. IR construction ("noding") (... noder)
+
+### 4. Middle end (... walk, escape, ...)
+
+### 6. Generic SSA (... ssa)
+
+### 7. Generating machine code (... ssa, obj)
+```
+
+rustc's driver spine is the same shape in code (parse → expand → analysis →
+codegen → link):
+
+`rust-main/compiler/rustc_driver_impl/src/lib.rs:268-282`
+
+```rust
+        // Parse the crate root source code (doesn't parse submodules yet)
+        let mut krate = passes::parse(sess);
+        ...
+        let linker = create_and_enter_global_ctxt(compiler, krate, |tcx| {
+            // Make sure name resolution and macro expansion is run.
+            let _ = tcx.resolver_for_lowering();
+            if callbacks.after_expansion(compiler, tcx) == Compilation::Stop {
+                return None;
+            }
+            ...
+            tcx.ensure_ok().analysis(());
+            ...
+            let linker = Linker::codegen_and_build_linker(tcx, codegen_backend);
+```
+
+> **Adopt in Kirn:** `kirnc` runs one ordered sequence of stage functions
+> (`prepro → lex → parse → check → hir → mir → ssa → llvm → asm → link`),
+> each of which may be cut short by a verb/flag. Keep the list in one table so
+> `-###` and `check` can reason about it.
+
+#### 3.4.3 Stage hooks for tools — modeled on rustc `Callbacks`
+
+rustc lets an embedding tool stop the pipeline at four named points:
+
+`rust-main/compiler/rustc_driver_impl/src/lib.rs:121-152` (excerpt)
+
+```rust
+pub trait Callbacks {
+    fn config(&mut self, _config: &mut interface::Config) {}
+    fn after_crate_root_parsing(...) -> Compilation { Compilation::Continue }
+    fn after_expansion<'tcx>(...) -> Compilation { Compilation::Continue }
+    fn after_analysis<'tcx>(...) -> Compilation { Compilation::Continue }
+}
+```
+
+> **Adopt in Kirn:** `kirnc` accepts `--stop-after=<stage>` (mirrored in the
+> reserved `Compilation::Stop` value above) checked after each phase, so an
+> IDE/editor integration and `kirn check` share one driver.
+
+#### 3.4.4 Macro expansion — modeled on rustc `rustc_expand` (fixpoint worklist)
+
+rustc's expander is a _collect-invocations → expand → re-collect_ worklist to
+fixpoint, with the Resolver borrowed live so `use` and `macro` interleave:
+
+`rust-main/compiler/rustc_expand/src/expand.rs:469-486`
+
+```rust
+    /// Recursively expand all macro invocations in this AST fragment.
+    pub fn fully_expand_fragment(&mut self, input_fragment: AstFragment) -> AstFragment {
+        // Collect all macro invocations and replace them with placeholders.
+        let (mut fragment_with_placeholders, mut invocations) =
+            self.collect_invocations(input_fragment, &[]);
+        // Optimization: if we resolve all imports now,
+        // we'll be able to immediately resolve most of imported macros.
+        self.resolve_imports();
+        // Resolve paths in all invocations and produce output expanded fragments ...
+        invocations.reverse();
+        ...
+```
+
+> **Adopt in Kirn:** `src/prepro/` (see §4.0) follows the same two rules:
+> expansion is a to-fixpoint worklist, and `#def` bodies are stored _before_
+> parsing, expanded into the token stream before `parse` begins.
+
+#### 3.4.5 `--emit=`-style stage outputs — modeled on rustc `OutputType`
+
+rustc declares one enum of output kinds with shorthands, and two aggregate
+predicates that short-circuit whole stages:
+
+`rust-main/compiler/rustc_session/src/config.rs:914-936`
+
+```rust
+    pub fn should_codegen(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::Bitcode
+            | OutputType::Assembly
+            | OutputType::LlvmAssembly
+            | OutputType::Mir
+            | OutputType::Object
+            | OutputType::Exe => true,
+            OutputType::Metadata | OutputType::DepInfo => false,
+        })
+    }
+    pub fn should_link(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::Exe => true,
+            _ => false,
+        })
+    }
+```
+
+...with shorthands (`llvm-ir`, `asm`, `obj`, `link`, `mir`) parsed from
+`--emit=` and stored as a `BTreeMap` (`config.rs:2403-2432`).
+
+> **Adopt in Kirn:** `kirnc --emit-tokens/--emit-ast/--emit-hir/--emit-mir/
+--emit-llvm [-c|-o]` mirror this: one output-type enum, `should_codegen()`
+> / `should_link()` predicates. `rt`/`check`/`lex`/`parse` are the "stop
+> before that predicate" verbs.
+
+#### 3.4.6 Dry-run printing — modeled on Go's `-n`/`-x`
+
+Go makes dry-run a 3-line idiom because every subprocess goes through one
+`Shell`:
+
+`go-master/src/cmd/go/internal/work/shell.go:602-626`
+
+```go
+	if cfg.BuildN || cfg.BuildX {
+		var envcmdline string
+		...
+		sh.ShowCmd(dir, "%s", envcmdline)
+		if cfg.BuildN {
+			return nil, nil
+		}
+	}
+	var buf bytes.Buffer
+	path, err := pathcache.LookPath(cmdline[0])
+	...
+	cmd := exec.Command(path, cmdline[1:]...)
+```
+
+> **Adopt in Kirn:** `kirnc -###` (print, never run) and `-v` (print as
+> executed) funnel through one "run a compiled stage" helper that prints the
+> composed command first — and `-n/-x` land free as aliases.
+
+#### 3.4.7 SSA + pass pipeline — modeled on Go's `ssacompile` (data-declared)
+
+Go declares the pass list as _data_ with `Required`/`Disabled`/`Name`, then
+machine-checks ordering at `init()`:
+
+`go-master/src/cmd/compile/internal/ssacompile/compile.go:413-420` and `:479-492`
+
+```go
+var passes = [...]ssa.Pass{
+	{Name: "number lines", Fn: numberLines, Required: true},
+	{Name: "early phielim and copyelim", Fn: copyelim},
+	{Name: "early deadcode", Fn: deadcode},
+	{Name: "short circuit", Fn: shortcircuit},
+	{Name: "opt", Fn: opt, Required: true},
+	...
+}
+type constraint struct { a, b string } // a must come before b
+var passOrder = [...]constraint{{"dse", "insert resched checks"}, ...}
+```
+
+and the runner skips non-`Required` passes under `-N`:
+
+`go-master/src/cmd/compile/internal/ssacompile/compile.go:82-85`
+
+```go
+	for _, p = range passes {
+		if !f.Config.Optimize && !p.Required || p.Disabled {
+			continue
+		}
+```
+
+> **Adopt in Kirn:** once a real MIR/SSA pass suite exists, declare it as a
+> pass table (name + fn + required/disabled), verify ordering in an `init()`
+> assert, and give `-O0` (debug) the same "skip non-required" shortcut. The
+> plan's phase 4/5 use LLVM's pass manager instead of hand-writing this; the
+> table pattern still applies to the _driver-level_ stage list (§3.4.2).
+
+#### 3.4.8 IR node shape — modeled on CPython's ASDL tagged union & Go's `miniNode`
+
+CPython generates both the C `struct` and the Python-facing `ast` module from
+one `asdl` schema:
+
+`cpython-main/Grammar/python.asdl`
+
+```asdl
+mod = Module(body* stmt, type_ignores* type_ignore)
+stmt = FunctionDef(identifier name, arguments args, stmt* body, ...)
+```
+
+`cpython-main/Include/internal/pycore_ast.h:196-207` (the generated C)
+
+```c
+struct _stmt {
+    enum _stmt_kind kind;
+    union {
+        struct {
+            identifier name;
+            arguments_ty args;
+            asdl_stmt_seq *body;
+            ...
+        } FunctionDef;
+        ...
+    } v;
+};
+```
+
+Go shares a compact common header and keeps the rest in concrete nodes
+(`miniNode` = `pos, op, bits, esc`, 12 bytes):
+
+`go-master/src/cmd/compile/internal/ir/mini.go:16-26`
+
+```go
+type miniNode struct {
+	pos  src.XPos
+	op   Op
+	bits bitset8
+	esc  uint16
+}
+```
+
+> **Adopt in Kirn:** keep the existing `unique_ptr`-based `src/ast/` (§4.4
+> keeps house style); note the two _end_ shapes — a tagged union for compact
+> memory (CPython/Go) vs. virtual dispatch, and an optional `ast.dump`-style
+> "public IR" later, which the `PyCF_ONLY_AST` boundary (below) models.
+
+#### 3.4.9 Types/name-checking stage — modeled on CPython `symtable` & Ruby `ruby -c`
+
+CPython's _symbol table_ is the scope/analysis pass, and it is declared the
+recursion-limit gate before codegen:
+
+`cpython-main/Python/symtable.c:415-418` and `Include/internal/pycore_symtable.h:71-86`
+
+```c
+struct symtable *
+_PySymtable_Build(mod_ty mod, PyObject *filename, _PyFutureFeatures *future)
+{
+    struct symtable *st = symtable_new();
+    ...
+}
+```
+
+```c
+struct symtable {
+    PyObject *st_filename;
+    struct _symtable_entry *st_cur;  /* current scope */
+    struct _symtable_entry *st_top;  /* module scope */
+    PyObject *st_blocks;             /* AST node addr -> scope entry */
+    PyObject *st_stack;              /* scope stack */
+    ...
+};
+```
+
+Ruby's `--dump=syntax` is the classic "parse-only, then exit non-zero on
+errors" verb (`ruby -c`):
+
+`ruby-master/ruby.c:2651`
+
+```c
+    if (dump & DUMP_BIT(syntax)) {
+        printf("Syntax OK\n");
+        ...
+        return Qtrue;
+    }
+```
+
+> **Adopt in Kirn:** `kirnc check` == the existing `sema::Checker` +
+> `BorrowChecker` (exactly today's `kirncheck`), plus wiring the dormant
+> `LintConfig`; CPython teaches keeping scope data (symbols) addressable from
+> AST node pointers, which simplifies HIR/MIR later.
+
+#### 3.4.10 AST→bytecode with a linked list, flatten late — modeled on Ruby
+
+Ruby compiles into a `LINK_ANCHOR` linked list (patchable branches/labels),
+runs peepholes, then flattens + threaded-code-translates at the very end:
+
+`ruby-master/compile.c:898-910` (top of `rb_iseq_compile_node`)
+
+```c
+VALUE
+rb_iseq_compile_node(rb_iseq_t *iseq, const NODE *node)
+{
+    DECL_ANCHOR(ret);
+    INIT_ANCHOR(ret);
+    ...
+    case NODE_SCOPE: {
+        iseq_set_local_table(iseq, RNODE_SCOPE(node)->nd_tbl, (NODE *)RNODE_SCOPE(node)->nd_args);
+        ...
+        CHECK(iseq_setup_insn(iseq, ret));   // step 3: peephole
+        return iseq_setup(iseq, ret);        // step 4: flatten + tables
+    }
+}
+```
+
+...and the bytecode is a flat `VALUE` array later interpreted with a raw
+`pc` pointer:
+
+`ruby-master/vm_exec.c:97` and `vm_core.h:428`
+
+```c
+    reg_pc = reg_cfp->pc;            /* pc is a const VALUE* into iseq_encoded */
+```
+
+```c
+    unsigned int iseq_size;
+    VALUE *iseq_encoded;
+```
+
+> **Adopt in Kirn:** today's bytecode VM (`src/vm/compiler.cpp`) already emits
+> instructions; Ruby's "linked list → flatten late" plus "keep the _original_
+> (untranslated) opcode array for disassembly" are the two ideas to add for
+> `rt`/`--emit-mir` dumps.
+
+#### 3.4.11 Stop-at-AST, public IR — modeled on CPython `PyCF_ONLY_AST`
+
+CPython stops the entire pipeline at the AST when asked, returning an AST
+object instead of a code object:
+
+`cpython-main/Python/bltinmodule.c:923-937`
+
+```c
+        if (flags & PyCF_ONLY_AST) {
+            mod_ty mod = PyAST_obj2mod(source, arena, compile_mode);
+            if (mod == NULL || !_PyAST_Validate(mod)) {
+                _PyArena_Free(arena);
+                goto error;
+            }
+            ...
+            result = PyAST_mod2obj(mod);
+        }
+```
+
+> **Adopt in Kirn:** `kirnc parse` (+ `kirnc -E` for prepro) is the same
+> public-IR boundary. `gcc -fsyntax-only` / `nim check` / `cargo check` agree:
+> a "no codegen" verb is the observable boundary between front end and backend.
+
+#### 3.4.12 Stage introspection flags — modeled on Ruby `--dump=` bitset
+
+Ruby models pipeline stages as a bitset and exits after printing one:
+
+`ruby-master/ruby.c:139-158`
+
+```c
+#define EACH_DUMPS(X, SEP) \
+    X(version) SEP X(copyright) SEP X(usage) SEP X(help) \
+    SEP X(yydebug) SEP X(syntax) SEP X(parsetree) SEP X(insns)
+enum dump_flag_bits {
+    dump_version_v,
+    ...
+    dump_exit_bits = (DUMP_BIT(yydebug) | DUMP_BIT(parsetree) |
+                      DUMP_BIT(insns)),
+};
+```
+
+`ruby-master/ruby.c:2717` (the "print and exit" tail)
+
+```c
+    if (dump & DUMP_BIT(insns)) {
+        rb_io_write(rb_stdout, rb_iseq_disasm((const rb_iseq_t *)iseq));
+        rb_io_flush(rb_stdout);
+        dump &= ~DUMP_BIT(insns);
+        if (!dump) return Qtrue;
+    }
+```
+
+> **Adopt in Kirn:** `check`/`lex`/`parse`/`rt` map onto Ruby's
+> `yydebug`/`parsetree`/`syntax`/`insns` exactly: a `StageBits` field in the
+> driver's options struct; the corresponding `--emit-*` writes a file,
+> the verb prints to stdout, both `return` before codegen/link.
+
+#### 3.4.13 Optimizer passes on a CFG — modeled on CPython's `flowgraph.c`
+
+CPython's optimizer works on a CFG built from a flat instruction sequence,
+split into Preprocessing / Optimization / Cleanup:
+
+`cpython-main/Python/flowgraph.c:3788-3835`
+
+```c
+int
+_PyCfg_OptimizeCodeUnit(cfg_builder *g, ...)
+{
+    /** Preprocessing **/
+    RETURN_IF_ERROR(translate_jump_labels_to_targets(g->g_entryblock));
+    RETURN_IF_ERROR(mark_except_handlers(g->g_entryblock));
+    RETURN_IF_ERROR(label_exception_targets(g->g_entryblock));
+    ...
+    int ret = optimize_cfg(g, consts, const_cache, ...);
+    ...
+    RETURN_IF_ERROR(remove_unused_consts(g->g_entryblock, consts));
+    RETURN_IF_ERROR(insert_superinstructions(g));
+    RETURN_IF_ERROR(resolve_line_numbers(g, firstlineno));
+}
+```
+
+And the whole 5-pass story is documented at the top of compile.c:
+
+`cpython-main/Python/compile.c:1-15`
+
+```c
+/* This file compiles an abstract syntax tree (AST) into Python bytecode.
+ * The primary entry point is _PyAST_Compile(), which returns a
+ * PyCodeObject.  The compiler makes several passes to build the code object:
+ *   1. Checks for future statements.  See future.c
+ *   2. Builds a symbol table.  See symtable.c.
+ *   3. Generate an instruction sequence. See compiler_mod() in this file ...
+ *   4. Generate a control flow graph and run optimizations on it. See flowgraph.c.
+ *   5. Assemble the basic blocks into final code. ...
+ */
+```
+
+> **Adopt in Kirn:** the phase 3 `src/mir/` CFG and its optimizer are CPython
+> `flowgraph.c` shaped: flat IR → CFG → optimize → assemble; and the
+> `compile.c:1-15` header comment is the template for kirn's own stage
+> documentation.
+
+#### 3.4.14 Across the trees: the six rules Kirn inherits
+
+1. **Orchestrator never links the compiler** (Go): `kirn` execs `kirnc`.
+2. **Driver = one ordered stage list** (Go, rustc, CPython's compile.c:1-15).
+3. **No-codegen is a verb, not a flag** (Go `-c`, `cargo check`, `-fsyntax-only`, `--dump=syntax`).
+4. **The IR is a first-class public boundary** (CPython `PyCF_ONLY_AST`).
+5. **Compile into a list, flatten late** (Ruby `LINK_ANCHOR`); keep original opcodes for `disasm`.
+6. **Dry-run is one choke point per side-effecting operation class** (Go
+   `Shell`). _Refined 2026-09-30:_ the original note said "3 lines", which
+   overstates it. Go's `cfg.BuildN || cfg.BuildX` test really does appear 9
+   times in `shell.go` — once for subprocesses (`runOut`) and once each for the
+   non-subprocess side effects (`moveOrCopyFile`, `mkdir`, `remove`). The real
+   rule is _one guard per class of side effect_, so budget ~6–10 for `kirnc`
+   (spawn, mkdir, rm, mv, write). The output format is worth copying too: Go's
+   `ShowCmd` emits a re-runnable script (it tracks the working dir and prints
+   `cd <dir>` when it changes), and GCC quotes arguments so the printed line is
+   paste-able — `-###` should print shell-quoted, one command per stage, not
+   a raw argv dump. clang's alternative is a single `bool LogOnly` threaded
+   through one exec function, which is the cheapest version of this idea.
+
+---
+
+## 4. Design by stage
+
+### 4.0 Preprocessor / macros (`prepro`) — NEW module `src/prepro/`
+
+Nothing exists today. Design a small, hygienic-by-default macro layer, not
+C-style:
+
+- **Unit**: the token stream, _before_ parsing (so macros can synthesize
+  syntax, like Nim/Elixir-lite).
+- **Syntax proposal** (extends the language; must not clash with `#` since
+  `#` is unused today except in comments — verify in lexer):
+  - `#def NAME(args) = <tokens>, <tokens> …` block form
+  - `#undef`, `#ifdef NAME` / `#ifndef NAME` / `#if EXPR` / `#else` / `#endif`
+  - built-ins: `__FILE__`, `__LINE__`, `__KIRN__`, `__TARGET__`, `__VERSION__`
+  - capture-free hygiene: macro params bind to _macro call_ sites; gensym via
+    a fresh ident for locals the macro introduces.
+- `-D`/`-U` at the `kirnc` level feed the defined-table.
+- Interaction with `import`: `#include`-style textual inclusion is **not**
+  adopted; module imports stay semantic (`import pet.math`).
+- Deliverable: `kirnc -E` prints the expanded token stream (or source text).
+
+> Grounding: §3.4.4 — rustc's `fully_expand_fragment` (collect invocations →
+> expand → re-collect, to fixpoint) is the shape to copy, not C's cpp.
+
+Placement: `src/prepro/` library (`kirn_prepro` in CMake), format contract with
+the lexer: prepro consumes `Token` stream, returns expanded `Token` stream.
+
+### 4.1 Scanning (lexing) — exists
+
+`kirn::Lexer` (`src/lex/lexer.cpp:1-716`), `kirnlex --dump`. No changes needed
+beyond exposing through `kirnc lex`. Output format: `kind\tline:col\ttext`
+like today (`tools/kirnlex.cpp:68-72`).
+
+### 4.2 Parsing — exists
+
+`kirn::Parser` (`src/parser/parser.cpp:1-2192`), `kirnparse --ast`. `kirnc
+parse` reuses it. Fix: `frontEnd()` runs lex+parse; the `-S` path currently
+parses twice (the `-S` branch of `kirn_driver::buildProgram`) — centralize to one parse
+and keep the AST.
+
+### 4.3 Type checking — exists
+
+`sema::Checker::checkModule` (`src/sema/checker.cpp:318`). `kirnc check` =
+exactly this (like `kirncheck`). Wire the dormant `LintConfig`
+(`src/sema/checker.h:22-25`) into `-W` flags.
+
+> Grounding: §3.4.9 — CPython's `symtable` (scope tree reachable from AST
+> node pointers) and Ruby's `--dump=syntax` / `ruby -c` "Syntax OK" verb.
+
+### 4.4 HIR — NEW `src/hir/`
+
+Purpose: a sugar-free AST. Today the AST _is_ the parse tree plus a
+desugar buffer (`src/parser/parser.h:104`). HIR lowers/match-evaluates:
+
+- desugared `for`-over-range, `with`, f-strings → explicit ops (flavor tags
+  already tracked by `ast_dump`'s `flavorSuffix`, `src/ast/ast_dump.cpp:28`);
+- resolved names → symbol IDs; spans retained for diagnostics.
+- Data layout fact: arenas were deferred until "MIR" (`src/ast/ast.h:3`);
+  for HIR keep `unique_ptr` ownership to match house style, revisit at MIR.
+
+Contains: lowered statements/expressions with explicit scopes, resolved
+`FuncSig`s (`src/sema/symbols.h:29-37`), and the module graph.
+
+> Grounding: §3.4.8 — CPython's generated ASDL tagged union vs Go's shared
+> `miniNode` header; keep house `unique_ptr` style, note the shapes for a
+> future `ast.dump`-style public IR.
+
+### 4.5 MIR — NEW `src/mir/`
+
+Purpose: CFG-based, value-oriented, destructor-free IR — the plane on which
+`rt` dumps and future optimization live.
+
+- Build from HIR as a per-function CFG with basic blocks and indexed operands
+  (arena). This is the moment arenas arrive (matching `ast.h:3`).
+- Keep the existing `src/vm/compiler.cpp` (AST→bytecode) as a _separate_
+  specializer: it stays the fast path for the runtime, while MIR feeds AOT.
+  The two converge later (bytecode becomes a codegen target of MIR).
+- `kirnc rt` / `--emit-mir` dump here.
+
+> Grounding: §3.4.10 — Ruby compiles via `LINK_ANCHOR` (linked list, patched
+> labels) and flattens at the end (`iseq_setup`), keeping the original
+> opcode array for `rb_iseq_disasm`; MIR is kirn's equivalent flat
+> list → flatten-late plane.
+
+### 4.6 Optimization + SSA — LLVM `opt`
+
+Two honest options; the plan picks a sequence:
+
+- **Near term**: no in-tree optimizer. Optimization level maps to host flags
+  (`-O2`/`-O1`, today at `kirn_driver::buildProgram` (`-O2`/`-O1`)) — unchanged for the C++
+  backend.
+- **With LLVM**: emit LLVM IR and run the new pass manager at the requested
+  `-O` level. The front end never builds SSA by hand; it emits
+  allocas + stores, and the `mem2reg` pass produces SSA (the standard
+  lowering; confirmed against LLVM docs). "SSA generation" is therefore an
+  LLVM-passes concern, not a hand-written phase.
+
+> Grounding: §3.4.7 — Go declares `passes` as data (name/fn/required/disabled)
+> and skips non-required ones under `-N`; if Kirn ever hand-writes SSA passes,
+> copy that table + `init()` order-check.
+
+### 4.7 LLVM codegen — NEW `src/backends/llvm/`
+
+- New lib `kirn_llvm` guarded by an opt-in CMake `KIRN_WITH_LLVM` (LLVM is
+  heavy; keep it optional so dev machines and release pipelines without LLVM
+  dev packages still build).
+- Lower MIR → `llvm::Module`: scalars & vectors (int64/double/bool) first,
+  mirroring the C++ backend's `isScalarTy` subset (`src/backend/native.cpp:17-41`);
+  dynamic/object features fall back to the runtime (or are rejected with a
+  clear diagnostic, `-fbackend=llvm`).
+- Emission choices: (a) link the LLVM _libraries_ for in-process
+  `PassBuilder` + `TargetMachine::addPassesToEmitFile`; or (b) shell out to
+  `opt`/`llc` a la today's `g++` shell-out. Plan: **in-process first** (no
+  PATH deps, matches the `g++`-free goal), keep `opt`/`llc` as `-###`-visible
+  alternative.
+- `--emit-llvm` writes `.ll`/`.bc` for inspection/tests.
+
+### 4.8 Assembler — `assemb`
+
+- LLVM path: `llc`/`TargetMachine::addPassesToEmitFile(MCStreamer)` → `.s`/`.o`.
+- C++ path: today's implicit assembler inside `g++`/`cl.exe` stays.
+- `-c` = stop with a `.o` (`kirnc -c`), `-S` = `.s` listing. Cross targets
+  reuse the header/machine-verify pattern from the release workflow
+  (ELF e_machine / PE 0xAA64 / Mach-O).
+
+### 4.9 Linker — `executable`
+
+- LLVM path: **LLD** (in-process `lld::elf::link`, `lld::coff::link`,
+  `lld::macho` selection by target) → single driver, no PATH dependency.
+  Fallback to host linker (`ld.lld`/`clang`/`link.exe`) when LLD libs are not
+  linked in.
+- C++ path: today's fused `g++ <launcher.cpp src/**> -o out`
+  (`kirn_driver::buildProgram` (C++ shell-out)) — for kirnc, split this into explicit
+  `compile -> assemble? -> link` commands so `-c` and `-###` work uniformly.
+- MSVC `-O` path (`kirn_driver::buildProgram` (MSVC `-O`)) becomes: emit obj via cl, ar via
+  `lib.exe`, honoring `KIRN_LIB_TOOL`.
+
+---
+
+## 5. Codebase refactors required (prereqs, in rough order)
+
+1. ~~**Extract the driver core out of the `tools/kirn.cpp` monolith.**~~
+   _Done — see the Phase 0 status note in §6._ The original wording said
+   "everything below `frontEnd` is in an anonymous namespace", which was
+   slightly wrong and understated the job: the `namespace {` actually opens at
+   line 90 and closes at 3201, so **94% of the file** (3112 of 3303 lines) was
+   unreachable from any other translation unit — and `readFile`, `readManifest`,
+   and `struct Manifest` all sit _above_ `frontEnd` (`:493`) and were equally
+   locked. The moved set was `resolveEntry :396`, `libDirsFor :421`,
+   `resolveSource :1819`, `collectImports :1867`, `gatherEmbedded :2174`,
+   `ensureRunner :2121`, `bundleTail :2078`, `buildProgram :2545`, and their
+   dependency clusters, now in `src/driver/`.
+2. **Unify the module resolvers.** _Done._ Three divergent copies existed, not
+   two: the runtime path (`libDirsFor`), `kirnrun`'s own list (`addModuleDirs`),
+   and the embedding resolver used by `kirn build` (`gatherEmbedded`, which is
+   CWD-relative rather than entry-relative). `kirnrun` now calls `libDirsFor`
+   and appends the entry's own directory, matching `kirn run`; the observable
+   effect is that a module next to the entry file resolves under both tools
+   instead of panicking under one. `gatherEmbedded` still has its own list —
+   see the note in item 5.
+3. **One `frontEnd()` call**, not two (`-S` double parse at `:2567`/`:2572`).
+   _Done._ `buildProgram` called `frontEnd` for its diagnostics, discarded the
+   result, then lexed and parsed the same source again to get an AST to print.
+   `frontEnd` already returns `Parser(...).parseProgram()`, so its result is the
+   AST wanted, and the re-parse's error branch was unreachable (the first pass
+   had already returned). Type errors still fail the `-S` build with exit 65.
+4. **Centralize the path assumptions**: `src/` at `<exedir>/../src`
+   (`:2766`), `tools/runner.cpp` (`:2133`), prebuilt `.lib`s at `<exedir>`
+   (`:2892`), `CMakeCache.txt` (`:1888`). _Partly done:_ `buildProgram` called
+   `GetModuleFileNameA` twice and derived `binRoot2` inline when it was provably
+   the same directory as `binRoot`; both now go through `selfExeDir()`. The
+   remaining piece is the real requirement: one root-discovery with an explicit
+   precedence (env override, then exe-relative, then install prefix) so an
+   installed `kirn`+`kirnc` pair works without the source tree. Today
+   `ensureRunner` still hardcodes `<exedir>/../src` and `<exedir>/../tools`.
+5. **Share the payload formats.** `KIRNBUNDLE/1` writer/reader
+   (`kirn_driver::bundleTail` / `tools/runner.cpp:61-90`) and `PETLIB/1`
+   (`:2937-2951` / `:3068-3120`) are duplicated three ways; promote to one
+   header. _Not started — now a cross-library concern_, since the writer is in
+   `kirn_driver` and the reader is compiled into `kirnrt`. Two details make a
+   single naive parse loop wrong: the two families differ in the `@meta`
+   convention, and the bundle reader uses `rfind` for the `\nKIRNBUNDLE/1\n`
+   marker (so the payload is the _last_ occurrence, which is what makes
+   appending safe) while re-adding a trailing `\n` per line — meaning a bundle
+   round-trip is byte-exact only for sources that end in a newline.
+6. **Make `kirn build` type-check on the default bundle path.**
+   Today branch B bundles without checking (`:2620-2637`); `kirnc check`
+   semantics must be wired into `kirn build` (the user should never ship an
+   unchecked bundle).
+
+CMake impact: `add_executable(kirnc tools/kirnc.cpp)` +
+`target_link_libraries(kirnc PRIVATE kirn_driver)` are ~2 lines now that the
+library exists (§5.1 is done); `kirnc` gets the whole pipeline for free and
+never re-links the compiler code, which is the point of extracting it.
+`ws2_32` deliberately stays on the `kirn` executable alone: only the `kirn doc`
+HTTP server uses WinSock, so the library does not inherit that dependency and
+cannot force it onto future consumers.
+
+---
+
+## 6. Phased implementation plan
+
+Each phase is independently shippable and CI-gated (corpus + gates_linux).
+
+**Phase 0 — Driver-core extraction.** Split `tools/kirn.cpp` build plumbing;
+unify module resolvers; single `frontEnd`; move path assumptions behind one
+resolver. Merge `kirnrun`'s resolver back into the shared one.
+_Verify:_ corpus gates green unchanged, byte-identical `kirn run`/`build`
+behavior, CI green.
+
+_Status 2026-09-30: substantially done; it had three real defects when
+re-verified during phase 1, all now fixed._ The driver core is the
+`kirn_driver` static
+library (`src/driver/driver.{h,cpp}`); `tools/kirn.cpp` went 3303 → ~1540 lines
+and keeps only the CLI layer (packages, `new`, `test`, the docs server,
+`main()`). Three decisions worth recording, because each was a real fork in the
+road:
+
+1. **One translation unit, not a per-cluster split.** The code came out of an
+   anonymous namespace, which has internal linkage _per translation unit_, so
+   splitting 3100 lines across many `.cpp` files would have forced every
+   cross-file symbol to acquire external linkage, and with it ODR, `inline`,
+   and static-init-order risk. Keeping `driver.cpp` whole preserves linkage
+   exactly, which is what makes the move behavior-preserving by construction
+   rather than by testing. The cost is one big recompile on internal changes;
+   the benefit is that the refactor needed no correctness argument at all.
+2. **Forwarders, not `using` declarations, for the public surface.** A
+   using-declaration cannot name an anonymous-namespace member, and declaring
+   the same signature in both the header and the namespace makes every internal
+   call site ambiguous. 45 one-line forwarders keep one definition and one
+   public entry point. Sixteen internal call sites needed an explicit `::`
+   because their arguments are driver-owned types (`Manifest`, `BuildOpts`,
+   `TargetInfo`), so argument-dependent lookup pulls `kirn::driver` into the
+   candidate set; those sites are listed in `driver.cpp`.
+3. **Resolver unification goes toward `kirn run`, not toward `kirnrun`.** The two
+   disagreed in a user-visible way: a module sitting next to the entry file
+   resolved under `kirn run` and panicked with `unknown module` under `kirnrun`,
+   because `libDirsFor` appends the project directory and `addModuleDirs` did
+   not. `libDirsFor` is the superset and is what the real driver uses, so
+   `kirnrun` now calls it. This is the one intentional behavior change in the
+   phase, and `scripts/golden/kirnrun_sibling_module.txt` is the recorded
+   before/after.
+
+_Verification added with this phase:_ `scripts/golden_linux.sh` records every
+tool's full observable behavior — argv, stdout+stderr interleaved, and exit
+code — for all 199 cases (lex/parse/check over the example and negative
+corpora, plus the `kirnrun` and `kirn` exit paths). `gates_linux.sh` was
+insufficient on its own: it asserts exit codes and substring greps, so it stays
+green while whitespace, ordering, and stderr wording change freely. The golden
+suite is what makes "byte-identical" a checked claim instead of an aspiration.
+It is also self-verifying — tampering with one recorded file makes it fail.
+_Re-verification during phase 1 found three defects, which is the argument for
+having oracles at all — none was visible in "199 goldens pass, 153 gates pass":_
+
+1. **`libDirsFor` broke bare filenames** (a regression this phase introduced).
+   `fs::path("main.kn").parent_path()` is empty, so the derived search dirs
+   became `/pets`, `/../stdlib`, `/../../stdlib` — absolute paths off the
+   filesystem root. `kirnrun main.kn` panicked `unknown module 'greet'` (exit
+   70) where `kirnrun ./main.kn` worked. The recorded golden could not see it,
+   because the fixture passes an *absolute* path, which always has a directory
+   component. Fixed by mapping an empty parent to `.`.
+2. **`collectRuntimeSources` swept the driver into the interpreter runtime.**
+   It globs `src/**/*.cpp` with no exclusions, and moving the driver from
+   `tools/` to `src/driver/` silently added 3400 lines of build plumbing to
+   every `kirnrt` warmup and every cross build. Harmless today; from phase 4 it
+   would drag LLVM headers into every launcher build, because
+   `src/backends/llvm/` would be swept in the same way. Now an explicit
+   skip-list, and the runtime is back to its original 9 translation units.
+3. **`kirn build` shipped unchecked code** (§5.6). It returned 0 and produced an
+   executable for a program `kirn run` rejects with 65; the failure only
+   appeared when the binary was run. The bundled branch now type-checks first
+   and returns 65. `gatherEmbedded` was also reading neither `$KIRN_PETS` nor
+   `$KIRN_STDLIB`, so a program using them built into a binary that panicked
+   `unknown module`; it now shares `libDirsFor`.
+
+Still open in this phase: §5.5 (share the `KIRNBUNDLE/1` and `PETLIB/1` payload
+formats between writer and reader — now a cross-library concern, since the
+writer is in `kirn_driver` and the reader is compiled into `kirnrt`), and
+§5.4's root-discovery (env override → exe-relative → install prefix), which
+Phase 6 needs for the installer and which phase 1 does not block.
+
+**Phase 1 — `kirnc` skeleton.** New binary with verbs `check|lex|parse|rt|run|
+build` and `-E/-S/-c/-o/-###/-v`. `lex` and `parse` reuse the oracle code from
+`kirnlex`/`kirnparse`; `check` reuses `kirncheck`; `rt` reuses the current
+bundle path; `run` executes the bundled runtime. Keep old binaries as aliases.
+_Verify:_ `kirnc X` output == old tool output on the corpus; new CI job runs
+the cross-check matrix.
+
+_Status 2026-09-30: skeleton landed; `check`/`lex`/`parse`/`build` are real, `run`
+is deliberately not implemented yet._ `tools/kirnc.cpp` is ~200 lines and links
+`kirn_driver` in the 2 lines phase 0 made possible. The three stage verbs are
+not reimplementations: `cmdLex`/`cmdParse`/`cmdCheck` were extracted from the
+`kirnlex`/`kirnparse`/`kirncheck` main()s into the library, and those three
+binaries are now thin front ends over the same functions, so the two paths
+*cannot* drift. `build` forwards to the existing `cmdBuild`, so the pipeline has
+one implementation. `run` is rejected with an explanation instead of guessed —
+see below.
+
+Three things the research changed about this phase:
+
+1. **"Reuse the oracle code" meant an extraction the plan did not schedule.**
+   The four old tools shared *no* code: each had its own private `readFile`,
+   two incompatible `printDiags`, and `kirnrun` re-implemented `warnLegacyEnv`
+   that the library already exported. So the phase required a third extraction,
+   which is why the stage verbs live in `kirn_driver` rather than in
+   `kirnc.cpp`.
+2. **`readFile` is unusable for the stage verbs — a BOM trap.** The driver's
+   `readFile` strips a UTF-8 BOM; the tools' copies do not. 7 files in
+   `tests/negative/` start with a BOM, and `renderDiags` echoes the offending
+   source line verbatim, so 7 recorded `check_*` goldens *contain the BOM
+   bytes*. Calling the driver's `readFile` from `kirnc check` would render
+   `" 1 | ;"` where the golden says `" 1 | <BOM>;"`. Hence a separate
+   `readSourceVerbatim`. (The lexer strips a BOM itself, so token positions are
+   unaffected — only the echoed line, which is exactly what the golden pins.)
+3. **Seven cases can never be byte-identical, and must not be.** The usage and
+   "cannot open" paths print the invoked tool's name, so `usage: kirncheck
+   <file.kn>` can never equal `usage: kirnc <file.kn>`. The cross-check
+   normalises the program name for exactly those cases and requires everything
+   else — including the exit code — to match byte for byte.
+
+_Verification added:_ `scripts/crosscheck_linux.sh` is a **differential** oracle
+(519 cases: 84 corpus files × 6 invocations, plus directory walks, missing
+files, no-args and help paths). It is the only thing that can prove the
+extraction did not fork the implementations. `scripts/golden_linux.sh` is the
+**absolute** oracle (199 snapshots) and is what catches a change to the shared
+front end. Both are now in `ci.yml`, which previously ran neither — `kirnlex`,
+`kirnparse` and `kirnrun` had no CI coverage at all, and the plan's own verify
+criterion depended on a harness that had never executed.
+
+_Not done in this phase:_ `run` (see the open decision below), the stop-at-stage
+flags `-E/-S/-c/-###/-v` (they are recognised and rejected with a pointer to the
+phase that lands them, rather than silently treated as filenames, which is what
+the old tools did with any unrecognised argument), and `rt`.
+
+**Phase 2 — Preprocessor.** `src/prepro/` with `#def/#if/#undef/#if defined`
+syntax, `-D/-U`, `__FILE__`-style builtins. `kirnc -E` dumps expanded tokens.
+_Verify:_ golden-file macro tests; macros cannot capture caller locals.
+
+**Phase 3 — HIR/MIR.** `src/hir/`, `src/mir/` (arena CFG). `--emit-hir`,
+`--emit-mir`. `kirnc rt` dumps MIR.
+_Verify:_ AST→HIR→MIR preserves results on a corpus subset (run after
+lower-verify vs direct run).
+
+**Phase 4 — LLVM codegen (opt-in).** `KIRN_WITH_LLVM=ON`; MIR→LLVM IR for the
+scalar subset; `--emit-llvm`; `mem2reg` for SSA; `-fbackend=llvm`.
+_Verify:_ emitted `.ll` passes `opt -verify` and `lli`; scalar corpus programs
+match interpreter output numerically.
+
+**Phase 5 — Assemble + link.** In-process TargetMachine emission (`-c`, `-S`)
+and LLD linking (`-o`). `-###` prints every command; cross targets emit correct
+machine headers.
+_Verify:_ `kirnc -c` → object; linker output runs `hello` + `pet.math`; reuse
+release-workflow machine-header checks for all 6 release targets.
+
+**Phase 6 — `kirn` integration + shipping.** `kirn check`; `kirn build`/`kirn
+run` delegate to `kirnc`; `kirn -v/--verbose`, `kirn version`, `kirn doctor`;
+warn-and-remove for `kirnlex/parse/check/run`; retire the bundle as default on
+AOT-capable hosts (keep `--fbackend=runtime`).
+_Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
+(via installer) with no source checkout; update `install.sh`, `ci.yml`,
+`release.yml` for `kirnc`; full release dry-run; end-to-end installer test.
+
+---
+
+## 7. Testing & verification strategy
+
+- **Corpus gates** (`scripts/gates_linux.sh`) stay the correctness floor at
+  every phase; phase 3+ adds pipeline property tests.
+- **Golden snapshots** (`scripts/golden_linux.sh`, added with phase 0) are the
+  byte-level oracle the gates are not. The gates assert exit codes, substring
+  greps, and exactly one stdout comparison, so they stay green while
+  whitespace, ordering, and stderr wording change freely — and `kirnlex` and
+  `kirnparse` have no CI coverage at all. The golden suite records argv,
+  stdout+stderr interleaved, and the exit code for all 199 cases, so
+  "behavior-preserving" becomes a checked claim. Re-record with `--record`
+  only as a deliberate act: every diff is a behavior change that needs a
+  reason. One gotcha it taught us: `kirn test` discovers tests from the CWD and
+  `stdlib/pet/io_test.kn` writes a temp file, so a probe that leaves state
+  behind makes the _next_ run's snapshot differ; the harness cleans up the way
+  `gates_linux.sh` does.
+- **Pipeline cross-check tools** (heavy reuse of the "two oracles must agree"
+  - rename-gate CI trick): for each phase, a script that runs the same input
+    through old and new paths and diffs output (token dumps, AST dumps, exit
+    codes, program stdout).
+- **Golden files** for prepro (`kirnc -E`), HIR, MIR, LLVM IR dumps under
+  `tests/`.
+- **Machine-header checks** for `-c`/link output on cross targets (the
+  release-workflow pattern already exists: ELF/PE/Mach-O).
+- **REPL-checks**: `kirnc run` vs `kirn run` identical stdout on the corpus.
+- **Failure exit codes** are load-bearing for the gates: today exit 64 = usage
+  (`kirn_driver::cmdBuild`), 66 = no entry point (`:3223`); `kirnc check`
+  should use exit 1 and keep 64 for CLI errors.
+  _Corrected 2026-09-30:_ this previously said exit 5 "cargo-check-like".
+  Measured across the real drivers, 1 is the convention and 5 was never one:
+  gcc/clang exit 1 for `-fsyntax-only`; GCC's documented non-1 code is 4 (an
+  internal compiler error, and only under `-pass-exit-codes`); `nim check` exits
+  1 (`msgQuit(int8(conf.errorCounter > 0))`, and `cmdCheck` is not special-cased);
+  rustc exits 1 on compile errors and 101 on panic; and `cargo check` exits
+  **101**, not 1 or 5 — cargo funnels every library-side error through
+  `From<anyhow::Error> for CliError`, so 101 is a deliberate "this is a cargo
+  bug, file a report" namespace rather than a per-verb code. So: 1 = "check found
+  errors" (matches every driver and kirn's own existing `return 1` sites),
+  70 stays `EX_SOFTWARE` for internal errors, 65/66/64 keep their sysexits
+  meanings. A note on sysexits itself: the FreeBSD man page now marks the
+  interface deprecated, but the values remain the clearest available names, and
+  kirn already uses them.
+
+---
+
+## 8. Risks and decisions
+
+1. **LLVM weight.** Real LLVM (via `find_package(LLVM)`) is a large, slow,
+   disk-heavy dependency; the repo deliberately avoids it today. Mitigation:
+   opt-in `KIRN_WITH_LLVM`, in-process libs on dev hosts, and for _release
+   builds_ the existing llvm-mingw already ships clang/lld, so cross-target
+   release CI stays feasible. Decision: **near-term default remains the
+   runtime/C++ backends; LLVM is the named destination, toggled by
+   `KIRN_WITH_LLVM`.**
+2. **Dynamic semantics vs. SSA.** The runtime value model is dynamically
+   typed (`src/interp/value.h`). Real SSA only makes sense for the statically
+   typed subset. Plan: AOT/LLVM covers the typed/scalar core first (same
+   subset the C++ backend already proves), and expands; dynamic features keep
+   the runtime path. Empirically verify coverage % on the corpus.
+3. **Bundled-interpreter staleness.** `kirnrt` is built on demand by the
+   _driver_ via `ensureRunner` (`:2121`); once `kirnc` exists, `rt` and `run`
+   must agree on which runner is authoritative. Consolidate to one builder.
+4. **Installer/release coupling.** `install.sh:169-170` asserts exactly
+   `bin/kirn`; `ci.yml` and `release.yml` enumerate shipped binaries. Adding
+   `kirnc` touches all four and ships `kirnc` + (temporarily) `kirnrt` per
+   archive.
+5. **PATH-driven `g++` in `-###`.** If LLVM is in-process, `-###` prints
+   pseudo-commands; keep real shell-outs only where unavoidable (C++ backend).
+6. **`-O` dead on POSIX.** Fix or remove (`kirn_driver::buildProgram` returns before
+   `:2835`). Align `-O` semantics with object emission, not MSVC-only.
+
+---
+
+## 9. Open questions (need user confirmation)
+
+1. **Meaning of `rt`.** The plan reads it as "run through the runtime"
+   (bundle-and-interpret), distinct from `run` (full AOT). Alternative
+   readings: "run tests", or "register-transfer/IR dump". Please confirm.
+
+   _The plan is self-contradictory here, and phase 1 found it the hard way._
+   §3.4 and phase 1's own text say `rt` = "run through the runtime"; but §3.1
+   (line 115), §4.5 (line 799) and phase 3 (line 1061) all assign the MIR dump
+   to `kirnc rt`. Both cannot hold. Worse, the neighbouring verb is equally
+   undefined: `run` has **three** incompatible existing behaviours, and the
+   plan never says which one `kirnc run` must match —
+
+   | tool | type errors on | exit | summary line | panic frames |
+   |---|---|---|---|---|
+   | `kirnrun`      | stdout | 1  | `N error(s)` | yes |
+   | `kirn run`     | stderr | 65 | none        | no  |
+   | bundled binary | *(nothing printed at all)* | 65 | none | no |
+
+   So "kirnc X output == old tool output" is currently unanswerable for
+   `run`/`rt`, and phase 1 therefore implements neither. `kirnc run` exits 2
+   with an explanation instead of silently picking a winner — baking a guess
+   into the driver would be worse than a visible gap. **Decision needed:**
+   which column is the oracle for `run`? My recommendation is the `kirn run`
+   column (stderr, 65, no summary), because `kirn run` is the documented user
+   surface and 65 is already load-bearing for `gates_linux.sh`; and `rt` should
+   mean "run through the runtime", with the MIR dump owned solely by
+   `--emit-mir` from phase 3, which removes the contradiction with lines
+   115/799/1061.
+2. **Macro scope.** Token-level macros (Nim-style, can synthesize syntax) vs
+   expression-level only. The plan assumes token-level `#def`.
+3. **C/C++ driver backend.** Wrap the _system_ compiler (whatever
+   `clang`/`gcc`/`cl.exe` is found, Zig model) vs bundle its own clang. The
+   plan assumes wrap-the-system-compiler for now, LLVM-clang later.
+4. **LLVM dependency policy.** Confirm `KIRN_WITH_LLVM=ON` is acceptable for
+   release builds (larger toolchain; cross toolchains already provide
+   clang/lld).
+5. **Version of the AOT promise.** v0.1.0 = LLVM for scalar subset; dynamic
+   features stay on runtime until further notice — acceptable?

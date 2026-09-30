@@ -1,0 +1,174 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/10_patterns_destructuring.kn
+StructDef "Point"
+  Field "x" : int
+  Field "y" : int
+EnumDef "Shape"
+  Variant Circle {radius: int}
+  Variant Rect {w: int, h: int}
+  Variant Dot
+FuncDef "area"
+  Param "s" : Shape
+  Ret int
+  Body
+    Match
+      Subject Ident "s"
+      Arm
+        PatCtor Circle
+          Field
+            PatBind r
+        Body
+          Return
+            Value 
+              Binary op="*"
+                Lhs 
+                  Binary op="*"
+                    Lhs Int "3"
+                    Rhs Ident "r"
+                Rhs Ident "r"
+      Arm
+        PatCtor Rect
+          Field
+            PatBind w
+          Field
+            PatBind h
+        Body
+          Return
+            Value 
+              Binary op="*"
+                Lhs Ident "w"
+                Rhs Ident "h"
+      Arm
+        PatBind Dot
+        Body
+          Return
+            Value Int "0"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value Int "3"
+          Arg name=y
+            Value Int "4"
+    Match
+      Subject Ident "p"
+      Arm
+        PatCtor Point
+          Field name=x
+            PatLiteral
+              Value Int "0"
+          Field
+            PatBind y
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "on y-axis at "
+                      Interp
+                        Value Ident "y"
+      Arm
+        PatCtor Point
+          Field
+            PatBind x
+          Field
+            PatBind y
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "x="
+                      Interp
+                        Value Ident "x"
+                      Text ", y="
+                      Interp
+                        Value Ident "y"
+    Assign
+      Target Ident "t"
+      Value 
+        Tuple len=3
+          Item Int "1"
+          Item Str "two"
+          Item Float "3.0"
+    Match
+      Subject Ident "t"
+      Arm
+        PatTuple len=3
+          PatBind a
+          PatBind b
+          PatBind c
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Ident "a"
+                Arg
+                  Value Ident "b"
+                Arg
+                  Value Ident "c"
+    Assign
+      Target Ident "code"
+      Value Int "42"
+    Match
+      Subject Ident "code"
+      Arm
+        PatRange ..=
+          Lo Int "200"
+          Hi Int "299"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "success range"
+      Arm
+        PatBind other : string
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Ident "other"
+      Arm
+        PatWild
+        Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "area"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="Circle"
+                          Obj Ident "Shape"
+                      Arg name=radius
+                        Value Int "2"
+          Arg
+            Value 
+              Call
+                Callee Ident "area"
+                Arg
+                  Value 
+                    Member name="Dot"
+                      Obj Ident "Shape"
+<ROOT>/examples/10_patterns_destructuring.kn: OK (4 top-level statements)
+[exit 0]

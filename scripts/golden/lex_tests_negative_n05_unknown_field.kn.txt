@@ -1,0 +1,31 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n05_unknown_field.kn
+Punct	1:1	;
+Ident	2:1	struct
+Ident	2:8	Point
+Punct	2:14	{
+Ident	3:5	x
+Punct	3:6	:
+Ident	3:8	int
+Punct	3:11	;
+Punct	4:1	}
+Ident	5:1	p
+Op	5:3	=
+Ident	5:5	Point
+Punct	5:10	(
+Ident	5:11	x
+Punct	5:12	:
+Int	5:14	1
+Punct	5:15	)
+Punct	5:16	;
+Ident	6:1	print
+Punct	6:6	(
+Ident	6:7	p
+Punct	6:8	.
+Ident	6:9	zzz
+Punct	6:12	)
+Punct	6:13	;
+Eof	7:1	
+<ROOT>/tests/negative/n05_unknown_field.kn: OK (25 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

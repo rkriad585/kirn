@@ -1,0 +1,130 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/11_structs_methods.kn
+StructDef "Point"
+  Field "x" : f64
+  Field "y" : f64
+    Default Float "0.0"
+  FuncDef "magnitude"
+    Param "self" self : <inferred>
+    Ret f64
+    Body
+      Return
+        Value 
+          Call
+            Callee Ident "sqrt"
+            Arg
+              Value 
+                Binary op="+"
+                  Lhs 
+                    Binary op="*"
+                      Lhs 
+                        Member name="x"
+                          Obj Ident "self"
+                      Rhs 
+                        Member name="x"
+                          Obj Ident "self"
+                  Rhs 
+                    Binary op="*"
+                      Lhs 
+                        Member name="y"
+                          Obj Ident "self"
+                      Rhs 
+                        Member name="y"
+                          Obj Ident "self"
+  FuncDef "translate"
+    Param "self" self : <inferred>
+    Param "dx" : f64
+    Param "dy" : f64
+    Body
+      AugAssign op="+="
+        Target 
+          Member name="x"
+            Obj Ident "self"
+        Value Ident "dx"
+      AugAssign op="+="
+        Target 
+          Member name="y"
+            Obj Ident "self"
+        Value Ident "dy"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "origin"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value Float "0.0"
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value Float "3.0"
+          Arg name=y
+            Value Float "4.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="magnitude"
+                    Obj Ident "p"
+    VarDecl
+      Target Ident "q"
+      Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="translate"
+              Obj Ident "q"
+          Arg name=dx
+            Value Float "10.0"
+          Arg name=dy
+            Value Float "20.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="x"
+                Obj Ident "p"
+          Arg
+            Value 
+              Member name="x"
+                Obj Ident "q"
+    Assign
+      Target Ident "pts"
+      Value 
+        List len=2
+          Item 
+            Call
+              Callee Ident "Point"
+              Arg name=x
+                Value Float "1.0"
+          Item 
+            Call
+              Callee Ident "Point"
+              Arg name=x
+                Value Float "2.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="y"
+                Obj Ident "origin"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "pts"
+<ROOT>/examples/11_structs_methods.kn: OK (2 top-level statements)
+[exit 0]

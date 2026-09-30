@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n12_yield_outside.kn
+Ident	2:1	yield
+Int	2:7	5
+Punct	2:8	;
+Eof	2:9	
+<ROOT>/tests/negative/n12_yield_outside.kn: OK (3 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

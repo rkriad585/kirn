@@ -1,0 +1,95 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/17_tuples_swap.kn
+FuncDef "minmax"
+  Param "xs" : list[int]
+  Ret (int, int)
+  Body
+    Return
+      Value 
+        Tuple len=2
+          Item 
+            Index
+              Obj Ident "xs"
+              At Int "0"
+          Item 
+            Index
+              Obj Ident "xs"
+              At 
+                Binary op="-"
+                  Lhs 
+                    Call
+                      Callee Ident "len"
+                      Arg
+                        Value Ident "xs"
+                  Rhs Int "1"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "point"
+      Value 
+        Tuple len=2
+          Item Int "3"
+          Item Int "4"
+    Assign
+      Expr Ident "x"
+      Expr Ident "y"
+      Expr Ident "point"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "x"
+          Arg
+            Value Ident "y"
+    Assign
+      Target Ident "a"
+      Target Ident "b"
+      Value Int "1"
+      Value Int "2"
+    Assign
+      Target Ident "a"
+      Target Ident "b"
+      Value Ident "b"
+      Value Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "a"
+          Arg
+            Value Ident "b"
+    Assign
+      Expr Ident "lo"
+      Expr Ident "hi"
+      Expr 
+        Call
+          Callee Ident "minmax"
+          Arg
+            Value 
+              List len=4
+                Item Int "7"
+                Item Int "2"
+                Item Int "9"
+                Item Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "lo"
+          Arg
+            Value Ident "hi"
+    Assign
+      Target Ident "single"
+      Value 
+        Tuple len=1
+          Item Int "42"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "single"
+<ROOT>/examples/17_tuples_swap.kn: OK (2 top-level statements)
+[exit 0]

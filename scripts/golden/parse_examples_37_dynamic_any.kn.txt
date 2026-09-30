@@ -1,0 +1,140 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/37_dynamic_any.kn
+StructDef "Widget"
+  Field "w" var : int
+    Default Int "3"
+  FuncDef "size"
+    Param "self" self : <inferred>
+    Ret int
+    Body
+      Return
+        Value 
+          Binary op="*"
+            Lhs 
+              Member name="w"
+                Obj Ident "self"
+            Rhs Int "2"
+FuncDef "show"
+  Param "v" : any
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs Str "show("
+                    Rhs 
+                      Call
+                        Callee Ident "repr"
+                        Arg
+                          Value Ident "v"
+                Rhs Str ")"
+FuncDef "main"
+  Body
+    VarDecl : any
+      Target Ident "a"
+      Value Int "5"
+    Assign
+      Target Ident "a"
+      Value Str "hi"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "a = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "a"
+    VarDecl : dynamic
+      Target Ident "d"
+      Value Float "3.5"
+    Assign
+      Target Ident "d"
+      Value Int "42"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "d = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value Ident "d"
+    VarDecl : any
+      Target Ident "lst"
+      Value 
+        List len=3
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "len(lst) = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "len"
+                          Arg
+                            Value Ident "lst"
+    Assign
+      Target Ident "w"
+      Value 
+        Call
+          Callee Ident "Widget"
+    VarDecl : any
+      Target Ident "x"
+      Value Ident "w"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "widget size = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="size"
+                              Obj Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show"
+          Arg
+            Value Str "text"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show"
+          Arg
+            Value 
+              List len=2
+                Item Int "1"
+                Item Int "2"
+<ROOT>/examples/37_dynamic_any.kn: OK (3 top-level statements)
+[exit 0]

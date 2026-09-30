@@ -1,0 +1,32 @@
+$ <ROOT>/build/kirn help
+kirn - the Kirn language driver
+
+usage:
+  kirn run [dir|file]              run a program or project
+  kirn run <file.kn>              run a script or project
+  kirn new <name>                  scaffold an application
+  kirn new pet <name>              scaffold a package (pet)
+  kirn test [.|file|dir ...]       run *_test.kn files
+  kirn install|i [-g] <pkg>        install into ./pets
+      pkg := [github.com/]user/repo[@tag] | <path> | <registry-name> | file.pet
+      -g installs globally into ~/.kirn/pets
+         (apps get ~/.kirn/apps/bin binaries + PATH entry)
+  kirn add <pkg>...                install + record dependencies
+  kirn add                         sync: install missing deps (go mod tidy)
+  kirn update [name]               refresh installed deps
+  kirn remove <name>               uninstall a dependency
+  kirn clone <repo> [--full]       clone any repo (shorthand: user/repo)
+  kirn build                       compile project (needs kirn.toml)
+  kirn build <file.kn>             compile one file -> ./<stem>
+           [--release|--debug]     optimization profile
+           [--target=<os>-<arch>]    like GOOS/GOARCH; default $KIRN_TARGET or host
+           [-S|-O]                    -S asm listing, -O .obj+.lib
+           [--native]                 lower scalar user fns to real C++
+           [--asan]                   build with AddressSanitizer
+           [-o <path>]               output path (Go build -o)
+  kirn targets                     list all supported target triples
+  kirn build pet                   check + pack -> build/<profile>/<t>/<n>-<v>.pet
+  kirn doc <pet|dir> [--port N]    serve markdown docs + API ref
+  kirn list                        list installed pets
+  kirn list online                 browse the Pets Registry
+[exit 0]

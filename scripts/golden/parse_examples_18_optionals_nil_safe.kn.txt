@@ -1,0 +1,132 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/18_optionals_nil_safe.kn
+FuncDef "find"
+  Param "xs" : list[int]
+  Param "target" : int
+  Ret int?
+  Body
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs 
+            Call
+              Callee Ident "len"
+              Arg
+                Value Ident "xs"
+      Body
+        If
+          Cond 
+            Binary op="=="
+              Lhs 
+                Index
+                  Obj Ident "xs"
+                  At Ident "i"
+              Rhs Ident "target"
+          Then
+            Return
+              Value 
+                Index
+                  Obj Ident "xs"
+                  At Ident "i"
+    Return
+      Value Ident "none"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "hit"
+      Value 
+        Call
+          Callee Ident "find"
+          Arg
+            Value 
+              List len=3
+                Item Int "10"
+                Item Int "20"
+                Item Int "30"
+          Arg
+            Value Int "20"
+    Assign
+      Target Ident "miss"
+      Value 
+        Call
+          Callee Ident "find"
+          Arg
+            Value 
+              List len=3
+                Item Int "10"
+                Item Int "20"
+                Item Int "30"
+          Arg
+            Value Int "99"
+    Match
+      Subject Ident "hit"
+      Arm
+        PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "found "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatLiteral
+          Value Ident "none"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "not found"
+    Assign
+      Target Ident "port"
+      Value 
+        Cond
+          If 
+            Binary op="is"
+              Lhs Ident "miss"
+              Rhs Ident "none"
+          Then 
+            Unary op="-"
+              Operand Int "1"
+          Else Ident "miss"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "port"
+    Assign
+      Target Ident "names"
+      Value 
+        Dict len=1
+          Pair
+            Key Str "admin"
+            Val Str "Riad"
+    Assign
+      Target Ident "first"
+      Value 
+        Call
+          Callee 
+            Member name="upper" nilsafe
+              Obj 
+                Call
+                  Callee 
+                    Member name="get"
+                      Obj Ident "names"
+                  Arg
+                    Value Str "guest"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "first"
+<ROOT>/examples/18_optionals_nil_safe.kn: OK (2 top-level statements)
+[exit 0]

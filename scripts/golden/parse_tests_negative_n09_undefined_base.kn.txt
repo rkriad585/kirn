@@ -1,0 +1,19 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n09_undefined_base.kn
+StructDef "Phantom"
+  Field "y" var : int
+    Default Int "2"
+FuncDef "main"
+  Ret int
+  Body
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Phantom"
+    Return
+      Value 
+        Member name="y"
+          Obj Ident "p"
+<ROOT>/tests/negative/n09_undefined_base.kn:1:1: error: expected expression, found ';'
+<ROOT>/tests/negative/n09_undefined_base.kn: 1 error(s) (0 lex, 1 parse)
+[exit 1]

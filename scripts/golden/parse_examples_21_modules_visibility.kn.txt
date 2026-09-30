@@ -1,0 +1,65 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/21_modules_visibility.kn
+Import math
+FromImport text.slug items=[slugify]
+FromImport json items=[dumps as to_json]
+FuncDef "visible_everywhere" pub
+  Body
+    Pass
+FuncDef "package_local"
+  Body
+    Pass
+FuncDef "_private_helper"
+  Body
+    Pass
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="sqrt"
+                    Obj Ident "math"
+                Arg
+                  Value Float "144.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "slugify"
+                Arg
+                  Value Str "Hello Coco World"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "to_json"
+                Arg
+                  Value 
+                    Dict len=1
+                      Pair
+                        Key Str "ok"
+                        Val Ident "true"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "visible_everywhere"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "package_local"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "_private_helper"
+<ROOT>/examples/21_modules_visibility.kn: OK (7 top-level statements)
+[exit 0]

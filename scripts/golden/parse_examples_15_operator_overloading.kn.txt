@@ -1,0 +1,141 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/15_operator_overloading.kn
+StructDef "Vec2"
+  Field "x" : f64
+  Field "y" : f64
+ImplDef Add for Vec2
+  FuncDef "add"
+    Param "self" self : <inferred>
+    Param "other" : Vec2
+    Ret Vec2
+    Body
+      Return
+        Value 
+          Call
+            Callee Ident "Vec2"
+            Arg name=x
+              Value 
+                Binary op="+"
+                  Lhs 
+                    Member name="x"
+                      Obj Ident "self"
+                  Rhs 
+                    Member name="x"
+                      Obj Ident "other"
+            Arg name=y
+              Value 
+                Binary op="+"
+                  Lhs 
+                    Member name="y"
+                      Obj Ident "self"
+                  Rhs 
+                    Member name="y"
+                      Obj Ident "other"
+ImplDef Eq for Vec2
+  FuncDef "eq"
+    Param "self" self : <inferred>
+    Param "other" : Vec2
+    Ret bool
+    Body
+      Return
+        Value 
+          Binary op="and"
+            Lhs 
+              Binary op="=="
+                Lhs 
+                  Member name="x"
+                    Obj Ident "self"
+                Rhs 
+                  Member name="x"
+                    Obj Ident "other"
+            Rhs 
+              Binary op="=="
+                Lhs 
+                  Member name="y"
+                    Obj Ident "self"
+                Rhs 
+                  Member name="y"
+                    Obj Ident "other"
+StructDef "Grid"
+  Field "cells" : list[int]
+ImplDef Index for Grid
+  FuncDef "index"
+    Param "self" self : <inferred>
+    Param "i" : int
+    Ret int
+    Body
+      Return
+        Value 
+          Index
+            Obj 
+              Member name="cells"
+                Obj Ident "self"
+            At Ident "i"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "a"
+      Value 
+        Call
+          Callee Ident "Vec2"
+          Arg name=x
+            Value Float "1.0"
+          Arg name=y
+            Value Float "2.0"
+    Assign
+      Target Ident "b"
+      Value 
+        Call
+          Callee Ident "Vec2"
+          Arg name=x
+            Value Float "3.0"
+          Arg name=y
+            Value Float "4.0"
+    Assign
+      Target Ident "c"
+      Value 
+        Binary op="+"
+          Lhs Ident "a"
+          Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="x"
+                Obj Ident "c"
+          Arg
+            Value 
+              Member name="y"
+                Obj Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs Ident "a"
+                Rhs Ident "b"
+    Assign
+      Target Ident "g"
+      Value 
+        Call
+          Callee Ident "Grid"
+          Arg name=cells
+            Value 
+              List len=3
+                Item Int "10"
+                Item Int "20"
+                Item Int "30"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "g"
+                At Int "1"
+<ROOT>/examples/15_operator_overloading.kn: OK (6 top-level statements)
+[exit 0]

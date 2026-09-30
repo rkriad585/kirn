@@ -1,0 +1,368 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/39_builtin_methods.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "s"
+      Value Str "Hello World"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="len"
+                        Obj Ident "s"
+                Rhs Int "11"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="repeat"
+                    Obj Str "abc"
+                Arg
+                  Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="contains"
+                    Obj Str "Hello World"
+                Arg
+                  Value Str "World"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="starts_with"
+                    Obj Str "Hello World"
+                Arg
+                  Value Str "Hello"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="ends_with"
+                    Obj Str "Hello World"
+                Arg
+                  Value Str "World"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="replace"
+                    Obj Str "a-b-c"
+                Arg
+                  Value Str "-"
+                Arg
+                  Value Str "+"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="find"
+                    Obj Str "Hello World"
+                Arg
+                  Value Str "World"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="find"
+                    Obj Str "Hello World"
+                Arg
+                  Value Str "zzz"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="capitalize"
+                    Obj Str "hello"
+    Assign
+      Target Ident "xs"
+      Value 
+        List len=3
+          Item Int "10"
+          Item Int "20"
+          Item Int "30"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append"
+              Obj Ident "xs"
+          Arg
+            Value Int "40"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="len"
+                        Obj Ident "xs"
+                Rhs Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="contains"
+                    Obj Ident "xs"
+                Arg
+                  Value Int "30"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="index"
+                    Obj Ident "xs"
+                Arg
+                  Value Int "40"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="extend"
+              Obj Ident "xs"
+          Arg
+            Value 
+              List len=2
+                Item Int "50"
+                Item Int "60"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="reverse"
+              Obj Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="pop"
+                    Obj Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="remove"
+                    Obj Ident "xs"
+                Arg
+                  Value Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="clear"
+              Obj Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="len"
+                        Obj Ident "xs"
+                Rhs Int "0"
+    Assign
+      Target Ident "d"
+      Value 
+        Dict len=2
+          Pair
+            Key Str "one"
+            Val Int "1"
+          Pair
+            Key Str "two"
+            Val Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="len"
+                        Obj Ident "d"
+                Rhs Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="contains"
+                    Obj Ident "d"
+                Arg
+                  Value Str "two"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="setdefault"
+              Obj Ident "d"
+          Arg
+            Value Str "three"
+          Arg
+            Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="remove"
+              Obj Ident "d"
+          Arg
+            Value Str "two"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "d"
+                Arg
+                  Value Str "three"
+    Assign
+      Target Ident "st"
+      Value 
+        Set len=3
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="add"
+              Obj Ident "st"
+          Arg
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="len"
+                        Obj Ident "st"
+                Rhs Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="contains"
+                    Obj Ident "st"
+                Arg
+                  Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="remove"
+              Obj Ident "st"
+          Arg
+            Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="contains"
+                    Obj Ident "st"
+                Arg
+                  Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "st"
+<ROOT>/examples/39_builtin_methods.kn: OK (1 top-level statements)
+[exit 0]

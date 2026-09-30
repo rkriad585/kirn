@@ -1,0 +1,15 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n02_immutable_reassign.kn
+Punct	1:1	;
+Ident	2:1	x
+Op	2:3	=
+Int	2:5	42
+Punct	2:7	;
+Ident	3:1	x
+Op	3:3	+=
+Int	3:6	1
+Punct	3:7	;
+Eof	4:1	
+<ROOT>/tests/negative/n02_immutable_reassign.kn: OK (9 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

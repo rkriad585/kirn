@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirn targets
+TARGET              BINARY   TOOLCHAIN
+windows-amd64       <name>.exe       <TOOLCHAIN>
+windows-arm64       <name>.exe       <TOOLCHAIN>
+linux-amd64         <name>       <TOOLCHAIN>
+linux-arm64         <name>       <TOOLCHAIN>
+darwin-amd64        <name>       <TOOLCHAIN>
+darwin-arm64        <name>       <TOOLCHAIN>
+[exit 0]

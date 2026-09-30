@@ -1,0 +1,472 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/36_oop.kn
+TraitDef "Named"
+  Sig name(self: <inferred>) -> string
+TraitDef "Loud"
+  Sig volume(self: <inferred>) -> int
+StructDef "Animal"
+  Field "name" var : string
+    Default Str "unnamed"
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "?"
+StructDef "Dog"
+  Field "name" var : string
+    Default Str "unnamed"
+  Field "loud" var : int
+    Default Int "10"
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "woof"
+  FuncDef "name"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value 
+          Member name="name"
+            Obj Ident "self"
+  FuncDef "volume"
+    Param "self" self : <inferred>
+    Ret int
+    Body
+      Return
+        Value 
+          Member name="loud"
+            Obj Ident "self"
+ImplDef Named for Dog
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="speak"
+                Obj Ident "self"
+  FuncDef "name"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="name"
+                Obj Ident "self"
+  FuncDef "volume"
+    Param "self" self : <inferred>
+    Ret int
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="volume"
+                Obj Ident "self"
+ImplDef Loud for Dog
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="speak"
+                Obj Ident "self"
+  FuncDef "name"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="name"
+                Obj Ident "self"
+  FuncDef "volume"
+    Param "self" self : <inferred>
+    Ret int
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="volume"
+                Obj Ident "self"
+StructDef "Base"
+  Field "id" var : int
+    Default Int "1"
+  FuncDef "greet"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value 
+          Binary op="+"
+            Lhs 
+              Binary op="+"
+                Lhs Str "base("
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Member name="id"
+                          Obj Ident "self"
+            Rhs Str ")"
+  FuncDef "tag"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "Base"
+StructDef "Derived"
+  Field "id" var : int
+    Default Int "2"
+  FuncDef "tag"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value Str "Derived"
+  FuncDef "describe"
+    Param "self" self : <inferred>
+    Ret string
+    Body
+      Return
+        Value 
+          Binary op="+"
+            Lhs 
+              Binary op="+"
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="greet"
+                        Obj Ident "self"
+                Rhs Str "/"
+            Rhs 
+              Call
+                Callee 
+                  Member name="tag"
+                    Obj Ident "self"
+FuncDef "render_base_tag"
+  Param "b" : Base
+  Ret string
+  Body
+    Return
+      Value 
+        Call
+          Callee 
+            Member name="tag"
+              Obj Ident "b"
+StructDef "Point"
+  Field "fx" : int
+  Field "fy" : int
+FuncDef "add"
+  Param "a" : int
+  Param "b" : int
+  Ret int
+  Body
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "a"
+          Rhs Ident "b"
+FuncDef "render_name"
+  Param "n" : Named
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "  render_name -> "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="name"
+                        Obj Ident "n"
+FuncDef "get_volume"
+  Param "l" : Loud
+  Ret int
+  Body
+    Return
+      Value 
+        Call
+          Callee 
+            Member name="volume"
+              Obj Ident "l"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "d"
+      Value 
+        Call
+          Callee Ident "Dog"
+          Arg name=name
+            Value Str "Rex"
+          Arg name=loud
+            Value Int "8"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "direct speak  = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="speak"
+                        Obj Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "direct name   = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="name"
+                        Obj Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "render_name"
+          Arg
+            Value Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "volume        = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "get_volume"
+                          Arg
+                            Value Ident "d"
+    Assign
+      Target Ident "a"
+      Value 
+        Call
+          Callee Ident "Animal"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "animal speak  = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="speak"
+                        Obj Ident "a"
+    Assign
+      Target Ident "b"
+      Value 
+        Call
+          Callee Ident "Base"
+    Assign
+      Target Ident "dv"
+      Value 
+        Call
+          Callee Ident "Derived"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "base   greet  = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="greet"
+                        Obj Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs Str "base   describe = "
+                        Rhs 
+                          Call
+                            Callee 
+                              Member name="greet"
+                                Obj Ident "b"
+                    Rhs Str "/"
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="tag"
+                        Obj Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "deriv  greet  = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="greet"
+                        Obj Ident "dv"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "deriv  describe = "
+                Rhs 
+                  Call
+                    Callee 
+                      Member name="describe"
+                        Obj Ident "dv"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "deriv  tag    = "
+                Rhs 
+                  Call
+                    Callee Ident "render_base_tag"
+                    Arg
+                      Value Ident "dv"
+    Assign
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=fx
+            Value Int "3"
+          Arg name=fy
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs 
+                          Binary op="+"
+                            Lhs Str "point         = ("
+                            Rhs 
+                              Call
+                                Callee Ident "str"
+                                Arg
+                                  Value 
+                                    Member name="fx"
+                                      Obj Ident "p"
+                        Rhs Str ", "
+                    Rhs 
+                      Call
+                        Callee Ident "str"
+                        Arg
+                          Value 
+                            Member name="fy"
+                              Obj Ident "p"
+                Rhs Str ")"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs Str "rec eq        = "
+                        Rhs 
+                          Call
+                            Callee Ident "str"
+                            Arg
+                              Value 
+                                Binary op="=="
+                                  Lhs Ident "p"
+                                  Rhs 
+                                    Call
+                                      Callee Ident "Point"
+                                      Arg name=fx
+                                        Value Int "3"
+                                      Arg name=fy
+                                        Value Int "4"
+                    Rhs Str " "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Binary op="=="
+                          Lhs Ident "p"
+                          Rhs 
+                            Call
+                              Callee Ident "Point"
+                              Arg name=fx
+                                Value Int "9"
+                              Arg name=fy
+                                Value Int "9"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "fn-add        = "
+                Rhs 
+                  Call
+                    Callee Ident "str"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "add"
+                          Arg
+                            Value Int "2"
+                          Arg
+                            Value Int "3"
+<ROOT>/examples/36_oop.kn: OK (14 top-level statements)
+[exit 0]

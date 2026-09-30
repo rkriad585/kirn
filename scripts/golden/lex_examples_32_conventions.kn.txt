@@ -1,0 +1,68 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/32_conventions.kn
+Ident	7:1	import
+Ident	7:8	greet
+Punct	7:13	;
+Ident	8:1	import
+Ident	8:8	greet
+Ident	8:14	as
+Ident	8:17	via
+Punct	8:20	;
+Ident	9:1	import
+Ident	9:8	greet
+Ident	9:14	as
+Ident	9:17	again
+Punct	9:22	;
+Ident	11:1	def
+Ident	11:5	main
+Punct	11:9	(
+Punct	11:10	)
+Punct	11:12	{
+Ident	13:5	print
+Punct	13:10	(
+Str	13:11	load_count =
+Punct	13:25	,
+Ident	13:27	greet
+Punct	13:32	.
+Ident	13:33	load_count
+Punct	13:43	(
+Punct	13:44	)
+Punct	13:45	)
+Punct	13:46	;
+Ident	14:5	print
+Punct	14:10	(
+Str	14:11	via        =
+Punct	14:25	,
+Ident	14:27	via
+Punct	14:30	.
+Ident	14:31	load_count
+Punct	14:41	(
+Punct	14:42	)
+Punct	14:43	)
+Punct	14:44	;
+Ident	15:5	print
+Punct	15:10	(
+Str	15:11	again      =
+Punct	15:25	,
+Ident	15:27	again
+Punct	15:32	.
+Ident	15:33	load_count
+Punct	15:43	(
+Punct	15:44	)
+Punct	15:45	)
+Punct	15:46	;
+Ident	16:5	print
+Punct	16:10	(
+Ident	16:11	greet
+Punct	16:16	.
+Ident	16:17	hello
+Punct	16:22	(
+Str	16:23	Kirn
+Punct	16:29	)
+Punct	16:30	)
+Punct	16:31	;
+Punct	17:1	}
+Eof	18:1	
+<ROOT>/examples/32_conventions.kn: OK (62 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

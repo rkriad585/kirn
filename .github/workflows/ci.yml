@@ -70,6 +70,21 @@ jobs:
       - name: Full corpus matrix
         run: bash scripts/gates_linux.sh
 
+      # Phase 1 verification. These two were the missing oracles until now:
+      # gates_linux.sh asserts exit codes and substring greps, so it stays green
+      # while whitespace, ordering and stderr wording change freely -- and
+      # kirnlex/kirnparse/kirnrun were exercised by NO ci job at all before
+      # this. The golden suite is the absolute byte oracle; the cross-check is
+      # the differential one proving `kirnc <verb>` and the legacy binaries are
+      # the same code. Both are needed: a change to the shared front end moves
+      # both sides of the cross-check together (so it stays green) and is caught
+      # only by the goldens.
+      - name: Golden behaviour snapshots
+        run: bash scripts/golden_linux.sh
+
+      - name: kirnc vs legacy tool cross-check
+        run: bash scripts/crosscheck_linux.sh
+
   build-test:
     runs-on: windows-latest
     steps:

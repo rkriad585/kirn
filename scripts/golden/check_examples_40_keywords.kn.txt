@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/40_keywords.kn
+<ROOT>/examples/40_keywords.kn: OK
+[exit 0]

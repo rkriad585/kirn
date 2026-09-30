@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/02_variables.kn
+<ROOT>/examples/02_variables.kn: OK
+[exit 0]

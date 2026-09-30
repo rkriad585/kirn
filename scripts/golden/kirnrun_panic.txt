@@ -1,0 +1,4 @@
+$ <ROOT>/build/kirnrun <TMP>/panic.kn
+panic: boom
+  in main (line 1:5)
+[exit 70]

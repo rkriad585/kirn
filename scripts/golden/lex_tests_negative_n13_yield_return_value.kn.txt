@@ -1,0 +1,35 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n13_yield_return_value.kn
+Ident	2:1	def
+Ident	2:5	gen
+Punct	2:8	(
+Punct	2:9	)
+Punct	2:11	{
+Ident	3:5	yield
+Int	3:11	1
+Punct	3:12	;
+Ident	4:5	return
+Int	4:12	42
+Punct	4:14	;
+Punct	5:1	}
+Ident	7:1	def
+Ident	7:5	main
+Punct	7:9	(
+Punct	7:10	)
+Punct	7:12	{
+Ident	8:5	print
+Punct	8:10	(
+Ident	8:11	gen
+Punct	8:14	(
+Punct	8:15	)
+Punct	8:16	.
+Ident	8:17	collect
+Punct	8:24	(
+Punct	8:25	)
+Punct	8:26	)
+Punct	8:27	;
+Punct	9:1	}
+Eof	9:2	
+<ROOT>/tests/negative/n13_yield_return_value.kn: OK (29 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

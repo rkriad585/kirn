@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/12_enums_exhaustive.kn
+<ROOT>/examples/12_enums_exhaustive.kn: OK
+[exit 0]

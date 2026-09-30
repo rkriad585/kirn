@@ -1,0 +1,107 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/06_functions_params.kn
+FuncDef "add"
+  Param "a" : int
+  Param "b" : int
+  Ret int
+  Body
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "a"
+          Rhs Ident "b"
+FuncDef "greet"
+  Param "name" : string
+    Default Str "world"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "hello "
+                Interp
+                  Value Ident "name"
+FuncDef "sum_all"
+  Param "nums" variadic : int
+  Ret int
+  Body
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatBind n
+      Iter Ident "nums"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value Ident "n"
+    Return
+      Value Ident "total"
+FuncDef "apply"
+  Param "op" : fn(int, int) -> int
+  Param "a" : int
+  Param "b" : int
+  Ret int
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "op"
+          Arg
+            Value Ident "a"
+          Arg
+            Value Ident "b"
+FuncDef "main"
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "greet"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "greet"
+          Arg name=name
+            Value Str "Kirn"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "add"
+                Arg
+                  Value Int "2"
+                Arg
+                  Value Int "3"
+          Arg
+            Value 
+              Call
+                Callee Ident "sum_all"
+                Arg
+                  Value Int "1"
+                Arg
+                  Value Int "2"
+                Arg
+                  Value Int "3"
+                Arg
+                  Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "apply"
+                Arg name=op
+                  Value Ident "add"
+                Arg name=a
+                  Value Int "10"
+                Arg name=b
+                  Value Int "20"
+<ROOT>/examples/06_functions_params.kn: OK (5 top-level statements)
+[exit 0]

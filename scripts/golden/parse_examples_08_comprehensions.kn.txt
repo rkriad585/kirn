@@ -1,0 +1,105 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/08_comprehensions.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "nums"
+      Value 
+        List len=5
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+          Item Int "5"
+    Assign
+      Target Ident "squares"
+      Value 
+        ListComp
+          Element 
+            Binary op="*"
+              Lhs Ident "x"
+              Rhs Ident "x"
+          For
+            PatBind x
+          Iter Ident "nums"
+    Assign
+      Target Ident "evens"
+      Value 
+        ListComp
+          Element Ident "x"
+          For
+            PatBind x
+          Iter Ident "nums"
+          Guard
+            Cond 
+              Binary op="=="
+                Lhs 
+                  Binary op="%"
+                    Lhs Ident "x"
+                    Rhs Int "2"
+                Rhs Int "0"
+    Assign
+      Target Ident "grid"
+      Value 
+        ListComp
+          Element 
+            Tuple len=2
+              Item Ident "x"
+              Item Ident "y"
+          For
+            PatBind x
+          Iter 
+            Binary op=".."
+              Lhs Int "0"
+              Rhs Int "3"
+          For
+            PatBind y
+          Iter 
+            Binary op=".."
+              Lhs Int "0"
+              Rhs Int "3"
+          Guard
+            Cond 
+              Binary op="<"
+                Lhs Ident "x"
+                Rhs Ident "y"
+    Assign
+      Target Ident "lazy"
+      Value 
+        Generator
+          Element 
+            Binary op="*"
+              Lhs Ident "x"
+              Rhs Int "10"
+          For
+            PatBind x
+          Iter Ident "nums"
+    Assign
+      Target Ident "collected"
+      Value 
+        List len=0
+    For
+      PatBind v
+      Iter Ident "lazy"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "collected"
+              Arg
+                Value Ident "v"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "squares"
+          Arg
+            Value Ident "evens"
+          Arg
+            Value Ident "grid"
+          Arg
+            Value Ident "collected"
+<ROOT>/examples/08_comprehensions.kn: OK (1 top-level statements)
+[exit 0]

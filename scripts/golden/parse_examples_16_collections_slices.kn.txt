@@ -1,0 +1,151 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/16_collections_slices.kn
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "nums"
+      Value 
+        List len=3
+          Item Int "3"
+          Item Int "1"
+          Item Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append"
+              Obj Ident "nums"
+          Arg
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="sort"
+              Obj Ident "nums"
+    Assign
+      Target Ident "head"
+      Value 
+        Index
+          Obj Ident "nums"
+          At Int "0"
+    Assign
+      Target Ident "middle"
+      Value 
+        Slice
+          Obj Ident "nums"
+          Lo Int "1"
+          Hi Int "3"
+    Assign
+      Target Ident "clone"
+      Value 
+        Slice
+          Obj Ident "nums"
+    Assign
+      Target Ident "table"
+      Value 
+        Dict len=2
+          Pair
+            Key Str "one"
+            Val Int "1"
+          Pair
+            Key Str "two"
+            Val Int "2"
+    Assign
+      Target 
+        Index
+          Obj Ident "table"
+          At Str "three"
+      Value Int "3"
+    Assign
+      Target Ident "has_two"
+      Value 
+        Binary op="in"
+          Lhs Str "two"
+          Rhs Ident "table"
+    Assign
+      Target Ident "count"
+      Value 
+        Call
+          Callee Ident "len"
+          Arg
+            Value Ident "table"
+    Assign
+      Target Ident "tags"
+      Value 
+        Set len=2
+          Item Str "red"
+          Item Str "green"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="insert"
+              Obj Ident "tags"
+          Arg
+            Value Str "blue"
+    Assign
+      Target Ident "has_red"
+      Value 
+        Binary op="in"
+          Lhs Str "red"
+          Rhs Ident "tags"
+    Assign
+      Target Ident "matrix"
+      Value 
+        List len=2
+          Item 
+            List len=2
+              Item Int "0"
+              Item Int "0"
+          Item 
+            List len=2
+              Item Int "0"
+              Item Int "0"
+    Assign
+      Target 
+        Index
+          Obj 
+            Index
+              Obj Ident "matrix"
+              At Int "0"
+          At Int "1"
+      Value Int "9"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "nums"
+          Arg
+            Value Ident "head"
+          Arg
+            Value Ident "middle"
+          Arg
+            Value Ident "clone"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "table"
+                At Str "one"
+          Arg
+            Value Ident "count"
+          Arg
+            Value Ident "has_two"
+          Arg
+            Value Ident "tags"
+          Arg
+            Value Ident "has_red"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Index
+                    Obj Ident "matrix"
+                    At Int "0"
+                At Int "1"
+<ROOT>/examples/16_collections_slices.kn: OK (1 top-level statements)
+[exit 0]

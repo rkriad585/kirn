@@ -1,0 +1,142 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/native_scalar_mix.kn
+FuncDef "is_even"
+  Param "n" : int
+  Ret bool
+  Body
+    Return
+      Value 
+        Binary op="=="
+          Lhs 
+            Binary op="%"
+              Lhs Ident "n"
+              Rhs Int "2"
+          Rhs Int "0"
+FuncDef "classify"
+  Param "n" : int
+  Ret int
+  Body
+    If
+      Cond 
+        Binary op="<"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        Return
+          Value 
+            Unary op="-"
+              Operand Int "1"
+    If
+      Cond 
+        Binary op="=="
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        Return
+          Value Int "0"
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "100"
+      Then
+        Return
+          Value Int "2"
+      Else
+        Return
+          Value Int "1"
+FuncDef "powf"
+  Param "b" : f64
+  Param "n" : int
+  Ret f64
+  Body
+    VarDecl : f64
+      Target Ident "r"
+      Value Float "1.0"
+    While
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Body
+        Assign
+          Target Ident "r"
+          Value 
+            Binary op="*"
+              Lhs Ident "r"
+              Rhs Ident "b"
+        AugAssign op="-="
+          Target Ident "n"
+          Value Int "1"
+    Return
+      Value Ident "r"
+FuncDef "main"
+  Body
+    Assign
+      Target Ident "evens"
+      Value Int "0"
+    Assign
+      Target Ident "odds"
+      Value Int "0"
+    Assign
+      Target Ident "sum"
+      Value Int "0"
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "20"
+      Body
+        If
+          Cond 
+            Call
+              Callee Ident "is_even"
+              Arg
+                Value Ident "i"
+          Then
+            AugAssign op="+="
+              Target Ident "evens"
+              Value Int "1"
+          Else
+            AugAssign op="+="
+              Target Ident "odds"
+              Value Int "1"
+    For
+      PatBind i
+      Iter 
+        Binary op="..="
+          Lhs 
+            Unary op="-"
+              Operand Int "5"
+          Rhs Int "105"
+      Body
+        AugAssign op="+="
+          Target Ident "sum"
+          Value 
+            Call
+              Callee Ident "classify"
+              Arg
+                Value Ident "i"
+    Assign
+      Target Ident "f"
+      Value 
+        Call
+          Callee Ident "powf"
+          Arg
+            Value Float "2.0"
+          Arg
+            Value Int "10"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "evens"
+          Arg
+            Value Ident "odds"
+          Arg
+            Value Ident "sum"
+          Arg
+            Value Ident "f"
+<ROOT>/examples/native_scalar_mix.kn: OK (4 top-level statements)
+[exit 0]

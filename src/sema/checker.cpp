@@ -475,18 +475,22 @@ void Checker::predeclareBuiltins() {
     for (const char* mod : {"time", "mem", "io", "os", "json", "math"})
         importRoots_.insert(mod);
 
-    // Publish what was predeclared, so consumers resolve builtins from the single
-    // source of truth instead of maintaining their own name list.
-    // Everything in the root scope, not only the symbols flagged `builtin`.
-    // `true` / `false` / `none` are registered with declareConst and are not
-    // flagged, and filtering them out left the three most-referenced names in the
-    // language unresolvable.
+    // Publish every name that resolves at top level without a user declaration,
+    // so consumers do not maintain their own list. Two sources, and both are
+    // needed:
+    //   - the root scope, NOT filtered on the `builtin` flag: `true` / `false` /
+    //     `none` go in via declareConst and are not flagged, and filtering them
+    //     left the three most-referenced names in the language unresolvable;
+    //   - importRoots_, the pseudo-modules (time, mem, io, os, json, math), which
+    //     are deliberately NOT in the scope -- see the note at their declaration.
+    //     Reading only the scope left `io.open(...)` unresolvable.
     builtinNames_.clear();
-    builtinNames_.reserve(scope_->syms.size());
+    builtinNames_.reserve(scope_->syms.size() + importRoots_.size());
     for (const auto& [n, sym] : scope_->syms) {
         (void)sym;
         builtinNames_.push_back(n);
     }
+    for (const auto& n : importRoots_) builtinNames_.push_back(n);
 }
 
 SymP Checker::declareConst(std::string name, TyP t) {

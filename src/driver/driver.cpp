@@ -956,7 +956,11 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
       kirn::DiagEngine diags;
       std::unique_ptr<kirn::sema::Checker> chk;
       auto body = frontEnd(file, src, diags, chk);
-      if (diags.count()) {
+      // errorCount(), not count(): a W0105 shadowing warning must not stop the
+      // lowering. `count()` includes warnings, so the scoping regression fixture
+      // -- which is full of deliberate shadowing -- exited 1 before HIR ran at
+      // all. cmdCheck already uses errorCount() for the same reason.
+      if (diags.errorCount()) {
           kirn::SourceMap sm(src);
           std::string out;
           kirn::renderDiags(file, sm, diags.diags(), false, false, out);

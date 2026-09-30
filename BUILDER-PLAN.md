@@ -1286,35 +1286,72 @@ Landed — HIR (`src/hir/`, `kirn_hir`, between `kirn_sema` and `kirn_vm`):
 - `grammar/kirn.ebnf` still has no HIR/MIR content, which is correct — it is the
   surface grammar — but the normative file now has to be aware of the IR.
 
-_Verification:_ **gate 8** adds four properties: every supported corpus file
-lowers, verifies and dumps (**44 files**); the verifier *rejects* real broken
-output rather than passing everything; HIR does not lower code that failed type
-checking; and the dump is byte-for-byte deterministic across runs, without which
-a golden comparison means nothing. The first version of the verifier had a
-hand-written table of `std::variant` indices and it was wrong in nine places the
-moment it ran against real input — which is the argument for the rejection test,
-and the reason the table was replaced with a check that cannot drift
-("the active payload implies this kind", derived in the same `if constexpr` arm
-that has to check it).
+_Verification:_ **gate 8** adds four properties. **53 of 53** corpus files lower,
+verify and dump. HIR does not lower code that failed type checking. The dump is
+byte-for-byte deterministic across runs, without which a golden comparison means
+nothing. And the verifier *rejects* broken IR, via
+`tests/hir/verifier_selftest.cpp` — eight cases compiled and run against the real
+library, in the test tree and linked into no shipped binary.
+
+Two of those four took a second attempt, and the reason is worth recording.
+
+*The first verifier was wrong on first contact.* It had a hand-written table of
+`std::variant` indices; it was wrong in nine places the instant it ran against
+real input, and would have needed editing on every payload insertion. It was
+replaced by a check that cannot drift — "the active payload implies its kind",
+derived inside the same `if constexpr` arm that has to check it.
+
+*The first rejection test was worse than no test.* It used a `.kn` fixture with a
+construct HIR had no mapping for, on the reasoning that a lowering gap on
+*checked* input is the only defect a structural verifier can catch. That was
+right about the scope and wrong about the mechanism: the test passed by asserting
+"HIR does not model this yet", and the moment HIR learned the construct it went
+**quiet**. It would have stopped testing anything without ever failing, and a
+passing test that cannot fail reads as coverage. No valid source can produce a
+violation at all — `sema::Checker` rejects every source-level defect before the
+lowering runs, and HIR now maps the whole language — so the malformed IR is built
+in memory and handed to `verify()` directly. It immediately found a real hole: the
+`Lit` arm was **missing from the payload dispatch entirely**, so a literal payload
+on a non-literal node was never checked. No corpus file can find that, because no
+corpus file has a kind/payload mismatch.
+
+*A third check was added because a coverage count lied.* A statement the lowering
+cannot represent was emitted as a `Nop` with only a W9000 warning, so HIR silently
+discarded code while the file still "verified". `payload::Nop` now carries
+`dropped`, and `verify()` fails on it. The claim that unmapped constructs are
+surfaced "never a silent drop" was simply false for statements, and this is the
+check that makes it true — it found three more drops (`gather`, `bucket release`)
+in the same corpus the coverage count had been reporting as fully passing.
 
 _Not done, and recorded rather than left to be discovered:_
 
 1. **MIR does not exist.** No `src/mir/`, no CFG, no arena, no `--emit-mir`, and
    `rt` is still unimplemented. This is the larger half of the phase.
-2. **9 of 53 corpus files do not lower**, and `gates_linux.sh` pins that list by
-   name so a *new* failure is visible and shrinking it is a deliberate edit. The
-   gaps are pattern rest-captures (`..name` in slice/tuple patterns), arena
-   temporaries (`TempDecl`/`BucketDecl`), and a few binding forms; each leaves the
-   names it binds unresolved, which the verifier reports.
+2. ~~9 of 53 corpus files did not lower.~~ **Closed: 53 of 53 lower, verify and
+   dump.** The list `gates_linux.sh` carried by name is now empty, and closing it
+   found seven *defects* rather than seven missing cases:
+   `from mod import a as b` binds each item, not the module; select-arm and
+   `catch (e)` bindings are declarations; `t @ pat` and `..name` bind names that
+   live outside a pattern's `elems`; `temp`/`bucket` bind usable names, and a
+   bucket's name is in `tempVarName`, not `name`, because the parser reuses that
+   field; the Checker keeps pseudo-modules in `importRoots_` and *not* in its
+   scope, so `io.open(...)` resolved against nothing; `gather` binds an implicit
+   `item` for its body; and `bucket release` needed a real representation.
+   Two of these were also latent bugs in the harness rather than the lowering:
+   `cmdHir` gated on `diags.count()`, so a W0105 shadowing warning stopped the
+   lowering before it ran (the scoping fixture exited 1 having lowered nothing),
+   and an open-ended range `a..` is a Binary with a *null* rhs and is legal
+   (`OP_UNARANGE`), so flagging every null rhs rejected examples/30.
 3. **Declaration types are not resolved.** `sema::Checker` keeps `resolveType()`
    private, so a declaration records the type *as written* (`Decl::declaredType`)
    while expressions are fully typed through the public `typeOf()`. Widening the
    Checker's API is the follow-on; re-resolving types here would risk a second
    opinion disagreeing with the one that already checked the program.
-4. **Multi-target assignment infers its arity.** The AST flattens `a, b = b, a`
-   into `exprs = [a, b, b, a]` and records nowhere how many are targets, so the
-   lowering assumes `size/2` (exact for every form in the corpus, inferred in
-   general). The parser should record the split.
+4. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
+   `assignTargets` and the parser now records `targets.size()`. The split is not
+   recoverable from `exprs`: three entries could be two targets and one value
+   (`x, y = point`) or one target and two values, and the `size/2` guess got
+   `x, y = point` wrong.
 5. **Nested named functions are lowered but reach `Module::funcs` via a parallel
    `items` entry**, which is inelegant; a real nested-function item form is
    cleaner.

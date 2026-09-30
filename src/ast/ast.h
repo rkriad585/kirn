@@ -266,6 +266,14 @@ struct Stmt {
                                       // [t1..tn, v1..vm]
     std::string augOp;
 
+    // Assign: how many leading entries of `exprs` are TARGETS rather than
+    // values. The parser knows this (`targets.size()`) and used to discard it,
+    // leaving exprs = [a, b, b, a] for `a, b = b, a` and [a, b, point] for
+    // `x, y = point`. The split is NOT recoverable from exprs -- three entries
+    // could be two targets and one value, or one target and two values -- so
+    // anything lowering an assignment had to guess. HIR guessed size/2 and got
+    // `x, y = point` wrong. Recorded here so no consumer has to.
+    size_t assignTargets = 0;
     // Labeled control flow
     std::string label;                // loop labels + break/continue targets
 

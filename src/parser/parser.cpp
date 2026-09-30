@@ -1168,6 +1168,7 @@ ast::StmtP Parser::parseSimpleStmt() {
 
     if (atOp("=")) {
         s->kind = ast::StKind::Assign;
+        s->assignTargets = targets.size();   // not recoverable from exprs alone
         for (auto& tgt : targets) s->exprs.push_back(std::move(tgt));
         advance();
         s->exprs.push_back(parseExpr());                // values

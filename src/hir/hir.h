@@ -163,6 +163,11 @@ struct Pattern {
 
     // Tuple / Slice / Ctor / Or
     std::vector<PatP> elems;        // Tuple, Slice, Or
+    // `..name` in a tuple/slice pattern: a real binding, and it lives on the
+    // pattern rather than in `elems`, which is why it is easy to miss.
+    std::string restName;
+    DeclId restBinding = NO_DECL;
+    bool hasRest = false;
     std::string ctor;               // Ctor
     std::vector<struct PatField> fields;
 };
@@ -335,7 +340,30 @@ struct Goto { std::string label; };
 struct Label { std::string name; Block body; };
 struct Yield { ExprP value; bool hasValue = false; };
 struct Del { std::vector<ExprP> targets; };
-struct Nop {};
+// `gather <expr>,` -- enqueue one more work item. The worklist loop itself is
+// the enclosing `gather` block; this is how a body iteration re-queues.
+struct GatherItem { ExprP item; };
+// `gather { seeds } { body }` -- a worklist loop. Seeds are the initial items.
+struct GatherLoop {
+    std::vector<ExprP> seeds;
+    Block body;
+    // `item` is the implicit work-item binding the gather body sees.
+    DeclId itemBinding = NO_DECL;
+};
+
+// A statement with no payload. `dropped` distinguishes a statement that really
+// is nothing (`pass`) from one the LOWERING could not represent.
+//
+// This distinction is the whole point: a dropped statement used to be
+// indistinguishable from a no-op, so HIR silently discarded code -- exactly the
+// failure the design claims to avoid. The verifier rejects a dropped Nop, which
+// makes "this construct has no mapping" a hard error at the point of lowering
+// rather than a warning nobody reads. It immediately found three more drops
+// (gather, bucket release) that a coverage count alone had reported as passing.
+struct Nop {
+    bool dropped = false;
+    std::string reason;
+};
 
 }  // namespace payload
 
@@ -346,12 +374,12 @@ using StmtPayload = std::variant<
     payload::Break, payload::Continue, payload::Raise, payload::Defer,
     payload::MatchStmt, payload::Select, payload::TryStmt,
     payload::UnsafeBlock, payload::Spawn, payload::Goto, payload::Label,
-    payload::Yield, payload::Del>;
+    payload::Yield, payload::Del, payload::GatherItem, payload::GatherLoop>;
 
 enum class StmtKind : uint8_t {
     Nop, Block, VarDecl, ExprStmt, Assign, AugAssign, Return, Raise, Break,
     Continue, Defer, If, While, For, Match, Select, Try, Unsafe, Spawn,
-    DoWhile, Goto, Label, Yield, Del
+    DoWhile, Goto, Label, Yield, Del, GatherItem, GatherLoop
 };
 
 struct Stmt {

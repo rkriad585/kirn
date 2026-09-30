@@ -137,9 +137,15 @@ struct Lowerer {
         return r;
     }
 
-    void unhandledStmt(const char* what, const ast::Stmt& s) {
+    // Records a statement HIR cannot represent. The Nop it returns is flagged as
+    // a drop, so verify() fails on it -- see payload::Nop.
+    StmtP unhandledStmt(const char* what, const ast::Stmt& s) {
         unhandled[what]++;
-        diags.warning(range(spanOf(s))).code("W9000").msg(std::string("HIR: no mapping for ") + what).emit();
+        diags.warning(range(spanOf(s))).code("W9000")
+            .msg(std::string("HIR: no mapping for ") + what +
+                 "; the statement is dropped and HIR verification will fail")
+            .emit();
+        return mk(StmtKind::Nop, spanOf(s), payload::Nop{true, what});
     }
 
     // --- patterns ------------------------------------------------------
@@ -172,6 +178,15 @@ struct Lowerer {
                 out.kind = p.kind == ast::PatKind::Tuple ? Pattern::Kind::Tuple
                                                           : Pattern::Kind::Slice;
                 for (const auto& e : p.elems) out.elems.push_back(std::make_unique<Pattern>(lowerPat(*e)));
+                // `[head, ..tail]` and `(a, b, ..rest)` bind a NAME for the rest.
+                // The name lives on the pattern, not in `elems`, so skipping it
+                // left `tail` and `rest` unresolvable (examples/31, /38).
+                if (!p.restName.empty()) {
+                    out.restName = p.restName;
+                    out.restBinding = declare(p.restName, Decl::Kind::Var, out.span, nullptr,
+                                              true, nullptr);
+                    out.hasRest = true;
+                }
                 break;
             case ast::PatKind::Ctor:
                 out.kind = Pattern::Kind::Ctor;
@@ -185,8 +200,13 @@ struct Lowerer {
                 out.binding = declare(p.bindName, Decl::Kind::Var, out.span, nullptr, true, nullptr);
                 break;
             case ast::PatKind::BindAlias:
+                // `t @ (even, 7)` binds t for the arm body, so it is a real
+                // declaration. Storing the name without declaring it left every
+                // use of t unresolvable (examples/31).
                 out.kind = Pattern::Kind::BindAlias;
                 out.name = p.bindName;
+                out.binding = declare(p.bindName, Decl::Kind::Var, out.span, nullptr,
+                                      true, nullptr);
                 if (p.aliasSub) out.sub = std::make_unique<Pattern>(lowerPat(*p.aliasSub));
                 break;
             case ast::PatKind::Or:
@@ -429,7 +449,7 @@ struct Lowerer {
         const ast::Span sp = spanOf(s);
         switch (s.kind) {
             case ast::StKind::Pass:
-                return mk(StmtKind::Nop, sp, payload::Nop{});
+                return mk(StmtKind::Nop, sp, payload::Nop{false, {}});
             case ast::StKind::ExprStmt: {
                 payload::ExprStmt es;
                 if (!s.exprs.empty()) es.value = lower(*s.exprs[0]);
@@ -457,16 +477,12 @@ struct Lowerer {
                 // defines on a miss, and OP_STORE's handler has the same
                 // `else env->vars[n] = v` fallback. A lowering that only
                 // declares on VarDecl would leave every such name unresolved.
-                // The AST flattens `a, b = b, a` into exprs = [a, b, b, a] and
-                // records nowhere how many are targets, so the split is inferred:
-                // two exprs is one target, anything larger is treated as
-                // n = size/2. That is exact for the forms in the corpus but is a
-                // genuine limitation -- see the "not done" note in BUILDER-PLAN.
-                // Declaring the inferred targets is what makes examples/17's swap
-                // resolve; declaring ALL of them would be a superset that hides
-                // genuinely-unbound names, so the split is used.
+                // The parser records how many leading exprs are targets (see
+                // ast::Stmt::assignTargets). Inferring it as size/2 was wrong for
+                // `x, y = point` -- 3 entries that are 2 targets and 1 value --
+                // which is examples/17.
                 if (s.exprs.size() > 1) {
-                    const size_t nTargets = s.exprs.size() == 2 ? 1 : s.exprs.size() / 2;
+                    const size_t nTargets = s.assignTargets ? s.assignTargets : 1;
                     for (size_t i = 0; i < nTargets && i < s.exprs.size(); ++i) {
                         if (s.exprs[i]->kind != ast::ExKind::Ident) continue;
                         const std::string& n = s.exprs[i]->text;
@@ -696,15 +712,75 @@ struct Lowerer {
                 return mk(StmtKind::Nop, sp, payload::Nop{});
             }
             // arena/gather temporaries: no HIR mapping, surfaced not dropped.
-            case ast::StKind::TempDecl:
-            case ast::StKind::BucketDecl:
-            case ast::StKind::Gather:
-            case ast::StKind::GatherStmt:
-                unhandledStmt("arena/gather temporary", s);
-                return mk(StmtKind::Nop, sp, payload::Nop{});
+            // `temp scratch 3: int = 100` is a compile-time usage BUDGET, and
+            // `bucket heavy = [...]` parks a value in a separate store. Both
+            // nonetheless introduce a name the rest of the body uses, so both
+            // are declarations. They used to be dropped as "arena temporaries",
+            // which left `scratch` and `heavy` unresolvable (examples/40).
+            case ast::StKind::TempDecl: {
+                payload::VarDecl v;
+                v.isConst = true;
+                if (s.value) v.init = lower(*s.value);
+                if (!s.tempVarName.empty())
+                    v.decl = declare(s.tempVarName, Decl::Kind::Const, sp,
+                                     s.value ? typeOf(*s.value) : nullptr, true, nullptr);
+                return mk(StmtKind::VarDecl, sp, std::move(v));
+            }
+            case ast::StKind::BucketDecl: {
+                payload::VarDecl v;
+                // `bucket release name` moves a parked value back to a normal
+                // variable; it introduces no new binding.
+                // `bucket release name` brings a parked value back into normal
+                // lookup. HIR has no bucket store -- `bucket x = v` above is
+                // modelled as an ordinary binding -- so releasing is a rebind of
+                // the same name, which is a self-assignment in HIR's model and
+                // exactly right given there is no second store to move out of.
+                // The alternative, a Nop, would be a silent no-op.
+                if (s.bucketRelease) {
+                    payload::Assign a;
+                    payload::Name n;
+                    n.spelling = s.tempVarName;
+                    n.decl = resolve(s.tempVarName);
+                    a.target = mk(ExprKind::Name, sp, nullptr, std::move(n));
+                    payload::Name n2;
+                    n2.spelling = s.tempVarName;
+                    n2.decl = resolve(s.tempVarName);
+                    a.value = mk(ExprKind::Name, sp, nullptr, std::move(n2));
+                    return mk(StmtKind::Assign, sp, std::move(a));
+                }
+                if (s.value) v.init = lower(*s.value);
+                // The bucket's name lives in `tempVarName`, NOT `name`: the
+                // parser reuses that field for `bucket <name> = v` (see
+                // parser.cpp, the "bucket" arm). `name` is empty there, so
+                // reading it declared nothing and left `heavy` unresolvable.
+                if (!s.tempVarName.empty())
+                    v.decl = declare(s.tempVarName, Decl::Kind::Var, sp,
+                                     s.value ? typeOf(*s.value) : nullptr, true, nullptr);
+                return mk(StmtKind::VarDecl, sp, std::move(v));
+            }
+            // `gather item + 1,` re-queues one work item. The enclosing `gather`
+            // block is the loop; this is its step.
+            case ast::StKind::GatherStmt: {
+                payload::GatherItem g;
+                if (!s.exprs.empty()) g.item = lower(*s.exprs[0]);
+                return mk(StmtKind::GatherItem, sp, std::move(g));
+            }
+            // `gather { seeds } { body }` -- a worklist loop.
+            case ast::StKind::Gather: {
+                // The body sees `item`, the work item the loop is on. That is an
+                // implicit binding of the gather, not a user declaration, so it
+                // has to be introduced here -- otherwise every `item` in a gather
+                // body is unresolved (examples/42, /43).
+                payload::GatherLoop g;
+                pushScope();
+                g.itemBinding = declare("item", Decl::Kind::Var, sp, nullptr, true, nullptr);
+                for (const auto& seed : s.seedExprs) g.seeds.push_back(lower(*seed));
+                g.body = lowerBlock(s.body);
+                popScope();
+                return mk(StmtKind::GatherLoop, sp, std::move(g));
+            }
             default:
-                unhandledStmt("statement", s);
-                return mk(StmtKind::Nop, sp, payload::Nop{});
+                return unhandledStmt("statement", s);
         }
     }
 

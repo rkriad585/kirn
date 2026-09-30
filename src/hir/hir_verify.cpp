@@ -111,6 +111,8 @@ struct Verifier {
             case StmtKind::Spawn: return "spawn";    case StmtKind::DoWhile: return "dowhile";
             case StmtKind::Goto: return "goto";      case StmtKind::Label: return "label";
             case StmtKind::Yield: return "yield";    case StmtKind::Del: return "del";
+            case StmtKind::GatherItem: return "gather-item";
+            case StmtKind::GatherLoop: return "gather-loop";
         }
         return "?";
     }
@@ -149,6 +151,24 @@ struct Verifier {
                 bad(e.span, "expression has no payload but is not an error node");
         } else if constexpr (std::is_same_v<T, payload::Error>) {
             // always fine
+        } else if constexpr (std::is_same_v<T, payload::Lit>) {
+            // This arm was MISSING from the chain, so a Lit payload fell through
+            // every branch and was never checked against its kind at all. Nothing
+            // in the corpus could find it, because the corpus has no kind/payload
+            // mismatch -- only the in-process self-test builds one on purpose.
+            if (e.kind != ExprKind::Int && e.kind != ExprKind::Float &&
+                e.kind != ExprKind::CharLit && e.kind != ExprKind::Str)
+                bad(e.span, std::string("literal payload on a ") + ek(e.kind) + " node");
+            // The flavour flags must agree with the kind too: a "float" whose
+            // payload says isStr is the same class of disagreement one level in.
+            if (e.kind == ExprKind::Str && !p.isStr)
+                bad(e.span, "str node with a non-string literal payload");
+            if (e.kind == ExprKind::CharLit && !p.isChar)
+                bad(e.span, "char node with a non-char literal payload");
+            if (e.kind == ExprKind::Float && !p.isFloat)
+                bad(e.span, "float node with a non-float literal payload");
+            if (e.kind == ExprKind::Int && (p.isStr || p.isChar || p.isFloat))
+                bad(e.span, "int node with a mismatched literal payload");
         } else if constexpr (std::is_same_v<T, payload::Name>) {
             wantKind(e.span, e.kind, ExprKind::Name, "Name");
             if (p.decl == NO_DECL)
@@ -165,8 +185,17 @@ struct Verifier {
             wantKind(e.span, e.kind, ExprKind::Binary, "Binary");
             if (!p.lhs) bad(e.span, "binary has no lhs");
             else expr(*p.lhs);
-            if (!p.rhs) bad(e.span, "binary has no rhs");
-            else expr(*p.rhs);
+            if (!p.rhs) {
+                // An open-ended range is `a..` / `a..=` with no upper bound, and
+                // the parser produces it as a Binary with a null rhs. That is
+                // real syntax -- `text.split(" ")[8..]` in examples/30 -- and the
+                // VM has a dedicated opcode for it (OP_UNARANGE). Flagging every
+                // null rhs rejected a legal program.
+                if (p.op != ".." && p.op != "..=")
+                    bad(e.span, "binary '" + p.op + "' has no rhs");
+            } else {
+                expr(*p.rhs);
+            }
         } else if constexpr (std::is_same_v<T, payload::Unary>) {
             wantKind(e.span, e.kind, ExprKind::Unary, "Unary");
             if (!p.operand) bad(e.span, "unary has no operand");
@@ -272,6 +301,12 @@ struct Verifier {
         } else if constexpr (std::is_same_v<T, payload::Nop>) {
             if (s.kind != StmtKind::Nop)
                 bad(s.span, "Nop payload on a non-Nop statement");
+            // A dropped statement is a hole in the program, not a no-op. This is
+            // the check that turns "no HIR mapping for X" into a hard error at
+            // the point of lowering instead of a warning nobody reads.
+            if (p.dropped)
+                bad(s.span, "lowering DROPPED a statement (no HIR mapping for " +
+                                p.reason + ")");
         } else if constexpr (std::is_same_v<T, payload::Block>) {
             wantKind(s.span, s.kind, StmtKind::Block, "Block");
             block(p, s.span);
@@ -366,6 +401,14 @@ struct Verifier {
         } else if constexpr (std::is_same_v<T, payload::Yield>) {
             wantKind(s.span, s.kind, StmtKind::Yield, "Yield");
             if (p.value) expr(*p.value);
+        } else if constexpr (std::is_same_v<T, payload::GatherItem>) {
+            wantKind(s.span, s.kind, StmtKind::GatherItem, "GatherItem");
+            if (p.item) expr(*p.item);
+        } else if constexpr (std::is_same_v<T, payload::GatherLoop>) {
+            wantKind(s.span, s.kind, StmtKind::GatherLoop, "GatherLoop");
+            for (const auto& seed : p.seeds)
+                if (seed) expr(*seed);
+            block(p.body, s.span);
         } else if constexpr (std::is_same_v<T, payload::Del>) {
             wantKind(s.span, s.kind, StmtKind::Del, "Del");
             for (const auto& t : p.targets) if (t) expr(*t);
@@ -554,7 +597,9 @@ struct Dumper {
             case StmtKind::Spawn: return "spawn";  case StmtKind::DoWhile: return "dowhile";
             case StmtKind::Goto: return "goto";    case StmtKind::Label: return "label";
             case StmtKind::Yield: return "yield";  case StmtKind::Del: return "del";
-        }
+                case StmtKind::GatherItem: return "gather-item";
+            case StmtKind::GatherLoop: return "gather-loop";
+    }
         return "?";
     }
 
@@ -755,6 +800,12 @@ struct Dumper {
                 if (p.expr) expr(*p.expr, n + 1);
             } else if constexpr (std::is_same_v<T, payload::Yield>) {
                 if (p.value) expr(*p.value, n + 1);
+            } else if constexpr (std::is_same_v<T, payload::GatherItem>) {
+                if (p.item) expr(*p.item, n + 1);
+            } else if constexpr (std::is_same_v<T, payload::GatherLoop>) {
+                ind(n + 1); o << "seeds\n";
+                for (const auto& seed : p.seeds) if (seed) expr(*seed, n + 2);
+                block(p.body, n + 1);
             } else if constexpr (std::is_same_v<T, payload::Del>) {
                 for (const auto& t : p.targets) if (t) expr(*t, n + 1);
             }

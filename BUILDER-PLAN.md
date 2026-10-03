@@ -1401,9 +1401,10 @@ _Not done, and recorded rather than left to be discovered:_
    `checkModule()` returns "unknown type 'T'" for every generic function. Purity
    was never the issue; the *environment* was. The Checker therefore caches each
    function's signature where it is computed, inside the `TvGuard`, and HIR reads
-   that back (`Checker::funcSig`). Struct fields have no such record —
-   `registerTopLevel` never resolves them — so they keep the written spelling, and
-   recording a field-type table is the real fix.
+   that back (`Checker::funcSig`). Struct fields now have one too: `Checker::fieldTypes()` returns the resolved
+   types, cached inside the struct's own `TvGuard` scope in `registerTopLevel`,
+   which previously did not resolve field types at all. A generic struct's fields
+   therefore dump as `first : A` rather than as the spelling.
 
    Making the signature real also unmasked a latent null dereference in the MIR
    builder: `buildFunc` computed the return type one line *above* `fn = &f`, and
@@ -1442,14 +1443,28 @@ _Not done, and recorded rather than left to be discovered:_
      backend must implement a decision tree here" in a form a reader cannot
      mistake for a comparison. Branching to the first arm instead would verify, and
      be wrong. Corpus-wide: 59 real pattern comparisons, 16 named markers.
-   - **`goto` and labels.** A `goto` lowers to `unreachable`, because labels are
-     not tracked as jump targets. Forward and backward `goto` are genuinely in the
-     corpus (`examples/42_control_goto_gather.kn`), so this is a real gap.
+   - ~~**`goto` and labels.**~~ **Closed.** A label registers the block it names;
+     a `goto` is an unconditional `Br` to it, back-patched when the label appears
+     later in the source, which is the normal shape. **No unwinding is needed**,
+     and that is the alloca model paying for itself: bindings live in entry-block
+     allocas, so unlike the interpreter -- which throws `SignalGoto` and unwinds to
+     the owning block -- there is no frame for the jump to leave. Gate 9 asserts a
+     forward goto out of a loop emits a branch and no `unreachable`.
    - **`bucket`.** HIR models `bucket x = v` as an ordinary binding and
      `bucket release x` as a self-assignment, which is consistent but loses the
      separate store the construct is for.
    - **Comprehensions and lambdas** become `call_indirect` with their operands
-     flattened; the closure body is not built as its own function yet.
+     flattened; the closure body is not built as its own MIR function. This one is
+     *deliberately* left, and the reason matters more than the gap. A closure in
+     this language captures **by reference** (`examples/07_closures_captures.kn`), so
+     a nested function would need the enclosing frame's allocas passed as pointers:
+     a closure environment, and a memory model for it. Building one that captures
+     **by value** would be easy, would verify, and would be wrong for any closure
+     that mutates a captured variable. A subtly incorrect IR that passes every
+     structural check is precisely the failure this phase's verifier work exists to
+     prevent, so the flattened call stays: visibly coarser rather than quietly
+     wrong. The right home for that model is Phase 4, alongside the LLVM backend's,
+     where `mem2reg` decides what actually escapes.
 6. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
    `assignTargets` and the parser now records `targets.size()`. The split is not
    recoverable from `exprs`: three entries could be two targets and one value

@@ -537,12 +537,16 @@ struct Builder {
             return emitValue(Op::CallIndirect, a, t, s,
                              p.isGenerator ? "generator" : "listcomp");
         } else if constexpr (std::is_same_v<T, hir::payload::MatchExpr>) {
-            // One block per arm, chained, with a phi for the result. The chain is
-            // wired the same way lowerIf wires an if/elif chain: a test that fails
-            // falls to the NEXT arm, and the last one falls to the join.
+            // Same shape as the statement form, plus a phi for the result: every
+            // arm produces a value and the join has to choose between them.
+            Value subject = NO_VALUE;
+            if (p.subject) subject = lower(*p.subject);
+            const Type subjectTy = p.subject ? tyOf(p.subject->type) : anyType();
+
+            BlockId condBlk = cur;
             std::vector<BlockId> armBlocks, armEnds, condBlocks;
             std::vector<size_t> condIdx;
-            BlockId condBlk = cur;
+            std::vector<Value> armVals;
             for (size_t i = 0; i < p.arms.size(); ++i) {
                 if (i > 0) {
                     condBlk = fn->newBlock();
@@ -550,8 +554,9 @@ struct Builder {
                 }
                 BlockId ab = fn->newBlock();
                 armBlocks.push_back(ab);
+                Value test = patternTest(subject, p.arms[i].pat, subjectTy);
                 Inst c;
-                c.op = Op::CondBr;
+                c.op = test == NO_VALUE ? Op::Br : Op::CondBr;
                 c.condBlock = condBlk;
                 c.succ = ab;
                 c.span = s;
@@ -562,6 +567,7 @@ struct Builder {
                 for (auto& st : p.arms[i].body)
                     if (st) lower(*st);
                 armEnds.push_back(cur);
+                armVals.push_back(p.arms[i].value ? lower(*p.arms[i].value) : NO_VALUE);
             }
             BlockId join = fn->newBlock();
             for (BlockId e : armEnds) {
@@ -575,16 +581,27 @@ struct Builder {
             }
             for (size_t i = 0; i < armBlocks.size(); ++i) {
                 BlockId falseEdge = (i + 1 < armBlocks.size()) ? armBlocks[i + 1] : join;
-                fn->blocks[condBlocks[i]].insts[condIdx[i]].elseSucc = falseEdge;
+                Inst& c = fn->blocks[condBlocks[i]].insts[condIdx[i]];
+                if (c.op == Op::CondBr) c.elseSucc = falseEdge;
+                else c.succ = falseEdge;
             }
             setBlock(join);
-            // The subject was evaluated in the first condition block; nothing
-            // consumes it here because arm selection is not yet modelled, and the
-            // join phi is omitted rather than faked. A phi with invented
-            // incoming values would verify and then be wrong, which is worse than
-            // no phi at all.
-            if (p.subject) { /* evaluated in the chain above */ }
-            return NO_VALUE;
+            // A phi only when every arm produced a value. Inventing incoming values
+            // for arms that did not would verify and then be wrong.
+            bool allHaveValues = !armVals.empty();
+            for (Value v : armVals)
+                if (v == NO_VALUE) allHaveValues = false;
+            if (!allHaveValues) return NO_VALUE;
+            Value phi = fn->newValue(t, s);
+            Inst in;
+            in.op = Op::Phi;
+            in.result = phi;
+            in.type = t;
+            in.span = s;
+            for (size_t i = 0; i < armBlocks.size(); ++i)
+                in.incoming.push_back(PhiIncoming{armEnds[i], armVals[i]});
+            emit(std::move(in));
+            return phi;
         } else if constexpr (std::is_same_v<T, hir::payload::Lambda>) {
             std::vector<Value> a;
             return emitValue(Op::CallIndirect, a, t, s, "lambda");
@@ -607,6 +624,180 @@ struct Builder {
             return NO_VALUE;
         }
     }
+
+    // -- pattern tests ----------------------------------------------------
+    // "Does `subject` match this pattern?" as a Value of bool type, binding any
+    // names the pattern introduces.
+    //
+    // This is what a match needs to be a real branch rather than a chain of
+    // unconditional jumps, and it is the reason `match` was previously listed as
+    // a fidelity gap: the arms were chained but the subject was never compared
+    // against anything, so every arm was reachable.
+    //
+    // Kinds whose test cannot be expressed with the operations this IR has emit a
+    // named `pattern_test` call carrying the pattern's TEXT instead. That is
+    // deliberate and not a stub: it makes the IR say "a backend must implement a
+    // decision tree here" in a form a reader cannot mistake for a real
+    // comparison. Silently branching to the first arm would be worse -- it would
+    // verify, and be wrong.
+    Value constBool(bool b, ast::Span s) {
+        return emitValue(Op::Const, {}, boolType(), s, b ? "bool:true" : "bool:false");
+    }
+
+    Value patternTest(Value subject, const hir::Pattern& pat, const Type& subjectTy) {
+        switch (pat.kind) {
+            case hir::Pattern::Kind::Wild:
+                return constBool(true, pat.span);
+
+            case hir::Pattern::Kind::Bind: {
+                // A binding always matches; the "work" is the store.
+                if (pat.binding != hir::NO_DECL && bind(pat.binding))
+                    write(pat.binding, subject, pat.span);
+                return constBool(true, pat.span);
+            }
+
+            case hir::Pattern::Kind::Literal: {
+                Value lit = emitValue(Op::Const, {}, subjectTy, pat.span, literalText(pat).c_str());
+                if (subject == NO_VALUE || lit == NO_VALUE) return NO_VALUE;
+                return emitValue(Op::Binary, {subject, lit}, boolType(), pat.span, "==");
+            }
+
+            case hir::Pattern::Kind::Range: {
+                if (!pat.lo || !pat.hi || subject == NO_VALUE) return NO_VALUE;
+                Value lo = patternBound(subjectTy, *pat.lo);
+                Value hi = patternBound(subjectTy, *pat.hi);
+                if (lo == NO_VALUE || hi == NO_VALUE) return NO_VALUE;
+                // >= on the low bound always; the high bound's comparison is the
+                // difference between `a..b` and `a..=b`, and getting it wrong turns
+                // `case 200..=299` into `case 200..298`.
+                Value geLo = emitValue(Op::Binary, {subject, lo}, boolType(), pat.span, ">=");
+                const char* hiOp = pat.inclusive ? "<=" : "<";
+                Value atHi = emitValue(Op::Binary, {subject, hi}, boolType(), pat.span, hiOp);
+                return emitValue(Op::Binary, {geLo, atHi}, boolType(), pat.span, "and");
+            }
+
+            case hir::Pattern::Kind::BindAlias: {
+                // `t @ pat`: test the inner pattern, and bind t to the whole
+                // subject when it matches.
+                Value inner = pat.sub ? patternTest(subject, *pat.sub, subjectTy)
+                                      : constBool(true, pat.span);
+                if (inner == NO_VALUE) return NO_VALUE;
+                if (pat.binding != hir::NO_DECL && bind(pat.binding))
+                    write(pat.binding, subject, pat.span);
+                return inner;
+            }
+
+            case hir::Pattern::Kind::Ref:
+                // `&p` is transparent in this language's by-value model (see the AST
+                // note on ast::PatKind::Ref), so the test is the inner one.
+                return pat.sub ? patternTest(subject, *pat.sub, subjectTy)
+                               : constBool(true, pat.span);
+
+            case hir::Pattern::Kind::Or: {
+                // Any alternative matching makes the whole pattern match.
+                Value acc = NO_VALUE;
+                for (const auto& alt : pat.elems) {
+                    if (!alt) continue;
+                    Value t = patternTest(subject, *alt, subjectTy);
+                    if (t == NO_VALUE) continue;
+                    acc = acc == NO_VALUE ? t
+                         : emitValue(Op::Binary, {acc, t}, boolType(), pat.span, "or");
+                }
+                return acc == NO_VALUE ? constBool(true, pat.span) : acc;
+            }
+
+            case hir::Pattern::Kind::Tuple: {
+                // Fixed-arity tuple: element i is subject[i], and every element's
+                // test is ANDed. A tuple carrying a rest capture needs a length
+                // test, which this IR cannot express as a comparison.
+                //
+                // Returning the named marker rather than `break`ing matters: `break`
+                // left the switch and fell off the end of the function, which is a
+                // jump to nowhere -- an illegal instruction on exactly the corpus
+                // file that writes `[head, ..tail]`.
+                if (pat.hasRest)
+                    return emitValue(Op::CallIndirect, {subject}, boolType(), pat.span,
+                                     "pattern_test:tuple_rest");
+                std::vector<Value> tests;
+                for (size_t i = 0; i < pat.elems.size(); ++i) {
+                    if (!pat.elems[i]) continue;
+                    Type et = elemType(subjectTy, pat.span);
+                    Value idx = constIndex(i, subjectTy, pat.span);
+                    if (idx == NO_VALUE) return NO_VALUE;
+                    Value elem = emitValue(Op::Index, {subject, idx}, et, pat.span);
+                    if (elem == NO_VALUE) return NO_VALUE;
+                    Value t = patternTest(elem, *pat.elems[i], et);
+                    if (t == NO_VALUE) return NO_VALUE;
+                    tests.push_back(t);
+                }
+                Value acc = NO_VALUE;
+                for (Value t : tests)
+                    acc = acc == NO_VALUE ? t
+                         : emitValue(Op::Binary, {acc, t}, boolType(), pat.span, "and");
+                return acc == NO_VALUE ? constBool(true, pat.span) : acc;
+            }
+
+            case hir::Pattern::Kind::Ctor:
+            case hir::Pattern::Kind::Slice:
+            case hir::Pattern::Kind::Rest:
+            default:
+                // Needs a decision tree over a tag or a length: see the comment
+                // above. Named explicitly so it is visible in the dump.
+                return emitValue(Op::CallIndirect, {subject}, boolType(), pat.span,
+                                 ("pattern_test:" + std::string(patternKindName(pat.kind)))
+                                     .c_str());
+        }
+        // Every kind above returns. This is here because a switch that can fall off
+        // the end of a Value-returning function is a jump to nowhere, and the
+        // compiler is right to treat reaching it as undefined rather than to hand
+        // back whatever happens to be in the return register.
+        return constBool(false, pat.span);
+    }
+
+    static const char* patternKindName(hir::Pattern::Kind k) {
+        switch (k) {
+            case hir::Pattern::Kind::Wild: return "wild";
+            case hir::Pattern::Kind::Literal: return "literal";
+            case hir::Pattern::Kind::Range: return "range";
+            case hir::Pattern::Kind::Tuple: return "tuple";
+            case hir::Pattern::Kind::Ctor: return "ctor";
+            case hir::Pattern::Kind::Bind: return "bind";
+            case hir::Pattern::Kind::BindAlias: return "bindalias";
+            case hir::Pattern::Kind::Or: return "or";
+            case hir::Pattern::Kind::Slice: return "slice";
+            case hir::Pattern::Kind::Rest: return "rest";
+            case hir::Pattern::Kind::Ref: return "ref";
+        }
+        return "?";
+    }
+
+    std::string literalText(const hir::Pattern& p) {
+        if (p.lit.isStr) return "str:" + p.lit.s;
+        if (p.lit.isFloat) { std::ostringstream o; o << p.lit.f; return "float:" + o.str(); }
+        return "int:" + std::to_string(p.lit.i);
+    }
+
+    Value patternBound(const Type& t, const hir::Pattern& p) {
+        if (p.kind != hir::Pattern::Kind::Literal)
+            return emitValue(Op::CallIndirect, {}, t, p.span, "pattern_bound");
+        return emitValue(Op::Const, {}, t, p.span, literalText(p).c_str());
+    }
+
+    Value constIndex(size_t i, const Type& t, ast::Span s) {
+        return emitValue(Op::Const, {}, elemType(t, s), s,
+                         ("int:" + std::to_string(i)).c_str());
+    }
+
+    Type elemType(const Type& tupleTy, ast::Span s) {
+        (void)s;
+        if (tupleTy != NO_VALUE && tupleTy < fn->types.size() &&
+            !fn->types[tupleTy].args.empty())
+            return fn->types[tupleTy].args[0];
+        return anyType();
+    }
+
+    Type boolType() { return fn->internType(TypeEntry{Ty::Bool, "bool", {}, NO_VALUE}); }
+    Type anyType() { return fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE}); }
 
     // -- statements -------------------------------------------------------
     void lowerStmts(const std::vector<hir::StmtP>& v) {
@@ -765,6 +956,14 @@ struct Builder {
     void lowerFallback(const hir::Stmt& s, auto& p) {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, hir::payload::MatchStmt>) {
+            // The subject is evaluated ONCE into a value, then each arm tests that
+            // value against its own pattern and branches on the result. That is the
+            // whole point: the previous version chained the arms but never compared
+            // the subject against anything, so every arm was reachable.
+            Value subject = NO_VALUE;
+            if (p.subject) subject = lower(*p.subject);
+            const Type subjectTy = p.subject ? tyOf(p.subject->type) : anyType();
+
             BlockId condBlk = cur;
             std::vector<BlockId> armBlocks, armEnds, condBlocks;
             std::vector<size_t> condIdx;
@@ -775,8 +974,11 @@ struct Builder {
                 }
                 BlockId ab = fn->newBlock();
                 armBlocks.push_back(ab);
+                // The test: patternTest binds the arm's names as a side effect,
+                // which is why it runs BEFORE the branch rather than in the arm.
+                Value test = patternTest(subject, p.arms[i].pat, subjectTy);
                 Inst c;
-                c.op = Op::CondBr;
+                c.op = test == NO_VALUE ? Op::Br : Op::CondBr;
                 c.condBlock = condBlk;
                 c.succ = ab;
                 c.span = sp(s.span);
@@ -799,7 +1001,14 @@ struct Builder {
             }
             for (size_t i = 0; i < armBlocks.size(); ++i) {
                 BlockId falseEdge = (i + 1 < armBlocks.size()) ? armBlocks[i + 1] : join;
-                fn->blocks[condBlocks[i]].insts[condIdx[i]].elseSucc = falseEdge;
+                Inst& c = fn->blocks[condBlocks[i]].insts[condIdx[i]];
+                // A test that could not be built falls back to an unconditional
+                // branch, and the arm therefore always runs. That is the pre-existing
+                // behaviour; the dump shows `pattern_test:` for any arm whose test
+                // needed a decision tree, so the coarseness is visible rather than
+                // implied.
+                if (c.op == Op::CondBr) c.elseSucc = falseEdge;
+                else c.succ = falseEdge;
             }
             setBlock(join);
         } else if constexpr (std::is_same_v<T, hir::payload::Select>) {

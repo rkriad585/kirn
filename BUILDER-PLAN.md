@@ -1411,15 +1411,37 @@ _Not done, and recorded rather than left to be discovered:_
    always null, so the line never ran. A field that is always empty hides the bug
    in the code that would otherwise have caught it.
 
-4. **What MIR does not model, precisely.** These are fidelity limits, not
+5. **A lost FIELD is a different bug shape from a lost statement.** `verify()`'s
+   drop check makes an unmappable *statement* a hard error. It cannot catch a lost
+   *field*: the node is present and well formed, the value is just wrong. HIR was
+   dropping `ast::Pat::inclusive`, so `case 200..=299` became `case 200..298` --
+   three corpus files use inclusive range patterns and nothing noticed. The
+   per-kind payload union was supposed to make "nowhere to put it" impossible; it
+   was possible, because the IR payload simply lacked the field. It is now carried,
+   printed in the dump as `range 1..=9` / `range 10..99`, and pinned three ways:
+   behaviourally (`describe(99)` is `large` because `10..99` is exclusive, while
+   `describe(9)` is `small` because `1..=9` includes it), in the HIR text, and in
+   the MIR comparison chosen (`<=` for inclusive, `<` for exclusive).
+   `tests/mir/patterns.kn` exists because the corpus had **no** exclusive range
+   pattern at all, so the bit was entirely untested.
+
+6. **What MIR does not model, precisely.** These are fidelity limits, not
    failures: the IR verifies, and none of them drops a statement — the drop check
    in `verify()` guarantees that — but they are places where the CFG is coarser
    than the program.
 
-   - **`match` arm selection.** Arms are chained with conditional branches and the
-     join is a real block, but the *subject* is not compared against arm patterns;
-     no `br` on a discriminant is emitted. The value form emits no join phi rather
-     than inventing incoming values.
+   - ~~**`match` arm selection.**~~ **Closed for the patterns expressible as
+     comparisons.** The subject is evaluated once into a value and each arm tests
+     *that value* against its own pattern, so arms are genuinely selected rather
+     than all reachable. `wild`, `bind`, `literal`, `range`, `bindalias`, `or`,
+     `ref` and fixed-arity `tuple` lower to real `binary`/`condbr`; the value form
+     emits a join phi only when every arm produced a value, never an invented one.
+     `ctor`, `slice` and tuple-with-rest still emit a named `pattern_test:<kind>`
+     call, because they need a decision tree over a tag or a length that this IR
+     has no operation for. That marker is deliberate: it makes the IR say "a
+     backend must implement a decision tree here" in a form a reader cannot
+     mistake for a comparison. Branching to the first arm instead would verify, and
+     be wrong. Corpus-wide: 59 real pattern comparisons, 16 named markers.
    - **`goto` and labels.** A `goto` lowers to `unreachable`, because labels are
      not tracked as jump targets. Forward and backward `goto` are genuinely in the
      corpus (`examples/42_control_goto_gather.kn`), so this is a real gap.
@@ -1428,12 +1450,12 @@ _Not done, and recorded rather than left to be discovered:_
      separate store the construct is for.
    - **Comprehensions and lambdas** become `call_indirect` with their operands
      flattened; the closure body is not built as its own function yet.
-5. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
+6. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
    `assignTargets` and the parser now records `targets.size()`. The split is not
    recoverable from `exprs`: three entries could be two targets and one value
    (`x, y = point`) or one target and two values, and the `size/2` guess got
    `x, y = point` wrong.
-6. **Nested named functions are lowered but reach `Module::funcs` via a parallel
+7. **Nested named functions are lowered but reach `Module::funcs` via a parallel
    `items` entry**, which is inelegant; a real nested-function item form is
    cleaner.
 

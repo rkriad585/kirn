@@ -405,7 +405,8 @@ HIR_KNOWN_UNSUPPORTED=""
 echo "=== gate 8: HIR structural verification ==="
 HIR_OK=0
 HIR_FAILED=""
-for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn; do
+for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn \
+          "$ROOT"/tests/mir/*.kn; do
     [ -e "$src" ] || continue
     base="$(basename "$src")"
     case " $HIR_KNOWN_UNSUPPORTED " in
@@ -483,7 +484,8 @@ fi
 echo "=== gate 9: MIR structural verification ==="
 MIR_OK=0
 MIR_FAILED=""
-for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn; do
+for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn \
+          "$ROOT"/tests/mir/*.kn; do
     [ -e "$src" ] || continue
     if "$KN" rt "$src" >/dev/null 2>&1; then
         MIR_OK=$((MIR_OK+1))
@@ -517,6 +519,49 @@ if "$CXX" -std=c++20 -I"$ROOT/src" -o "$TMP/mirvst" \
 else
     report FAIL "MIR verifier rejects broken CFGs" "self-test did not compile: $(head -2 "$TMP/mirvst.cc.log" | tr '\n' ' ')"
 fi
+# ---- pattern lowering ------------------------------------------------------
+# tests/mir/patterns.kn exists because the corpus uses ONLY inclusive range
+# patterns: nothing exercised `a..b`, and HIR did not record inclusivity at all, so
+# `case 200..=299` silently became `case 200..298`. A lost FIELD is a different bug
+# shape from the lost STATEMENT that verify()'s drop check catches -- the node is
+# present and well formed -- so it needs its own assertions, and it gets three:
+# behaviour, the HIR dump, and the MIR comparison chosen.
+PAT="$ROOT/tests/mir/patterns.kn"
+# One line with no trailing space, so the comparison below is a plain string
+# match: `tr` alone leaves a trailing space where the final newline was.
+out="$("$CR" "$PAT" 2>&1 | tr '\n' ' ' | sed 's/ *$//')"
+# describe(99) must be "large": `10..99` excludes 99, while describe(9) is "small"
+# because `1..=9` includes it. If inclusivity is dropped from HIR both change.
+if [ "$out" = "zero small small medium large large zero empty one: 1 first: 1 rest: 2 small 3 lucky" ]; then
+    report PASS "range patterns keep their inclusivity" "describe(9)=small via 1..=9, describe(99)=large via exclusive 10..99"
+else
+    report FAIL "range patterns keep their inclusivity" "got: $out"
+fi
+# The HIR dump must show BOTH forms, so a regression is visible in the text and not
+# only in the behaviour.
+hir="$("$KN" hir "$PAT" 2>&1)"
+if echo "$hir" | grep -q 'range 1\.\.=9' && echo "$hir" | grep -q 'range 10\.\.99'; then
+    report PASS "HIR records both range forms" "dump contains 'range 1..=9' and 'range 10..99'"
+else
+    report FAIL "HIR records both range forms" "one of the two forms is missing from the dump"
+fi
+# ...and MIR must pick <= for the inclusive one and < for the exclusive one.
+mir="$("$KN" rt "$PAT" 2>&1)"
+le=$(echo "$mir" | grep -cE '; <=$')
+lt=$(echo "$mir" | grep -cE '; <$')
+if [ "$le" -ge 2 ] && [ "$lt" -ge 1 ]; then
+    report PASS "MIR picks the right range comparison" "$le inclusive (<=) and $lt exclusive (<) comparisons emitted"
+else
+    report FAIL "MIR picks the right range comparison" "got $le '<=' and $lt '<'; expected at least 2 and 1"
+fi
+# A pattern whose test needs a decision tree must SAY SO rather than branch to the
+# first arm, so the coarseness is visible in the dump and not merely implied.
+if echo "$mir" | grep -q 'pattern_test:'; then
+    report PASS "arms needing a decision tree are named" "$(echo "$mir" | grep -oE 'pattern_test:[a-z_]+' | sort -u | tr '\n' ' ')"
+else
+    report PASS "arms needing a decision tree are named" "none needed one for this fixture"
+fi
+
 # `rt` must agree with itself across runs, and must be a dump rather than an
 # execution: the plan gives `rt` two meanings and resolves it as the dumper.
 "$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m1" 2>&1

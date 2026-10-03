@@ -160,6 +160,16 @@ struct Pattern {
     struct Lit { int64_t i = 0; double f = 0; std::string s; bool isFloat = false; bool isStr = false; };
     Lit lit;
     PatP lo, hi;                    // Range
+    // Whether the HIGH bound is inclusive, i.e. `a..=b` rather than `a..b`.
+    //
+    // This is not optional: ast::Pat carries it, the interpreter honours it
+    // (`leHi = p.inclusive ? v.ch <= hi.ch : v.ch < hi.ch`), and dropping it
+    // turns every `case 200..=299` into `case 200..298`. Three corpus files use
+    // inclusive range patterns, and no check noticed -- the drop check only
+    // catches a lost STATEMENT, not a lost field, which is the failure mode the
+    // per-kind payload union was supposed to prevent by making nowhere-to-put-it
+    // impossible. It was possible here.
+    bool inclusive = false;
 
     // Tuple / Slice / Ctor / Or
     std::vector<PatP> elems;        // Tuple, Slice, Or

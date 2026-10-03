@@ -1,0 +1,64 @@
+# Pattern coverage for the HIR/MIR pattern tests.
+#
+# Every pattern kind that appears in the corpus, in one file, so a gate can assert
+# that each produced the lowering it should. This exists rather than relying on
+# examples/ for one specific reason:
+#
+# The corpus uses ONLY inclusive range patterns (`case 1..=9`, `case 200..=299`).
+# Nothing exercised `a..b`, so the difference between `<=` and `<` was untested --
+# and HIR did not even record which one it had, silently turning every
+# `case 200..=299` into `case 200..298`.
+#
+# That is a different bug shape from the one the drop check in verify() catches. A
+# lost STATEMENT is now a hard verification failure; a lost FIELD cannot be caught
+# that way, because the node is present and well formed. Both range forms are
+# therefore printed in the HIR dump as `lo..hi` / `lo..=hi` and the gate greps for
+# both, so a regression is visible in the dump as well as in the behaviour.
+
+def describe(n: int) -> string {
+    match n {
+        case 0 { return "zero"; }
+        case 1..=9 { return "small"; }
+        case 10..99 { return "medium"; }   # EXCLUSIVE upper bound
+        case _ { return "large"; }
+    }
+}
+
+def sign(n: int) -> string {
+    match n {
+        case 0 { return "zero"; }
+        case x if x < 0 { return "negative"; }
+        case _ { return "positive"; }
+    }
+}
+
+def head_and_tail(xs: list) -> string {
+    match xs {
+        case [] { return "empty"; }
+        case [only] { return "one: " + str(only); }
+        case [first, ..rest] { return "first: " + str(first) + " rest: " + str(len(rest)); }
+    }
+}
+
+def alias_or(n: int) -> string {
+    match n {
+        case v @ (1..=5) { return "small " + str(v); }
+        case 7 | 8 | 9 { return "lucky"; }
+        case _ { return "other"; }
+    }
+}
+
+def main() {
+    print(describe(0));
+    print(describe(5));      # inclusive: 1..=9 contains 5
+    print(describe(9));      # inclusive: and 9
+    print(describe(10));     # exclusive: 10..99 starts at 10
+    print(describe(99));     # exclusive: so 99 is NOT in 10..99
+    print(describe(1000));
+    print(sign(0));
+    print(head_and_tail([]));
+    print(head_and_tail([1]));
+    print(head_and_tail([1, 2, 3]));
+    print(alias_or(3));
+    print(alias_or(7));
+}

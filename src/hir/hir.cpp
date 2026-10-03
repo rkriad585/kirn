@@ -170,6 +170,7 @@ struct Lowerer {
                 break;
             case ast::PatKind::Range:
                 out.kind = Pattern::Kind::Range;
+                out.inclusive = p.inclusive;
                 if (p.lo) out.lo = std::make_unique<Pattern>(lowerPat(*p.lo));
                 if (p.hi) out.hi = std::make_unique<Pattern>(lowerPat(*p.hi));
                 break;

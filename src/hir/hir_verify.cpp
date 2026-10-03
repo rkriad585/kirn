@@ -605,6 +605,15 @@ struct Dumper {
 
     void ind(int n) { for (int i = 0; i < n; ++i) o << "  "; }
 
+    // A range bound, inline. Range bounds are always literals in practice; a
+    // non-literal prints as `?` rather than lying about it.
+    static std::string boundText(const Pattern& p) {
+        if (p.kind != Pattern::Kind::Literal) return "?";
+        if (p.lit.isStr) return "\"" + p.lit.s + "\"";
+        if (p.lit.isFloat) return std::to_string(p.lit.f);
+        return std::to_string(p.lit.i);
+    }
+
     void pat(const Pattern& p, int n) {
         static const char* pk[] = {"wild", "literal", "range", "tuple", "ctor",
                                    "bind", "bindalias", "or", "slice", "rest", "ref"};
@@ -621,6 +630,21 @@ struct Dumper {
         o << "\n";
         for (const auto& e : p.elems) if (e) pat(*e, n + 1);
         for (const auto& f : p.fields) if (f.pat) pat(*f.pat, n + 1);
+        if (p.kind == Pattern::Kind::Range) {
+            // One line, `lo..hi` or `lo..=hi`, so the distinction is visible in the
+            // dump and therefore TESTABLE. Dropping `inclusive` used to turn every
+            // `case 200..=299` into `case 200..298` and nothing noticed, because
+            // the drop check only catches a lost statement, not a lost field.
+            ind(n);
+            o << "  range ";
+            if (p.lo) o << boundText(*p.lo);
+            o << (p.inclusive ? "..=" : "..");
+            if (p.hi) o << boundText(*p.hi);
+            o << "\n";
+            if (p.lo) pat(*p.lo, n + 1);
+            if (p.hi) pat(*p.hi, n + 1);
+            return;
+        }
         if (p.lo) pat(*p.lo, n + 1);
         if (p.hi) pat(*p.hi, n + 1);
         if (p.sub) pat(*p.sub, n + 1);

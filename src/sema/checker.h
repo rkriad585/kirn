@@ -52,6 +52,41 @@ public:
     // added to the lists but not here fails to resolve. HIR needs the same
     // answer and should not add a third copy.
     const std::vector<std::string>& builtinNames() const { return builtinNames_; }
+
+    // ---- types ----
+    // Public because HIR needs the RESOLVED type of a declaration -- a parameter,
+    // a `var`/`const` annotation, a struct field -- and expressions already have
+    // one through typeOf(). resolveSig additionally builds a whole FuncSig.
+    //
+    // This is not a second opinion. Both are pure: they read typeVars_ and return
+    // interned TyPs, with no AST mutation and no diagnostic state, so calling them
+    // after checkModule() returns exactly what the Checker itself computed for the
+    // same nodes. Re-resolving types independently elsewhere -- which is what HIR
+    // did first, and had to abandon -- risks disagreeing with the pass that
+    // already checked the program; re-reading these cannot.
+    TyP resolveType(const ast::TypeP& t);
+    FuncSig resolveSig(const std::vector<ast::Param>& params, const ast::TypeP& ret,
+                       bool stripSelf);
+
+    // The resolved signature of a function definition, or nullptr if this Checker
+    // never checked that definition.
+    //
+    // A CACHE, not a recomputation, and that distinction is the whole point.
+    // resolveSig/resolveType read `typeVars_`, which a TvGuard pushes and pops
+    // around each generic function: inside `def f[T](x: T)` the name T resolves
+    // to a TypeVar, and after checkModule() returns it does not resolve at all.
+    // Calling them from outside therefore yields "unknown type 'T'" for every
+    // generic function -- which is exactly what happened when HIR first used them
+    // directly, and it looked like a correct answer because it was the same
+    // function returning a different thing in a different environment.
+    //
+    // So the signature is recorded where it is computed, with the type variables
+    // still in scope, and read back here.
+    const FuncSig* funcSig(const ast::Stmt& def) const {
+        auto it = funcSigs_.find(&def);
+        return it == funcSigs_.end() ? nullptr : &it->second;
+    }
+
 private:
     // ---- infrastructure ----
     void error(uint32_t line, uint32_t col, const std::string& msg);
@@ -73,10 +108,6 @@ private:
     void registerTopLevel(const std::vector<ast::StmtP>& prog);
     void fillStructBody(SymP st, const ast::Stmt& s);
 
-    // ---- types ----
-    TyP resolveType(const ast::TypeP& t);
-    FuncSig resolveSig(const std::vector<ast::Param>& params, const ast::TypeP& ret,
-                       bool stripSelf);
     TyP lookupNominal(TyK k, const std::string& name) const;
     bool assignable(const TyP& from, const TyP& to) const;
     TyP unify(const TyP& a, const TyP& b, uint32_t line, uint32_t col,
@@ -137,6 +168,7 @@ private:
     DiagEngine& diags_;
     Scope* scope_ = nullptr;
     std::vector<std::string> builtinNames_;
+    std::unordered_map<const ast::Stmt*, FuncSig> funcSigs_;
     int rootScopeId_ = 0;             // module top-level scope id (for local/global/temp)
     std::map<std::string, SymP> structs_;
     std::map<std::string, const ast::Stmt*> structDecls_;  // name -> StructDef node

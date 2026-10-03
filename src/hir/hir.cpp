@@ -463,7 +463,10 @@ struct Lowerer {
                 v.isLocal = s.kind == ast::StKind::LocalDecl;
                 if (s.value) v.init = lower(*s.value);
                 if (s.target && s.target->kind == ast::ExKind::Ident) {
-                    sema::TyP ty = s.value ? typeOf(*s.value) : nullptr;
+                    // A written annotation wins; otherwise the initialiser's type,
+                    // which typeOf() has already resolved.
+                    sema::TyP ty = s.declType ? chk.resolveType(s.declType)
+                                               : (s.value ? typeOf(*s.value) : nullptr);
                     v.decl = declare(s.target->text, Decl::Kind::Var, sp, ty, true, nullptr);
                 }
                 return mk(StmtKind::VarDecl, sp, std::move(v));
@@ -696,13 +699,13 @@ struct Lowerer {
                 if (Decl* d = const_cast<Decl*>(ctx.get(f->decl))) d->sig = f->sig;
                 fnStack.push_back(f->decl);
                 f->bodyScope = pushScope(true);
-                for (const auto& pn : s.params) {
-                    DeclId id = declare(pn.name, Decl::Kind::Param, sp, nullptr, true, nullptr);
-                    if (Decl* pd = const_cast<Decl*>(ctx.get(id)))
-                        pd->declaredType = typeText(pn.type);
+                for (size_t i = 0; i < s.params.size(); ++i) {
+                    const auto& pn = s.params[i];
+                    DeclId id = declare(pn.name, Decl::Kind::Param, sp,
+                                        i < f->sig.params.size() ? f->sig.params[i] : nullptr,
+                                        true, nullptr);
                     f->params.push_back(id);
-                    if (Decl* pd2 = const_cast<Decl*>(ctx.get(id)))
-                        pd2->slot = nextSlot(*f, pn.name);
+                    if (Decl* pd = const_cast<Decl*>(ctx.get(id))) pd->slot = nextSlot(*f, pn.name);
                 }
                 for (const auto& b : s.body)
                     if (b) f->body.push_back(lower(*b));
@@ -785,25 +788,20 @@ struct Lowerer {
     }
 
     // --- items ---------------------------------------------------------
-    // sema::Checker does not expose a signature lookup, and the signature is
-    // needed to lower calls later. Build it from the AST's own declared shape
-    // rather than guessing at a private accessor; types come from the Checker.
-    sema::FuncSig sigOf(const ast::Stmt& s) const {
-        sema::FuncSig sig;
-        sig.ret = nullptr;   // see Decl::declaredType for why
-        size_t required = 0;
-        for (size_t i = 0; i < s.params.size(); ++i) {
-            const auto& pn = s.params[i];
-            sig.params.push_back(nullptr);
-            sig.names.push_back(pn.name);
-            if (!pn.defaultValue) ++required;
-        }
-        sig.required = required;
-        sig.variadic = !s.params.empty() && !s.params.back().type;
-        return sig;
+    // The Checker's own resolution, READ BACK rather than recomputed: the Checker
+    // caches each function's signature while its type variables are still in scope
+    // (see Checker::funcSig). Calling resolveSig() from here looked equivalent and
+    // was not -- typeVars_ is popped when checkModule() returns, so every generic
+    // function came back as "unknown type 'T'".
+    sema::FuncSig sigOf(const ast::Stmt& s) {
+        if (const sema::FuncSig* cached = chk.funcSig(s)) return *cached;
+        // No cached signature: not a function definition this Checker saw, so fall
+        // back to resolving it now. Correct for everything non-generic.
+        return chk.resolveSig(s.params, s.ret, /*stripSelf=*/false);
     }
 
-    // The type as written, since it cannot be resolved from out here.
+    // The type as written, kept for diagnostics and for declarations the Checker
+    // has no resolved type for (an import root, a dynamic module).
     static std::string typeText(const ast::TypeP& t) {
         return t ? t->name : std::string();
     }
@@ -846,8 +844,19 @@ struct Lowerer {
                 auto sd = std::make_unique<StructDef>();
                 sd->name = s.name;
                 sd->span = it.span;
+                // Field types keep the SPELLING, not a resolved TyP. A generic
+                // struct's field can be annotated with the enclosing type
+                // parameter (`struct Box[A] { first: A; }`), and a field's type is
+                // only resolvable while that parameter is in scope -- which for
+                // functions means inside the TvGuard that checkFuncLike runs
+                // under, and which the Checker records a signature for. Struct
+                // fields have no such record: registerTopLevel never resolves
+                // them at all, so calling resolveType() here is "unknown type 'A'"
+                // for every generic struct. Recording a field-type table is the
+                // real fix and is not done; the spelling is honest meanwhile.
                 for (const auto& fd : s.fields) {
-                    DeclId id = declare(fd.name, Decl::Kind::Field, it.span, nullptr, false, nullptr);
+                    DeclId id = declare(fd.name, Decl::Kind::Field, it.span, nullptr,
+                                        false, nullptr);
                     if (Decl* dd = const_cast<Decl*>(ctx.get(id)))
                         dd->declaredType = typeText(fd.type);
                     sd->fields.push_back(id);

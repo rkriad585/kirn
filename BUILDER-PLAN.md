@@ -1391,17 +1391,49 @@ _Not done, and recorded rather than left to be discovered:_
    lowering before it ran (the scoping fixture exited 1 having lowered nothing),
    and an open-ended range `a..` is a Binary with a *null* rhs and is legal
    (`OP_UNARANGE`), so flagging every null rhs rejected examples/30.
-3. **Declaration types are not resolved.** `sema::Checker` keeps `resolveType()`
-   private, so a declaration records the type *as written* (`Decl::declaredType`)
-   while expressions are fully typed through the public `typeOf()`. Widening the
-   Checker's API is the follow-on; re-resolving types here would risk a second
-   opinion disagreeing with the one that already checked the program.
-4. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
+3. **Struct field types keep the spelling; everything else resolves.** Function
+   signatures, parameters and `var`/`const` annotations now carry *resolved* types,
+   so MIR dumps a real `ret=int` rather than `ret=?`. `sema::Checker::resolveType()`
+   and `resolveSig()` are public for this. **The obvious way to use them is
+   wrong**, and the way it is wrong is worth recording: both are pure — they read
+   `typeVars_` and return interned types — but `typeVars_` is pushed and popped by
+   a `TvGuard` around each generic declaration, so calling them after
+   `checkModule()` returns "unknown type 'T'" for every generic function. Purity
+   was never the issue; the *environment* was. The Checker therefore caches each
+   function's signature where it is computed, inside the `TvGuard`, and HIR reads
+   that back (`Checker::funcSig`). Struct fields have no such record —
+   `registerTopLevel` never resolves them — so they keep the written spelling, and
+   recording a field-type table is the real fix.
+
+   Making the signature real also unmasked a latent null dereference in the MIR
+   builder: `buildFunc` computed the return type one line *above* `fn = &f`, and
+   `tyOf` interns into `fn->types`. That was safe only because `sig.ret` was
+   always null, so the line never ran. A field that is always empty hides the bug
+   in the code that would otherwise have caught it.
+
+4. **What MIR does not model, precisely.** These are fidelity limits, not
+   failures: the IR verifies, and none of them drops a statement — the drop check
+   in `verify()` guarantees that — but they are places where the CFG is coarser
+   than the program.
+
+   - **`match` arm selection.** Arms are chained with conditional branches and the
+     join is a real block, but the *subject* is not compared against arm patterns;
+     no `br` on a discriminant is emitted. The value form emits no join phi rather
+     than inventing incoming values.
+   - **`goto` and labels.** A `goto` lowers to `unreachable`, because labels are
+     not tracked as jump targets. Forward and backward `goto` are genuinely in the
+     corpus (`examples/42_control_goto_gather.kn`), so this is a real gap.
+   - **`bucket`.** HIR models `bucket x = v` as an ordinary binding and
+     `bucket release x` as a self-assignment, which is consistent but loses the
+     separate store the construct is for.
+   - **Comprehensions and lambdas** become `call_indirect` with their operands
+     flattened; the closure body is not built as its own function yet.
+5. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
    `assignTargets` and the parser now records `targets.size()`. The split is not
    recoverable from `exprs`: three entries could be two targets and one value
    (`x, y = point`) or one target and two values, and the `size/2` guess got
    `x, y = point` wrong.
-5. **Nested named functions are lowered but reach `Module::funcs` via a parallel
+6. **Nested named functions are lowered but reach `Module::funcs` via a parallel
    `items` entry**, which is inelegant; a real nested-function item form is
    cleaner.
 

@@ -146,8 +146,6 @@ struct Binding {
     std::string name;
     uint32_t local = 0;                       // Alloca index, for memory
     Value current = NO_VALUE;                 // value of the last write
-    std::map<BlockId, Value> defs;            // block -> value defined there
-    ast::Span span{};                         // for the phis this binding gets
     bool isParam = false;
 };
 
@@ -315,7 +313,6 @@ struct Builder {
         Binding* b = bind(d);
         if (!b) return;
         b->current = v;
-        b->defs[cur] = v;
         if (b->local < fn->localTypes.size()) {
             Inst in;
             in.op = Op::Store;
@@ -345,74 +342,32 @@ struct Builder {
     }
 
     // -- control flow -----------------------------------------------------
-    // Materialise a phi for every binding that has DIFFERENT values reaching this
-    // block along different predecessors, and store the result so subsequent
-    // reads see it.
+    // Deliberately EMPTY, and that is the finding rather than an omission.
     //
-    // This is the one place a phi is needed, and it is needed because the tree
-    // does not carry a "which storage does this name mean after the join"
-    // answer. A binding written the same Value on both arms needs no phi, which
-    // is checked here rather than assumed.
-    void mergeInto(BlockId join, const std::vector<BlockId>& preds) {
-        if (preds.size() < 2) return;
-        // Only bindings that were written in more than one predecessor, or whose
-        // single definition does not reach the join, need a phi. Everything else
-        // is dominated by one definition and is left alone.
-        for (auto& [decl, b] : binds) {
-            if (b.isParam) continue;
-            bool needPhi = false;
-            for (BlockId p : preds) {
-                auto it = b.defs.find(p);
-                if (it != b.defs.end()) { needPhi = true; break; }
-            }
-            if (!needPhi) continue;
-            // Are all reaching definitions the same value? If so no phi.
-            bool same = true;
-            bool first = true;
-            Value firstVal = NO_VALUE;
-            for (BlockId p : preds) {
-                auto it = b.defs.find(p);
-                Value v = (it == b.defs.end()) ? b.current : it->second;
-                if (first) { firstVal = v; first = false; }
-                else if (v != firstVal) { same = false; break; }
-            }
-            if (same) continue;
-
-            Type t = (b.local < fn->localTypes.size()) ? fn->localTypes[b.local]
-                                                       : Type{NO_VALUE};
-            Value phi = fn->newValue(t, sp(b.span));
-            Inst in;
-            in.op = Op::Phi;
-            in.result = phi;
-            in.type = t;
-            in.name = b.name;
-            in.opName = std::to_string(b.local);
-            // Incoming order MUST match predecessor order, and the verifier
-            // checks that set equality rather than containment -- LLVM rejects a
-            // phi with a missing entry, an extra entry, or two entries for the
-            // same predecessor carrying different values.
-            for (BlockId p : preds) {
-                auto it = b.defs.find(p);
-                Value v = (it == b.defs.end()) ? b.current : it->second;
-                in.incoming.push_back(PhiIncoming{p, v});
-            }
-            BlockId save = cur;
-            cur = join;
-            emit(std::move(in));
-            if (b.local < fn->localTypes.size()) {
-                Inst st;
-                st.op = Op::Store;
-                st.type = t;
-                st.args = {phi};
-                st.argTypes = {t};
-                st.opName = std::to_string(b.local);
-                emit(std::move(st));
-            }
-            cur = save;
-            b.defs[join] = phi;
-            b.current = phi;
-        }
-    }
+    // The first version built a phi at every join for any binding written
+    // differently on the two arms. It is redundant: every write goes through
+    // write(), which emits a Store, so the memory already holds the right value
+    // on every incoming edge and the following Load reads it correctly. The dump
+    // showed the shape plainly:
+    //
+    //     b1: %3 = const 1 ; store %3 -> local 0 ; br -> b3
+    //     b2: %4 = const 2 ; store %4 -> local 0 ; br -> b3
+    //     b3: %5 = phi [%3 from b1, %4 from b2] ; store %5 -> local 0
+    //         %6 = load local 0
+    //
+    // The phi and its store do no work. Worse, it is the wrong model for this IR:
+    // section 4.6 says the front end "never builds SSA by hand; it emits allocas
+    // + stores, and the mem2reg pass produces SSA". Hand-built phis over
+    // memory-backed bindings would give phase 4 two sources of SSA -- the ones
+    // mem2reg creates and the ones written here -- and a backend that assumes its
+    // phis are the complete set would double-count.
+    //
+    // So bindings flow through memory, and a phi appears only where a VALUE
+    // crosses an edge without ever being stored. That is the conditional
+    // expression, whose result is consumed by the enclosing expression rather
+    // than assigned to anything. Exactly one phi in this builder, and it is
+    // genuinely required.
+    void noteJoin(BlockId, const std::vector<BlockId>&) {}
 
     // -- expressions ------------------------------------------------------
     Value lower(const hir::Expr& e) {
@@ -678,7 +633,6 @@ struct Builder {
             Binding b;
             b.decl = p.decl;
             if (const hir::Decl* d = hctx.get(p.decl)) b.name = d->name;
-            b.span = s.span;
             b.local = allocLocal(b.name, t, s.span);
             binds[p.decl] = b;
             if (p.init) {
@@ -955,7 +909,7 @@ struct Builder {
         setBlock(join);
         std::vector<BlockId> preds = armEnds;
         if (elseBlock != NO_BLOCK) preds.push_back(elseEnd);
-        mergeInto(join, preds);
+        noteJoin(join, preds);
     }
 
     void lowerWhile(const hir::Stmt& s, const hir::payload::While& p) {
@@ -992,7 +946,6 @@ struct Builder {
             Binding b;
             b.decl = p.binding;
             if (const hir::Decl* d = hctx.get(p.binding)) b.name = d->name;
-            b.span = s.span;
             b.local = allocLocal(b.name, tyOf(nullptr), s.span);
             binds[p.binding] = b;
         }
@@ -1022,11 +975,18 @@ struct Builder {
         f.span = hf.span;
         f.sig = hf.sig;
         f.params = hf.params;
-        f.returnType = hf.sig.ret ? tyOf(hf.sig.ret) : fn ? Type{NO_VALUE} : Type{NO_VALUE};
         f.isVariadic = hf.sig.variadic;
         f.newBlock();   // entry
         fn = &f;
         cur = 0;
+        // `fn` must be live BEFORE anything calls tyOf(), which interns into
+        // fn->types. This used to compute the return type one line above the
+        // assignment, and that was safe only because sig.ret was always null --
+        // HIR had no way to resolve a declared return type. Making the Checker's
+        // resolveSig() public filled it in, and the latent null dereference became
+        // a segfault on every file. A field that was always empty hides the bug in
+        // the code that would have caught it.
+        f.returnType = hf.sig.ret ? tyOf(hf.sig.ret) : Type{NO_VALUE};
         binds.clear();
         loops.clear();
         pendingAllocas.clear();

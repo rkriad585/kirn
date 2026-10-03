@@ -742,6 +742,10 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                 {
                     TvGuard tv(typeVars_, st->typeParams);
                     sym->sig = resolveSig(st->params, st->ret, /*stripSelf*/ false);
+                    // Recorded here, inside the TvGuard scope, so a later reader
+                    // gets the signature with type variables resolved. See
+                    // Checker::funcSig.
+                    funcSigs_[st.get()] = sym->sig;
                     for (const auto& tp : st->typeParams)
                         if (tp.def)
                             sym->typeDefaults[tp.name] = resolveType(tp.def);

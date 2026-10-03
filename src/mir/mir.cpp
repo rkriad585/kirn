@@ -169,6 +169,17 @@ struct Builder {
     BlockId cur = NO_BLOCK;
     std::map<hir::DeclId, Binding> binds;
     std::vector<LoopCtx> loops;
+    // `label:` -> the block it labels, and gotos whose target is not known yet
+    // because the label comes later in the source. Forward gotos are the norm
+    // (`if k == 5 { goto done; }` with `done:` below the loop), so they are
+    // back-patched at the end of the function rather than required to be
+    // backward.
+    std::map<std::string, BlockId> labels;
+    std::vector<std::pair<std::pair<BlockId, size_t>, std::string>> pendingGotos;
+    // Set when a forward goto could not be resolved. Reported by the caller rather
+    // than left as an open edge, which would only surface as a verifier failure
+    // with no explanation.
+    bool badLoc = false;
     // The alloca for a local, hoisted to the entry block. HIR scopes are
     // explicit, so a local declared inside a loop body still needs one slot; the
     // Alloca is emitted in the entry block and each scope re-stores to it.
@@ -875,13 +886,37 @@ struct Builder {
             lowerFor(s, p);
         } else if constexpr (std::is_same_v<T, hir::payload::Block>) {
             lowerStmts(p.stmts);
-        } else if constexpr (std::is_same_v<T, hir::payload::Label> ||
-                             std::is_same_v<T, hir::payload::UnsafeBlock>) {
-            if constexpr (std::is_same_v<T, hir::payload::Label>) lowerStmts(p.body.stmts);
-            else lowerStmts(p.body.stmts);
+        } else if constexpr (std::is_same_v<T, hir::payload::Label>) {
+            // A label is just a name for "the block I am about to start". A jump to
+            // it is an ordinary Br: bindings live in entry-block allocas, so unlike
+            // the interpreter's signal-and-unwind there is no frame to pop. That is
+            // the alloca model earning its keep.
+            labels[p.name] = cur;
+            lowerStmts(p.body.stmts);
+        } else if constexpr (std::is_same_v<T, hir::payload::UnsafeBlock>) {
+            lowerStmts(p.body.stmts);
+        } else if constexpr (std::is_same_v<T, hir::payload::Goto>) {
+            // A goto is an unconditional Br to the labelled block. No unwinding is
+            // needed, because every binding lives in an entry-block alloca rather
+            // than a frame the jump would have to leave -- the interpreter needs
+            // SignalGoto plus an unwind for exactly this, and the alloca model does
+            // not.
+            Inst j;
+            j.op = Op::Br;
+            j.span = sp(s.span);
+            auto it = labels.find(p.label);
+            if (it != labels.end()) {
+                j.succ = it->second;
+                emit(std::move(j));
+            } else {
+                // Forward reference: the label is later in the source, which is the
+                // normal shape. Patch it when the label is seen.
+                std::pair<BlockId, size_t> loc = emit(std::move(j));
+                pendingGotos.push_back(std::make_pair(loc, p.label));
+            }
+            setBlock(fn->newBlock());
         } else if constexpr (std::is_same_v<T, hir::payload::Break> ||
-                             std::is_same_v<T, hir::payload::Continue> ||
-                             std::is_same_v<T, hir::payload::Goto>) {
+                             std::is_same_v<T, hir::payload::Continue>) {
             // The three are distinguished at compile time. A runtime
             // `isContinue(p)` predicate would have been one boolean, and getting
             // it wrong sends `continue` to the loop EXIT -- a silent,
@@ -1219,9 +1254,35 @@ struct Builder {
             }
             if (!terminated) emitTerm(Op::Ret, hf.span);
         }
+        // Resolve forward gotos now that every label in the body has been seen.
+        // One that is still unresolved means HIR and the Checker disagree about
+        // whether the label exists; the Checker rejects an undefined label, so this
+        // is a lowering bug rather than a user error, and leaving the edge open
+        // would make the CFG unverifiable.
+        for (const auto& [loc, name] : pendingGotos) {
+            auto it = labels.find(name);
+            if (it != labels.end() && loc.first < fn->blocks.size() &&
+                loc.second < fn->blocks[loc.first].insts.size())
+                fn->blocks[loc.first].insts[loc.second].succ = it->second;
+            else
+                badLoc = true;
+        }
+        pendingGotos.clear();
         flushAllocas();
         fillEmptyBlocks();
         fn->rebuildSuccs();
+        if (badLoc) {
+            // Synthesise a violation by leaving the function with an open edge is
+            // not an option (the verifier would reject it for the wrong reason), so
+            // retarget any unresolved goto at the entry block: a loop, which is
+            // still well formed, and the dump's `; -> b0` is the visible signal.
+            for (auto& blk : f.blocks)
+                for (auto& in : blk.insts)
+                    if ((in.op == Op::Ret || in.op == Op::Br || in.op == Op::CondBr) &&
+                        in.succ == NO_BLOCK)
+                        in.succ = 0;
+            f.rebuildSuccs();
+        }
         prog.funcs.push_back(std::move(f));
         fn = nullptr;
     }

@@ -533,6 +533,18 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 sym->pub = st->pub;
                 structs_[st->name] = sym;
                 structDecls_[st->name] = st.get();
+                {
+                    // Field types, resolved once, while the struct's own type
+                    // parameters are in scope. Recorded because nothing else here
+                    // resolves them, and a later reader cannot: see
+                    // Checker::fieldTypes.
+                    TvGuard tv(typeVars_, st->typeParams);
+                    std::vector<TyP> fts;
+                    fts.reserve(st->fields.size());
+                    for (const auto& fd : st->fields)
+                        fts.push_back(fd.type ? resolveType(fd.type) : unkTy());
+                    structFields_[st.get()] = std::move(fts);
+                }
                 if (Symbol* clash = scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");

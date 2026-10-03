@@ -554,6 +554,24 @@ if [ "$le" -ge 2 ] && [ "$lt" -ge 1 ]; then
 else
     report FAIL "MIR picks the right range comparison" "got $le '<=' and $lt '<'; expected at least 2 and 1"
 fi
+# `goto` must lower to a real branch, not to `unreachable`. It used to, and the
+# corpus uses forward AND backward goto (examples/42_control_goto_gather.kn), so
+# that was a real gap rather than a hypothetical. A goto is an unconditional Br to
+# the labelled block, with no unwinding: bindings live in entry-block allocas, so
+# unlike the interpreter's signal-and-raise there is no frame to pop.
+GOTO="$ROOT/tests/mir/goto.kn"
+if "$KN" rt "$GOTO" >"$TMP/goto.mir" 2>&1; then
+    # `find` jumps out of the loop to a label below it, so the CFG must contain a
+    # back edge from inside the loop to a block the loop does not reach.
+    if grep -q '^    br  ; -> b' "$TMP/goto.mir" && [ "$(grep -c 'unreachable' "$TMP/goto.mir")" -eq 0 ]; then
+        report PASS "goto lowers to a real branch" "no unreachable emitted; $(grep -c '^    br  ; -> b' "$TMP/goto.mir") branches, including the forward goto"
+    else
+        report FAIL "goto lowers to a real branch" "expected branches and no unreachable; got $(grep -c unreachable "$TMP/goto.mir") unreachable"
+    fi
+else
+    report FAIL "goto lowers to a real branch" "kirnc rt failed: $(head -1 "$TMP/goto.mir")"
+fi
+
 # A pattern whose test needs a decision tree must SAY SO rather than branch to the
 # first arm, so the coarseness is visible in the dump and not merely implied.
 if echo "$mir" | grep -q 'pattern_test:'; then

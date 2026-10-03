@@ -1,0 +1,13 @@
+# Forward `goto` out of a loop to a label below it, which the corpus uses
+# in examples/42. Gate 9 asserts this lowers to a real branch.
+def find(xs: list) -> int {
+    var i = 0;
+    for v in xs {
+        if v == 7 { goto found; }
+        i = i + 1;
+    }
+    return -1;
+found:
+    return i;
+}
+def main() { print(find([1, 2, 7, 3])); }

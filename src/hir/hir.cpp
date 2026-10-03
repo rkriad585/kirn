@@ -845,21 +845,19 @@ struct Lowerer {
                 auto sd = std::make_unique<StructDef>();
                 sd->name = s.name;
                 sd->span = it.span;
-                // Field types keep the SPELLING, not a resolved TyP. A generic
-                // struct's field can be annotated with the enclosing type
-                // parameter (`struct Box[A] { first: A; }`), and a field's type is
-                // only resolvable while that parameter is in scope -- which for
-                // functions means inside the TvGuard that checkFuncLike runs
-                // under, and which the Checker records a signature for. Struct
-                // fields have no such record: registerTopLevel never resolves
-                // them at all, so calling resolveType() here is "unknown type 'A'"
-                // for every generic struct. Recording a field-type table is the
-                // real fix and is not done; the spelling is honest meanwhile.
-                for (const auto& fd : s.fields) {
-                    DeclId id = declare(fd.name, Decl::Kind::Field, it.span, nullptr,
+                // Field types come from the Checker's cache, which records them
+                // inside the struct's own TvGuard scope. Resolving them here
+                // instead would be "unknown type 'A'" for every generic struct --
+                // typeVars_ is popped by the time HIR runs. The spelling is kept as
+                // well, for diagnostics and for a field the Checker never resolved.
+                const std::vector<sema::TyP>* fts = chk.fieldTypes(s);
+                for (size_t i = 0; i < s.fields.size(); ++i) {
+                    sema::TyP ty = (fts && i < fts->size()) ? (*fts)[i] : nullptr;
+                    DeclId id = declare(s.fields[i].name, Decl::Kind::Field, it.span, ty,
                                         false, nullptr);
-                    if (Decl* dd = const_cast<Decl*>(ctx.get(id)))
-                        dd->declaredType = typeText(fd.type);
+                    if (!ty)
+                        if (Decl* dd = const_cast<Decl*>(ctx.get(id)))
+                            dd->declaredType = typeText(s.fields[i].type);
                     sd->fields.push_back(id);
                 }
                 it.kind = Item::Kind::Struct;

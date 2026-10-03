@@ -82,6 +82,19 @@ public:
     //
     // So the signature is recorded where it is computed, with the type variables
     // still in scope, and read back here.
+    // The resolved types of a struct definition's fields, in declaration order, or
+    // nullptr if this Checker never saw that definition.
+    //
+    // Cached for the same reason as funcSig(): a generic struct's field can be
+    // annotated with the enclosing type parameter (`struct Box[A] { first: A; }`),
+    // and resolveType() can only answer that while the parameter is in scope.
+    // registerTopLevel does not otherwise resolve field types at all, so without
+    // this a later reader gets "unknown type 'A'".
+    const std::vector<TyP>* fieldTypes(const ast::Stmt& def) const {
+        auto it = structFields_.find(&def);
+        return it == structFields_.end() ? nullptr : &it->second;
+    }
+
     const FuncSig* funcSig(const ast::Stmt& def) const {
         auto it = funcSigs_.find(&def);
         return it == funcSigs_.end() ? nullptr : &it->second;
@@ -169,6 +182,7 @@ private:
     Scope* scope_ = nullptr;
     std::vector<std::string> builtinNames_;
     std::unordered_map<const ast::Stmt*, FuncSig> funcSigs_;
+    std::unordered_map<const ast::Stmt*, std::vector<TyP>> structFields_;
     int rootScopeId_ = 0;             // module top-level scope id (for local/global/temp)
     std::map<std::string, SymP> structs_;
     std::map<std::string, const ast::Stmt*> structDecls_;  // name -> StructDef node

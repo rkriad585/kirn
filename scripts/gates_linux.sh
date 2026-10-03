@@ -477,6 +477,66 @@ if "$CXX" -std=c++20 -I"$ROOT/src" -o "$TMP/hirvst" \
 else
     report FAIL "HIR verifier rejects broken IR" "self-test did not compile: $(head -2 "$TMP/hirvst.cc.log" | tr '\n' ' ')"
 fi
+# ---- MIR (phase 3) ----------------------------------------------------------
+# `kirnc rt` lowers through HIR to a CFG, verifies it, and prints the dump. Four
+# properties, mirroring the HIR gate above.
+echo "=== gate 9: MIR structural verification ==="
+MIR_OK=0
+MIR_FAILED=""
+for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn; do
+    [ -e "$src" ] || continue
+    if "$KN" rt "$src" >/dev/null 2>&1; then
+        MIR_OK=$((MIR_OK+1))
+    else
+        MIR_FAILED="$MIR_FAILED $(basename "$src")"
+    fi
+done
+if [ -z "$MIR_FAILED" ]; then
+    report PASS "MIR verifies on every corpus file" "$MIR_OK files lowered through HIR to a verified CFG"
+else
+    report FAIL "MIR verifies on every corpus file" "failed:$MIR_FAILED"
+fi
+# The verifier must REJECT a broken CFG. As with HIR, no valid source can produce
+# one -- the Checker rejects source-level defects and the builder either produces
+# a well-formed CFG or crashes -- so the malformed CFG is built in memory by
+# tests/mir/verifier_selftest.cpp. A .kn fixture would be the same trap the HIR
+# gate already fell into: it passes by asserting "the builder does not do this
+# yet", and goes quiet the moment the builder learns.
+MIR_LIBS="$ROOT/build/libkirn_mir.a $ROOT/build/libkirn_hir.a $ROOT/build/libkirn_sema.a \
+$ROOT/build/libkirn_parser.a $ROOT/build/libkirn_prepro.a \
+$ROOT/build/libkirn_ast.a $ROOT/build/libkirn_lex.a"
+# shellcheck disable=SC2086
+if "$CXX" -std=c++20 -I"$ROOT/src" -o "$TMP/mirvst" \
+      "$ROOT/tests/mir/verifier_selftest.cpp" $MIR_LIBS -lpthread \
+      2>"$TMP/mirvst.cc.log"; then
+    if "$TMP/mirvst" >"$TMP/mirvst.out" 2>&1; then
+        report PASS "MIR verifier rejects broken CFGs" "$(grep -c '^  ok' "$TMP/mirvst.out") in-process cases, all rejected/accepted as expected"
+    else
+        report FAIL "MIR verifier rejects broken CFGs" "$(grep FAIL "$TMP/mirvst.out" | head -2)"
+    fi
+else
+    report FAIL "MIR verifier rejects broken CFGs" "self-test did not compile: $(head -2 "$TMP/mirvst.cc.log" | tr '\n' ' ')"
+fi
+# `rt` must agree with itself across runs, and must be a dump rather than an
+# execution: the plan gives `rt` two meanings and resolves it as the dumper.
+"$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m1" 2>&1
+"$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m2" 2>&1
+if cmp -s "$TMP/m1" "$TMP/m2" && head -1 "$TMP/m1" | grep -q '^mir 1$'; then
+    report PASS "MIR dump is deterministic and is a dump" "two runs byte-identical, starts with 'mir 1'"
+else
+    report FAIL "MIR dump is deterministic and is a dump" "runs differ, or the output is not a MIR dump"
+fi
+# Every dumped block must end in a terminator, checked from the TEXT. This is
+# deliberately redundant with the in-process verifier: it checks the shipped
+# path end to end, so a flag wired to the wrong function is caught here even
+# though the library is fine.
+if "$KN" rt "$ROOT/examples/05_loops_ranges.kn" 2>/dev/null    | awk '/^  b[0-9]+:/{ if (blk != "" && last !~ /ret|br|condbr|unreachable/) { print blk; bad=1 } blk=$0; last="" ; next }
+        /^    /{ if ($0 ~ /ret|br |condbr|unreachable/) last=$0 } END { if (blk != "" && last !~ /ret|br|condbr|unreachable/) { print blk; bad=1 } exit bad?1:0 }' > "$TMP/badblocks"; then
+    report PASS "every dumped block ends in a terminator" "re-read from the text of a real dump"
+else
+    report FAIL "every dumped block ends in a terminator" "unterminated: $(head -2 "$TMP/badblocks")"
+fi
+
 # The dump must be deterministic: a golden comparison is only meaningful if the
 # text does not move between runs. Two runs, byte for byte.
 "$KN" hir "$ROOT/examples/05_loops_ranges.kn" > "$TMP/h1" 2>&1

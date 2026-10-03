@@ -36,6 +36,7 @@ const char* const kUsage =
     "  lex     lex only (--emit-tokens to print the token stream)\n"
     "  parse   lex + parse (--emit-ast to print the AST)\n"
     "  hir     lower to HIR, verify structurally, print the dump\n"
+    "  rt      lower through HIR to MIR, verify the CFG, print the dump\n"
     "  run     not implemented yet (see the note below)\n"
     "  build   build an executable (default verb)\n"
     "\n"
@@ -43,6 +44,7 @@ const char* const kUsage =
     "  --emit-tokens   print the token stream (lex)\n"
     "  --emit-ast      print the AST (parse)\n"
     "  --emit-hir      lower to HIR, verify it, print the dump (check)\n"
+    "  --emit-mir      lower through HIR to a verified MIR CFG and print it (rt)\n"
     "  -E              preprocess only; print the expanded token stream\n"
     "  -D name[=val]   define a macro (with -E)\n"
     "  -U name         undefine a macro (with -E)\n"
@@ -65,8 +67,11 @@ bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 // with the MIR CFG. Both dash spellings are listed for each because the plan
 // uses zig-style single dash in one place and gcc-style in another; dropping
 // either would make it a filename.
+// --emit-mir was here and has landed (phase 3, as `rt`). -emit-llvm lands with
+// the LLVM backend in phase 4; -emit-sasm with codegen in phase 5. Both dash
+// spellings are listed for each because the plan uses zig-style single dash in
+// one place and gcc-style in another; dropping either makes it a filename.
 const char* const kLaterFlags[] = {"-c", "-###", "-v", "--verbose",
-                                   "-emit-mir", "--emit-mir",
                                    "-emit-llvm", "--emit-llvm",
                                    "-emit-sasm", "--emit-sasm"};
 
@@ -89,7 +94,7 @@ std::vector<std::string> stripFor(const std::vector<std::string>& in,
     std::vector<std::string> out;
     for (const auto& a : in) {
         if (a == "--emit-tokens" || a == "--emit-ast" || a == "--emit-hir" ||
-            a == "-emit-hir")
+            a == "-emit-hir" || a == "--emit-mir" || a == "-emit-mir")
             continue;
         if (!keepDiagFlags &&
             (a == "--plain" || a == "--color" || a == "--no-color"))
@@ -124,7 +129,7 @@ int main(int argc, char** argv) {
     }
 
     if (verb != "check" && verb != "lex" && verb != "parse" && verb != "run" &&
-        verb != "hir" && verb != "build") {
+        verb != "hir" && verb != "rt" && verb != "build") {
         std::cerr << "kirnc: unknown verb '" << verb << "'\n";
         std::cerr << kUsage;
         return 2;
@@ -134,7 +139,7 @@ int main(int argc, char** argv) {
         if (!isLaterFlag(a)) continue;
         std::cerr << "kirnc " << verb << ": '" << a
                   << "' is not implemented yet\n"
-                  << "  --emit-mir lands with the MIR CFG, and -S/-c/-###/-v with "
+                  << "  -emit-llvm lands with the LLVM backend, and -S/-c/-###/-v with "
                      "codegen; see BUILDER-PLAN.md section 6\n";
         return 2;
     }
@@ -196,6 +201,16 @@ int main(int argc, char** argv) {
         for (const auto& s : rest)
             if (s != "--emit-hir" && s != "-emit-hir") a.push_back(s);
         return kirn::driver::cmdHir(a, "kirnc");
+    }
+    if (verb == "rt" || hasFlag("--emit-mir")) {
+        // `rt` is the MIR dumper for this phase. BUILDER-PLAN section 6 gives it
+        // two meanings -- "run through the runtime" and "dump MIR" -- and the
+        // phase-3 text resolves it as the dumper; the runner meaning is deferred
+        // to the phase that retires the bundle.
+        std::vector<std::string> a;
+        for (const auto& s : rest)
+            if (s != "--emit-mir" && s != "-emit-mir") a.push_back(s);
+        return kirn::driver::cmdRt(a, "kirnc");
     }
     if (verb == "check") {
         // --plain/--color/--no-color are cmdCheck's own flags; pass them

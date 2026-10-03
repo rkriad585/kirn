@@ -73,6 +73,17 @@ add_library(kirn_hir STATIC
 )
 target_link_libraries(kirn_hir PUBLIC kirn_sema)
 
+# MIR: a CFG-based, value-oriented IR built from HIR (BUILDER-PLAN phase 3).
+# It links kirn_hir and deliberately NOT kirn_vm / kirn_interp: section 4.5 keeps
+# the bytecode compiler a separate specializer that stays the runtime fast path,
+# while MIR feeds AOT. Linking them together would make the two converge by
+# accident, which is the thing the plan explicitly defers.
+add_library(kirn_mir STATIC
+    src/mir/mir.cpp
+    src/mir/mir_verify.cpp
+)
+target_link_libraries(kirn_mir PUBLIC kirn_hir)
+
 add_library(kirn_vm STATIC
     src/vm/compiler.cpp
 )
@@ -102,7 +113,7 @@ target_link_libraries(kirn_backend PUBLIC kirn_sema)
 add_library(kirn_driver STATIC
     src/driver/driver.cpp
 )
-target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro kirn_hir)
+target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro kirn_hir kirn_mir)
 
 # Phase 1: the stage drivers are thin front ends over the shared library, so all
 # three link kirn_driver instead of the narrow lexer/parser/sema libs. They stay
@@ -144,7 +155,7 @@ endif()
 # kirn_driver is in the list so the refactored code keeps the same warning
 # budget as the libraries around it; leaving it out would have exempted exactly
 # the code being moved from -Wall -Wextra -Wpedantic.
-foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_hir kirn_vm kirn_interp kirn_backend kirn_driver)
+foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_hir kirn_mir kirn_vm kirn_interp kirn_backend kirn_driver)
     if(MSVC)
         target_compile_options(${tgt} PRIVATE /W4 /permissive-)
     else()

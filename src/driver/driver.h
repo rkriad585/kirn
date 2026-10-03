@@ -154,6 +154,12 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName);
 int cmdPreprocess(const std::vector<std::string>& args, const char* toolName);
 // --emit-hir: lower to HIR, verify it structurally, and print the dump. Phase 3.
 int cmdHir(const std::vector<std::string>& args, const char* toolName);
+// rt / --emit-mir: lower through HIR to MIR, verify the CFG, print the dump.
+// `rt` is the MIR dumper for this phase; BUILDER-PLAN section 6 gives `rt` two
+// incompatible meanings and resolves it as the dumper here, because the phase-3
+// text says "kirnc rt dumps MIR". The runner meaning is deferred to the phase
+// that retires the bundle.
+int cmdRt(const std::vector<std::string>& args, const char* toolName);
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

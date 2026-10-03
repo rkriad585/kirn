@@ -22,6 +22,7 @@
 #include "parser/parser.h"
 #include "prepro/prepro.h"
 #include "hir/hir.h"
+#include "mir/mir.h"
 #include "sema/checker.h"
 #include "util/tomlmini.h"
 
@@ -1001,6 +1002,100 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
       return 0;
   }
   
+  // rt / --emit-mir: HIR -> MIR, verify the CFG, print the dump.
+  //
+  // The pipeline is lex -> preprocess -> parse -> check -> HIR -> verify -> MIR
+  // -> verify. HIR is verified on the way through even though only MIR is
+  // printed, because a broken HIR produces a broken CFG and diagnosing it at the
+  // HIR layer is far cheaper than reading a malformed CFG and working backwards.
+  int cmdRt(const std::vector<std::string>& args, const char* toolName) {
+      std::vector<std::string> files;
+      for (const auto& a : args) {
+          if (a == "-h" || a == "--help") {
+              std::cout << "usage: " << toolName << " <file.kn>\n"
+                        << "  lower through HIR to MIR, verify the CFG, print the dump\n";
+              return 0;
+          }
+          if (!a.empty() && a[0] == '-') continue;
+          files.push_back(a);
+      }
+      if (files.empty()) {
+          std::cerr << "usage: " << toolName << " <file.kn>\n";
+          return 2;
+      }
+      if (files.size() > 1) {
+          std::cerr << toolName << ": rt takes one file (MIR is built per module)\n";
+          return 2;
+      }
+      const std::string& file = files[0];
+      std::string src;
+      if (!readSourceVerbatim(file, src)) {
+          std::cerr << toolName << ": cannot open '" << file << "'\n";
+          return 66;
+      }
+
+      kirn::DiagEngine diags;
+      std::unique_ptr<kirn::sema::Checker> chk;
+      auto body = frontEnd(file, src, diags, chk);
+      auto bail = [&](const char* what, const std::vector<kirn::ast::Span>& spans,
+                      const std::vector<std::string>& msgs) {
+          kirn::SourceMap sm(src);
+          for (size_t i = 0; i < msgs.size(); ++i) {
+              std::cout << file << ":"
+                        << (spans[i].line ? std::to_string(spans[i].line) : std::string("1"))
+                        << ":" << (spans[i].col ? std::to_string(spans[i].col) : std::string("1"))
+                        << ": error[W9200]: " << what << ": " << msgs[i] << "\n";
+          }
+          std::cout << file << ": " << msgs.size() << " " << what << "\n";
+          return 65;
+      };
+      if (diags.errorCount()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          std::cout << out;
+          std::cout << file << ": " << diags.errorCount() << " error(s)\n";
+          return 1;
+      }
+
+      kirn::hir::Context ctx;
+      kirn::hir::Module hm =
+          kirn::hir::lower(body, *chk, ctx, diags, kirn::hir::LowerOptions{});
+      if (diags.errorCount()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          std::cout << out;
+          return 1;
+      }
+      auto hv = kirn::hir::verify(hm, ctx);
+      if (!hv.empty()) {
+          std::vector<kirn::ast::Span> sp;
+          std::vector<std::string> ms;
+          for (const auto& v : hv) { sp.push_back(v.span); ms.push_back(v.message); }
+          return bail("HIR verification failure(s)", sp, ms);
+      }
+
+      kirn::mir::Program mp = kirn::mir::build(hm, ctx, kirn::mir::BuildOptions{});
+      auto mv = kirn::mir::verify(mp);
+      if (!mv.empty()) {
+          std::vector<kirn::ast::Span> sp;
+          std::vector<std::string> ms;
+          for (const auto& v : mv) { sp.push_back(v.span); ms.push_back(v.message); }
+          return bail("MIR verification failure(s)", sp, ms);
+      }
+
+      kirn::mir::dump(mp, std::cout);
+      size_t blocks = 0, insts = 0;
+      for (const auto& f : mp.funcs) {
+          blocks += f.blocks.size();
+          for (const auto& b : f.blocks) insts += b.insts.size();
+      }
+      std::cout << file << ": OK (" << mp.funcs.size() << " function(s), "
+                << blocks << " block(s), " << insts << " instruction(s))\n";
+      return 0;
+  }
+
   int runProgram(const std::string& entryPath,
                  const std::vector<std::string>& dirs,
                  const std::map<std::string, std::string>& embedded = {},
@@ -3869,6 +3964,10 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
 
 int cmdHir(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdHir(args, toolName);
+}
+
+int cmdRt(const std::vector<std::string>& args, const char* toolName) {
+    return ::cmdRt(args, toolName);
 }
 
 bool resolveSource(const std::string& dotted,

@@ -1209,7 +1209,7 @@ _Not done in this increment,_ recorded rather than left to be discovered:
 _Verify:_ AST→HIR→MIR preserves results on a corpus subset (run after
 lower-verify vs direct run).
 
-_Status 2026-09-30: HIR has landed and verifies; MIR has not started._ Two
+_Status 2026-09-30: landed — HIR and MIR both verify on all 53 corpus files._ Two
 things about this phase were wrong in the plan before any of it could be
 written, and one of them is a defect in the verify criterion itself.
 
@@ -1325,8 +1325,57 @@ in the same corpus the coverage count had been reporting as fully passing.
 
 _Not done, and recorded rather than left to be discovered:_
 
-1. **MIR does not exist.** No `src/mir/`, no CFG, no arena, no `--emit-mir`, and
-   `rt` is still unimplemented. This is the larger half of the phase.
+1. ~~MIR does not exist.~~ **Closed.** `src/mir/` as `kirn_mir`, linking `kirn_hir`
+   and deliberately *not* `kirn_vm`/`kirn_interp`, since §4.5 keeps the bytecode
+   compiler a separate specializer. `--emit-mir` and a `kirnc rt` verb; both lower
+   the whole way (HIR is verified on the way through, because a broken HIR makes a
+   broken CFG and diagnosing it a layer earlier is much cheaper).
+
+   Nothing in this codebase had a CFG before: the bytecode is a flat stream whose
+   only control flow is a relative offset, and `SasmEmitter` emits symbolic labels
+   with no machine representation. So the blocks are genuinely new, and three
+   design points follow the survey rather than the plan:
+
+   - **Successor edges are derived, never stored**, as LLVM does — there is no
+     `succs` field to disagree with a terminator. `predsOf()` recomputes them, and
+     that recomputation is what the phi check compares against.
+   - **Entry is `id() == 0`, not a flag.** LangRef: the entry block "is not allowed
+     to have predecessor basic blocks ... it also cannot have any PHI nodes."
+   - **No SSA construction.** §4.6's own guidance is that the front end "never
+     builds SSA by hand; it emits allocas + stores, and the `mem2reg` pass
+     produces SSA", so MIR is alloca/load/store shaped and Phase 4's LLVM backend
+     gets SSA from mem2reg. Locals are therefore memory-resident and a read is a
+     `load`; the one place a phi is genuinely required is a value that reaches a
+     join block *differently* along different predecessors, which is also the only
+     case where a naive builder gets it wrong. A binding written the same value on
+     every arm gets no phi, and that is checked rather than assumed.
+
+   The builder emits into the entry block by **prepending**, and `emit()` returns
+   `{block, index}` because the auto-seal can land an instruction in a block other
+   than the caller expected — recording `size()-1` and then indexing the caller's
+   own `cur` patched the wrong instruction, and aborted.
+
+   **The verifier found six real defects on first contact**, none of which any
+   corpus file could have: three terminators landing mid-block (a `return` followed
+   by more statements in the same block; an `if` arm's tail branch sharing a block
+   with the next condition; hoisted allocas appended after the entry block's
+   terminator), every `elseSucc` in an `if`/`elif` chain left at `NO_BLOCK`, a
+   `do`-`while` that reused the current block as its loop head so the back edge
+   targeted block 0, a `continue` that would have gone to the loop *exit*, and a
+   `load` that allocated a value without claiming it. The last is the instructive
+   one: the operand index was in range, so every other check passed and the CFG
+   looked entirely plausible. Hence the value-density invariant — every value
+   defined exactly once — which is rustc's `ItemLocalId` density check applied to
+   the value table.
+
+   _Verification:_ gate 9 adds four properties, mirroring gate 8: **53 of 53**
+   corpus files lower through HIR to a verified CFG; the verifier *rejects* broken
+   CFGs via `tests/mir/verifier_selftest.cpp` (14 in-process cases); the dump is
+   byte-identical across runs and starts with `mir 1`, confirming `rt` is a dump
+   rather than an execution; and — deliberately redundant with the library — every
+   dumped block is re-checked for a terminator **from the text**, so a flag wired
+   to the wrong function is caught even when the library is fine. A `.kn` fixture
+   would repeat the trap gate 8 already fell into.
 2. ~~9 of 53 corpus files did not lower.~~ **Closed: 53 of 53 lower, verify and
    dump.** The list `gates_linux.sh` carried by name is now empty, and closing it
    found seven *defects* rather than seven missing cases:

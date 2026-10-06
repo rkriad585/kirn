@@ -1489,7 +1489,11 @@ the default build is unchanged. `kirnc llvm <f.kn> [-o f.ll]` (and the
 `--emit-llvm`/`-emit-llvm` alias) emit a verified module; a no-LLVM build prints
 a one-line explanation and exits 2. The driver gained `produceMir()`
 (`rt` and `llvm` now share one front-end→verified-MIR pipeline; `cmdRt` was
-refactored onto it with byte-identical output — 215/215 goldens hold).
+refactored onto it with byte-identical output — 215/215 goldens hold). The
+headline's fifth item, `-fbackend=llvm`, is a recognised selector: run/build
+answer it with the phase-5 pointer (exit 2), every other verb accepts it as a
+compatible no-op, and an unknown value is rejected — so `-fbackend=llvm` is
+never mistaken for a filename.
 
 Two design facts were not in the plan and had to be discovered on the ground.
 (1) The scalar subset is reachable only through **annotations**: param types

@@ -56,6 +56,9 @@ const char* const kUsage =
     "  -D name[=val]   define a macro (with -E)\n"
     "  -U name         undefine a macro (with -E)\n"
     "  -o <path>       output path (build)\n"
+    "  -fbackend=<b>   backend selector: llvm | cpp (default). llvm with a\n"
+    "                  codegen verb (run/build) needs the phase-5 assembler+\n"
+    "                  linker; use `kirnc llvm` to emit IR today\n"
     "  --plain         no source/caret lines in diagnostics (check)\n"
     "  --color         force ANSI colour in diagnostics (check)\n"
     "  -h, --help      this message\n"
@@ -86,6 +89,31 @@ bool isLaterFlag(const std::string& a) {
     for (const char* f : kLaterFlags)
         if (a == f) return true;
     return false;
+}
+
+// The `-fbackend=llvm|cpp` selector from the flags table (BUILDER-PLAN 3.4).
+// Both dash spellings are accepted, matching the convention that a flag
+// spelled either way must never be a filename. The selector is validated and
+// removed wherever it appears; verbs below `run`/`build` either do no codegen
+// or are the LLVM backend themselves, so there the selection is a compatible
+// no-op. Only a codegen verb (run/build) cannot honour `llvm` yet -- that is
+// the phase-5 assembler+linker -- so main() answers it before dispatch.
+// Returns the selected backend ("llvm", "cpp", or "" when absent).
+std::string takeBackendSelector(std::vector<std::string>& rest) {
+    std::string sel;
+    std::vector<std::string> out;
+    for (const auto& a : rest) {
+        size_t eq = a.find('=');
+        if (eq != std::string::npos &&
+            (a.compare(0, eq, "-fbackend") == 0 ||
+             a.compare(0, eq, "--fbackend") == 0)) {
+            sel = a.substr(eq + 1);
+            continue;
+        }
+        out.push_back(a);
+    }
+    rest = out;
+    return sel;
 }
 
 // `kirnc llvm`: the phase-4 LLVM backend. Runs the same front-end pipeline as
@@ -207,6 +235,26 @@ int main(int argc, char** argv) {
                   << "' is not implemented yet\n"
                   << "  -emit-sasm lands with codegen, and -S/-c/-###/-v with the "
                      "driver grammar; see BUILDER-PLAN.md section 6\n";
+        return 2;
+    }
+
+    // `-fbackend=llvm` is now a real selector (phase 4). A codegen verb would
+    // have to assemble and link the module before it could run or build
+    // anything, so that combination points at phase 5 instead of guessing.
+    std::string backend = takeBackendSelector(rest);
+    if (backend == "llvm") {
+        if (verb == "run" || verb == "build") {
+            std::cerr << "kirnc " << verb << ": '-fbackend=llvm' is recognised, "
+                         "but running or building an executable from LLVM IR "
+                         "lands in phase 5\n"
+                      << "  emit IR today with `kirnc llvm <file.kn> [-o out.ll]`; "
+                         "omit the flag for the default ('cpp') backend\n";
+            return 2;
+        }
+    } else if (!backend.empty() && backend != "cpp") {
+        std::cerr << "kirnc " << verb << ": unknown backend '-fbackend="
+                  << backend << "'\n"
+                  << "  the flags table pins 'llvm' and 'cpp'\n";
         return 2;
     }
 

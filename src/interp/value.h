@@ -29,7 +29,7 @@ struct HeapObj;
 struct ThreadImpl;
 
 enum class VK {
-    None, Bool, Int, Float, Str, Bytes, Char,
+    None, Bool, Int, Float, Rational, Str, Bytes, Char,
     List, Dict, Set, Tuple, Range,
     Struct,                                   // by-value instance
     Heap, Weak,                               // `new` handles
@@ -63,6 +63,9 @@ struct Value {
     // carried on the Value so method dispatch can phrase width-sensitive
     // semantics (checked_*) off the declared type, not the Value's i64 body.
     std::string declTyName;
+    // Rational fields (valid when k == VK::Rational)
+    int64_t num = 0;                          // numerator (always normalized, den > 0)
+    int64_t den = 1;                          // denominator (always > 0)
 
     // containers (aliased)
     std::shared_ptr<std::vector<Value>> vec;                    // List/Set/Tuple

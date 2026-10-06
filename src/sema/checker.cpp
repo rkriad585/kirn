@@ -425,6 +425,15 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("assert", {boolTy()}, {"cond"}, noneTy(), false, 1);
     makeBuiltinFunc("assert_eq", {unkTy(), unkTy()}, {"a", "b"}, noneTy(),
                     false, 2);
+    // Rational and float builtins (Phase 2)
+    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, unkTy(), false, 1);
+    makeBuiltinFunc("numerator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("denominator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("to_float", {unkTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("to_int", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("fabs", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("floor", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("ceil", {floatTy()}, {"x"}, intTy(), false, 1);
 
     // WHY-1 / SP-8: batteries-included conversion & collection builtins.
     // Polymorphic params use Unknown (dynamic v1) matched at runtime.

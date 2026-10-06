@@ -10,7 +10,7 @@
 #include "sema/checker.h"
 #include "util/tomlmini.h"
 
-#include <algorithm>
+#include <numeric>
 #include <climits>
 #include <chrono>
 #include <cmath>
@@ -384,6 +384,9 @@ std::string toStr(const Value& v) {
                 }
             }
             return std::to_string(v.d);
+        }
+        case VK::Rational: {
+            return std::to_string(v.num) + "/" + std::to_string(v.den);
         }
         case VK::Str:    return v.s;
         default:         return repr(v);
@@ -779,7 +782,52 @@ void Interpreter::installBuiltins() {
         double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
         return Value::floating(std::sqrt(d));
     });
-
+    globals_->vars["rational"] = biFn({"num", "den"}, [](std::vector<Value>& a) -> Value {
+        int64_t n = a[0].i;
+        int64_t d = a[1].i;
+        if (d == 0) panicHere("rational denominator cannot be zero");
+        // normalize by gcd (Euclidean algorithm)
+        int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+        while (y) { int64_t t = y; y = x % y; x = t; }
+        int64_t g = x;
+        n /= g;
+        d /= g;
+        if (d < 0) { n = -n; d = -d; }
+        Value v;
+        v.k = VK::Rational;
+        v.num = n;
+        v.den = d;
+        return v;
+    });
+    globals_->vars["numerator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Rational) panicHere("numerator: argument is not a rational");
+        return Value::integer(a[0].num);
+    });
+    globals_->vars["denominator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Rational) panicHere("denominator: argument is not a rational");
+        return Value::integer(a[0].den);
+    });
+    globals_->vars["to_float"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Rational) panicHere("to_float: argument is not a rational");
+        return Value::floating((double)a[0].num / (double)a[0].den);
+    });
+globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Rational) panicHere("to_int: argument is not a rational");
+        // truncation toward zero
+        return Value::integer((a[0].num >= 0 ? a[0].num : -a[0].num) / a[0].den * (a[0].num >= 0 ? 1 : -1));
+    });
+    globals_->vars["fabs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("fabs: argument is not a float");
+        return Value::floating(std::fabs(a[0].d));
+    });
+    globals_->vars["floor"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("floor: argument is not a float");
+        return Value::integer((int64_t)std::floor(a[0].d));
+    });
+    globals_->vars["ceil"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("ceil: argument is not a float");
+        return Value::integer((int64_t)std::ceil(a[0].d));
+    });
     globals_->vars["ord"] = biFn({"c"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Char) return Value::integer((int64_t)a[0].ch);
         if (a[0].k == VK::Str && !a[0].s.empty())

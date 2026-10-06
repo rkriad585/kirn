@@ -30,6 +30,10 @@ using StmtP = std::unique_ptr<Stmt>;
 
 class DiagEngine;
 
+namespace mir {
+struct Program;
+}  // namespace mir
+
 namespace sema {
 // Only ever held behind a std::unique_ptr reference parameter, so an incomplete
 // type is enough here; the pointee is complete in driver.cpp, which is the only
@@ -160,6 +164,29 @@ int cmdHir(const std::vector<std::string>& args, const char* toolName);
 // text says "kirnc rt dumps MIR". The runner meaning is deferred to the phase
 // that retires the bundle.
 int cmdRt(const std::vector<std::string>& args, const char* toolName);
+
+// --- MIR pipeline (shared by `rt` and `--emit-llvm`) ------------------------
+// Front-end -> HIR -> verify -> MIR -> verify, with all diagnostics captured so
+// the two verbs print bit-identical bytes. Errors are rendered into `err`; the
+// stream that renders them differs per stage (syntax/HIR errors and verifier
+// reports are pipes the caller decides), so the caller picks stdout vs stderr:
+// rc 66 -> stderr (cannot open the file), rc 65 / 1 -> stdout, rc 0 -> success.
+struct MirOutcome {
+    int rc = 0;               // 0 ok | 1 source/HIR errors | 65 verifier | 66 no file
+    std::string src;          // source text when rc == 0
+    std::string err;          // user-facing error text when rc != 0
+    // When rc == 0, `prog` carries the verified MIR (unique_ptr so the header
+    // stays free of a mir/mir.h include, matching the Checker pattern above).
+    std::unique_ptr<kirn::mir::Program> prog;
+    MirOutcome() = default;
+    MirOutcome(MirOutcome&&) = default;
+    MirOutcome& operator=(MirOutcome&&) = default;
+    // Defined out-of-line in driver.cpp: the implicit one would instantiate
+    // default_delete<Program> in every TU that holds a MirOutcome, but only
+    // driver.cpp sees the complete type.
+    ~MirOutcome();
+};
+MirOutcome produceMir(const std::string& file, const char* toolName);
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

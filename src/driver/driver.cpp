@@ -98,6 +98,7 @@ using kirn::driver::BuildOpts;
 using kirn::driver::Deps;
 using kirn::driver::Manifest;
 using kirn::driver::TargetInfo;
+using kirn::driver::MirOutcome;
 
 namespace {
 
@@ -1002,12 +1003,83 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
       return 0;
   }
   
-  // rt / --emit-mir: HIR -> MIR, verify the CFG, print the dump.
-  //
-  // The pipeline is lex -> preprocess -> parse -> check -> HIR -> verify -> MIR
-  // -> verify. HIR is verified on the way through even though only MIR is
-  // printed, because a broken HIR produces a broken CFG and diagnosing it at the
-  // HIR layer is far cheaper than reading a malformed CFG and working backwards.
+  // The front-end -> HIR -> verify -> MIR -> verify pipeline, shared by `rt`
+  // (which dumps the CFG) and the new `--emit-llvm` (which lowers it to LLVM IR),
+  // so the two verbs cannot drift. `rc` follows the stage convention: 66
+  // (cannot open), 1 (front-end or HIR errors), 65 (structural verify
+  // failures). On rc != 0, `o.err` carries the fully rendered, ready-to-print
+  // text; on rc == 0 the program fills `o.prog` with the verified MIR. Bytes
+  // match exactly what `cmdRt` produced historically -- goldens pin that text.
+  MirOutcome produceMir(const std::string& file, const char* toolName) {
+      MirOutcome o;
+      if (!readSourceVerbatim(file, o.src)) {
+          o.rc = 66;
+          o.err = std::string(toolName) + ": cannot open '" + file + "'\n";
+          return o;
+      }
+      const std::string& src = o.src;
+      kirn::DiagEngine diags;
+      std::unique_ptr<kirn::sema::Checker> chk;
+      auto body = frontEnd(file, src, diags, chk);
+      auto bail = [&](const char* what, const std::vector<kirn::ast::Span>& spans,
+                      const std::vector<std::string>& msgs) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          for (size_t i = 0; i < msgs.size(); ++i) {
+              out += file + ":"
+                     + (spans[i].line ? std::to_string(spans[i].line) : std::string("1"))
+                     + ":" + (spans[i].col ? std::to_string(spans[i].col) : std::string("1"))
+                     + ": error[W9200]: " + what + ": " + msgs[i] + "\n";
+          }
+          out += file + ": " + std::to_string(msgs.size()) + " " + what + "\n";
+          o.err = std::move(out);
+          o.rc = 65;
+      };
+      if (diags.errorCount()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          o.err = std::move(out);
+          o.err += file + ": " + std::to_string(diags.errorCount()) + " error(s)\n";
+          o.rc = 1;
+          return o;
+      }
+  
+      kirn::hir::Context ctx;
+      kirn::hir::Module hm =
+          kirn::hir::lower(body, *chk, ctx, diags, kirn::hir::LowerOptions{});
+      if (diags.errorCount()) {
+          kirn::SourceMap sm(src);
+          std::string out;
+          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
+          o.err = std::move(out);
+          o.rc = 1;
+          return o;
+      }
+      auto hv = kirn::hir::verify(hm, ctx);
+      if (!hv.empty()) {
+          std::vector<kirn::ast::Span> sp;
+          std::vector<std::string> ms;
+          for (const auto& v : hv) { sp.push_back(v.span); ms.push_back(v.message); }
+          bail("HIR verification failure(s)", sp, ms);
+          return o;
+      }
+  
+      kirn::mir::Program mp = kirn::mir::build(hm, ctx, kirn::mir::BuildOptions{});
+      auto mv = kirn::mir::verify(mp);
+      if (!mv.empty()) {
+          std::vector<kirn::ast::Span> sp;
+          std::vector<std::string> ms;
+          for (const auto& v : mv) { sp.push_back(v.span); ms.push_back(v.message); }
+          bail("MIR verification failure(s)", sp, ms);
+          return o;
+      }
+  
+      o.prog = std::make_unique<kirn::mir::Program>(std::move(mp));
+      o.rc = 0;
+      return o;
+  }
+  
   int cmdRt(const std::vector<std::string>& args, const char* toolName) {
       std::vector<std::string> files;
       for (const auto& a : args) {
@@ -1028,79 +1100,31 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
           return 2;
       }
       const std::string& file = files[0];
-      std::string src;
-      if (!readSourceVerbatim(file, src)) {
-          std::cerr << toolName << ": cannot open '" << file << "'\n";
-          return 66;
+      MirOutcome m = produceMir(file, toolName);
+      if (m.rc == 66) {
+          std::cerr << m.err;
+          return m.rc;
       }
-
-      kirn::DiagEngine diags;
-      std::unique_ptr<kirn::sema::Checker> chk;
-      auto body = frontEnd(file, src, diags, chk);
-      auto bail = [&](const char* what, const std::vector<kirn::ast::Span>& spans,
-                      const std::vector<std::string>& msgs) {
-          kirn::SourceMap sm(src);
-          for (size_t i = 0; i < msgs.size(); ++i) {
-              std::cout << file << ":"
-                        << (spans[i].line ? std::to_string(spans[i].line) : std::string("1"))
-                        << ":" << (spans[i].col ? std::to_string(spans[i].col) : std::string("1"))
-                        << ": error[W9200]: " << what << ": " << msgs[i] << "\n";
-          }
-          std::cout << file << ": " << msgs.size() << " " << what << "\n";
-          return 65;
-      };
-      if (diags.errorCount()) {
-          kirn::SourceMap sm(src);
-          std::string out;
-          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
-          std::cout << out;
-          std::cout << file << ": " << diags.errorCount() << " error(s)\n";
-          return 1;
+      if (m.rc != 0) {
+          std::cout << m.err;
+          return m.rc;
       }
-
-      kirn::hir::Context ctx;
-      kirn::hir::Module hm =
-          kirn::hir::lower(body, *chk, ctx, diags, kirn::hir::LowerOptions{});
-      if (diags.errorCount()) {
-          kirn::SourceMap sm(src);
-          std::string out;
-          kirn::renderDiags(file, sm, diags.diags(), false, false, out);
-          std::cout << out;
-          return 1;
-      }
-      auto hv = kirn::hir::verify(hm, ctx);
-      if (!hv.empty()) {
-          std::vector<kirn::ast::Span> sp;
-          std::vector<std::string> ms;
-          for (const auto& v : hv) { sp.push_back(v.span); ms.push_back(v.message); }
-          return bail("HIR verification failure(s)", sp, ms);
-      }
-
-      kirn::mir::Program mp = kirn::mir::build(hm, ctx, kirn::mir::BuildOptions{});
-      auto mv = kirn::mir::verify(mp);
-      if (!mv.empty()) {
-          std::vector<kirn::ast::Span> sp;
-          std::vector<std::string> ms;
-          for (const auto& v : mv) { sp.push_back(v.span); ms.push_back(v.message); }
-          return bail("MIR verification failure(s)", sp, ms);
-      }
-
-      kirn::mir::dump(mp, std::cout);
+      kirn::mir::dump(*m.prog, std::cout);
       size_t blocks = 0, insts = 0;
-      for (const auto& f : mp.funcs) {
+      for (const auto& f : m.prog->funcs) {
           blocks += f.blocks.size();
           for (const auto& b : f.blocks) insts += b.insts.size();
       }
-      std::cout << file << ": OK (" << mp.funcs.size() << " function(s), "
+      std::cout << file << ": OK (" << m.prog->funcs.size() << " function(s), "
                 << blocks << " block(s), " << insts << " instruction(s))\n";
       return 0;
   }
-
-  int runProgram(const std::string& entryPath,
-                 const std::vector<std::string>& dirs,
-                 const std::map<std::string, std::string>& embedded = {},
-                 const std::vector<std::string>& progArgs = {}) {
-    std::string src;
+  
+    int runProgram(const std::string& entryPath,
+                   const std::vector<std::string>& dirs,
+                   const std::map<std::string, std::string>& embedded = {},
+                   const std::vector<std::string>& progArgs = {}) {
+      std::string src;
     if (!readFile(entryPath, src)) {
         std::cerr << "kirn: cannot read '" << entryPath << "'\n";
         return 66;
@@ -3969,6 +3993,12 @@ int cmdHir(const std::vector<std::string>& args, const char* toolName) {
 int cmdRt(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdRt(args, toolName);
 }
+
+MirOutcome produceMir(const std::string& file, const char* toolName) {
+    return ::produceMir(file, toolName);
+}
+
+MirOutcome::~MirOutcome() = default;
 
 bool resolveSource(const std::string& dotted,
     const std::vector<std::string>& dirs, std::string& path,

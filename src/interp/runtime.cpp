@@ -833,6 +833,273 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double d = std::round(a[0].d);
         return Value::integer((int64_t)d);
     });
+    globals_->vars["rational_add"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n = a[0].num * a[1].den + a[1].num * a[0].den;
+            int64_t d = a[0].den * a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[0].k == VK::Rational) {
+            int64_t n = a[0].num + a[1].i * a[0].den;
+            int64_t d = a[0].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[1].k == VK::Rational) {
+            int64_t n = a[0].i * a[1].den + a[1].num;
+            int64_t d = a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        // float + float → float
+        double da = a[0].k == VK::Float ? a[0].d : (double)a[0].i;
+        double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
+        return Value::floating(da + db);
+    });
+    globals_->vars["rational_sub"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n = a[0].num * a[1].den - a[1].num * a[0].den;
+            int64_t d = a[0].den * a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[0].k == VK::Rational) {
+            int64_t n = a[0].num - a[1].i * a[0].den;
+            int64_t d = a[0].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[1].k == VK::Rational) {
+            int64_t n = a[0].i * a[1].den - a[1].num;
+            int64_t d = a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        double da = a[0].k == VK::Float ? a[0].d : (double)a[0].i;
+        double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
+        return Value::floating(da - db);
+    });
+    globals_->vars["rational_mul"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n = a[0].num * a[1].num;
+            int64_t d = a[0].den * a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[0].k == VK::Rational) {
+            int64_t n = a[0].num * a[1].i;
+            int64_t d = a[0].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[1].k == VK::Rational) {
+            int64_t n = a[0].i * a[1].num;
+            int64_t d = a[1].den;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        double da = a[0].k == VK::Float ? a[0].d : (double)a[0].i;
+        double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
+        return Value::floating(da * db);
+    });
+    globals_->vars["rational_div"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            if (a[1].num == 0) panicHere("rational division by zero");
+            int64_t n = a[0].num * a[1].den;
+            int64_t d = a[0].den * a[1].num;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[0].k == VK::Rational) {
+            if (a[1].i == 0) panicHere("rational division by zero");
+            int64_t n = a[0].num;
+            int64_t d = a[0].den * a[1].i;
+            int64_t x = (n < 0 ? -n : n), y = (d < 0 ? -d : d);
+            while (y) { int64_t t = y; y = x % y; x = t; }
+            int64_t g = (x == 0 ? 1 : std::gcd(std::abs(n), std::abs(d)));
+            n /= g; d /= g;
+            if (d < 0) { n = -n; d = -d; }
+            Value v; v.k = VK::Rational; v.num = n; v.den = d; return v;
+        }
+        if (a[1].k == VK::Rational) {
+            // int / rational → float
+            double da = (double)a[0].i;
+            double db = (double)a[1].num / a[1].den;
+            return Value::floating(da / db);
+        }
+        // float / float
+        double da = a[0].k == VK::Float ? a[0].d : (double)a[0].i;
+        double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
+        if (db == 0.0) panicHere("float division by zero");
+        return Value::floating(da / db);
+    });
+    globals_->vars["rational_pow"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        // simplified: float^float for now; rational^int could be added later
+        if (a[0].k == VK::Float && a[1].k == VK::Int) {
+            return Value::floating(std::pow(a[0].d, (double)a[1].i));
+        }
+        if (a[0].k == VK::Float && a[1].k == VK::Float) {
+            return Value::floating(std::pow(a[0].d, a[1].d));
+        }
+        // rational^int not yet implemented → fall through to float
+        double da = a[0].k == VK::Float ? a[0].d : (double)a[0].i;
+        double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
+        return Value::floating(std::pow(da, db));
+    });
+    globals_->vars["rational_eq"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            // compare normalized
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            // cross-multiply
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs == rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            // compare rational with float → convert rational to float
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv == a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d == rv);
+        }
+        // float == float
+        return Value::boolean(a[0].d == a[1].d);
+    });
+    globals_->vars["rational_ne"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs != rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv != a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d != rv);
+        }
+        return Value::boolean(a[0].d != a[1].d);
+    });
+    globals_->vars["rational_lt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            // a < b  ⇔  n1/d1 < n2/d2  ⇔  n1*d2 < n2*d1  (denoms > 0 guaranteed)
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs < rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv < a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d < rv);
+        }
+        return Value::boolean(a[0].d < a[1].d);
+    });
+    globals_->vars["rational_le"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs <= rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv <= a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d <= rv);
+        }
+        return Value::boolean(a[0].d <= a[1].d);
+    });
+    globals_->vars["rational_gt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs > rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv > a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d > rv);
+        }
+        return Value::boolean(a[0].d > a[1].d);
+    });
+    globals_->vars["rational_ge"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
+            int64_t n1 = a[0].num, d1 = a[0].den;
+            int64_t n2 = a[1].num, d2 = a[1].den;
+            int64_t lhs = n1 * d2;
+            int64_t rhs = n2 * d1;
+            return Value::boolean(lhs >= rhs);
+        }
+        if (a[0].k == VK::Rational) {
+            double rv = (double)a[0].num / a[0].den;
+            return Value::boolean(rv >= a[1].d);
+        }
+        if (a[1].k == VK::Rational) {
+            double rv = (double)a[1].num / a[1].den;
+            return Value::boolean(a[0].d >= rv);
+        }
+        return Value::boolean(a[0].d >= a[1].d);
+    });
     globals_->vars["exp"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("exp: argument is not a float");
         return Value::floating(std::exp(a[0].d));

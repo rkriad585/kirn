@@ -452,6 +452,17 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("is_nan", {floatTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("is_infinite", {floatTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("is_finite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational_sub", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational_mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational_div", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational_pow", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational_eq", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_ne", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_lt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_le", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_gt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("rational_ge", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
     makeBuiltinFunc("copysign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     // WHY-1 / SP-8: batteries-included conversion & collection builtins.

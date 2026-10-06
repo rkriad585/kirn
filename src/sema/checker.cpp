@@ -432,9 +432,28 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("to_float", {unkTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("to_int", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("fabs", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("exp", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("log", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("log2", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("log10", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("sin", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("cos", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("tan", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("sinh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("cosh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("tanh", {floatTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("floor", {floatTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("ceil", {floatTy()}, {"x"}, intTy(), false, 1);
-
+    makeBuiltinFunc("round", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("trunc", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("fract", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("is_nan", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("is_infinite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("is_finite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("copysign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
+    makeBuiltinFunc("pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     // WHY-1 / SP-8: batteries-included conversion & collection builtins.
     // Polymorphic params use Unknown (dynamic v1) matched at runtime.
     makeBuiltinFunc("str", {unkTy()}, {"x"}, strTy(), false, 1);

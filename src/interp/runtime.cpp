@@ -828,6 +828,60 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("ceil: argument is not a float");
         return Value::integer((int64_t)std::ceil(a[0].d));
     });
+    globals_->vars["round"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("round: argument is not a float");
+        double d = std::round(a[0].d);
+        return Value::integer((int64_t)d);
+    });
+    globals_->vars["exp"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("exp: argument is not a float");
+        return Value::floating(std::exp(a[0].d));
+    });
+    globals_->vars["log"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("log: argument is not a float");
+        return Value::floating(std::log(a[0].d));
+    });
+    globals_->vars["log2"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("log2: argument is not a float");
+        return Value::floating(std::log2(a[0].d));
+    });
+    globals_->vars["log10"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("log10: argument is not a float");
+        return Value::floating(std::log10(a[0].d));
+    });
+    globals_->vars["sin"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("sin: argument is not a float");
+        return Value::floating(std::sin(a[0].d));
+    });
+    globals_->vars["cos"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("cos: argument is not a float");
+        return Value::floating(std::cos(a[0].d));
+    });
+    globals_->vars["tan"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("tan: argument is not a float");
+        return Value::floating(std::tan(a[0].d));
+    });
+    globals_->vars["sinh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("sinh: argument is not a float");
+        return Value::floating(std::sinh(a[0].d));
+    });
+    globals_->vars["cosh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("cosh: argument is not a float");
+        return Value::floating(std::cosh(a[0].d));
+    });
+    globals_->vars["tanh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float) panicHere("tanh: argument is not a float");
+        return Value::floating(std::tanh(a[0].d));
+    });
+    globals_->vars["copysign"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float || a[1].k != VK::Float) panicHere("copysign: both arguments must be floats");
+        double sign = (a[1].d >= 0.0) ? 1.0 : -1.0;
+        return Value::floating(std::copysign(a[0].d, sign));
+    });
+    globals_->vars["pow"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Float || a[1].k != VK::Float) panicHere("pow: both arguments must be floats");
+        return Value::floating(std::pow(a[0].d, a[1].d));
+    });
     globals_->vars["ord"] = biFn({"c"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Char) return Value::integer((int64_t)a[0].ch);
         if (a[0].k == VK::Str && !a[0].s.empty())

@@ -227,6 +227,23 @@ struct Builder {
         if (cur == NO_BLOCK) return {NO_BLOCK, 0};
         if (sealed()) cur = fn->newBlock();
         if (cur >= fn->blocks.size()) return {NO_BLOCK, 0};
+        // A CondBr's condition operand. Every real lowering emits the test
+        // immediately before the branch, so the value is the last
+        // value-producing instruction in the block whose edge the branch
+        // selects. The sites that hold the value pass it explicitly; this is
+        // the safety net for the rest. The for-loop's phase-3 lowering never
+        // emits a test at all, so for that stub the operands stay empty and a
+        // backend reports it as unsupported rather than misreading a value.
+        if (in.op == Op::CondBr && in.args.empty() && in.condBlock < fn->blocks.size()) {
+            const auto& insts = fn->blocks[in.condBlock].insts;
+            for (auto it = insts.rbegin(); it != insts.rend(); ++it) {
+                if (it->result != NO_VALUE && it->result < fn->valueTypes.size()) {
+                    in.args.push_back(it->result);
+                    in.argTypes.push_back(fn->valueTypes[it->result]);
+                    break;
+                }
+            }
+        }
         fn->blocks[cur].insts.push_back(std::move(in));
         return {cur, fn->blocks[cur].insts.size() - 1};
     }
@@ -405,7 +422,19 @@ struct Builder {
             in.span = s;
             if (p.isStr) in.opName = "str:" + p.s;
             else if (p.isChar) in.opName = "char:" + std::to_string(p.i);
-            else if (p.isFloat) { std::ostringstream o; o << p.f; in.opName = "float:" + o.str(); }
+            else if (p.isFloat) {
+                // 17 significant digits is the round-trip guarantee for a
+                // double: strtod back yields the same binary value. The old
+                // default (iostream precision 6) truncated the spelling, so a
+                // constant like 1234567.891011 materialised as 1.23457e+06 --
+                // genuinely wrong MIR that the phase 4 backend would have
+                // honoured. iostream's defaultfloat also strips trailing
+                // zeros, so "2.5" stays "2.5".
+                std::ostringstream o;
+                o.precision(17);
+                o << p.f;
+                in.opName = "float:" + o.str();
+            }
             else in.opName = "int:" + std::to_string(p.i);
             emit(std::move(in));
             return v;
@@ -507,6 +536,8 @@ struct Builder {
             br.condBlock = entry;
             br.succ = tb;
             br.elseSucc = fb;
+            br.args = {c};
+            br.argTypes = {fn->valueTypes[c]};
             br.span = s;
             emit(std::move(br));
             setBlock(tb);
@@ -571,6 +602,10 @@ struct Builder {
                 c.condBlock = condBlk;
                 c.succ = ab;
                 c.span = s;
+                if (test != NO_VALUE) {
+                    c.args = {test};
+                    c.argTypes = {fn->valueTypes[test]};
+                }
                 auto [cb, ci] = emit(std::move(c));
                 condBlocks.push_back(cb);
                 condIdx.push_back(ci);
@@ -1017,6 +1052,10 @@ struct Builder {
                 c.condBlock = condBlk;
                 c.succ = ab;
                 c.span = sp(s.span);
+                if (test != NO_VALUE) {
+                    c.args = {test};
+                    c.argTypes = {fn->valueTypes[test]};
+                }
                 auto [cb, ci] = emit(std::move(c));
                 condBlocks.push_back(cb);
                 condIdx.push_back(ci);
@@ -1086,12 +1125,13 @@ struct Builder {
         BlockId entry = cur;
         BlockId condBlk = entry;
         for (size_t i = 0; i < nArms; ++i) {
+            Value cond = NO_VALUE;
             if (i > 0) {
                 condBlk = fn->newBlock();
                 setBlock(condBlk);
-                if (p.elifConds[i - 1]) lower(*p.elifConds[i - 1]);
+                if (p.elifConds[i - 1]) cond = lower(*p.elifConds[i - 1]);
             }
-            if (i == 0 && p.cond) lower(*p.cond);
+            if (i == 0 && p.cond) cond = lower(*p.cond);
             BlockId arm = fn->newBlock();
             armBlocks.push_back(arm);
             Inst c;
@@ -1099,6 +1139,10 @@ struct Builder {
             c.condBlock = condBlk;
             c.succ = arm;
             c.span = sp(s.span);
+            if (cond != NO_VALUE) {
+                c.args = {cond};
+                c.argTypes = {fn->valueTypes[cond]};
+            }
             auto [cb, ci] = emit(std::move(c));
             condBlocks.push_back(cb);
             condInstIdx.push_back(ci);
@@ -1160,11 +1204,15 @@ struct Builder {
         BlockId head = fn->newBlock();
         Inst j; j.op = Op::Br; j.succ = head; j.span = sp(s.span); emit(std::move(j));
         setBlock(head);
-        if (p.cond) lower(*p.cond);
+        Value cond = p.cond ? lower(*p.cond) : NO_VALUE;
         BlockId body = fn->newBlock();
         BlockId exit = fn->newBlock();
         Inst c; c.op = Op::CondBr; c.condBlock = head; c.succ = body; c.elseSucc = exit;
         c.span = sp(s.span);
+        if (cond != NO_VALUE) {
+            c.args = {cond};
+            c.argTypes = {fn->valueTypes[cond]};
+        }
         emit(std::move(c));
 
         LoopCtx lc;
@@ -1235,11 +1283,32 @@ struct Builder {
         loops.clear();
         pendingAllocas.clear();
 
-        for (hir::DeclId p : hf.params) {
+        for (size_t pk = 0; pk < hf.params.size(); ++pk) {
+            hir::DeclId p = hf.params[pk];
             if (const hir::Decl* d = hctx.get(p)) {
-                Type t = d->type ? tyOf(d->type) : fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE});
+                // The param's own HIR Decl does not carry a resolved type; the
+                // signature does. Try the Decl first (a generic default or a
+                // resolved TypeVar overrides the plain declaration), then the
+                // signature at the same index.
+                sema::TyP pt = d->type;
+                if (!pt && pk < hf.sig.params.size()) pt = hf.sig.params[pk];
+                Type t = pt ? tyOf(pt) : fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE});
                 Value v = fn->newValue(t, hf.span);
                 f.paramValues.push_back(v);
+                // Materialize the parameter exactly the way a local VarDecl
+                // materializes: give it a Binding and an alloca, then store its
+                // entry Value once at the top of the entry block. Without this the
+                // param has no binding, a `read` falls through to the by-name
+                // interop path (call_indirect), and the MIR is behaviorally wrong
+                // for the simplest functions. Checker rejects reassignment of a
+                // param, so the store is the only one, and mem2reg in phase 4
+                // promotes it to an SSA value laid out for the entry edge.
+                Binding b;
+                b.decl = p;
+                b.name = d->name;
+                b.local = allocLocal(d->name, t, hf.span);
+                binds[p] = b;
+                write(p, v, hf.span);
             }
         }
         lowerStmts(hf.body);

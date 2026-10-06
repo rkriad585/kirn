@@ -195,8 +195,13 @@ struct Func {
 
     sema::FuncSig sig;
     std::vector<hir::DeclId> params;
-    // Parameter Values, in order. Parameters are Values, not allocas, so a
-    // direct AOT backend can use them without a memory round-trip.
+    // Parameter Values, in order. A parameter is at once a Value (its entry
+    // value, defined by the signature rather than by an instruction) and a
+    // Binding: buildFunc gives every param an alloca and stores its entry
+    // value once at the top of the entry block, the same shape a local VarDecl
+    // takes, so `read` of a param produces a Load and mem2reg in phase 4
+    // promotes it. Keep both views -- a direct AOT backend can use paramValues
+    // without a memory round-trip, while the CFG stays alloca/load/store.
     std::vector<Value> paramValues;
 
     Type returnType = NO_VALUE;

@@ -420,6 +420,8 @@ void Checker::predeclareBuiltins() {
                     false, 1);
     makeBuiltinFunc("ord", {charTy()}, {"c"}, intTy(), false, 1);
     makeBuiltinFunc("chr", {intTy()}, {"n"}, charTy(), false, 1);
+    makeBuiltinFunc("bit_length", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("bit_count", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("assert", {boolTy()}, {"cond"}, noneTy(), false, 1);
     makeBuiltinFunc("assert_eq", {unkTy(), unkTy()}, {"a", "b"}, noneTy(),
                     false, 2);
@@ -1221,6 +1223,40 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         if (name == "unwrap") {
             FuncSig s;
             s.ret = argAt(recv, 0);
+            return s;
+        }
+        return std::nullopt;
+    }
+
+    // Phase 1 integral family (DATA_TYPE_PLAN.md): every int width exposes the
+    // same method surface; semantics are decided at the receiver's declared
+    // width by the runtime (memberRead case VK::Int).
+    if (recv->is(TyK::Int)) {
+        static const char* kIntMethods[] = {
+            "checked_add", "checked_sub", "checked_mul", "checked_div",
+            "checked_rem", "checked_neg", "wrapping_add", "wrapping_sub",
+            "wrapping_mul", "wrapping_div", "wrapping_rem", "wrapping_neg",
+            "wrapping_abs", "saturating_add", "saturating_sub",
+            "saturating_mul", "saturating_div", "saturating_neg",
+            "saturating_abs", "div_euclid", "rem_euclid", "div_ceil",
+            "count_ones", "count_zeros", "leading_zeros", "trailing_zeros",
+            "leading_ones", "trailing_ones", "is_power_of_two",
+            "next_power_of_two", "abs", "signum", "ilog2", "pow", nullptr};
+        for (int i = 0; kIntMethods[i]; ++i) {
+            if (name != kIntMethods[i]) continue;
+            FuncSig s;
+            s.ret = intTy(recv->name.empty() ? "i64" : recv->name);
+            if ((name.rfind("checked_", 0) == 0 ||
+                 name.rfind("wrapping_", 0) == 0 ||
+                 name.rfind("saturating_", 0) == 0 ||
+                 name == "div_euclid" || name == "rem_euclid" ||
+                 name == "div_ceil" || name == "pow") &&
+                name != "checked_neg" && name != "wrapping_neg" &&
+                name != "saturating_neg" && name != "wrapping_abs") {
+                s.params.push_back(intTy(recv->name.empty() ? "i64" : recv->name));
+                s.names.push_back("rhs");
+                s.required = 1;
+            }
             return s;
         }
         return std::nullopt;

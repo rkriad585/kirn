@@ -11,6 +11,7 @@
 #include "util/tomlmini.h"
 
 #include <algorithm>
+#include <climits>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -611,10 +612,13 @@ void Interpreter::collectProgram(const Stmt& program) {
                 break;
             }
             case ast::StKind::ConstDecl:
-            case ast::StKind::VarDecl:
-                globals_->vars[s.target->text] =
-                    s.value ? eval(*s.value, globals_) : Value::none();
+            case ast::StKind::VarDecl: {
+                Value v = s.value ? eval(*s.value, globals_) : Value::none();
+                if (s.declType && s.declType->kind == ast::TyKind::Name)
+                    v.declTyName = s.declType->name;
+                globals_->vars[s.target->text] = std::move(v);
                 break;
+            }
             case ast::StKind::Import: {
                 if (!s.fromImport) {
                     // real module file (project package or stdlib) first
@@ -784,6 +788,19 @@ void Interpreter::installBuiltins() {
     });
     globals_->vars["typeof"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(typeName(a[0]));
+    });
+    globals_->vars["bit_length"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        int64_t v = a[0].i;
+        uint64_t u = v < 0 ? (uint64_t)(-(v + 1)) + 1 : (uint64_t)v;
+        if (u == 0) return Value::integer(0);
+        int n = 0; while (u) { n++; u >>= 1; }
+        return Value::integer(n);
+    });
+    globals_->vars["bit_count"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        int64_t v = a[0].i;
+        uint64_t u = (uint64_t)v;
+        int n = 0; while (u) { n += (int)(u & 1ull); u >>= 1; }
+        return Value::integer(n);
     });
     globals_->vars["chr"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[0].k == VK::Int ? a[0].i : 0;
@@ -1569,6 +1586,8 @@ void Interpreter::exec(const Stmt& s, Env env) {
         case ast::StKind::ConstDecl:
         case ast::StKind::VarDecl: {
             Value v = s.value ? eval(*s.value, env) : Value::none();
+            if (s.declType && s.declType->kind == ast::TyKind::Name)
+                v.declTyName = s.declType->name;
             // a declaration ALWAYS creates a new binding in the current frame
             // (shadowing) instead of assigning into an outer binding of the
             // same name — lexical scope semantics, mirrors the checker.
@@ -1580,6 +1599,8 @@ void Interpreter::exec(const Stmt& s, Env env) {
             // force a NEW binding in the current frame (shadow allowed despite
             // `local` being strict about same-scope re-decl at check time).
             Value v = s.value ? eval(*s.value, env) : Value::none();
+            if (s.declType && s.declType->kind == ast::TyKind::Name)
+                v.declTyName = s.declType->name;
             if (!s.target || s.target->kind != ast::ExKind::Ident) return;
             env->vars[s.target->text] = std::move(v);
             return;
@@ -1588,6 +1609,8 @@ void Interpreter::exec(const Stmt& s, Env env) {
         case ast::StKind::GlobalDecl: {
             // write/read the module top-level binding.
             Value v = s.value ? eval(*s.value, env) : Value::none();
+            if (s.declType && s.declType->kind == ast::TyKind::Name)
+                v.declTyName = s.declType->name;
             if (!s.target || s.target->kind != ast::ExKind::Ident) return;
             EnvS* root = env->root();
             if (s.value) root->vars[s.target->text] = std::move(v);
@@ -1598,6 +1621,8 @@ void Interpreter::exec(const Stmt& s, Env env) {
             // like a normal var decl, but carries a compile-time use budget
             // (enforced in the checker); runtime treats it as an ordinary binding.
             Value v = s.value ? eval(*s.value, env) : Value::none();
+            if (s.declType && s.declType->kind == ast::TyKind::Name)
+                v.declTyName = s.declType->name;
             if (!s.tempVarName.empty()) env->vars[s.tempVarName] = std::move(v);
             return;
         }
@@ -3465,6 +3490,256 @@ return Value::none();
                         s[0] = (char)toupper((unsigned char)s[0]);
                     return Value::str(s);
                 });
+            break;
+        }
+
+        case VK::Int: {
+            // A Phase-1 integral method takes its semantics from the declared
+            // width a: e.g. `var a: i32 = ...` bounds `checked_*` to i32.
+            // Bare `int`/`isize` use the full i64 (unsigned usize => u64).
+            int wb = 64;  bool wu = false;
+            const std::string& wn = obj.declTyName;
+            if (wn == "int" || wn == "isize" || wn.empty()) { wb = 64; wu = false; }
+            else if (wn == "usize") { wb = 64; wu = true; }
+            else if (wn.size() >= 2 && wn[0] == 'u' &&
+                     wn[1] >= '0' && wn[1] <= '9') {
+                wb = std::atoi(wn.c_str() + 1); wu = true;
+            } else if (wn.size() >= 2 && wn[0] == 'i' &&
+                       wn[1] >= '0' && wn[1] <= '9') {
+                wb = std::atoi(wn.c_str() + 1); wu = false;
+            }
+            if (wb < 1 || wb > 64) wb = 64;
+            const uint64_t wmask = wb >= 64 ? ~0ull : (1ull << wb) - 1ull;
+
+            // {{{ checked semantics (Option == Value::none() on overflow) }}}
+            if (name == "checked_add" || name == "checked_sub" ||
+                name == "checked_mul" || name == "checked_div" ||
+                name == "checked_rem") {
+                return bind({"rhs"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
+                    int64_t rl = a[0].i, rr = a[1].i;
+                    if (!wu) {
+                        __int128 smin = wb >= 64 ? (__int128)LLONG_MIN
+                                                 : (__int128)(-(1ll << (wb - 1)));
+                        __int128 smax = wb >= 64 ? (__int128)LLONG_MAX
+                                                 : (__int128)((1ll << (wb - 1)) - 1);
+                        __int128 wide = 0;
+                        bool division = name == "checked_div" || name == "checked_rem";
+                        if (division) {
+                            if (rr == 0) return Value::none();
+                            if (rl == (wb >= 64 ? LLONG_MIN : -(int64_t)(1ll << (wb - 1))) && rr == -1)
+                                return Value::none();
+                            wide = name == "checked_div" ? (__int128)(rl / rr)
+                                                              : (__int128)(rl % rr);
+                        } else {
+                            wide = name == "checked_add" ? (__int128)(rl) + (__int128)rr
+                                 : name == "checked_sub" ? (__int128)(rl) - (__int128)rr
+                                                         : (__int128)(rl) * (__int128)rr;
+                        }
+                        if (wide >= smin && wide <= smax) return Value::integer((int64_t)wide);
+                        return Value::none();
+                    }
+                    unsigned __int128 u0 = (unsigned __int128)((uint64_t)rl & wmask),
+                                      u1 = (unsigned __int128)((uint64_t)rr & wmask);
+                    unsigned __int128 umax = wb >= 64 ? (unsigned __int128)ULLONG_MAX
+                                                     : (unsigned __int128)((1ull << wb) - 1ull);
+                    unsigned __int128 r;
+                    if (name == "checked_add") r = u0 + u1;
+                    else if (name == "checked_sub") r = u0 >= u1 ? u0 - u1 : (unsigned __int128)~0ull;
+                    else if (name == "checked_mul") r = u0 * u1;
+                    else {
+                        if (u1 == 0) return Value::none();
+                        r = name == "checked_div" ? u0 / u1 : u0 % u1;
+                    }
+                    return r <= umax ? Value::integer((int64_t)r) : Value::none();
+                });
+            }
+            if (name == "checked_neg") {
+                return bind({}, [wb, wu](std::vector<Value>& a) -> Value {
+                    if (wu) return Value::none();
+                    int64_t v = a[0].i;
+                    if (wb < 64 && v == -((int64_t)(1ll << (wb - 1)))) return Value::none();
+                    return Value::integer(-v);
+                });
+            }
+
+            // {{{ wrapping_* }}}
+            if (name.rfind("wrapping_", 0) == 0) {
+                return bind({"rhs"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
+                    int64_t rl = a[0].i, rr = a[1].i;
+                    if (wu) {
+                        uint64_t r = 0;
+                        if (name == "wrapping_add") r = (uint64_t)rl + (uint64_t)rr;
+                        else if (name == "wrapping_sub") r = (uint64_t)rl - (uint64_t)rr;
+                        else if (name == "wrapping_mul") r = (uint64_t)rl * (uint64_t)rr;
+                        else if (name == "wrapping_div") { if (rr == 0) panicHere("division by zero"); r = (uint64_t)rl / (uint64_t)rr; }
+                        else if (name == "wrapping_rem") { if (rr == 0) panicHere("division by zero"); r = (uint64_t)rl % (uint64_t)rr; }
+                        else { panicHere("no such wrapping op '" + name + "'"); }
+                        r &= wmask;
+                        return Value::integer((int64_t)r);
+                    }
+                    int64_t r = 0;
+                    if (name == "wrapping_add") r = (int64_t)((uint64_t)rl + (uint64_t)rr);
+                    else if (name == "wrapping_sub") r = (int64_t)((uint64_t)rl - (uint64_t)rr);
+                    else if (name == "wrapping_mul") r = (int64_t)((uint64_t)rl * (uint64_t)rr);
+                    else if (name == "wrapping_div") { if (rr == 0) panicHere("division by zero"); r = rl / rr; }
+                    else if (name == "wrapping_rem") { if (rr == 0) panicHere("division by zero"); r = rl % rr; }
+                    else if (name == "wrapping_neg") r = -rl;
+                    else if (name == "wrapping_abs") r = rl < 0 ? (rl == LLONG_MIN ? LLONG_MIN : -rl) : rl;
+                    else { panicHere("no such wrapping op"); }
+                    if (wb >= 64) return Value::integer(r);
+                    r = (int64_t)((uint64_t)r & wmask);
+                    if (!wu && (r & (1ll << (wb - 1))))
+                        r = (int64_t)((int64_t)r | (int64_t)(~wmask));
+                    return Value::integer(r);
+                });
+            }
+
+            // {{{ saturating_* }}}
+            if (name.rfind("saturating_", 0) == 0) {
+                return bind({"rhs"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
+                    int64_t rl = a[0].i, rr = a[1].i;
+                    __int128 smin = wu ? 0 : wb >= 64 ? LLONG_MIN : (__int128)(-(1ll << (wb - 1)));
+                    __int128 smax = wu
+                                        ? (wb >= 64 ? LLONG_MAX : (__int128)((1ull << wb) - 1ull))
+                                        : (wb >= 64 ? LLONG_MAX : (__int128)((1ll << (wb - 1)) - 1));
+                    __int128 wide = 0;
+                    if (name == "saturating_add") wide = (__int128)rl + (__int128)rr;
+                    else if (name == "saturating_sub") wide = (__int128)rl - (__int128)rr;
+                    else if (name == "saturating_mul") wide = (__int128)rl * (__int128)rr;
+                    else if (name == "saturating_neg") wide = -(__int128)rl;
+                    else if (name == "saturating_abs") wide = rl < 0 ? -(__int128)rl : rl;
+                    else if (name == "saturating_div") { if (rr == 0) return Value::none(); wide = (__int128)rl / rr; }
+                    else { panicHere("no such saturating op"); }
+                    if (wide < smin) return Value::integer((int64_t)smin);
+                    if (wide > smax) return Value::integer((int64_t)smax);
+                    return Value::integer((int64_t)wide);
+                });
+            }
+
+            // {{{ euclid & ceil }}}
+            if (name == "div_euclid" || name == "rem_euclid" || name == "div_ceil") {
+                return bind({"rhs"}, [wu, &name](std::vector<Value>& a) -> Value {
+                    int64_t x = a[0].i, y = a[1].i;
+                    if (y == 0) panicHere("division by zero");
+                    if (wu) {
+                        int64_t a0 = x < 0 ? 0 : x, b0 = y <= 0 ? 1 : y;
+                        if (name == "div_ceil") return Value::integer((a0 + b0 - 1) / b0);
+                        int64_t q = a0 / b0;
+                        return name == "div_euclid" ? Value::integer(q)
+                                                    : Value::integer(a0 - q * b0);
+                    }
+                    int64_t r = x % y;
+                    if (r != 0 && ((r < 0) != (y < 0))) { if (r > 0) {/*down*/} }
+                    int64_t q = x / y;
+                    int64_t rem = x - q * y;
+                    if (rem != 0 && ((rem < 0) != (y < 0))) { q -= 1; rem += y; }
+                    if (name == "div_euclid") return Value::integer(q);
+                    if (name == "rem_euclid") return Value::integer(rem);
+                    int64_t up = (x % y == 0) ? x / y
+                                              : ((x < 0) == (y < 0)) ? (x / y) + (x % y != 0 ? (x >= 0 && y > 0 ? 1 : y > 0 && x < 0 ? 0 : 1) : 0)
+                                                                     : (x / y);
+                    // simpler & correct for signed; handle both signs:
+                    int64_t qq = x / y; int64_t rr = x - qq * y;
+                    if (rr != 0) {
+                        if ((x > 0) == (y > 0)) qq += 1;
+                    }
+                    return Value::integer(qq);
+                });
+            }
+
+            // {{{ bit window: counts from the masked representation (Rust parity) }}}
+            if (name == "count_ones" || name == "count_zeros" ||
+                name == "leading_zeros" || name == "trailing_zeros" ||
+                name == "leading_ones" || name == "trailing_ones" ||
+                name == "is_power_of_two" || name == "next_power_of_two" ||
+                name == "abs" || name == "signum" || name == "ilog2" ||
+                name == "pow" || name == "pow_glam") {
+                return bind({}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
+                    int64_t v = a[0].i;
+                    uint64_t u = wu ? ((uint64_t)v & wmask)
+                                    : (wb >= 64 ? (uint64_t)v : (uint64_t)v & wmask);
+                    auto maskBits = [&](void) -> int { return wb; };
+                    (void)maskBits;
+                    if (name == "count_ones") {
+                        int n = 0; unsigned long long x = (unsigned long long)u;
+                        while (x) { n += (int)(x & 1ull); x >>= 1; }
+                        return Value::integer(n);
+                    }
+                    if (name == "count_zeros") {
+                        int ones = 0; unsigned long long x = (unsigned long long)u;
+                        while (x) { ones += (int)(x & 1ull); x >>= 1; }
+                        return Value::integer(wb - ones);
+                    }
+                    if (name == "leading_zeros" || name == "leading_ones") {
+                        unsigned long long x = (unsigned long long)u;
+                        if (name == "leading_ones") x = ~x & wmask;
+                        int leading = 0;
+                        if (x == 0) return Value::integer(wb);
+                        unsigned long long v = x;
+                        while (!(v & 1ull) && leading < wb) { /*count from LSB? no*/ }
+                        // count from the MSB of the field:
+                        for (int i = wb - 1; i >= 0; --i) {
+                            if (x & (1ull << i)) break;
+                            leading++;
+                        }
+                        return Value::integer(leading);
+                    }
+                    if (name == "trailing_zeros" || name == "trailing_ones") {
+                        unsigned long long x = (unsigned long long)u;
+                        if (name == "trailing_ones") x = ~x & wmask;
+                        if (x == 0) return Value::integer(wb);
+                        int t = 0;
+                        while (t < wb && !(x & (1ull << t))) t++;
+                        return Value::integer(t);
+                    }
+                    if (name == "is_power_of_two") {
+                        if (wu) return Value::boolean(u != 0 && (u & (u - 1)) == 0);
+                        return Value::boolean(v > 0 && (v & (v - 1)) == 0);
+                    }
+                    if (name == "next_power_of_two") {
+                        unsigned long long x = wu ? (unsigned long long)u : (v <= 0 ? 0ULL : (unsigned long long)v);
+                        if (x == 0) return Value::integer(1);
+                        x--;
+                        x |= x >> 1; x |= x >> 2; x |= x >> 4; x |= x >> 8; x |= x >> 16; x |= x >> 32;
+                        return Value::integer((int64_t)(x + 1));
+                    }
+                    if (name == "abs") {
+                        if (wu) return Value::integer(wu && wb < 64 && (uint64_t)v > 0 && wb < 64 ? (int64_t)((uint64_t)v & wmask) : (int64_t)v);
+                        if (v == LLONG_MIN) return Value::none();
+                        return Value::integer(v < 0 ? -v : v);
+                    }
+                    if (name == "signum") return Value::integer(v == 0 ? 0 : (v > 0 ? 1 : -1));
+                    if (name == "ilog2") {
+                        if (wu) u = v < 0 ? (uint64_t)v & wmask : (uint64_t)v;
+                        long long x = v <= 0 ? (long long)((uint64_t)v) : (long long)v;
+                        if (x <= 0) return Value::none();
+                        int n = 0; while ((1LL << (n + 1)) <= x) n++;
+                        return Value::integer(n);
+                    }
+                    // noop fallback via pow: user can add
+                    panicHere("internal method not available");
+                    return Value::none();
+                });
+            }
+            if (name == "pow") {
+                return bind({"exp"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
+                    int64_t base = a[0].i, exp = a[1].i;
+                    if (exp < 0) return Value::none();
+                    __int128 r = 1, b = base;
+                    for (int64_t i = 0; i < exp; ++i) {
+                        r *= (__int128)b;
+                        unsigned __int128 lim = wmask;
+                        if (wu) { r &= (__int128)wmask; }
+                        else { // signed saturate-ish overflow as saturating? use wrapping to keep total sound applying mask:
+                            r &= (__int128)wmask; }
+                        (void)lim;
+                    }
+                    int64_t v = (int64_t)r;
+                    if (!wu && wb < 64 && (v & (1ll << (wb - 1))))
+                        v = (int64_t)((int64_t)r | (int64_t)(~wmask));
+                    return Value::integer(v);
+                });
+            }
             break;
         }
 

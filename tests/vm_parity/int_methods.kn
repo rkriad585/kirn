@@ -1,0 +1,19 @@
+a: i32 = 2_000_000_000;
+b: i8 = 120;
+c: u32 = 10;
+neg7: i32 = -7;
+pw: i64 = 8;
+def main() -> none {
+    print(a.checked_add(1_000_000_000));       # none (i32 overflow)
+    print(a.wrapping_add(1_000_000_000));      # low-32 pattern
+    print(a.saturating_add(1_000_000_000));    # i32 max
+    print(b.checked_add(10));                  # 130 (fit in i8? 130>127 -> none)
+    print(b.checked_add(7));                   # 127 ok
+    print(neg7.div_euclid(4), neg7.rem_euclid(4));   # -2 1
+    print(neg7.div_ceil(4));                   # -1 (since -7/4=-2ceil? -2? compute: -7/4=-1.75ceil -1)
+    print(pw.count_ones(), pw.ilog2(), pw.is_power_of_two());
+    print(bit_length(256), bit_count(255), bit_count(-255));
+    print(c.checked_div(0));                   # none? division by zero -> panic? our wrapping has panic; checked_div by zero returns none. Good.
+    print(256.wrapping_sub(512));              # -256 (i64 path)
+    print((255 as u8).count_ones());
+}

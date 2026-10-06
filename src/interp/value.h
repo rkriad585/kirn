@@ -58,6 +58,11 @@ struct Value {
     double d = 0.0;
     char32_t ch = 0;
     std::string s;                            // Str content / names below
+    // Declared type name on this binding (e.g. "i32"); empty if unknown.
+    // Set at declaration (VarDecl/Local/Global/Const/temp) from declType and
+    // carried on the Value so method dispatch can phrase width-sensitive
+    // semantics (checked_*) off the declared type, not the Value's i64 body.
+    std::string declTyName;
 
     // containers (aliased)
     std::shared_ptr<std::vector<Value>> vec;                    // List/Set/Tuple

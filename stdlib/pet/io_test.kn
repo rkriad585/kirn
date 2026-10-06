@@ -1,7 +1,7 @@
 # stdlib/pet/io_test.kn - tests for pet.io.
 import pet.io;
 
-def main() {
+def main() -> none {
     path = ".io_tmp_test.txt";
     io.append_file(path, "hello");
     s = io.read_file(path);

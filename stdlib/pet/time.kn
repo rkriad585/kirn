@@ -19,7 +19,7 @@ pub def now_ms() -> int {
 }
 
 # Sleep for ms milliseconds (no-op in < 0).
-pub def sleep(ms: int) {
+pub def sleep(ms: int) -> none {
     if ms < 0 { return; }
     priv_sleep(ms);
 }

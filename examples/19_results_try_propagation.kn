@@ -19,7 +19,7 @@ def read_config() -> result[int, ParseError] {
     return port;
 
 }
-def main() {
+def main() -> none {
     match read_config() {
         case ok(p) {
             print(f"port = {p}");

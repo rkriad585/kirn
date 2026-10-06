@@ -1,5 +1,5 @@
 # 20 — defer & panic                      (plan §7, §8)
-def process(path: string) {
+def process(path: string) -> none {
     f = io.open(path);
     defer f.close(); # runs at scope exit, LIFO order
     print(f"processing {path}");
@@ -17,7 +17,7 @@ def try_risky() -> int { # named closure for catch_panic boundary
     return risky(-1);
 
 }
-def main() {
+def main() -> none {
     process("data.txt");
 
     print(risky(9));

@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n18_goto_over_decl.kn
 FuncDef "main"
+  Ret none
   Body
     Goto 'over'
     ConstDecl

@@ -32,6 +32,7 @@ ImplDef Iterator for Range
       Return
         Value Ident "val"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "r"

@@ -14,7 +14,7 @@ pub def read_file(path: string) -> string {
 }
 
 # Write a string to a file (overwrites). Matches io.write semantics.
-pub def write_file(path: string, data: string) {
+pub def write_file(path: string, data: string) -> none {
     f = io.open(path);
     f.write(data);
     f.close();

@@ -46,6 +46,7 @@ FuncDef "hash_bucket" generics=[T is Hashable]
                   Obj Ident "item"
           Rhs Int "256"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

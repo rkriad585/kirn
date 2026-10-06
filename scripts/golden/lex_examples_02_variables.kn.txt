@@ -8,7 +8,9 @@ Ident	4:1	def
 Ident	4:5	main
 Punct	4:9	(
 Punct	4:10	)
-Punct	4:12	{
+Op	4:12	->
+Ident	4:15	none
+Punct	4:20	{
 Ident	5:5	x
 Op	5:7	=
 Int	5:9	42
@@ -57,7 +59,7 @@ Punct	15:36	)
 Punct	15:37	;
 Punct	16:1	}
 Eof	17:1	
-<ROOT>/examples/02_variables.kn: OK (57 tokens)
+<ROOT>/examples/02_variables.kn: OK (59 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

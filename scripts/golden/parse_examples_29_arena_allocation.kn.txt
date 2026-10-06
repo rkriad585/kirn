@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/29_arena_allocation.kn
 FuncDef "render_frame"
+  Ret none
   Body
     Assign
       Target Ident "arena"
@@ -59,6 +60,7 @@ FuncDef "render_frame"
                 Obj Ident "parts"
                 At Int "0"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

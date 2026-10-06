@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/01_hello.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "name"

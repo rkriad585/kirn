@@ -14,6 +14,7 @@ FuncDef "counter"
           Ident "i"
 FuncDef "fib"
   Param "limit" : <inferred>
+  Ret gen[int]
   Body
     VarDecl
       Target Ident "a"
@@ -43,6 +44,7 @@ FuncDef "fib"
                   Rhs Ident "b"
 FuncDef "combine"
   Param "items" : <inferred>
+  Ret none
   Body
     Yield
       Str "start"
@@ -54,6 +56,7 @@ FuncDef "combine"
           Ident "x"
     Yield
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "s"

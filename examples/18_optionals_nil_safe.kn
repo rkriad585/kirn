@@ -8,7 +8,7 @@ def find(xs: list[int], target: int) -> int? { # option sugar: int? == option[in
     return none;
 
 }
-def main() {
+def main() -> none {
     hit = find([10, 20, 30], 20);
     miss = find([10, 20, 30], 99);
 

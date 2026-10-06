@@ -51,10 +51,10 @@ record Point(fx: int, fy: int) { }
 
 fn add(a: int, b: int) -> int { return a + b; }   # fn == def
 
-def render_name(n: Named)          { print("  render_name -> " + n.name()); }
+def render_name(n: Named) -> none { print("  render_name -> " + n.name()); }
 def get_volume(l: Loud) -> int     { return l.volume(); }
 
-def main() {
+def main() -> none {
     d = Dog(name: "Rex", loud: 8);
     print("direct speak  = " + d.speak());       # inherent method
     print("direct name   = " + d.name());

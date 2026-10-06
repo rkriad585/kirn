@@ -56,6 +56,7 @@ FuncDef "render"
                 Interp
                   Value Ident "msg"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "states"

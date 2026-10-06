@@ -3,7 +3,9 @@ Ident	21:1	def
 Ident	21:5	main
 Punct	21:9	(
 Punct	21:10	)
-Punct	21:12	{
+Op	21:12	->
+Ident	21:15	none
+Punct	21:20	{
 Ident	23:5	n
 Op	23:7	=
 Int	23:9	5
@@ -278,7 +280,7 @@ Punct	73:28	)
 Punct	73:29	;
 Punct	74:1	}
 Eof	74:2	
-<ROOT>/examples/42_control_goto_gather.kn: OK (278 tokens)
+<ROOT>/examples/42_control_goto_gather.kn: OK (280 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

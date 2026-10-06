@@ -1,5 +1,5 @@
 # expect: label 'dup' is defined more than once
-def main() {
+def main() -> none {
     goto dup;
 dup:
     print("a");

@@ -23,7 +23,7 @@ def powf(b: f64, n: int) -> f64 {
     return r;
 }
 
-def main() {
+def main() -> none {
     evens = 0;
     odds = 0;
     sum = 0;

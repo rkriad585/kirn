@@ -3,6 +3,7 @@ StructDef "Sensor"
   Field "id" : int
   Field "reading" var : f64
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "s1"

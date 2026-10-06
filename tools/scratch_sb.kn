@@ -1,7 +1,7 @@
 struct SB {
     parts: list = [];
 
-    def append(self, s: string) {
+    def append(self, s: string) -> none {
         self.parts.append(s);
     }
     def sstr(self) -> string {
@@ -11,7 +11,7 @@ struct SB {
     }
 }
 
-def main() {
+def main() -> none {
     var b = SB();
     b.append("hello ");
     b.append("world");

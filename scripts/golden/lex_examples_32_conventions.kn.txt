@@ -16,7 +16,9 @@ Ident	11:1	def
 Ident	11:5	main
 Punct	11:9	(
 Punct	11:10	)
-Punct	11:12	{
+Op	11:12	->
+Ident	11:15	none
+Punct	11:20	{
 Ident	13:5	print
 Punct	13:10	(
 Str	13:11	load_count =
@@ -62,7 +64,7 @@ Punct	16:30	)
 Punct	16:31	;
 Punct	17:1	}
 Eof	18:1	
-<ROOT>/examples/32_conventions.kn: OK (62 tokens)
+<ROOT>/examples/32_conventions.kn: OK (64 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

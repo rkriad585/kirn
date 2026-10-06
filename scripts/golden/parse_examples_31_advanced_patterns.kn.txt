@@ -85,6 +85,7 @@ FuncDef "classify" pub
     Return
       Value Ident "out"
 FuncDef "main" pub
+  Ret none
   Body
     ExprStmt
       Value 

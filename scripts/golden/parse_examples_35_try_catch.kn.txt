@@ -17,6 +17,7 @@ FuncDef "risky"
           Lhs Ident "n"
           Rhs Ident "n"
 FuncDef "main"
+  Ret none
   Body
     Try
       ExprStmt

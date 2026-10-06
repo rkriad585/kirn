@@ -5,7 +5,7 @@
 def wrapv[T = int](v: T) -> list[T] {
     return [v];
 }
-def main() {
+def main() -> none {
     xs = wrapv(5);
     ys = wrapv("hi");
     print(xs, ys);

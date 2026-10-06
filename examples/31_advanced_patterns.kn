@@ -23,7 +23,7 @@ pub def classify(inputs: list[int]) -> list[string] {
     return out;
 }
 
-pub def main() {
+pub def main() -> none {
     print(classify([1, 3, 5, 15, 6, 10, 7]));
 
     # alias + or-pattern in match

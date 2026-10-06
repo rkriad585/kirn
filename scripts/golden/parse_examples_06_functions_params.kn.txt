@@ -12,6 +12,7 @@ FuncDef "add"
 FuncDef "greet"
   Param "name" : string
     Default Str "world"
+  Ret none
   Body
     ExprStmt
       Value 
@@ -54,6 +55,7 @@ FuncDef "apply"
           Arg
             Value Ident "b"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

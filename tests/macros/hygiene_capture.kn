@@ -4,7 +4,7 @@
 # The correct program passes `helper` as a parameter instead.
 {.def BAD() = helper + 1.}
 {.def GOOD(h) = h + 1.}
-def main() {
+def main() -> none {
   helper = 100;
   print(GOOD(helper));
 }

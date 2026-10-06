@@ -27,7 +27,12 @@ Ident	12:5	fib
 Punct	12:8	(
 Ident	12:9	limit
 Punct	12:14	)
-Punct	12:16	{
+Op	12:16	->
+Ident	12:19	gen
+Punct	12:22	[
+Ident	12:23	int
+Punct	12:26	]
+Punct	12:28	{
 Ident	13:5	var
 Ident	13:9	a
 Op	13:11	=
@@ -67,7 +72,9 @@ Ident	21:5	combine
 Punct	21:12	(
 Ident	21:13	items
 Punct	21:18	)
-Punct	21:20	{
+Op	21:20	->
+Ident	21:23	none
+Punct	21:28	{
 Ident	22:5	yield
 Str	22:11	start
 Punct	22:18	;
@@ -87,7 +94,9 @@ Ident	29:1	def
 Ident	29:5	main
 Punct	29:9	(
 Punct	29:10	)
-Punct	29:12	{
+Op	29:12	->
+Ident	29:15	none
+Punct	29:20	{
 Ident	30:5	s
 Op	30:7	=
 Int	30:9	0
@@ -257,7 +266,7 @@ Punct	47:37	)
 Punct	47:38	;
 Punct	48:1	}
 Eof	48:2	
-<ROOT>/examples/41_generators.kn: OK (257 tokens)
+<ROOT>/examples/41_generators.kn: OK (266 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -18,7 +18,7 @@ pub def sqrt(x: float) -> float {
     return g;
 }
 
-pub def abs(x) {
+pub def abs(x) -> none {
     if x < 0 { return -x; }
     return x;
 }
@@ -31,13 +31,13 @@ pub def clamp(x: float, lo: float, hi: float) -> float {
 }
 
 # Smaller of two values (works for numbers; strings compare lexically).
-pub def min2(a, b) {
+pub def min2(a, b) -> none {
     if a < b { return a; }
     return b;
 }
 
 # Larger of two values.
-pub def max2(a, b) {
+pub def max2(a, b) -> none {
     if a > b { return a; }
     return b;
 }

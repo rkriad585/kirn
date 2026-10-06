@@ -106,7 +106,9 @@ Ident	26:1	def
 Ident	26:5	main
 Punct	26:9	(
 Punct	26:10	)
-Punct	26:12	{
+Op	26:12	->
+Ident	26:15	none
+Punct	26:20	{
 Ident	27:5	evens
 Op	27:11	=
 Int	27:13	0
@@ -183,7 +185,7 @@ Punct	41:30	)
 Punct	41:31	;
 Punct	42:1	}
 Eof	42:2	
-<ROOT>/examples/native_scalar_mix.kn: OK (183 tokens)
+<ROOT>/examples/native_scalar_mix.kn: OK (185 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

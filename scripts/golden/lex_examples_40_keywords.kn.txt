@@ -39,7 +39,9 @@ Ident	12:5	bump
 Punct	12:9	(
 Ident	12:10	by
 Punct	12:12	)
-Punct	12:14	{
+Op	12:14	->
+Ident	12:17	none
+Punct	12:22	{
 Ident	13:5	global
 Ident	13:12	counter
 Punct	13:19	;
@@ -54,7 +56,9 @@ Ident	17:1	def
 Ident	17:5	main
 Punct	17:9	(
 Punct	17:10	)
-Punct	17:12	{
+Op	17:12	->
+Ident	17:15	none
+Punct	17:20	{
 Ident	19:5	var
 Ident	19:9	nada
 Punct	19:13	:
@@ -293,7 +297,7 @@ Punct	55:33	)
 Punct	55:34	;
 Punct	56:1	}
 Eof	56:2	
-<ROOT>/examples/40_keywords.kn: OK (293 tokens)
+<ROOT>/examples/40_keywords.kn: OK (297 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

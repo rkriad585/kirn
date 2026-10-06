@@ -2,7 +2,7 @@
 # observable. Nothing here defines FEATURE or GONE: a -D that a file then
 # redefines would be masked by the file's own {.def.}, which is the documented
 # precedence (the command line seeds the table, the file may override it).
-def main() {
+def main() -> none {
   {.ifdef FEATURE.}
   print("feature on");
   {.else.}

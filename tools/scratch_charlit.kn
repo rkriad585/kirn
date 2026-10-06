@@ -1,4 +1,4 @@
-def main() {
+def main() -> none {
     print(ord('\u{0}'));
     print(ord('\\'), ord('\''), ord('"'), ord('{'), ord('}'));
     print(ord('\n'), ord('\r'), ord('\t'), ord(' '), ord('.'));

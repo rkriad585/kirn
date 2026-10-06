@@ -3,7 +3,9 @@ Ident	2:1	def
 Ident	2:5	main
 Punct	2:9	(
 Punct	2:10	)
-Punct	2:12	{
+Op	2:12	->
+Ident	2:15	none
+Punct	2:20	{
 Ident	3:5	nums
 Op	3:10	=
 Punct	3:12	[
@@ -166,7 +168,7 @@ Punct	23:68	)
 Punct	23:69	;
 Punct	24:1	}
 Eof	25:1	
-<ROOT>/examples/16_collections_slices.kn: OK (166 tokens)
+<ROOT>/examples/16_collections_slices.kn: OK (168 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -3,7 +3,9 @@ Ident	3:1	def
 Ident	3:5	main
 Punct	3:9	(
 Punct	3:10	)
-Punct	3:12	{
+Op	3:12	->
+Ident	3:15	none
+Punct	3:20	{
 Ident	4:3	print
 Punct	4:8	(
 Int	4:9	1
@@ -21,5 +23,5 @@ Punct	6:17	)
 Punct	6:18	;
 Punct	7:1	}
 Eof	7:1	
-<ROOT>/tests/macros/builtins.kn: OK (21 tokens)
+<ROOT>/tests/macros/builtins.kn: OK (23 tokens)
 [exit 0]

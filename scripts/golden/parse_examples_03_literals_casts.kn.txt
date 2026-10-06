@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/03_literals_casts.kn
 FuncDef "main"
+  Ret none
   Body
     VarDecl : i64
       Target Ident "big"

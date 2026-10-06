@@ -31,6 +31,7 @@ FuncDef "grade"
         Return
           Value Str "F"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "score"

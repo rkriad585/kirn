@@ -3,15 +3,19 @@ Import math
 FromImport text.slug items=[slugify]
 FromImport json items=[dumps as to_json]
 FuncDef "visible_everywhere" pub
+  Ret none
   Body
     Pass
 FuncDef "package_local"
+  Ret none
   Body
     Pass
 FuncDef "_private_helper"
+  Ret none
   Body
     Pass
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

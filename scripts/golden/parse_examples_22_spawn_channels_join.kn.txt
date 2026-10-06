@@ -2,6 +2,7 @@ $ <ROOT>/build/kirnparse --ast <ROOT>/examples/22_spawn_channels_join.kn
 FuncDef "worker"
   Param "jobs" : chan[int]
   Param "done" : chan[int]
+  Ret none
   Body
     For
       PatBind j
@@ -16,6 +17,7 @@ FuncDef "worker"
               Arg
                 Value Ident "j"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "jobs"

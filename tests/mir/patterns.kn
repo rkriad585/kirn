@@ -48,7 +48,7 @@ def alias_or(n: int) -> string {
     }
 }
 
-def main() {
+def main() -> none {
     print(describe(0));
     print(describe(5));      # inclusive: 1..=9 contains 5
     print(describe(9));      # inclusive: and 9

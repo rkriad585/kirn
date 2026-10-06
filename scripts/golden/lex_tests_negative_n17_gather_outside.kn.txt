@@ -3,7 +3,9 @@ Ident	2:1	def
 Ident	2:5	main
 Punct	2:9	(
 Punct	2:10	)
-Punct	2:12	{
+Op	2:12	->
+Ident	2:15	none
+Punct	2:20	{
 Ident	3:5	gather
 Int	3:12	5
 Punct	3:13	,
@@ -14,7 +16,7 @@ Punct	4:15	)
 Punct	4:16	;
 Punct	5:1	}
 Eof	6:1	
-<ROOT>/tests/negative/n17_gather_outside.kn: OK (14 tokens)
+<ROOT>/tests/negative/n17_gather_outside.kn: OK (16 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -28,6 +28,7 @@ FuncDef "dmap"
       Value Ident "out"
 FuncDef "makeScaler"
   Param "factor" : <inferred>
+  Ret fn(int) -> int
   Body
     Return
       Value 
@@ -40,6 +41,7 @@ FuncDef "makeScaler"
                   Lhs Ident "x"
                   Rhs Ident "factor"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "ys"

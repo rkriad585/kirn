@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n11_del_undefined.kn
 FuncDef "main"
+  Ret none
   Body
     Del
       Ident "nope"

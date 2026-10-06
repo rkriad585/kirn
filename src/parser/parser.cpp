@@ -1,4 +1,5 @@
 #include "parser/parser.h"
+#include "sema/type.h"
 
 namespace kirn {
 
@@ -399,7 +400,16 @@ ast::StmtP Parser::parseFuncDef(bool pub, bool allowBody) {
     s->span = spanOf(nameTok);
     if (atPunct("[")) s->typeParams = parseTypeParams();
     s->params = parseParamList();
-    if (atOp("->")) { advance(); s->ret = parseType(); }
+    // A function must always state its return type. The ordinary
+    // "returns nothing" case is `-> none`; there is no implicit unit return.
+    if (!atOp("->")) {
+        diags_.report(cur().line, cur().col,
+                      std::string("function '") + s->name +
+                          "' is missing a return type; write '-> none' for one that returns nothing");
+        throw Abort("def");
+    }
+    advance();
+    s->ret = parseType();
     if (allowBody) {
         s->body = parseBlock();
         endBlock();
@@ -2062,6 +2072,40 @@ ast::ExprP Parser::parsePrimary() {
     }
 
     if (t.kind == Tok::Ident) {
+        // `sizeof(<scalar-type-name>)` -- an operator over types, not a
+        // variable call, so it is resolved in the parser and baked to an int
+        // literal. The size table lives in sema/type.h so the spellings and
+        // byte counts stay in one place.
+        if (t.text == "sizeof") {
+            advance();
+            if (!atPunct("(")) {
+                diags_.report(t.line, t.col, "expected '(' after 'sizeof'");
+                throw Abort("sizeof");
+            }
+            advance();                                   // consume '('
+            ast::TypeP ty = parseType();
+            if (ty && ty->kind == ast::TyKind::Name && !ty->name.empty()) {
+                int bytes = sema::typeSizeBytes(ty->name);
+                if (bytes < 0) {
+                    diags_.report(t.line, t.col,
+                                  "sizeof(): unknown scalar type '" + ty->name + "'");
+                    throw Abort("sizeof");
+                }
+                if (!atPunct(")")) {
+                    diags_.report(cur().line, cur().col, "expected ')' after sizeof argument");
+                    throw Abort("sizeof");
+                }
+                advance();                               // consume ')'
+                auto e = std::make_unique<ast::Expr>();
+                e->kind = ast::ExKind::Int;
+                e->text = std::to_string(bytes);
+                e->span = sp;
+                return e;
+            }
+            diags_.report(t.line, t.col,
+                          "sizeof() expects a scalar type name");
+            throw Abort("sizeof");
+        }
         if (t.text == "chan" && (atPunct("[", 1) || atPunct("(", 1))) {
             auto e = std::make_unique<ast::Expr>();
             e->kind = ast::ExKind::New;

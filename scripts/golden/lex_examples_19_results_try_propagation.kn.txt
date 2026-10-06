@@ -93,7 +93,9 @@ Ident	22:1	def
 Ident	22:5	main
 Punct	22:9	(
 Punct	22:10	)
-Punct	22:12	{
+Op	22:12	->
+Ident	22:15	none
+Punct	22:20	{
 Ident	23:5	match
 Ident	23:11	read_config
 Punct	23:22	(
@@ -174,7 +176,7 @@ Punct	36:37	;
 Punct	37:1	}
 Punct	38:1	}
 Eof	39:1	
-<ROOT>/examples/19_results_try_propagation.kn: OK (174 tokens)
+<ROOT>/examples/19_results_try_propagation.kn: OK (176 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

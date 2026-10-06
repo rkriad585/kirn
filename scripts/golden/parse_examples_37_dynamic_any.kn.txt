@@ -15,6 +15,7 @@ StructDef "Widget"
             Rhs Int "2"
 FuncDef "show"
   Param "v" : any
+  Ret none
   Body
     ExprStmt
       Value 
@@ -33,6 +34,7 @@ FuncDef "show"
                           Value Ident "v"
                 Rhs Str ")"
 FuncDef "main"
+  Ret none
   Body
     VarDecl : any
       Target Ident "a"

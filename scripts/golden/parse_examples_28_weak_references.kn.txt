@@ -4,6 +4,7 @@ StructDef "Node"
   Field "parent" var : Node?
   Field "child" var weak : Node?
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "parent"

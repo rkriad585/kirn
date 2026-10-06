@@ -1,6 +1,6 @@
 # 01 — Hello World                        (plan §5.0 · grammar §3)
 # Expected someday: kirn run examples/01_hello.kn  ->  Hello, World!
-def main() {
+def main() -> none {
     name = "World";
     print(f"Hello, {name}!");
 

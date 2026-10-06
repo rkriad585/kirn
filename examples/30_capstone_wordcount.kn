@@ -2,7 +2,7 @@
 # Reads text (here: inline sample), counts words concurrently per chunk,
 # merges results, prints top 3 — every feature from examples 01–29 in play.
 
-def count_chunk(words: list[string], out: chan[dict[string, int]]) {
+def count_chunk(words: list[string], out: chan[dict[string, int]]) -> none {
     counts = {};
     for w in words {
         w = w.to_lower();
@@ -15,7 +15,7 @@ def count_chunk(words: list[string], out: chan[dict[string, int]]) {
     out.send(counts);
 
 }
-def merge(target: dict[string, int], src: dict[string, int]) {
+def merge(target: dict[string, int], src: dict[string, int]) -> none {
     for k in src.keys() {
         if k in target {
             target[k] += src[k];
@@ -34,7 +34,7 @@ def top3(counts: dict[string, int]) -> list[(string, int)] {
     return pairs[0..3];
 
 }
-def main() {
+def main() -> none {
     text = "the quick brown fox the lazy dog the fox";
     chunks = [text.split(" ")[0..8], text.split(" ")[8..]];
     out = chan[dict[string, int]]();

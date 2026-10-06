@@ -1,10 +1,10 @@
-def show(s: string) {
+def show(s: string) -> none {
     out = "";
     for i in range(len(s)) { out += str(ord(s[i])) + " "; }
     print(out);
 }
 
-def main() {
+def main() -> none {
     show("a\tb");
     show("x\ny");
     show("\u{41}\u{22}");

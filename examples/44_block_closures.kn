@@ -18,11 +18,11 @@ def dmap(xs, f: fn(int) -> int) -> list {
     return out;
 }
 
-def makeScaler(factor) {
+def makeScaler(factor) -> fn(int) -> int {
     return fn (x: int) -> int { return x * factor; };   # captures `factor`
 }
 
-def main() {
+def main() -> none {
     # block closure with a local variable and an explicit return
     ys = dmap([1, 2, 3], fn (v) {
         doubled = v * 2;

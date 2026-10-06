@@ -3,19 +3,19 @@ import math; # stdlib module
 from text.slug import slugify; # named import
 from json import dumps as to_json; # aliased import
 
-pub def visible_everywhere() { # pub = exported from this module
+pub def visible_everywhere() -> none { # pub = exported from this module
     pass;
 
 }
-def package_local() { # no pub = package-visible
+def package_local() -> none { # no pub = package-visible
     pass;
 
 }
-def _private_helper() { # leading underscore = module-private
+def _private_helper() -> none { # leading underscore = module-private
     pass;
 
 }
-def main() {
+def main() -> none {
     print(math.sqrt(144.0)); # 12.0
     print(slugify("Hello Coco World")); # hello-coco-world
     print(to_json({"ok": true}));

@@ -113,6 +113,7 @@ FuncDef "tup_sum"
             ExprStmt
               Value Str "none"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

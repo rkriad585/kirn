@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/25_operator_precedence.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "r1"

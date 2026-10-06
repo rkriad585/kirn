@@ -14,7 +14,7 @@ pub def dumps(v) -> string {
 
 # Parse a JSON string into Kirn values. Parses objects, arrays, strings,
 # numbers, true/false/null. Raises on malformed input.
-pub def loads(s: string) {
+pub def loads(s: string) -> none {
     p = Parser();
     p.init(s);
     return p.parse_value();
@@ -24,11 +24,11 @@ pub def loads(s: string) {
 struct Parser {
     var src: string;
     var i: int;
-    def init(self, s: string) {
+    def init(self, s: string) -> none {
         self.src = s;
         self.i = 0;
     }
-    def skip_ws(self) {
+    def skip_ws(self) -> none {
         while self.i < self.src.len() and self.peek() == " " {
             self.i = self.i + 1;
         }
@@ -37,10 +37,10 @@ struct Parser {
         if self.i >= self.src.len() { return ""; }
         return self.src[self.i..self.i + 1];
     }
-    def advance(self) {
+    def advance(self) -> none {
         self.i = self.i + 1;
     }
-    def parse_value(self) {
+    def parse_value(self) -> none {
         self.skip_ws();
         c = self.peek();
         if c == "{" { return self.parse_object(); }
@@ -124,7 +124,7 @@ struct Parser {
         tok = self.src[start..self.i];
         return float(tok);
     }
-    def expect_lit(self, lit: string) {
+    def expect_lit(self, lit: string) -> none {
         if self.src[self.i..self.i + lit.len()] == lit {
             self.i = self.i + lit.len();
         } else {

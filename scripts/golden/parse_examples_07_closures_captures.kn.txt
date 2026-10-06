@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/07_closures_captures.kn
 FuncDef "make_counter"
+  Ret fn() -> int
   Body
     Assign
       Target Ident "count"
@@ -15,6 +16,7 @@ FuncDef "make_counter"
     Return
       Value Ident "tick"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "square"

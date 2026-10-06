@@ -39,7 +39,9 @@ Ident	6:1	def
 Ident	6:5	main
 Punct	6:9	(
 Punct	6:10	)
-Punct	6:12	{
+Op	6:12	->
+Ident	6:15	none
+Punct	6:20	{
 Ident	7:5	point
 Op	7:11	=
 Punct	7:13	(
@@ -122,7 +124,7 @@ Punct	19:17	)
 Punct	19:18	;
 Punct	20:1	}
 Eof	21:1	
-<ROOT>/examples/17_tuples_swap.kn: OK (122 tokens)
+<ROOT>/examples/17_tuples_swap.kn: OK (124 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

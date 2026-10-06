@@ -5,7 +5,7 @@ struct Node {
     weak var child: Node?; # weak ref: does NOT keep target alive
 
 }
-def main() {
+def main() -> none {
     parent = new Node(name: "parent");
     child = new Node(name: "child");
 

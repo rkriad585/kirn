@@ -6,10 +6,10 @@
 # to strings so int/str keys unify; lookups are O(1) amortized.
 pub struct HashMap {
     var buckets: dict;
-    def put(self, k, v) {
+    def put(self, k, v) -> none {
         self.buckets[str(k)] = v;
     }
-    def get(self, k) {
+    def get(self, k) -> none {
         d = self.buckets;
         return d[str(k)];
     }
@@ -17,7 +17,7 @@ pub struct HashMap {
         d = self.buckets;
         return str(k) in d;
     }
-    def remove(self, k) {
+    def remove(self, k) -> none {
         d = self.buckets;
         key = str(k);
         if key in d {

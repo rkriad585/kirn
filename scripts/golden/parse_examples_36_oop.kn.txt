@@ -182,6 +182,7 @@ FuncDef "add"
           Rhs Ident "b"
 FuncDef "render_name"
   Param "n" : Named
+  Ret none
   Body
     ExprStmt
       Value 
@@ -207,6 +208,7 @@ FuncDef "get_volume"
             Member name="volume"
               Obj Ident "l"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "d"

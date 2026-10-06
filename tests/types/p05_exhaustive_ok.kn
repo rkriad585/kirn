@@ -15,7 +15,7 @@ def classify(n: int) -> string {
         case _ { return "other"; }
     }
 }
-def main() {
+def main() -> none {
     print(render(Status.Running(pid: 7)));
     print(classify(5));
     print(classify(100));

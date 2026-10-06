@@ -155,7 +155,9 @@ Ident	25:1	def
 Ident	25:5	main
 Punct	25:9	(
 Punct	25:10	)
-Punct	25:12	{
+Op	25:12	->
+Ident	25:15	none
+Punct	25:20	{
 Ident	26:5	print
 Punct	26:10	(
 Ident	26:11	describe
@@ -309,7 +311,7 @@ Punct	46:32	)
 Punct	46:33	;
 Punct	47:1	}
 Eof	47:2	
-<ROOT>/examples/38_patterns_power.kn: OK (309 tokens)
+<ROOT>/examples/38_patterns_power.kn: OK (311 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

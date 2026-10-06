@@ -3,7 +3,9 @@ Ident	5:1	def
 Ident	5:5	main
 Punct	5:9	(
 Punct	5:10	)
-Punct	5:12	{
+Op	5:12	->
+Ident	5:15	none
+Punct	5:20	{
 Ident	7:5	s
 Op	7:7	=
 Str	7:9	Hello World
@@ -331,7 +333,7 @@ Punct	47:19	)
 Punct	47:20	;
 Punct	48:1	}
 Eof	48:2	
-<ROOT>/examples/39_builtin_methods.kn: OK (331 tokens)
+<ROOT>/examples/39_builtin_methods.kn: OK (333 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

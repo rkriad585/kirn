@@ -26,7 +26,7 @@ def hash_bucket[T is Hashable](item: T) -> u64 { # trait bound checked at DEFINI
     return item.hash() % 256;
 
 }
-def main() {
+def main() -> none {
     print(first([10, 20, 30])); # list[int]
     print(first(["a", "b"])); # list[string]
     p = Pair(first: 1, second: "two");

@@ -15,11 +15,11 @@ pub def args() -> list {
 }
 
 # Environment variable value, or nil if unset.
-pub def getenv(name: string) {
+pub def getenv(name: string) -> none {
     return priv_getenv(name);
 }
 
 # Exit the program with the given status code.
-pub def exit(code: int) {
+pub def exit(code: int) -> none {
     priv_exit(code);
 }

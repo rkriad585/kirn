@@ -16,7 +16,9 @@ Punct	2:39	[
 Ident	2:40	int
 Punct	2:43	]
 Punct	2:44	)
-Punct	2:46	{
+Op	2:46	->
+Ident	2:49	none
+Punct	2:54	{
 Ident	3:5	for
 Ident	3:9	j
 Ident	3:11	in
@@ -35,7 +37,9 @@ Ident	9:1	def
 Ident	9:5	main
 Punct	9:9	(
 Punct	9:10	)
-Punct	9:12	{
+Op	9:12	->
+Ident	9:15	none
+Punct	9:20	{
 Ident	10:5	jobs
 Op	10:10	=
 Ident	10:12	chan
@@ -175,7 +179,7 @@ Punct	38:31	)
 Punct	38:32	;
 Punct	39:1	}
 Eof	39:2	
-<ROOT>/examples/22_spawn_channels_join.kn: OK (175 tokens)
+<ROOT>/examples/22_spawn_channels_join.kn: OK (179 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

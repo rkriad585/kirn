@@ -1,4 +1,4 @@
-def probe_list_param(mut_lst) {
+def probe_list_param(mut_lst) -> none {
     mut_lst[0] = 99;
     mut_lst.append("zzz");
 }
@@ -7,15 +7,15 @@ struct Lx {
     specBuf: string = "";
     queue: list = [];
 
-    def pushq(self, item) {
+    def pushq(self, item) -> none {
         self.queue.append(item);
     }
-    def growBuf(self, ch: char) {
+    def growBuf(self, ch: char) -> none {
         self.specBuf += str(ch);
     }
 }
 
-def main() {
+def main() -> none {
     n0 = ord('\u{0}');
     print(n0);
     var l = [1, 2, 3];

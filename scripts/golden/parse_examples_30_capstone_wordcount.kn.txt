@@ -2,6 +2,7 @@ $ <ROOT>/build/kirnparse --ast <ROOT>/examples/30_capstone_wordcount.kn
 FuncDef "count_chunk"
   Param "words" : list[string]
   Param "out" : chan[dict[string, int]]
+  Ret none
   Body
     Assign
       Target Ident "counts"
@@ -48,6 +49,7 @@ FuncDef "count_chunk"
 FuncDef "merge"
   Param "target" : dict[string, int]
   Param "src" : dict[string, int]
+  Ret none
   Body
     For
       PatBind k
@@ -136,6 +138,7 @@ FuncDef "top3"
               Lhs Int "0"
               Rhs Int "3"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "text"

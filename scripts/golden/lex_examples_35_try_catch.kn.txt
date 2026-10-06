@@ -30,7 +30,9 @@ Ident	11:1	def
 Ident	11:5	main
 Punct	11:9	(
 Punct	11:10	)
-Punct	11:12	{
+Op	11:12	->
+Ident	11:15	none
+Punct	11:20	{
 Ident	13:5	try
 Punct	13:9	{
 Ident	14:9	print
@@ -248,7 +250,7 @@ Punct	61:32	)
 Punct	61:33	;
 Punct	62:1	}
 Eof	62:2	
-<ROOT>/examples/35_try_catch.kn: OK (248 tokens)
+<ROOT>/examples/35_try_catch.kn: OK (250 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

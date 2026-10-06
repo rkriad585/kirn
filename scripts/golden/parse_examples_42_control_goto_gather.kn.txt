@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/42_control_goto_gather.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "n"

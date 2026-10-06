@@ -54,7 +54,9 @@ Ident	10:34	dy
 Punct	10:36	:
 Ident	10:38	f64
 Punct	10:41	)
-Punct	10:43	{
+Op	10:43	->
+Ident	10:46	none
+Punct	10:51	{
 Ident	11:9	self
 Punct	11:13	.
 Ident	11:14	x
@@ -73,7 +75,9 @@ Ident	16:1	def
 Ident	16:5	main
 Punct	16:9	(
 Punct	16:10	)
-Punct	16:12	{
+Op	16:12	->
+Ident	16:15	none
+Punct	16:20	{
 Ident	17:5	origin
 Op	17:12	=
 Ident	17:14	Point
@@ -166,7 +170,7 @@ Punct	27:29	)
 Punct	27:30	;
 Punct	28:1	}
 Eof	29:1	
-<ROOT>/examples/11_structs_methods.kn: OK (166 tokens)
+<ROOT>/examples/11_structs_methods.kn: OK (170 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

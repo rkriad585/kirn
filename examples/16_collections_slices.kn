@@ -1,5 +1,5 @@
 # 16 — Collections: displays, methods, slicing   (plan §5.4)
-def main() {
+def main() -> none {
     nums = [3, 1, 2]; # list display
     nums.append(4);
     nums.sort();

@@ -1,5 +1,5 @@
 # 08 — Comprehensions & lazy views        (plan §5.6 · grammar [PROVISIONAL] OQ#2)
-def main() {
+def main() -> none {
     nums = [1, 2, 3, 4, 5];
 
     squares = [x * x for x in nums]; # list comprehension

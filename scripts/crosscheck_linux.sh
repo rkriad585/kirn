@@ -126,7 +126,7 @@ done
 # these are pinned individually rather than assumed.
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/kirn-xcheck.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
-printf 'def main() {\n  print(undefined_name);\n}\n' > "$TMP/ty.kn"
+printf 'def main() -> none {\n  print(undefined_name);\n}\n' > "$TMP/ty.kn"
 printf 'def main( {\n}\n' > "$TMP/syn.kn"
 
 for f in "$TMP/ty.kn" "$TMP/syn.kn"; do

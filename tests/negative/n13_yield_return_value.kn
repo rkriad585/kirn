@@ -1,9 +1,9 @@
 # expect: generator functions cannot 'return' a value; use 'yield'
-def gen() {
+def gen() -> none {
     yield 1;
     return 42;
 }
 
-def main() {
+def main() -> none {
     print(gen().collect());
 }

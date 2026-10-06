@@ -22,7 +22,7 @@ def tup_sum(t) -> string {
     };
 }
 
-def main() {
+def main() -> none {
     print(describe([]));
     print(describe([1, 2, 3, 4]));
     print(describe([9]));

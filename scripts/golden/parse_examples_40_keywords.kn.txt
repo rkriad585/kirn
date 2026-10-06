@@ -14,6 +14,7 @@ StructDef "Gadget"
     Default Int "0"
 FuncDef "bump"
   Param "by" : <inferred>
+  Ret none
   Body
     GlobalDecl 'counter'
     Assign
@@ -23,6 +24,7 @@ FuncDef "bump"
           Lhs Ident "counter"
           Rhs Ident "by"
 FuncDef "main"
+  Ret none
   Body
     VarDecl : None
       Target Ident "nada"

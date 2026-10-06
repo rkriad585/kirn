@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/34_batteries.kn
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

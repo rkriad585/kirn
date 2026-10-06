@@ -104,7 +104,9 @@ Ident	25:1	def
 Ident	25:5	main
 Punct	25:9	(
 Punct	25:10	)
-Punct	25:12	{
+Op	25:12	->
+Ident	25:15	none
+Punct	25:20	{
 Ident	26:5	states
 Op	26:12	=
 Punct	26:14	[
@@ -151,7 +153,7 @@ Punct	28:25	;
 Punct	29:1	}
 Punct	30:1	}
 Eof	31:1	
-<ROOT>/examples/12_enums_exhaustive.kn: OK (151 tokens)
+<ROOT>/examples/12_enums_exhaustive.kn: OK (153 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

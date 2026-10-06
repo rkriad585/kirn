@@ -89,7 +89,9 @@ Ident	27:1	def
 Ident	27:5	main
 Punct	27:9	(
 Punct	27:10	)
-Punct	27:12	{
+Op	27:12	->
+Ident	27:15	none
+Punct	27:20	{
 Ident	28:5	p
 Op	28:7	=
 Ident	28:9	Point
@@ -242,7 +244,7 @@ Punct	55:57	)
 Punct	55:58	;
 Punct	56:1	}
 Eof	57:1	
-<ROOT>/examples/10_patterns_destructuring.kn: OK (242 tokens)
+<ROOT>/examples/10_patterns_destructuring.kn: OK (244 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

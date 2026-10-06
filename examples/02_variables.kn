@@ -1,7 +1,7 @@
 # 02 — Variables & mutability             (plan §5.3)
 const MAX_USERS = 1000; # compile-time constant
 
-def main() {
+def main() -> none {
     x = 42; # immutable binding, inferred int
     # x += 1                             # COMPILE ERROR: immutable by default
     var y = 10; # mutable binding

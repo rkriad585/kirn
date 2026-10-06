@@ -1,11 +1,13 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n13_yield_return_value.kn
 FuncDef "gen"
+  Ret none
   Body
     Yield
       Int "1"
     Return
       Value Int "42"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

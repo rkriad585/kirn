@@ -4,7 +4,7 @@
 def read_local(p: *int) -> int {
     return *p;
 }
-def main() {
+def main() -> none {
     x = 42;
     p = &x;                 # address taken, stored in local p — not escaped
     print(read_local(p));

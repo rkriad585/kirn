@@ -15,7 +15,7 @@ impl Iterator for Range {
 
 }
 }
-def main() {
+def main() -> none {
     r = Range(cur: 0, limit: 5);
     for n in r { # any type with Iterator works in for-in
         print(n);

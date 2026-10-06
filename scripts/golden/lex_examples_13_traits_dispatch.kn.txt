@@ -33,7 +33,9 @@ Ident	12:9	draw
 Punct	12:13	(
 Ident	12:14	self
 Punct	12:18	)
-Punct	12:20	{
+Op	12:20	->
+Ident	12:23	none
+Punct	12:28	{
 Ident	13:9	print
 Punct	13:14	(
 FStr#	13:15	f"
@@ -58,7 +60,9 @@ Ident	18:9	draw
 Punct	18:13	(
 Ident	18:14	self
 Punct	18:18	)
-Punct	18:20	{
+Op	18:20	->
+Ident	18:23	none
+Punct	18:28	{
 Ident	19:9	print
 Punct	19:14	(
 FStr#	19:15	f"
@@ -92,7 +96,9 @@ Ident	27:12	d
 Punct	27:13	:
 Ident	27:15	Drawable
 Punct	27:23	)
-Punct	27:25	{
+Op	27:25	->
+Ident	27:28	none
+Punct	27:33	{
 Ident	28:5	d
 Punct	28:6	.
 Ident	28:7	draw
@@ -121,7 +127,9 @@ Ident	32:32	d
 Punct	32:33	:
 Ident	32:35	T
 Punct	32:36	)
-Punct	32:38	{
+Op	32:38	->
+Ident	32:41	none
+Punct	32:46	{
 Ident	33:5	d
 Punct	33:6	.
 Ident	33:7	draw
@@ -133,7 +141,9 @@ Ident	36:1	def
 Ident	36:5	main
 Punct	36:9	(
 Punct	36:10	)
-Punct	36:12	{
+Op	36:12	->
+Ident	36:15	none
+Punct	36:20	{
 Ident	37:5	c
 Op	37:7	=
 Ident	37:9	Circle
@@ -155,7 +165,7 @@ Punct	39:18	)
 Punct	39:19	;
 Punct	40:1	}
 Eof	41:1	
-<ROOT>/examples/13_traits_dispatch.kn: OK (155 tokens)
+<ROOT>/examples/13_traits_dispatch.kn: OK (165 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

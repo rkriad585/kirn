@@ -545,6 +545,7 @@ std::string tyName(const sema::TyP& t) {
         case sema::TyK::Bool:     return "bool";
         case sema::TyK::Char:     return t->name.empty() ? "char" : t->name;
         case sema::TyK::Str:      return "str";
+        case sema::TyK::Bytes:    return "bytes";
         case sema::TyK::None:     return "none";
         case sema::TyK::Unknown:  return "any";
         case sema::TyK::Error:    return "error";

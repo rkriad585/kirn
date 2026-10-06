@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/05_loops_ranges.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "total"

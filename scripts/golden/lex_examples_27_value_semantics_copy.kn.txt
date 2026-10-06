@@ -16,7 +16,9 @@ Ident	7:1	def
 Ident	7:5	main
 Punct	7:9	(
 Punct	7:10	)
-Punct	7:12	{
+Op	7:12	->
+Ident	7:15	none
+Punct	7:20	{
 Ident	8:5	s1
 Op	8:8	=
 Ident	8:10	Sensor
@@ -102,7 +104,7 @@ Punct	21:25	)
 Punct	21:26	;
 Punct	22:1	}
 Eof	23:1	
-<ROOT>/examples/27_value_semantics_copy.kn: OK (102 tokens)
+<ROOT>/examples/27_value_semantics_copy.kn: OK (104 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

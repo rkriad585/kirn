@@ -23,7 +23,7 @@
 {.def DEEP. "nested off".}
 {.endif.}
 {.endif.}
-def main() {
+def main() -> none {
   print(LABEL);
   print(OTHER);
   print(MATH);

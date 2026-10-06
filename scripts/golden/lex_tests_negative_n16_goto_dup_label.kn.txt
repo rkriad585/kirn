@@ -3,7 +3,9 @@ Ident	2:1	def
 Ident	2:5	main
 Punct	2:9	(
 Punct	2:10	)
-Punct	2:12	{
+Op	2:12	->
+Ident	2:15	none
+Punct	2:20	{
 Ident	3:5	goto
 Ident	3:10	dup
 Punct	3:13	;
@@ -23,7 +25,7 @@ Punct	7:14	)
 Punct	7:15	;
 Punct	8:1	}
 Eof	9:1	
-<ROOT>/tests/negative/n16_goto_dup_label.kn: OK (23 tokens)
+<ROOT>/tests/negative/n16_goto_dup_label.kn: OK (25 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

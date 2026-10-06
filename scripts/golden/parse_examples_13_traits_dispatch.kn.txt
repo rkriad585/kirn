@@ -11,6 +11,7 @@ StructDef "Circle"
   Field "r" : f64
   FuncDef "draw"
     Param "self" self : <inferred>
+    Ret none
     Body
       ExprStmt
         Value 
@@ -27,6 +28,7 @@ StructDef "Circle"
 ImplDef Drawable for Circle
   FuncDef "draw"
     Param "self" self : <inferred>
+    Ret none
     Body
       ExprStmt
         Value 
@@ -48,6 +50,7 @@ ImplDef Drawable for Circle
         Value Str "circle"
 FuncDef "render"
   Param "d" : Drawable
+  Ret none
   Body
     ExprStmt
       Value 
@@ -67,6 +70,7 @@ FuncDef "render"
                     Obj Ident "d"
 FuncDef "render_fast" generics=[T is Drawable]
   Param "d" : T
+  Ret none
   Body
     ExprStmt
       Value 
@@ -75,6 +79,7 @@ FuncDef "render_fast" generics=[T is Drawable]
             Member name="draw"
               Obj Ident "d"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "c"

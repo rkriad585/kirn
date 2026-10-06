@@ -8,11 +8,11 @@ class Widget {
     def size(self) -> int { return self.w * 2; }
 }
 
-def show(v: any) {
+def show(v: any) -> none {
     print("show(" + repr(v) + ")");
 }
 
-def main() {
+def main() -> none {
     var a: any = 5;
     a = "hi";
     print("a = " + str(a));

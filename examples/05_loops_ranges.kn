@@ -1,5 +1,5 @@
 # 05 — Loops & ranges                     (plan §5.6)
-def main() {
+def main() -> none {
     total = 0;
     for i in 0..=10 { # inclusive range: 11 values
         total += i;

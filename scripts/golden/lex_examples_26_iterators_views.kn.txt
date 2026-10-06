@@ -59,7 +59,9 @@ Ident	18:1	def
 Ident	18:5	main
 Punct	18:9	(
 Punct	18:10	)
-Punct	18:12	{
+Op	18:12	->
+Ident	18:15	none
+Punct	18:20	{
 Ident	19:5	r
 Op	19:7	=
 Ident	19:9	Range
@@ -139,7 +141,7 @@ Punct	26:16	)
 Punct	26:17	;
 Punct	27:1	}
 Eof	28:1	
-<ROOT>/examples/26_iterators_views.kn: OK (139 tokens)
+<ROOT>/examples/26_iterators_views.kn: OK (141 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -79,9 +79,14 @@ KEYWORD         = "def"    | "fn"    | "var"   | "let"   | "if"    | "elif"
    prelude — list[int], gen[T], result[T, E], option[int] / int?, any /
    dynamic all parse through base_type.                                     *)
 
-PRIMITIVE_TYPE_NAME = "int" | "i8" | "i16" | "i32" | "i64"
-                    | "u8" | "u16" | "u32" | "u64" | "usize" | "isize"
-                    | "f32" | "f64" | "bool" | "char" | "string" | "bytes" ;
+PRIMITIVE_TYPE_NAME = "int" | "i4" | "i8" | "i16" | "i32" | "i64"
+                    | "i128" | "i256" | "isize" | "usize"
+                    | "u4" | "u8" | "u16" | "u32" | "u64" | "u128" | "u256"
+                    | "f4" | "f8" | "f16" | "f32" | "f64" | "f128" | "f256"
+                    | "uf4" | "uf8" | "uf16" | "uf32" | "uf64" | "uf128" | "uf256"
+                    | "b8" | "b16" | "b32"
+                    | "char8" | "char16" | "char32"
+                    | "bool" | "char" | "string" | "str" | "strings" | "void" | "bytes" ;
 
 
 (* --- Literals ------------------------------------------------------------- *)

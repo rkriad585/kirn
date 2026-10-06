@@ -10,6 +10,7 @@ FuncDef "strlen" extern
   Body
 FuncDef "print_message"
   Param "msg" : string
+  Ret none
   Body
     Unsafe
       ExprStmt
@@ -35,6 +36,7 @@ FuncDef "print_message"
                           Member name="c_ptr"
                             Obj Ident "msg"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "msg"

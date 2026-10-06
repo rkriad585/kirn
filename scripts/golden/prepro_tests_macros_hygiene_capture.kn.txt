@@ -3,7 +3,9 @@ Ident	7:1	def
 Ident	7:5	main
 Punct	7:9	(
 Punct	7:10	)
-Punct	7:12	{
+Op	7:12	->
+Ident	7:15	none
+Punct	7:20	{
 Ident	8:3	helper
 Op	8:10	=
 Int	8:12	100
@@ -17,5 +19,5 @@ Punct	9:21	)
 Punct	9:22	;
 Punct	10:1	}
 Eof	10:1	
-<ROOT>/tests/macros/hygiene_capture.kn: OK (17 tokens)
+<ROOT>/tests/macros/hygiene_capture.kn: OK (19 tokens)
 [exit 0]

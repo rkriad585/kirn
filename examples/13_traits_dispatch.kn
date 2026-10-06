@@ -9,13 +9,13 @@ trait Drawable {
 struct Circle {
     r: f64;
 
-    def draw(self) { # inherent method on the struct itself
+    def draw(self) -> none { # inherent method on the struct itself
         print(f"inherent draw r={self.r}");
 
 }
 }
 impl Drawable for Circle { # trait impl provides dispatch methods
-    def draw(self) {
+    def draw(self) -> none {
         print(f"circle r={self.r}");
 
 }
@@ -24,16 +24,16 @@ impl Drawable for Circle { # trait impl provides dispatch methods
 
 }
 }
-def render(d: Drawable) { # DYNAMIC dispatch via trait object
+def render(d: Drawable) -> none { # DYNAMIC dispatch via trait object
     d.draw();
     print(d.name());
 
 }
-def render_fast[T is Drawable](d: T) { # STATIC dispatch via monomorphization
+def render_fast[T is Drawable](d: T) -> none { # STATIC dispatch via monomorphization
     d.draw();
 
 }
-def main() {
+def main() -> none {
     c = Circle(r: 2.5);
     render(c);
     render_fast(c);

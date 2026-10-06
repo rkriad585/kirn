@@ -6,7 +6,7 @@
 def empty_list[T = int]() -> list[T] {
     return [];
 }
-def main() {
+def main() -> none {
     a = empty_list();          # defaults T = int => list[int]
     print(len(a));
 }

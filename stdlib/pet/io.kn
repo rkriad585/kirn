@@ -19,7 +19,7 @@ pub def read_file(path: string) -> string {
 }
 
 # Append data to the end of a file (creating it if needed).
-pub def append_file(path: string, data: string) {
+pub def append_file(path: string, data: string) -> none {
     f = priv_open(path);
     f.write(data);
     f.close();

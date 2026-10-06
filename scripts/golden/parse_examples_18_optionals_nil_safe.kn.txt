@@ -32,6 +32,7 @@ FuncDef "find"
     Return
       Value Ident "none"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "hit"

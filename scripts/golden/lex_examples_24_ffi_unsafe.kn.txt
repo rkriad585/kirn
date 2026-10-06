@@ -33,7 +33,9 @@ Ident	5:19	msg
 Punct	5:22	:
 Ident	5:24	string
 Punct	5:30	)
-Punct	5:32	{
+Op	5:32	->
+Ident	5:35	none
+Punct	5:40	{
 Ident	6:5	unsafe
 Punct	6:12	{
 Ident	7:9	printf
@@ -62,7 +64,9 @@ Ident	11:1	def
 Ident	11:5	main
 Punct	11:9	(
 Punct	11:10	)
-Punct	11:12	{
+Op	11:12	->
+Ident	11:15	none
+Punct	11:20	{
 Ident	13:5	msg
 Op	13:9	=
 Str	13:11	Hello from Kirn!
@@ -88,7 +92,7 @@ Punct	17:22	)
 Punct	17:23	;
 Punct	18:1	}
 Eof	19:1	
-<ROOT>/examples/24_ffi_unsafe.kn: OK (88 tokens)
+<ROOT>/examples/24_ffi_unsafe.kn: OK (92 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

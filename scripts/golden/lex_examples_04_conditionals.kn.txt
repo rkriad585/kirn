@@ -47,7 +47,9 @@ Ident	14:1	def
 Ident	14:5	main
 Punct	14:9	(
 Punct	14:10	)
-Punct	14:12	{
+Op	14:12	->
+Ident	14:15	none
+Punct	14:20	{
 Ident	15:5	score
 Op	15:11	=
 Int	15:13	83
@@ -93,7 +95,7 @@ Punct	21:45	)
 Punct	21:46	;
 Punct	22:1	}
 Eof	23:1	
-<ROOT>/examples/04_conditionals.kn: OK (93 tokens)
+<ROOT>/examples/04_conditionals.kn: OK (95 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

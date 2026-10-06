@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n10_temp_exhausted.kn
 FuncDef "main"
+  Ret none
   Body
     TempDecl 't' x2
       Type

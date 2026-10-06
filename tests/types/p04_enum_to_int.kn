@@ -7,7 +7,7 @@ enum Status {
     Running(pid: int),
     Failed(code: int),
 }
-def main() {
+def main() -> none {
     print(Direction.North.to_int());
     print(Direction.East.to_int());
     print(Direction.South.to_int());

@@ -259,19 +259,21 @@ Ident	54:17	n
 Punct	54:18	:
 Ident	54:20	Named
 Punct	54:25	)
-Punct	54:36	{
-Ident	54:38	print
-Punct	54:43	(
-Str	54:44	  render_name -> 
-Op	54:64	+
-Ident	54:66	n
-Punct	54:67	.
-Ident	54:68	name
-Punct	54:72	(
+Op	54:27	->
+Ident	54:30	none
+Punct	54:35	{
+Ident	54:37	print
+Punct	54:42	(
+Str	54:43	  render_name -> 
+Op	54:63	+
+Ident	54:65	n
+Punct	54:66	.
+Ident	54:67	name
+Punct	54:71	(
+Punct	54:72	)
 Punct	54:73	)
-Punct	54:74	)
-Punct	54:75	;
-Punct	54:77	}
+Punct	54:74	;
+Punct	54:76	}
 Ident	55:1	def
 Ident	55:5	get_volume
 Punct	55:15	(
@@ -294,7 +296,9 @@ Ident	57:1	def
 Ident	57:5	main
 Punct	57:9	(
 Punct	57:10	)
-Punct	57:12	{
+Op	57:12	->
+Ident	57:15	none
+Punct	57:20	{
 Ident	58:5	d
 Op	58:7	=
 Ident	58:9	Dog
@@ -531,7 +535,7 @@ Punct	82:46	)
 Punct	82:47	;
 Punct	83:1	}
 Eof	83:2	
-<ROOT>/examples/36_oop.kn: OK (531 tokens)
+<ROOT>/examples/36_oop.kn: OK (535 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

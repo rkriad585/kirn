@@ -22,7 +22,7 @@ def render(s: Status) -> string { # compiler ENFORCES all variants covered
 }
 }
 }
-def main() {
+def main() -> none {
     states = [Status.Idle, Status.Running(pid: 42), Status.Failed(code: 404, msg: "not found")];
     for s in states {
         print(render(s));

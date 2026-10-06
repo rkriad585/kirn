@@ -1,5 +1,5 @@
 # expect: goto: label 'missing' is not declared in this block or an enclosing block
-def main() {
+def main() -> none {
     goto missing;
     print("never");
 }

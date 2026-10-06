@@ -10,4 +10,4 @@ def find(xs: list) -> int {
 found:
     return i;
 }
-def main() { print(find([1, 2, 7, 3])); }
+def main() -> none { print(find([1, 2, 7, 3])); }

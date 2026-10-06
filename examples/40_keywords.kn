@@ -9,12 +9,12 @@ var counter = 0;                                  # module-top-level global
 
 class Gadget { var label: string = ""; var n: int = 0; }
 
-def bump(by) {
+def bump(by) -> none {
     global counter;
     counter = counter + by;
 }
 
-def main() {
+def main() -> none {
     # ---- None type
     var nada: None = none;
     print("None=" + str(nada));

@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/43_nested_constructs.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "n"

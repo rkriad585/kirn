@@ -33,7 +33,9 @@ Ident	11:10	v
 Punct	11:11	:
 Ident	11:13	any
 Punct	11:16	)
-Punct	11:18	{
+Op	11:18	->
+Ident	11:21	none
+Punct	11:26	{
 Ident	12:5	print
 Punct	12:10	(
 Str	12:11	show(
@@ -51,7 +53,9 @@ Ident	15:1	def
 Ident	15:5	main
 Punct	15:9	(
 Punct	15:10	)
-Punct	15:12	{
+Op	15:12	->
+Ident	15:15	none
+Punct	15:20	{
 Ident	16:5	var
 Ident	16:9	a
 Punct	16:10	:
@@ -163,7 +167,7 @@ Punct	32:16	)
 Punct	32:17	;
 Punct	33:1	}
 Eof	33:2	
-<ROOT>/examples/37_dynamic_any.kn: OK (163 tokens)
+<ROOT>/examples/37_dynamic_any.kn: OK (167 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

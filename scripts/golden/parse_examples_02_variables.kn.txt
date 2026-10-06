@@ -3,6 +3,7 @@ ConstDecl
   Target Ident "MAX_USERS"
   Value Int "1000"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "x"

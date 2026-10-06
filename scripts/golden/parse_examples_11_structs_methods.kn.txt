@@ -34,6 +34,7 @@ StructDef "Point"
     Param "self" self : <inferred>
     Param "dx" : f64
     Param "dy" : f64
+    Ret none
     Body
       AugAssign op="+="
         Target 
@@ -46,6 +47,7 @@ StructDef "Point"
             Obj Ident "self"
         Value Ident "dy"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "origin"

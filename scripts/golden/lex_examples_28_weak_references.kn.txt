@@ -24,7 +24,9 @@ Ident	8:1	def
 Ident	8:5	main
 Punct	8:9	(
 Punct	8:10	)
-Punct	8:12	{
+Op	8:12	->
+Ident	8:15	none
+Punct	8:20	{
 Ident	9:5	parent
 Op	9:12	=
 Ident	9:14	new
@@ -99,7 +101,7 @@ Punct	25:28	)
 Punct	25:29	;
 Punct	26:1	}
 Eof	27:1	
-<ROOT>/examples/28_weak_references.kn: OK (99 tokens)
+<ROOT>/examples/28_weak_references.kn: OK (101 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -1,7 +1,7 @@
 # stdlib/pet/os_test.kn - tests for pet.os.
 import pet.os;
 
-def main() {
+def main() -> none {
     # args() is a list of program arguments; runners pass none by default.
     args = os.args();
     assert(args.len() >= 0);

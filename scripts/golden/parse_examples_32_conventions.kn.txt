@@ -3,6 +3,7 @@ Import greet
 Import greet as via
 Import greet as again
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

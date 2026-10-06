@@ -14,7 +14,9 @@ Ident	6:1	def
 Ident	6:5	main
 Punct	6:9	(
 Punct	6:10	)
-Punct	6:12	{
+Op	6:12	->
+Ident	6:15	none
+Punct	6:20	{
 Ident	7:5	print
 Punct	7:10	(
 Ident	7:11	gen
@@ -24,7 +26,7 @@ Punct	7:16	)
 Punct	7:17	;
 Punct	8:1	}
 Eof	8:2	
-<ROOT>/tests/negative/n14_yield_wrong_ret.kn: OK (24 tokens)
+<ROOT>/tests/negative/n14_yield_wrong_ret.kn: OK (26 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

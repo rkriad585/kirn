@@ -8,7 +8,7 @@
 #   doGatherSum=21
 #   gotoOut=3
 
-def main() {
+def main() -> none {
     # nested if / elif / else (two levels)
     n = 60;
     if n > 100 { n = 1; }

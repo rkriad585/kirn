@@ -1,5 +1,5 @@
 # expect: temp 't' exhausted (2 uses)
-def main() {
+def main() -> none {
     temp t 2: int = 5;
     a = t;
     b = t;

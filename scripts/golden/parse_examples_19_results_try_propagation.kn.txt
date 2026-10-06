@@ -59,6 +59,7 @@ FuncDef "read_config"
     Return
       Value Ident "port"
 FuncDef "main"
+  Ret none
   Body
     Match
       Subject 

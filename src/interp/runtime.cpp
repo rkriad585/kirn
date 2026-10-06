@@ -782,6 +782,9 @@ void Interpreter::installBuiltins() {
             return Value::integer((int64_t)(unsigned char)a[0].s[0]);
         panicHere("ord() expects a char");
     });
+    globals_->vars["typeof"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        return Value::str(typeName(a[0]));
+    });
     globals_->vars["chr"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[0].k == VK::Int ? a[0].i : 0;
         return Value::chr((char32_t)n);
@@ -1945,14 +1948,22 @@ bool Interpreter::isCmpOp(const std::string& op) {
 
 static bool typeTestMatches(const Value& v, const std::string& t) {
     if (t == "none") return v.k == VK::None;
-    if (t == "string") return v.k == VK::Str;
+    if (t == "string" || t == "str" || t == "strings") return v.k == VK::Str;
     if (t == "bytes") return v.k == VK::Bytes;
-    if (t == "char") return v.k == VK::Char;
-    if (t == "bool") return v.k == VK::Bool;
-    if (t == "int" || t == "i8" || t == "i16" || t == "i32" || t == "i64" ||
-        t == "u8" || t == "u16" || t == "u32" || t == "u64" || t == "usize")
+    if (t == "char" || t == "char8" || t == "char16" || t == "char32")
+        return v.k == VK::Char;
+    if (t == "bool" || t == "b8" || t == "b16" || t == "b32")
+        return v.k == VK::Bool;
+    if (t == "int" || t == "i4" || t == "i8" || t == "i16" || t == "i32" ||
+        t == "i64" || t == "i128" || t == "i256" ||
+        t == "u4" || t == "u8" || t == "u16" || t == "u32" || t == "u64" ||
+        t == "u128" || t == "u256" || t == "usize" || t == "isize")
         return v.k == VK::Int;
-    if (t == "float" || t == "f32" || t == "f64") return v.k == VK::Float;
+    if (t == "float" || t == "f4" || t == "f8" || t == "f16" || t == "f32" ||
+        t == "f64" || t == "f128" || t == "f256" || t == "uf4" || t == "uf8" ||
+        t == "uf16" || t == "uf32" || t == "uf64" || t == "uf128" ||
+        t == "uf256")
+        return v.k == VK::Float;
     if (t == "list") return v.k == VK::List;
     if (t == "dict") return v.k == VK::Dict;
     if (t == "set")  return v.k == VK::Set;
@@ -2433,17 +2444,22 @@ Value cv = eval(*e.lhs, env);
                 if (v.k == VK::Char) return Value::integer((int64_t)v.ch);
                 return v;
             }
-            if (t == "float" || t == "f32" || t == "f64")
+            if (t == "float" || t == "f32" || t == "f64" || t == "f4" ||
+                t == "f8" || t == "f16" || t == "f128" || t == "f256" ||
+                t == "uf4" || t == "uf8" || t == "uf16" || t == "uf32" ||
+                t == "uf64" || t == "uf128" || t == "uf256")
                 return Value::floating(v.k == VK::Int ? (double)v.i
                                                       : v.k == VK::Float ? v.d
                                                                          : 0.0);
-            if (t == "bool") return Value::boolean(truthy(v));
+            if (t == "bool" || t == "b8" || t == "b16" || t == "b32")
+                return Value::boolean(truthy(v));
             if (v.k == VK::None && t == "none") return v;
-            if ((t == "i8" || t == "i16" || t == "i32" || t == "u8" ||
-                 t == "u16" || t == "u32") &&
+            if ((t == "i4" || t == "i8" || t == "i16" || t == "i32" ||
+                 t == "u4" || t == "u8" || t == "u16" || t == "u32") &&
                 v.k == VK::Int) {
-                int bits = t == "i8" ? 8 : t == "i16" ? 16 : t == "i32" ? 32
-                                       : t == "u8" ? 8 : t == "u16" ? 16 : 32;
+                int bits = t == "i4" || t == "u4" ? 4
+                                      : t == "i8" || t == "u8" ? 8
+                                      : t == "i16" || t == "u16" ? 16 : 32;
                 uint64_t mask = bits == 64 ? ~0ull : (1ull << bits) - 1;
                 return Value::integer((int64_t)((uint64_t)v.i & mask));
             }
@@ -4708,7 +4724,7 @@ void Interpreter::enableVm() {
         "catch_panic","printf","strlen","str","int","float","bool","type","sum",
         "min","max","any","all","sorted","reversed","enumerate","map","filter",
         "reduce","upper","lower","trim","contains","starts_with","ends_with",
-        "replace","split","join",
+        "replace","split","join","typeof",
     };
     std::unordered_set<std::string> mod = {
         "math","time","io","mem","json","text","os",

@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n15_goto_undefined.kn
 FuncDef "main"
+  Ret none
   Body
     Goto 'missing'
     ExprStmt

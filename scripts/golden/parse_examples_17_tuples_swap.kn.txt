@@ -22,6 +22,7 @@ FuncDef "minmax"
                         Value Ident "xs"
                   Rhs Int "1"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "point"

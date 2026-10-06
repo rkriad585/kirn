@@ -123,7 +123,9 @@ Ident	26:5	def
 Ident	26:9	main
 Punct	26:13	(
 Punct	26:14	)
-Punct	26:16	{
+Op	26:16	->
+Ident	26:19	none
+Punct	26:24	{
 Ident	27:5	print
 Punct	27:10	(
 Ident	27:11	classify
@@ -381,7 +383,7 @@ Punct	73:17	)
 Punct	73:18	;
 Punct	74:1	}
 Eof	75:1	
-<ROOT>/examples/31_advanced_patterns.kn: OK (381 tokens)
+<ROOT>/examples/31_advanced_patterns.kn: OK (383 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

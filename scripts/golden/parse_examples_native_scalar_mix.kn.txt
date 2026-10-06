@@ -70,6 +70,7 @@ FuncDef "powf"
     Return
       Value Ident "r"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "evens"

@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/08_comprehensions.kn
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "nums"

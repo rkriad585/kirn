@@ -1,4 +1,4 @@
-def main() {
+def main() -> none {
     c = "H"[0];
     print(ord(c) >= ord('A'), ord(c) <= ord('Z'));
     print(ord('0') <= ord(c), ord('a') < ord('b'));

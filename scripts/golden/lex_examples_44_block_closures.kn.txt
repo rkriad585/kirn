@@ -46,7 +46,14 @@ Ident	21:5	makeScaler
 Punct	21:15	(
 Ident	21:16	factor
 Punct	21:22	)
-Punct	21:24	{
+Op	21:24	->
+Ident	21:27	fn
+Punct	21:29	(
+Ident	21:30	int
+Punct	21:33	)
+Op	21:35	->
+Ident	21:38	int
+Punct	21:42	{
 Ident	22:5	return
 Ident	22:12	fn
 Punct	22:15	(
@@ -69,7 +76,9 @@ Ident	25:1	def
 Ident	25:5	main
 Punct	25:9	(
 Punct	25:10	)
-Punct	25:12	{
+Op	25:12	->
+Ident	25:15	none
+Punct	25:20	{
 Ident	27:5	ys
 Op	27:8	=
 Ident	27:10	dmap
@@ -387,7 +396,7 @@ Punct	73:32	)
 Punct	73:33	;
 Punct	74:1	}
 Eof	74:2	
-<ROOT>/examples/44_block_closures.kn: OK (387 tokens)
+<ROOT>/examples/44_block_closures.kn: OK (396 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

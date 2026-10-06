@@ -1,12 +1,12 @@
 # 22 — Concurrency: spawn, channels, join   (plan §7)
-def worker(jobs: chan[int], done: chan[int]) {
+def worker(jobs: chan[int], done: chan[int]) -> none {
     for j in jobs { # recv loop until channel closes
         done.send(j);
 
 }
 
 }
-def main() {
+def main() -> none {
     jobs = chan[int](cap: 8); # buffered channel
     done = chan[int](); # unbuffered
 

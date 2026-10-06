@@ -1,6 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/23_select_multiplex.kn
 FuncDef "slow_producer"
   Param "ch" : chan[string]
+  Ret none
   Body
     ExprStmt
       Value 
@@ -19,6 +20,7 @@ FuncDef "slow_producer"
           Arg
             Value Str "late value"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "ch"

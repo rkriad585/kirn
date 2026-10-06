@@ -2,13 +2,13 @@
 extern def printf(fmt: *char, ...) -> i32; # C library symbol, linked at build
 extern def strlen(s: *char) -> usize;
 
-def print_message(msg: string) { # safe wrapper around unsafe core
+def print_message(msg: string) -> none { # safe wrapper around unsafe core
     unsafe {
         printf(c"%s (len=%zu)\n", msg.c_ptr(), strlen(msg.c_ptr()));
 
 }
 }
-def main() {
+def main() -> none {
     # raw pointers may only be TOUCHED inside `unsafe:` blocks:
     msg = "Hello from Kirn!";
     unsafe {

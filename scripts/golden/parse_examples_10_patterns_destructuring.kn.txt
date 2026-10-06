@@ -43,6 +43,7 @@ FuncDef "area"
           Return
             Value Int "0"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "p"

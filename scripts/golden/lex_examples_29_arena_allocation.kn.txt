@@ -3,7 +3,9 @@ Ident	2:1	def
 Ident	2:5	render_frame
 Punct	2:17	(
 Punct	2:18	)
-Punct	2:20	{
+Op	2:20	->
+Ident	2:23	none
+Punct	2:28	{
 Ident	3:5	arena
 Op	3:11	=
 Ident	3:13	mem
@@ -67,7 +69,9 @@ Ident	15:1	def
 Ident	15:5	main
 Punct	15:9	(
 Punct	15:10	)
-Punct	15:12	{
+Op	15:12	->
+Ident	15:15	none
+Punct	15:20	{
 Ident	16:5	render_frame
 Punct	16:17	(
 Punct	16:18	)
@@ -79,7 +83,7 @@ Punct	17:51	)
 Punct	17:52	;
 Punct	18:1	}
 Eof	19:1	
-<ROOT>/examples/29_arena_allocation.kn: OK (79 tokens)
+<ROOT>/examples/29_arena_allocation.kn: OK (83 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

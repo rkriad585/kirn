@@ -8,7 +8,7 @@ def risky(n: int) -> int {
     return n * n;
 }
 
-def main() {
+def main() -> none {
     # catchable error, message bound to `e`
     try {
         print(risky(-1));

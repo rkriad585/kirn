@@ -5,7 +5,7 @@
 {.def SQR(x) = x * x.}
 {.def BLOCK() = { 1 }.}
 {.def FLOATISH. 1.5.}
-def main() {
+def main() -> none {
   print(LIMIT);
   print(ANSWER);
   print(SQR(7));

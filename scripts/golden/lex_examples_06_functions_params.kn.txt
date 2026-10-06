@@ -28,7 +28,9 @@ Ident	6:17	string
 Op	6:24	=
 Str	6:26	world
 Punct	6:33	)
-Punct	6:35	{
+Op	6:35	->
+Ident	6:38	none
+Punct	6:43	{
 Ident	7:5	print
 Punct	7:10	(
 FStr#	7:11	f"
@@ -107,7 +109,9 @@ Ident	22:1	def
 Ident	22:5	main
 Punct	22:9	(
 Punct	22:10	)
-Punct	22:12	{
+Op	22:12	->
+Ident	22:15	none
+Punct	22:20	{
 Ident	23:5	greet
 Punct	23:10	(
 Punct	23:11	)
@@ -160,7 +164,7 @@ Punct	26:39	)
 Punct	26:40	;
 Punct	27:1	}
 Eof	28:1	
-<ROOT>/examples/06_functions_params.kn: OK (160 tokens)
+<ROOT>/examples/06_functions_params.kn: OK (164 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

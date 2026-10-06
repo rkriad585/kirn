@@ -1,5 +1,5 @@
 # 03 — Literals & checked casts           (plan §5.1, §5.4)
-def main() {
+def main() -> none {
     big: i64 = 9_000_000_000; # digit separators
     tiny: i8 = 127;
     mask: u32 = 0xFF_FF; # hex literal

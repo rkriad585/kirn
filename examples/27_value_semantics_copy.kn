@@ -4,7 +4,7 @@ struct Sensor {
     var reading: f64; # mutable field
 
 }
-def main() {
+def main() -> none {
     s1 = Sensor(id: 1, reading: 20.5);
     s2 = s1; # FULL COPY — bytes duplicated, no aliasing
 

@@ -3,7 +3,9 @@ Ident	5:1	def
 Ident	5:5	main
 Punct	5:9	(
 Punct	5:10	)
-Punct	5:12	{
+Op	5:12	->
+Ident	5:15	none
+Punct	5:20	{
 Ident	9:3	print
 Punct	9:8	(
 Str	9:9	feature off
@@ -16,5 +18,5 @@ Punct	12:18	)
 Punct	12:19	;
 Punct	14:1	}
 Eof	14:1	
-<ROOT>/tests/macros/cmdline.kn: OK (16 tokens)
+<ROOT>/tests/macros/cmdline.kn: OK (18 tokens)
 [exit 0]

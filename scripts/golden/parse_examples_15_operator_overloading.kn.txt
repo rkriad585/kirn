@@ -71,6 +71,7 @@ ImplDef Index for Grid
                 Obj Ident "self"
             At Ident "i"
 FuncDef "main"
+  Ret none
   Body
     Assign
       Target Ident "a"

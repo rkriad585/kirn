@@ -3,6 +3,6 @@ def gen() -> int {
     yield 1;
 }
 
-def main() {
+def main() -> none {
     print(gen());
 }

@@ -33,6 +33,7 @@ FuncDef "describe"
           Return
             Value Str "many"
 FuncDef "main"
+  Ret none
   Body
     ExprStmt
       Value 

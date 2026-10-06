@@ -45,12 +45,27 @@ static const char* cppTy(const TyP& t) {
 static TyP declTy(const ast::TypeP& t) {
     if (!t || t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
-    if (n == "int" || n == "i8" || n == "i16" || n == "i32" || n == "i64" ||
-        n == "u8" || n == "u16" || n == "u32" || n == "u64" || n == "usize" ||
-        n == "isize")
-        return sema::intTy();
-    if (n == "float" || n == "f32" || n == "f64") return sema::floatTy();
+    static const char* kInts[] = {"i4", "i8", "i16", "i32", "i64", "i128",
+                                  "i256", "u4", "u8", "u16", "u32", "u64",
+                                  "u128", "u256", "isize", "usize", nullptr};
+    for (int i = 0; kInts[i]; ++i)
+        if (n == kInts[i]) return sema::intTy();
+    if (n == "int") return sema::intTy();
+    static const char* kFloats[] = {"f4", "f8", "f16", "f32", "f64", "f128",
+                                    "f256", "uf4", "uf8", "uf16", "uf32", "uf64",
+                                    "uf128", "uf256", nullptr};
+    for (int i = 0; kFloats[i]; ++i)
+        if (n == kFloats[i]) return sema::floatTy();
+    if (n == "float") return sema::floatTy();
     if (n == "bool") return sema::boolTy();
+    static const char* kBools[] = {"b8", "b16", "b32", nullptr};
+    for (int i = 0; kBools[i]; ++i)
+        if (n == kBools[i]) return sema::boolTy();
+    static const char* kChars[] = {"char8", "char16", "char32", nullptr};
+    for (int i = 0; kChars[i]; ++i)
+        if (n == kChars[i]) return sema::charTy();
+    if (n == "strings") return sema::strTy();
+    if (n == "bytes") return sema::bytesTy();
     return sema::unkTy();
 }
 

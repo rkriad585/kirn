@@ -21,7 +21,9 @@ Ident	6:5	def
 Ident	6:9	visible_everywhere
 Punct	6:27	(
 Punct	6:28	)
-Punct	6:30	{
+Op	6:30	->
+Ident	6:33	none
+Punct	6:38	{
 Ident	7:5	pass
 Punct	7:9	;
 Punct	9:1	}
@@ -29,7 +31,9 @@ Ident	10:1	def
 Ident	10:5	package_local
 Punct	10:18	(
 Punct	10:19	)
-Punct	10:21	{
+Op	10:21	->
+Ident	10:24	none
+Punct	10:29	{
 Ident	11:5	pass
 Punct	11:9	;
 Punct	13:1	}
@@ -37,7 +41,9 @@ Ident	14:1	def
 Ident	14:5	_private_helper
 Punct	14:20	(
 Punct	14:21	)
-Punct	14:23	{
+Op	14:23	->
+Ident	14:26	none
+Punct	14:31	{
 Ident	15:5	pass
 Punct	15:9	;
 Punct	17:1	}
@@ -45,7 +51,9 @@ Ident	18:1	def
 Ident	18:5	main
 Punct	18:9	(
 Punct	18:10	)
-Punct	18:12	{
+Op	18:12	->
+Ident	18:15	none
+Punct	18:20	{
 Ident	19:5	print
 Punct	19:10	(
 Ident	19:11	math
@@ -90,7 +98,7 @@ Punct	24:21	)
 Punct	24:22	;
 Punct	25:1	}
 Eof	26:1	
-<ROOT>/examples/21_modules_visibility.kn: OK (90 tokens)
+<ROOT>/examples/21_modules_visibility.kn: OK (98 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

@@ -5,7 +5,7 @@ def fib(n: int) -> int {
     return fib(n - 1) + fib(n - 2);
 }
 
-def main() {
+def main() -> none {
     total = 0;
     for i in 0..=30 {
         total += fib(i);

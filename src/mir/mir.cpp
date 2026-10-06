@@ -108,6 +108,7 @@ Ty mapTy(sema::TyK k) {
         case sema::TyK::Float:    return Ty::Float;
         case sema::TyK::Char:     return Ty::Char;
         case sema::TyK::Str:      return Ty::Str;
+        case sema::TyK::Bytes:    return Ty::Bytes;
         case sema::TyK::List:     return Ty::List;
         case sema::TyK::Dict:     return Ty::Dict;
         case sema::TyK::Set:      return Ty::Set;

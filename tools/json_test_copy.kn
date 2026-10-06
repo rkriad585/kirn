@@ -1,5 +1,5 @@
 import pet.json;
-def main() {
+def main() -> none {
     o = {};
     o["name"] = "coco";
     o["n"] = 42;

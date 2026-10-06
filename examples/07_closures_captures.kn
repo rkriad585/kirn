@@ -1,5 +1,5 @@
 # 07 — Closures & captures               (plan §5.5 · grammar §4 note 10)
-def make_counter() {
+def make_counter() -> fn() -> int {
     count = 0; # captured by reference (boxed if it escapes)
     def tick() -> int { # nested named closure
         count += 1;
@@ -8,7 +8,7 @@ def make_counter() {
     return tick;
 
 }
-def main() {
+def main() -> none {
     square = (x) => x * x; # single-expression lambda
     shout = (s) => f"{s.upper()}!";
 

@@ -6,7 +6,9 @@ Ident	2:13	path
 Punct	2:17	:
 Ident	2:19	string
 Punct	2:25	)
-Punct	2:27	{
+Op	2:27	->
+Ident	2:30	none
+Punct	2:35	{
 Ident	3:5	f
 Op	3:7	=
 Ident	3:9	io
@@ -80,7 +82,9 @@ Ident	20:1	def
 Ident	20:5	main
 Punct	20:9	(
 Punct	20:10	)
-Punct	20:12	{
+Op	20:12	->
+Ident	20:15	none
+Punct	20:20	{
 Ident	21:5	process
 Punct	21:12	(
 Str	21:13	data.txt
@@ -136,7 +140,7 @@ Punct	31:1	}
 Punct	32:1	}
 Punct	33:1	}
 Eof	34:1	
-<ROOT>/examples/20_defer_panic.kn: OK (136 tokens)
+<ROOT>/examples/20_defer_panic.kn: OK (140 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

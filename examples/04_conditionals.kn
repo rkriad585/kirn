@@ -11,7 +11,7 @@ def grade(score: int) -> string {
 
 }
 }
-def main() {
+def main() -> none {
     score = 83;
     letter = grade(score);
 

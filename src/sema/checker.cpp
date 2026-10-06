@@ -26,11 +26,12 @@ std::string toString(const Ty& t) {
         case TyK::Error:   return "<error>";
         case TyK::Unknown: return "<unknown>";
         case TyK::None:    return "none";
-        case TyK::Bool:    return "bool";
+        case TyK::Bool:    return t.name.empty() ? "bool" : t.name;
         case TyK::Int:     return t.name.empty() ? "int" : t.name;
         case TyK::Float:   return t.name.empty() ? "float" : t.name;
-        case TyK::Str:     return "string";
-        case TyK::Char:    return "char";
+        case TyK::Str:     return t.name.empty() ? "string" : t.name;
+        case TyK::Char:    return t.name.empty() ? "char" : t.name;
+        case TyK::Bytes:   return "bytes";
         case TyK::List:    return t.args.empty() ? "list" : "list[" + toString(*t.args[0]) + "]";
         case TyK::Dict:
             return t.args.size() < 2
@@ -430,6 +431,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("float", {unkTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("bool", {unkTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("type", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("typeof", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("repr", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("sum", {unkTy()}, {"xs"}, unkTy(), false, 1);
     makeBuiltinFunc("min", {unkTy()}, {"xs"}, unkTy(), false, 1);
@@ -861,17 +863,40 @@ TyP Checker::resolveType(const ast::TypeP& t) {
 
             // scalar spellings
             if (n == "bool")   return boolTy();
-            if (n == "string") return strTy();
+            if (n == "string" || n == "str") return strTy();
             if (n == "char")   return charTy();
-            if (n == "none" || n == "unit" || n == "None") return noneTy();
-            if (n == "int" || n == "f32" || n == "float")
-                return n == "int" ? intTy() : floatTy(n == "f32" ? "f32" : "f64");
-            if (n == "f64")    return floatTy("f64");
-            static const char* kIntNames[] = {"i8", "i16", "i32", "i64",
-                                              "u8", "u16", "u32", "u64",
-                                              "usize", nullptr};
+            if (n == "none" || n == "unit" || n == "None" || n == "void")
+                return noneTy();
+            if (n == "int" || n == "float")
+                return n == "int" ? intTy() : floatTy("f64");
+            // Width families are names, not separate kinds: every int width
+            // lowers to the Int kind and every float width to Float, exactly
+            // as i8/u64/f32 already do. The width is the spelling on
+            // Ty::name, carried through to diagnostics and the MIR TypeEntry.
+            // Semantics stay the trunk int64/double of the existing model;
+            // real per-width arithmetic is a later hardening step.
+            static const char* kIntNames[] = {
+                "i4", "i8", "i16", "i32", "i64", "i128", "i256",
+                "u4", "u8", "u16", "u32", "u64", "u128", "u256",
+                "isize", "usize", nullptr};
             for (int i = 0; kIntNames[i]; ++i)
                 if (n == kIntNames[i]) return intTy(n);
+            static const char* kFloatNames[] = {
+                "f4", "f8", "f16", "f32", "f64", "f128", "f256", nullptr};
+            for (int i = 0; kFloatNames[i]; ++i)
+                if (n == kFloatNames[i]) return floatTy(n);
+            static const char* kUFloatNames[] = {
+                "uf4", "uf8", "uf16", "uf32", "uf64", "uf128", "uf256", nullptr};
+            for (int i = 0; kUFloatNames[i]; ++i)
+                if (n == kUFloatNames[i]) return floatTy(n);
+            static const char* kBoolNames[] = {"b8", "b16", "b32", nullptr};
+            for (int i = 0; kBoolNames[i]; ++i)
+                if (n == kBoolNames[i]) return boolTy(n);
+            static const char* kCharNames[] = {"char8", "char16", "char32", nullptr};
+            for (int i = 0; kCharNames[i]; ++i)
+                if (n == kCharNames[i]) return charTy(n);
+            if (n == "strings") return strTy("strings");
+            if (n == "bytes")   return bytesTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -993,6 +1018,15 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     // numeric families are mutually assignable in v1
     if (kFrom == TyK::Int && kTo == TyK::Int) return true;
     if (kFrom == TyK::Float && kTo == TyK::Float) return true;
+
+    // The width families (b8/b16/b32, char8/16/32, string/str/strings,
+    // bytes) are distinct spellings of one runtime value kind, so they are
+    // mutually assignable: a `b8` variable may bind a `bool` literal, and
+    // `var s: strings = "hi";` is the same value kind as `string`.
+    if (kFrom == TyK::Bool && kTo == TyK::Bool) return true;
+    if (kFrom == TyK::Char && kTo == TyK::Char) return true;
+    if (kFrom == TyK::Str && kTo == TyK::Str) return true;
+    if (kFrom == TyK::Bytes && kTo == TyK::Bytes) return true;
 
     // none literal widens into an optional
     if (kFrom == TyK::None && kTo == TyK::Opt) return true;
@@ -2403,8 +2437,8 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
         case ExKind::Float: return floatTy();
         case ExKind::CharLit: return charTy();
         case ExKind::Str:
-            if (e.flavor == StrFlavor::C || e.flavor == StrFlavor::Byte)
-                return ptrTy(charTy());
+            if (e.flavor == StrFlavor::C) return ptrTy(charTy());
+            if (e.flavor == StrFlavor::Byte) return bytesTy();
             return strTy();
 
         case ExKind::FString:

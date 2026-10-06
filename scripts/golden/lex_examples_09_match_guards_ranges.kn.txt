@@ -52,7 +52,9 @@ Ident	19:1	def
 Ident	19:5	main
 Punct	19:9	(
 Punct	19:10	)
-Punct	19:12	{
+Op	19:12	->
+Ident	19:15	none
+Punct	19:20	{
 Ident	20:5	print
 Punct	20:10	(
 Ident	20:11	describe
@@ -88,7 +90,7 @@ Punct	23:24	)
 Punct	23:25	;
 Punct	24:1	}
 Eof	25:1	
-<ROOT>/examples/09_match_guards_ranges.kn: OK (88 tokens)
+<ROOT>/examples/09_match_guards_ranges.kn: OK (90 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

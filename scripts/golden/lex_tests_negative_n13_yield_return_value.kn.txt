@@ -3,7 +3,9 @@ Ident	2:1	def
 Ident	2:5	gen
 Punct	2:8	(
 Punct	2:9	)
-Punct	2:11	{
+Op	2:11	->
+Ident	2:14	none
+Punct	2:19	{
 Ident	3:5	yield
 Int	3:11	1
 Punct	3:12	;
@@ -15,7 +17,9 @@ Ident	7:1	def
 Ident	7:5	main
 Punct	7:9	(
 Punct	7:10	)
-Punct	7:12	{
+Op	7:12	->
+Ident	7:15	none
+Punct	7:20	{
 Ident	8:5	print
 Punct	8:10	(
 Ident	8:11	gen
@@ -29,7 +33,7 @@ Punct	8:26	)
 Punct	8:27	;
 Punct	9:1	}
 Eof	9:2	
-<ROOT>/tests/negative/n13_yield_return_value.kn: OK (29 tokens)
+<ROOT>/tests/negative/n13_yield_return_value.kn: OK (33 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

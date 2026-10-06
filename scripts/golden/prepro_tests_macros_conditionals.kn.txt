@@ -3,7 +3,9 @@ Ident	26:1	def
 Ident	26:5	main
 Punct	26:9	(
 Punct	26:10	)
-Punct	26:12	{
+Op	26:12	->
+Ident	26:15	none
+Punct	26:20	{
 Ident	27:3	print
 Punct	27:8	(
 Str	27:9	A off
@@ -21,5 +23,5 @@ Punct	29:13	)
 Punct	29:14	;
 Punct	33:1	}
 Eof	33:1	
-<ROOT>/tests/macros/conditionals.kn: OK (21 tokens)
+<ROOT>/tests/macros/conditionals.kn: OK (23 tokens)
 [exit 0]

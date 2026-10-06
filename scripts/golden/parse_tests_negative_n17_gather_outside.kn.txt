@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n17_gather_outside.kn
 FuncDef "main"
+  Ret none
   Body
     GatherItem
       Int "5"

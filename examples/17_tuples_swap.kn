@@ -3,7 +3,7 @@ def minmax(xs: list[int]) -> (int, int) { # tuple return type
     return (xs[0], xs[len(xs) - 1]);
 
 }
-def main() {
+def main() -> none {
     point = (3, 4); # tuple literal
     x, y = point; # destructuring assignment
     print(x, y);

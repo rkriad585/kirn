@@ -24,7 +24,7 @@ def area(s: Shape) -> int {
 }
 }
 }
-def main() {
+def main() -> none {
     p = Point(x: 3, y: 4);
     match p {
         case Point(x: 0, y) { # named-field pattern with literal

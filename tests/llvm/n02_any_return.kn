@@ -1,0 +1,10 @@
+# Gate 10 negative fixture: an unannotated function resolves its return type to
+# `any`, which has no scalar lowering. Rejection (non-zero exit) is required --
+# silently guessing a wide type would miscompile.
+def f(x) {
+    return x;
+}
+
+def main() -> none {
+    f(1);
+}

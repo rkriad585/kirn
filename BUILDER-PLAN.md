@@ -39,13 +39,13 @@ driver that also drives C/C++).
 
 Important reality check: several things the ask assumes **do not exist yet**.
 
-| The ask assumes…                        | Reality today                                                                                                                                                                            | Evidence                                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| LLVM backend ("Code Generation & LLVM") | **No LLVM anywhere in the repo.** The backends are (a) bundle source text into a copy of the interpreted `kirnrt`, or (b) emit a C++ launcher and shell out to `g++`/`clang++`/`cl.exe`. | `kirn_driver::buildProgram` (bundle branch) (bundle), `:2787-2811` (C++ shell-out); grep for `LLVM` = zero in `src/` |
-| A preprocessor with macros              | **None.** No `#define`, no macro table, no `__FILE__`. _The `prepro` half of this row's own grep was inaccurate: it has 3 hits, all a directory name in the driver's runtime sweep plus two error strings. The `macro` half was right — zero._ | grep `macro` = 0 hits in `src/`+`tools/` |
-| HIR / MIR / SSA / optimizer             | **None.** Closest IR is the bytecode VM (`src/vm/`), which is a _running_ VM, not a transformable IR. `ast.h:3` and `interp/runtime.h:3` say the "MIR/LLVM backend" is a _future_ goal.  | `src/vm/bytecode.h`, `src/vm/compiler.cpp`                                                                           |
-| An assembler + linker as named stages   | No assembler stage; linking is folded into one `g++`/`cl.exe` call. Only MSVC `lib.exe` is invoked explicitly.                                                                           | `kirn_driver::buildProgram`                                                                                          |
-| A `kirnc` binary                        | Stage-oracle tools already exist and are a proto-`kirnc`: `kirnlex` (tokens), `kirnparse` (AST), `kirncheck` (type-check only), `kirnrun` (type-check + interpret).                      | `CMakeLists.txt:72-82`                                                                                               |
+| The ask assumes…                        | Reality today                                                                                                                                                                                                                                  | Evidence                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| LLVM backend ("Code Generation & LLVM") | **No LLVM anywhere in the repo.** The backends are (a) bundle source text into a copy of the interpreted `kirnrt`, or (b) emit a C++ launcher and shell out to `g++`/`clang++`/`cl.exe`.                                                       | `kirn_driver::buildProgram` (bundle branch) (bundle), `:2787-2811` (C++ shell-out); grep for `LLVM` = zero in `src/` |
+| A preprocessor with macros              | **None.** No `#define`, no macro table, no `__FILE__`. _The `prepro` half of this row's own grep was inaccurate: it has 3 hits, all a directory name in the driver's runtime sweep plus two error strings. The `macro` half was right — zero._ | grep `macro` = 0 hits in `src/`+`tools/`                                                                             |
+| HIR / MIR / SSA / optimizer             | **None.** Closest IR is the bytecode VM (`src/vm/`), which is a _running_ VM, not a transformable IR. `ast.h:3` and `interp/runtime.h:3` say the "MIR/LLVM backend" is a _future_ goal.                                                        | `src/vm/bytecode.h`, `src/vm/compiler.cpp`                                                                           |
+| An assembler + linker as named stages   | No assembler stage; linking is folded into one `g++`/`cl.exe` call. Only MSVC `lib.exe` is invoked explicitly.                                                                                                                                 | `kirn_driver::buildProgram`                                                                                          |
+| A `kirnc` binary                        | Stage-oracle tools already exist and are a proto-`kirnc`: `kirnlex` (tokens), `kirnparse` (AST), `kirncheck` (type-check only), `kirnrun` (type-check + interpret).                                                                            | `CMakeLists.txt:72-82`                                                                                               |
 
 What **does** exist and is solid:
 
@@ -820,7 +820,7 @@ Three facts about the token stream that constrain every later stage, all
 verified rather than assumed:
 
 - **`Token` carries no filename or file id** (`src/lex/token.h`). The lexer
-  *takes* one and discards it — `Lexer::filename_` is written and never read — so
+  _takes_ one and discards it — `Lexer::filename_` is written and never read — so
   `__FILE__` has to be threaded in explicitly, which is why the `prepro`
   constructor takes a filename. `ast::Span` has no file field either.
 - **There is no newline, indent or dedent token.** The `Tok` enumerators exist
@@ -1213,8 +1213,8 @@ _Status 2026-09-30: landed — HIR and MIR both verify on all 53 corpus files._ 
 things about this phase were wrong in the plan before any of it could be
 written, and one of them is a defect in the verify criterion itself.
 
-**1. The verify criterion is not satisfiable as written.** It says *"run after
-lower-verify vs direct run"*, which requires MIR to be executable. But §4.5 says
+**1. The verify criterion is not satisfiable as written.** It says _"run after
+lower-verify vs direct run"_, which requires MIR to be executable. But §4.5 says
 MIR "stays a separate specializer [from the bytecode compiler] ... MIR feeds
 AOT", and phases 4 and 5 are LLVM codegen and linking — **no phase in this plan
 introduces a MIR interpreter**. So the criterion asks for a thing the plan never
@@ -1240,7 +1240,7 @@ consensus.** §4.4 says "for HIR keep `unique_ptr` ownership to match house
 style, revisit at MIR", and §4.5 says "this is the moment arenas arrive". The
 surveyed evidence is the opposite: **rustc arena-allocates HIR too** (there is
 no "box tree for HIR, arena for body IR" precedent), while Swift, MLIR and
-Kotlin use pointer-stable trees for *every* stage. The transferable rule is
+Kotlin use pointer-stable trees for _every_ stage. The transferable rule is
 **do not mix ownership strategies across stages** — which is the opposite of what
 §4.4/§4.5 prescribe. HIR is therefore `unique_ptr`, matching the house style,
 and **the MIR ownership decision must be made explicitly rather than inherited
@@ -1249,7 +1249,7 @@ from this paragraph.**
 Two further plan terms did not survive checking and should not be cited:
 "destructor-free" is **not a documented IR term** from any major compiler (it is
 local coinage here), and LLVM is a counter-example — `llvm::Value` is non-copyable
-*by design*. "Every instruction has at least one use" is **not an LLVM
+_by design_. "Every instruction has at least one use" is **not an LLVM
 invariant**; the LLVM verifier has no such check, so building it here would be
 inventing a rule rather than copying one. And "LLVM SSA is in infinite use form"
 could not be verified from any primary source; the citable subject is Braun et
@@ -1277,7 +1277,7 @@ Landed — HIR (`src/hir/`, `kirn_hir`, between `kirn_sema` and `kirn_vm`):
   with the function, so every consumer needing resolved types re-lexed and
   re-parsed. There is now a 4-argument overload that hands it back.
 - `--emit-hir`, and a `hir` verb: `kirnc hir f.kn` and `kirnc check --emit-hir
-  f.kn`. Verification runs unconditionally and is not a separate mode — a dump
+f.kn`. Verification runs unconditionally and is not a separate mode — a dump
   that verifies is worth something.
 - `src/support/literals.h`: the underscore/`0x`/`0b`/`0o` integer and float
   decoders, promoted out of two duplicate copies (`parseInt` in
@@ -1289,21 +1289,21 @@ Landed — HIR (`src/hir/`, `kirn_hir`, between `kirn_sema` and `kirn_vm`):
 _Verification:_ **gate 8** adds four properties. **53 of 53** corpus files lower,
 verify and dump. HIR does not lower code that failed type checking. The dump is
 byte-for-byte deterministic across runs, without which a golden comparison means
-nothing. And the verifier *rejects* broken IR, via
+nothing. And the verifier _rejects_ broken IR, via
 `tests/hir/verifier_selftest.cpp` — eight cases compiled and run against the real
 library, in the test tree and linked into no shipped binary.
 
 Two of those four took a second attempt, and the reason is worth recording.
 
-*The first verifier was wrong on first contact.* It had a hand-written table of
+_The first verifier was wrong on first contact._ It had a hand-written table of
 `std::variant` indices; it was wrong in nine places the instant it ran against
 real input, and would have needed editing on every payload insertion. It was
 replaced by a check that cannot drift — "the active payload implies its kind",
 derived inside the same `if constexpr` arm that has to check it.
 
-*The first rejection test was worse than no test.* It used a `.kn` fixture with a
+_The first rejection test was worse than no test._ It used a `.kn` fixture with a
 construct HIR had no mapping for, on the reasoning that a lowering gap on
-*checked* input is the only defect a structural verifier can catch. That was
+_checked_ input is the only defect a structural verifier can catch. That was
 right about the scope and wrong about the mechanism: the test passed by asserting
 "HIR does not model this yet", and the moment HIR learned the construct it went
 **quiet**. It would have stopped testing anything without ever failing, and a
@@ -1315,7 +1315,7 @@ in memory and handed to `verify()` directly. It immediately found a real hole: t
 on a non-literal node was never checked. No corpus file can find that, because no
 corpus file has a kind/payload mismatch.
 
-*A third check was added because a coverage count lied.* A statement the lowering
+_A third check was added because a coverage count lied._ A statement the lowering
 cannot represent was emitted as a `Nop` with only a W9000 warning, so HIR silently
 discarded code while the file still "verified". `payload::Nop` now carries
 `dropped`, and `verify()` fails on it. The claim that unmapped constructs are
@@ -1326,7 +1326,7 @@ in the same corpus the coverage count had been reporting as fully passing.
 _Not done, and recorded rather than left to be discovered:_
 
 1. ~~MIR does not exist.~~ **Closed.** `src/mir/` as `kirn_mir`, linking `kirn_hir`
-   and deliberately *not* `kirn_vm`/`kirn_interp`, since §4.5 keeps the bytecode
+   and deliberately _not_ `kirn_vm`/`kirn_interp`, since §4.5 keeps the bytecode
    compiler a separate specializer. `--emit-mir` and a `kirnc rt` verb; both lower
    the whole way (HIR is verified on the way through, because a broken HIR makes a
    broken CFG and diagnosing it a layer earlier is much cheaper).
@@ -1346,7 +1346,7 @@ _Not done, and recorded rather than left to be discovered:_
      produces SSA", so MIR is alloca/load/store shaped and Phase 4's LLVM backend
      gets SSA from mem2reg. Locals are therefore memory-resident and a read is a
      `load`; the one place a phi is genuinely required is a value that reaches a
-     join block *differently* along different predecessors, which is also the only
+     join block _differently_ along different predecessors, which is also the only
      case where a naive builder gets it wrong. A binding written the same value on
      every arm gets no phi, and that is checked rather than assumed.
 
@@ -1361,7 +1361,7 @@ _Not done, and recorded rather than left to be discovered:_
    with the next condition; hoisted allocas appended after the entry block's
    terminator), every `elseSucc` in an `if`/`elif` chain left at `NO_BLOCK`, a
    `do`-`while` that reused the current block as its loop head so the back edge
-   targeted block 0, a `continue` that would have gone to the loop *exit*, and a
+   targeted block 0, a `continue` that would have gone to the loop _exit_, and a
    `load` that allocated a value without claiming it. The last is the instructive
    one: the operand index was in range, so every other check passed and the CFG
    looked entirely plausible. Hence the value-density invariant — every value
@@ -1369,37 +1369,38 @@ _Not done, and recorded rather than left to be discovered:_
    the value table.
 
    _Verification:_ gate 9 adds four properties, mirroring gate 8: **53 of 53**
-   corpus files lower through HIR to a verified CFG; the verifier *rejects* broken
+   corpus files lower through HIR to a verified CFG; the verifier _rejects_ broken
    CFGs via `tests/mir/verifier_selftest.cpp` (14 in-process cases); the dump is
    byte-identical across runs and starts with `mir 1`, confirming `rt` is a dump
    rather than an execution; and — deliberately redundant with the library — every
    dumped block is re-checked for a terminator **from the text**, so a flag wired
    to the wrong function is caught even when the library is fine. A `.kn` fixture
    would repeat the trap gate 8 already fell into.
+
 2. ~~9 of 53 corpus files did not lower.~~ **Closed: 53 of 53 lower, verify and
    dump.** The list `gates_linux.sh` carried by name is now empty, and closing it
-   found seven *defects* rather than seven missing cases:
+   found seven _defects_ rather than seven missing cases:
    `from mod import a as b` binds each item, not the module; select-arm and
    `catch (e)` bindings are declarations; `t @ pat` and `..name` bind names that
    live outside a pattern's `elems`; `temp`/`bucket` bind usable names, and a
    bucket's name is in `tempVarName`, not `name`, because the parser reuses that
-   field; the Checker keeps pseudo-modules in `importRoots_` and *not* in its
+   field; the Checker keeps pseudo-modules in `importRoots_` and _not_ in its
    scope, so `io.open(...)` resolved against nothing; `gather` binds an implicit
    `item` for its body; and `bucket release` needed a real representation.
    Two of these were also latent bugs in the harness rather than the lowering:
    `cmdHir` gated on `diags.count()`, so a W0105 shadowing warning stopped the
    lowering before it ran (the scoping fixture exited 1 having lowered nothing),
-   and an open-ended range `a..` is a Binary with a *null* rhs and is legal
+   and an open-ended range `a..` is a Binary with a _null_ rhs and is legal
    (`OP_UNARANGE`), so flagging every null rhs rejected examples/30.
 3. **Struct field types keep the spelling; everything else resolves.** Function
-   signatures, parameters and `var`/`const` annotations now carry *resolved* types,
+   signatures, parameters and `var`/`const` annotations now carry _resolved_ types,
    so MIR dumps a real `ret=int` rather than `ret=?`. `sema::Checker::resolveType()`
    and `resolveSig()` are public for this. **The obvious way to use them is
    wrong**, and the way it is wrong is worth recording: both are pure — they read
    `typeVars_` and return interned types — but `typeVars_` is pushed and popped by
    a `TvGuard` around each generic declaration, so calling them after
    `checkModule()` returns "unknown type 'T'" for every generic function. Purity
-   was never the issue; the *environment* was. The Checker therefore caches each
+   was never the issue; the _environment_ was. The Checker therefore caches each
    function's signature where it is computed, inside the `TvGuard`, and HIR reads
    that back (`Checker::funcSig`). Struct fields now have one too: `Checker::fieldTypes()` returns the resolved
    types, cached inside the struct's own `TvGuard` scope in `registerTopLevel`,
@@ -1407,14 +1408,14 @@ _Not done, and recorded rather than left to be discovered:_
    therefore dump as `first : A` rather than as the spelling.
 
    Making the signature real also unmasked a latent null dereference in the MIR
-   builder: `buildFunc` computed the return type one line *above* `fn = &f`, and
+   builder: `buildFunc` computed the return type one line _above_ `fn = &f`, and
    `tyOf` interns into `fn->types`. That was safe only because `sig.ret` was
    always null, so the line never ran. A field that is always empty hides the bug
    in the code that would otherwise have caught it.
 
-5. **A lost FIELD is a different bug shape from a lost statement.** `verify()`'s
-   drop check makes an unmappable *statement* a hard error. It cannot catch a lost
-   *field*: the node is present and well formed, the value is just wrong. HIR was
+4. **A lost FIELD is a different bug shape from a lost statement.** `verify()`'s
+   drop check makes an unmappable _statement_ a hard error. It cannot catch a lost
+   _field_: the node is present and well formed, the value is just wrong. HIR was
    dropping `ast::Pat::inclusive`, so `case 200..=299` became `case 200..298` --
    three corpus files use inclusive range patterns and nothing noticed. The
    per-kind payload union was supposed to make "nowhere to put it" impossible; it
@@ -1426,14 +1427,14 @@ _Not done, and recorded rather than left to be discovered:_
    `tests/mir/patterns.kn` exists because the corpus had **no** exclusive range
    pattern at all, so the bit was entirely untested.
 
-6. **What MIR does not model, precisely.** These are fidelity limits, not
+5. **What MIR does not model, precisely.** These are fidelity limits, not
    failures: the IR verifies, and none of them drops a statement — the drop check
    in `verify()` guarantees that — but they are places where the CFG is coarser
    than the program.
 
    - ~~**`match` arm selection.**~~ **Closed for the patterns expressible as
      comparisons.** The subject is evaluated once into a value and each arm tests
-     *that value* against its own pattern, so arms are genuinely selected rather
+     _that value_ against its own pattern, so arms are genuinely selected rather
      than all reachable. `wild`, `bind`, `literal`, `range`, `bindalias`, `or`,
      `ref` and fixed-arity `tuple` lower to real `binary`/`condbr`; the value form
      emits a join phi only when every arm produced a value, never an invented one.
@@ -1455,7 +1456,7 @@ _Not done, and recorded rather than left to be discovered:_
      separate store the construct is for.
    - **Comprehensions and lambdas** become `call_indirect` with their operands
      flattened; the closure body is not built as its own MIR function. This one is
-     *deliberately* left, and the reason matters more than the gap. A closure in
+     _deliberately_ left, and the reason matters more than the gap. A closure in
      this language captures **by reference** (`examples/07_closures_captures.kn`), so
      a nested function would need the enclosing frame's allocas passed as pointers:
      a closure environment, and a memory model for it. Building one that captures
@@ -1465,6 +1466,7 @@ _Not done, and recorded rather than left to be discovered:_
      prevent, so the flattened call stays: visibly coarser rather than quietly
      wrong. The right home for that model is Phase 4, alongside the LLVM backend's,
      where `mem2reg` decides what actually escapes.
+
 6. ~~Multi-target assignment infers its arity.~~ **Closed.** `ast::Stmt` gained
    `assignTargets` and the parser now records `targets.size()`. The split is not
    recoverable from `exprs`: three entries could be two targets and one value
@@ -1478,6 +1480,36 @@ _Not done, and recorded rather than left to be discovered:_
 scalar subset; `--emit-llvm`; `mem2reg` for SSA; `-fbackend=llvm`.
 _Verify:_ emitted `.ll` passes `opt -verify` and `lli`; scalar corpus programs
 match interpreter output numerically.
+
+_Status 2026-10-06: first increment landed._ `src/backends/llvm/emit_llvm.cpp`
+lowers verified MIR to an `llvm::Module` for the scalar subset
+(int64/double/bool/void), guarded by `KIRN_WITH_LLVM=ON` and linked only into
+`kirnc` behind `KIRN_HAS_LLVM` — the `kirn`/driver libraries stay LLVM-free, so
+the default build is unchanged. `kirnc llvm <f.kn> [-o f.ll]` (and the
+`--emit-llvm`/`-emit-llvm` alias) emit a verified module; a no-LLVM build prints
+a one-line explanation and exits 2. The driver gained `produceMir()`
+(`rt` and `llvm` now share one front-end→verified-MIR pipeline; `cmdRt` was
+refactored onto it with byte-identical output — 215/215 goldens hold).
+
+Two design facts were not in the plan and had to be discovered on the ground.
+(1) The scalar subset is reachable only through **annotations**: param types
+(`x: int`) and value returns (`-> float`) must be declared, and void functions
+must be written `-> none` — an unannotated function resolves its return type to
+`any` and is rejected with a diagnostic, never guessed. Locals infer scalar
+types from their initializer (`var x = 7;` → i64), but a call whose callee is
+unannotated poisons the local to `any`. The plan's `print` formatting contract
+comes from the interpreter's toStr, and the LLVM side implements it as an
+internal `kirn.fmt_f64` (%.15g/%.16g/%.17g round-trip + a '.'/'e' scan, so
+"6.0" prints as "6.0" not "6"). (2) `print` in the interpreter builds its line
+with a NUL-terminated buffer and `puts`; the LLVM `print` reuses that shape, and
+the float formatter must NUL-terminate its fixed texts or `puts` overruns.
+
+Gate 10 added: `tests/llvm/p*.kn` must emit clean, pass `opt -passes=verify`
+`-disable-output`, and produce `lli` stdout+exit byte-identical to the
+tree-walker; `tests/llvm/n*.kn` must be rejected with a diagnostic (non-scalar
+locals, `any` returns). A build without LLVM skips gate 10 rather than failing
+it. Current suite: gates 185/185, goldens 215/215, exit-code parity 42/7/0 and
+identical stdout on the gate-10 fixtures.
 
 **Phase 5 — Assemble + link.** In-process TargetMachine emission (`-c`, `-S`)
 and LLD linking (`-o`). `-###` prints every command; cross targets emit correct

@@ -22,9 +22,14 @@
 // that the gate scripts, which assert on them, keep working.
 #include "driver/driver.h"
 
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#ifdef KIRN_HAS_LLVM
+#include "backends/llvm/emit_llvm.h"
+#endif
 
 namespace {
 
@@ -37,6 +42,7 @@ const char* const kUsage =
     "  parse   lex + parse (--emit-ast to print the AST)\n"
     "  hir     lower to HIR, verify structurally, print the dump\n"
     "  rt      lower through HIR to MIR, verify the CFG, print the dump\n"
+    "  llvm    lower through HIR+MIR to a verified LLVM module, print the IR\n"
     "  run     not implemented yet (see the note below)\n"
     "  build   build an executable (default verb)\n"
     "\n"
@@ -45,6 +51,7 @@ const char* const kUsage =
     "  --emit-ast      print the AST (parse)\n"
     "  --emit-hir      lower to HIR, verify it, print the dump (check)\n"
     "  --emit-mir      lower through HIR to a verified MIR CFG and print it (rt)\n"
+    "  -emit-llvm      lower through HIR+MIR to LLVM IR (same as the `llvm` verb)\n"
     "  -E              preprocess only; print the expanded token stream\n"
     "  -D name[=val]   define a macro (with -E)\n"
     "  -U name         undefine a macro (with -E)\n"
@@ -67,18 +74,77 @@ bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 // with the MIR CFG. Both dash spellings are listed for each because the plan
 // uses zig-style single dash in one place and gcc-style in another; dropping
 // either would make it a filename.
-// --emit-mir was here and has landed (phase 3, as `rt`). -emit-llvm lands with
-// the LLVM backend in phase 4; -emit-sasm with codegen in phase 5. Both dash
-// spellings are listed for each because the plan uses zig-style single dash in
-// one place and gcc-style in another; dropping either makes it a filename.
+// --emit-mir landed with the MIR CFG (phase 3); -emit-sasm lands with
+// codegen in phase 5. Both dash spellings are listed for each because the plan
+// uses zig-style single dash in one place and gcc-style in another; dropping
+// either would make it a filename. -emit-llvm landed with the LLVM backend
+// (phase 4) but is NOT in this list: it is a real verb below (`llvm`).
 const char* const kLaterFlags[] = {"-c", "-###", "-v", "--verbose",
-                                   "-emit-llvm", "--emit-llvm",
                                    "-emit-sasm", "--emit-sasm"};
 
 bool isLaterFlag(const std::string& a) {
     for (const char* f : kLaterFlags)
         if (a == f) return true;
     return false;
+}
+
+// `kirnc llvm`: the phase-4 LLVM backend. Runs the same front-end pipeline as
+// `rt`, then lowers the verified MIR to LLVM IR (rejecting anything outside the
+// scalar subset with a diagnostic). With no -o the IR goes to stdout; with -o a
+// file. Exit code: 0 functionally OK, 1 source/HIR errors, 65 verification or
+// scalar-subset rejection or unwritable output -- matching the other stage
+// verbs in driver.cpp.
+int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
+#ifdef KIRN_HAS_LLVM
+    std::vector<std::string> files;
+    std::string out;
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a == "-h" || a == "--help") {
+            std::cout << "usage: " << toolName << " llvm <file.kn> [-o out.ll]\n"
+                      << "  lower through HIR to a verified MIR CFG, then to LLVM\n"
+                      << "  IR; --emit-llvm/-emit-llvm is an alias of this verb\n";
+            return 0;
+        }
+        if (a == "-o" && i + 1 < args.size()) { out = args[++i]; continue; }
+        if (!a.empty() && a[0] == '-') continue;
+        files.push_back(a);
+    }
+    if (files.size() != 1) {
+        std::cerr << "usage: " << toolName << " llvm <file.kn> [-o out.ll]\n";
+        return 2;
+    }
+    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName);
+    if (m.rc == 66) { std::cerr << m.err; return m.rc; }
+    if (m.rc != 0) { std::cout << m.err; return m.rc; }
+
+    kirn::backends::llvm::EmitOptions opts;
+    std::vector<kirn::backends::llvm::EmitDiag> diags;
+    std::string ll;
+    if (!kirn::backends::llvm::emitModule(*m.prog, opts, diags, ll, nullptr)) {
+        for (const auto& d : diags)
+            std::cout << files[0] << ":" << d.line << ":" << d.col
+                      << ": error: " << d.message << "\n";
+        return 65;
+    }
+    if (out.empty()) {
+        std::cout << ll;
+    } else {
+        std::ofstream f(out, std::ios::binary);
+        if (!f.good()) {
+            std::cerr << toolName << " llvm: cannot write '" << out << "'\n";
+            return 66;
+        }
+        f << ll;
+    }
+    return 0;
+#else
+    (void)args;
+    (void)toolName;
+    std::cerr << "kirnc llvm: this build of kirn has no LLVM backend\n"
+              << "  re-configure with -DKIRN_WITH_LLVM=ON to enable it\n";
+    return 2;
+#endif
 }
 
 // Remove the flags a stage verb does not understand, so they are never mistaken
@@ -129,7 +195,7 @@ int main(int argc, char** argv) {
     }
 
     if (verb != "check" && verb != "lex" && verb != "parse" && verb != "run" &&
-        verb != "hir" && verb != "rt" && verb != "build") {
+        verb != "hir" && verb != "rt" && verb != "build" && verb != "llvm") {
         std::cerr << "kirnc: unknown verb '" << verb << "'\n";
         std::cerr << kUsage;
         return 2;
@@ -139,8 +205,8 @@ int main(int argc, char** argv) {
         if (!isLaterFlag(a)) continue;
         std::cerr << "kirnc " << verb << ": '" << a
                   << "' is not implemented yet\n"
-                  << "  -emit-llvm lands with the LLVM backend, and -S/-c/-###/-v with "
-                     "codegen; see BUILDER-PLAN.md section 6\n";
+                  << "  -emit-sasm lands with codegen, and -S/-c/-###/-v with the "
+                     "driver grammar; see BUILDER-PLAN.md section 6\n";
         return 2;
     }
 
@@ -211,6 +277,20 @@ int main(int argc, char** argv) {
         for (const auto& s : rest)
             if (s != "--emit-mir" && s != "-emit-mir") a.push_back(s);
         return kirn::driver::cmdRt(a, "kirnc");
+    }
+    // `--emit-llvm` is accepted as an alternate spelling of the `llvm` verb for
+    // any stage verb that would need the full pipeline (bcc-style: the flag
+    // selects the backend, the verb says how far to stop). `lex/parse/run/build`
+    // reject it, because emitting IR is meaningless there.
+    if (verb == "llvm" || hasFlag("--emit-llvm") || hasFlag("-emit-llvm")) {
+        if (verb == "run" || verb == "build" || verb == "lex" || verb == "parse") {
+            std::cerr << "kirnc " << verb << ": '--emit-llvm' does not apply to this verb\n";
+            return 2;
+        }
+        std::vector<std::string> a;
+        for (const auto& s : rest)
+            if (s != "--emit-llvm" && s != "-emit-llvm") a.push_back(s);
+        return cmdLlvm(a, "kirnc");
     }
     if (verb == "check") {
         // --plain/--color/--no-color are cmdCheck's own flags; pass them

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
-project(kirn CXX)
+project(kirn C CXX)   # C is required by find_package(LLVM)'s CheckIncludeFile
+                      # on CMake >= 4, which fails without a C language enabled
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,6 +27,11 @@ if(KIRN_ASAN)
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
     add_link_options(-fsanitize=address)
 endif()
+
+# Phase 4: opt-in LLVM codegen backend (-DKIRN_WITH_LLVM=ON). Off by default so
+# a normal build stays dependency-free; the driver library never links LLVM --
+# only kirnc does, behind KIRN_HAS_LLVM.
+option(KIRN_WITH_LLVM "Build the LLVM MIR->IR backend and `kirnc llvm` verb" OFF)
 
 add_library(kirn_support INTERFACE)
 target_include_directories(kirn_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -141,6 +147,20 @@ target_link_libraries(kirnrun PRIVATE kirn_driver)
 add_executable(kirnc tools/kirnc.cpp)
 target_link_libraries(kirnc PRIVATE kirn_driver)
 
+if(KIRN_WITH_LLVM)
+    find_package(LLVM REQUIRED CONFIG)
+    add_library(kirn_llvm STATIC src/backends/llvm/emit_llvm.cpp)
+    target_link_libraries(kirn_llvm PUBLIC kirn_mir)
+    # LLVM's own headers stay out of the warnings budget.
+    target_include_directories(kirn_llvm SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(kirn_llvm PRIVATE ${LLVM_DEFINITIONS})
+    target_link_libraries(kirn_llvm PUBLIC LLVM)
+    target_compile_features(kirn_llvm PRIVATE cxx_std_20)
+
+    target_link_libraries(kirnc PRIVATE kirn_llvm)
+    target_compile_definitions(kirnc PRIVATE KIRN_HAS_LLVM=1)
+endif()
+
 add_executable(kirn tools/kirn.cpp)
 # ws2_32 is the WinSock import lib: only the `kirn doc` HTTP server in
 # tools/kirn.cpp uses it, so it stays on the executable. The driver library
@@ -162,3 +182,13 @@ foreach(tgt kirn_lex kirn_ast kirn_prepro kirn_parser kirn_sema kirn_hir kirn_mi
         target_compile_options(${tgt} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 endforeach()
+
+# The LLVM backend shares the warnings budget of the other kirn sources once it
+# exists; its LLVM headers are still SYSTEM so LLVM's warnings don't price in.
+if(TARGET kirn_llvm)
+    if(MSVC)
+        target_compile_options(kirn_llvm PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(kirn_llvm PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endif()

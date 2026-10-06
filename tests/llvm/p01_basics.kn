@@ -1,0 +1,35 @@
+# Gate 10 positive fixture: the scalar subset end to end -- parameter
+# materialization, a loop with a typed induction variable, a bool-returning
+# call in print, and the float print round-trip including its ".0" appendix and
+# the %.15g/%.16g/%.17g chain.
+def scale(x: float, n: int) -> float {
+    var r = 0.0;
+    var i = 0;
+    while i < n {
+        r = r + x;
+        i = i + 1;
+    }
+    return r;
+}
+
+def positive(x: int) -> bool {
+    return x > 0;
+}
+
+def dump(base: float, count: int) -> none {
+    var r = scale(base, count);
+    var ok = positive(count);
+    print("scaled=", r, " ok=", ok);
+}
+
+def main() -> int {
+    var z = 0.5;
+    print("zero=", z);
+    print("pi=", 3.141592653589793238);
+    print("tiny=", 1.0e-300);
+    print("count=", 7);
+    print("bool=", true);
+    dump(1.5, 4);
+    dump(-2.0, 3);
+    return 42;
+}

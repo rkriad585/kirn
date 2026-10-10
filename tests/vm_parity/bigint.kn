@@ -1,0 +1,31 @@
+def main() -> none {
+    n = big_int(2).pow(1000);
+    ds = str(n);
+    total = 0;
+    for ch in ds {
+        total = total + (ord(ch) - 48);
+    }
+    print(total);                                    # 1366 (digit sum of 2^1000)
+    print(ds.len());                                 # 302 digits
+    huge = big_int("123456789012345678901234567890");
+    m = huge * huge + 1;
+    print(m.bit_length() > 100);                     # true
+    print(big_int(7).powmod(23, 31).to_int());       # 10 (matches pow(7,23,31))
+    print(big_int(-21) // big_int(4));               # -6 (floor division)
+    print(big_int(-21) % big_int(4));                # 3  (Python-style modulo)
+    print(big_int(21) ** big_int(3));                # 9261
+    print(big_int(2) * big_int(-3));                 # -6
+    print(big_int(-1) + big_int(1));                 # 0
+    print(big_int(-5).to_string());                  # -5
+    print(big_int(0).bit_length());                  # 0
+    print(big_int(0).to_int());                      # 0
+    print(big_int(123456789) * big_int(987654321));  # 121932631112635269
+    print(big_int("99999999999999999999") < big_int("100000000000000000000"));
+    print(big_int("-99999999999999999999") < big_int("-100000000000000000000"));
+    print(big_int(255) == big_int("255"));           # true
+    print(big_int(2) == 2);                          # true (int/bigint mix)
+    print(to_float(big_int(1000).to_rational()));    # 1000.0
+    print(bit_length(big_int(256)), bit_count(big_int(255)));
+    print(big_int(17).is_prime());                   # true
+    print(big_int(15).is_prime());                   # false
+}

@@ -29,7 +29,7 @@ struct HeapObj;
 struct ThreadImpl;
 
 enum class VK {
-    None, Bool, Int, Float, Rational, Str, Bytes, Char,
+    None, Bool, Int, Float, Rational, BigInt, Str, Bytes, Char,
     List, Dict, Set, Tuple, Range,
     Struct,                                   // by-value instance
     Heap, Weak,                               // `new` handles
@@ -66,6 +66,10 @@ struct Value {
     // Rational fields (valid when k == VK::Rational)
     int64_t num = 0;                          // numerator (always normalized, den > 0)
     int64_t den = 1;                          // denominator (always > 0)
+    // BigInt fields (valid when k == VK::BigInt). Little-endian base-2^64 limbs,
+    // sign tracked separately. Shared so big values copy cheaply.
+    std::shared_ptr<std::vector<uint64_t>> limbs;
+    bool neg = false;                         // sign bit for big ints
 
     // containers (aliased)
     std::shared_ptr<std::vector<Value>> vec;                    // List/Set/Tuple
@@ -107,6 +111,12 @@ struct Value {
     static Value boolean(bool v) { Value x; x.k = VK::Bool; x.b = v; return x; }
     static Value integer(int64_t v) { Value x; x.k = VK::Int; x.i = v; return x; }
     static Value floating(double v) { Value x; x.k = VK::Float; x.d = v; return x; }
+    static Value bigint(std::vector<uint64_t> limbs, bool neg = false) {
+        Value x; x.k = VK::BigInt;
+        x.limbs = std::make_shared<std::vector<uint64_t>>(std::move(limbs));
+        x.neg = neg;
+        return x;
+    }
     static Value str(std::string v) { Value x; x.k = VK::Str; x.s = std::move(v); return x; }
     static Value chr(char32_t c) { Value x; x.k = VK::Char; x.ch = c; return x; }
     static Value list(std::vector<Value> vs = {}) {

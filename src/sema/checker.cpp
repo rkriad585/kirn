@@ -29,6 +29,7 @@ std::string toString(const Ty& t) {
         case TyK::Bool:    return t.name.empty() ? "bool" : t.name;
         case TyK::Int:     return t.name.empty() ? "int" : t.name;
         case TyK::Float:   return t.name.empty() ? "float" : t.name;
+        case TyK::BigInt:  return t.name.empty() ? "bigint" : t.name;
         case TyK::Str:     return t.name.empty() ? "string" : t.name;
         case TyK::Char:    return t.name.empty() ? "char" : t.name;
         case TyK::Bytes:   return "bytes";
@@ -452,6 +453,13 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("is_nan", {floatTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("is_infinite", {floatTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("is_finite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
+    makeBuiltinFunc("is_prime", {unkTy()}, {"n"}, boolTy(), false, 1);
+    makeBuiltinFunc("powmod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
+    makeBuiltinFunc("to_bytes", {unkTy(), intTy()}, {"x", "len"}, unkTy(), false, 1);
+    makeBuiltinFunc("from_bytes", {unkTy()}, {"b"}, unkTy(), false, 1);
+    makeBuiltinFunc("to_string", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("to_rational", {unkTy()}, {"x"}, unkTy(), false, 1);
     makeBuiltinFunc("rational_add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
     makeBuiltinFunc("rational_sub", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
     makeBuiltinFunc("rational_mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
@@ -938,6 +946,7 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 if (n == kCharNames[i]) return charTy(n);
             if (n == "strings") return strTy("strings");
             if (n == "bytes")   return bytesTy();
+            if (n == "bigint")  return bigIntTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -1059,6 +1068,7 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     // numeric families are mutually assignable in v1
     if (kFrom == TyK::Int && kTo == TyK::Int) return true;
     if (kFrom == TyK::Float && kTo == TyK::Float) return true;
+    if (kFrom == TyK::BigInt && kTo == TyK::BigInt) return true;
 
     // The width families (b8/b16/b32, char8/16/32, string/str/strings,
     // bytes) are distinct spellings of one runtime value kind, so they are
@@ -1146,6 +1156,10 @@ TyP Checker::unify(const TyP& a, const TyP& b, uint32_t line, uint32_t col,
 
     if (a->is(TyK::Int) && b->is(TyK::Int)) return intTy();
     if (a->is(TyK::Float) && b->is(TyK::Float)) return floatTy();
+    if ((a->is(TyK::BigInt) || a->is(TyK::Int)) &&
+        (b->is(TyK::BigInt) || b->is(TyK::Int)) &&
+        (a->is(TyK::BigInt) || b->is(TyK::BigInt)))
+        return bigIntTy();
     if (a->is(TyK::None) && !b->is(TyK::None)) return optTy(b);
     if (b->is(TyK::None) && !a->is(TyK::None)) return optTy(a);
     if (a->is(TyK::Opt) && !b->is(TyK::Opt))
@@ -1296,6 +1310,44 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                 s.names.push_back("rhs");
                 s.required = 1;
             }
+            return s;
+        }
+        return std::nullopt;
+    }
+
+    // Phase 3 arbitrary-precision integer method surface (DATA_TYPE_PLAN.md).
+    if (recv->is(TyK::BigInt)) {
+        FuncSig s;
+        if (name == "pow" || name == "powmod") {
+            s.ret = bigIntTy();
+            s.params.push_back(intTy("i64"));
+            s.names.push_back("exp");
+            s.required = 1;
+            if (name == "powmod") {
+                s.params.push_back(intTy("i64"));
+                s.names.push_back("mod");
+                s.required = 2;
+            }
+            return s;
+        }
+        if (name == "bit_length" || name == "bit_count") {
+            s.ret = intTy("i64");
+            s.required = 0;
+            return s;
+        }
+        if (name == "to_int" || name == "is_prime") {
+            s.ret = name == "to_int" ? intTy("i64") : boolTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "to_string") {
+            s.ret = strTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "to_rational") {
+            s.ret = unkTy();
+            s.required = 0;
             return s;
         }
         return std::nullopt;
@@ -2656,6 +2708,10 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 if (dynish(rt)) return lt;
                 if (isNumeric(*lt) && isNumeric(*rt)) {
                     if (lt->is(TyK::Float) || rt->is(TyK::Float)) return floatTy();
+                    if (lt->is(TyK::BigInt) || rt->is(TyK::BigInt)) {
+                        if (op == "/") return floatTy();
+                        return bigIntTy();
+                    }
                     if (op == "/") return floatTy();
                     return intTy();
                 }

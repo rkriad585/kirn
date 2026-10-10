@@ -5,6 +5,7 @@
 // weak fields keep their target alive while any strong handle exists.
 #include "interp/runtime.h"
 #include "interp/escapes.h"
+#include "interp/bigint.h"
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "sema/checker.h"
@@ -388,6 +389,12 @@ std::string toStr(const Value& v) {
         case VK::Rational: {
             return std::to_string(v.num) + "/" + std::to_string(v.den);
         }
+        case VK::BigInt: {
+            bignum::Big b;
+            b.neg = v.neg;
+            if (v.limbs) b.limbs = *v.limbs;
+            return b.toString();
+        }
         case VK::Str:    return v.s;
         default:         return repr(v);
     }
@@ -481,6 +488,7 @@ bool truthy(const Value& v) {
         case VK::None:  return false;
         case VK::Int:   return v.i != 0;
         case VK::Float: return v.d != 0.0;
+        case VK::BigInt: return v.limbs && !v.limbs->empty();
         default:        panicHere("condition is not a bool");
     }
 }
@@ -492,6 +500,7 @@ static std::string typeName(const Value& v) {
         case VK::Bool:   return "bool";
         case VK::Int:    return "int";
         case VK::Float:  return "float";
+        case VK::BigInt: return "bigint";
         case VK::Str:    return "string";
         case VK::Bytes:  return "bytes";
         case VK::Char:   return "char";
@@ -1474,6 +1483,67 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
             return true;
         }, globals_);
         return Value::str(out);
+    });
+
+    // Phase-3 bigint surface ------------------------------------------------
+    globals_->vars["big_int"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {
+        bignum::Big b;
+        if (a[0].k == VK::Int) {
+            b = bignum::fromI64(a[0].i);
+        } else if (a[0].k == VK::Str) {
+            b = bignum::fromStr(a[0].s);
+        } else if (a[0].k == VK::BigInt) {
+            return a[0];
+        } else {
+            panicHere("big_int() expects an int or string");
+        }
+        Value v;
+        v.k = VK::BigInt;
+        v.neg = b.neg;
+        v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
+        return v;
+    });
+    globals_->vars["bit_length"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::BigInt) {
+            if (!a[0].limbs) return Value::integer(0);
+            return Value::integer(bignum::bitLength(*a[0].limbs));
+        }
+        // existing int path
+        int64_t v = a[0].i;
+        uint64_t u = v < 0 ? (uint64_t)(-(v + 1)) + 1 : (uint64_t)v;
+        if (u == 0) return Value::integer(0);
+        int n = 0; while (u) { n++; u >>= 1; }
+        return Value::integer(n);
+    });
+    globals_->vars["bit_count"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::BigInt) {
+            if (!a[0].limbs) return Value::integer(0);
+            return Value::integer(bignum::bitCount(*a[0].limbs));
+        }
+        int64_t v = a[0].i;
+        unsigned c = 0;
+        uint64_t u = v < 0 ? (uint64_t)(-(v + 1)) + 1 : (uint64_t)v;
+        while (u) { c += (u & 1); u >>= 1; }
+        return Value::integer(c);
+    });
+    globals_->vars["is_prime"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Int) {
+            int64_t n = a[0].i;
+            if (n < 2) return Value::boolean(false);
+            for (int64_t d = 2; d * d <= n; ++d)
+                if (n % d == 0) return Value::boolean(false);
+            return Value::boolean(true);
+        }
+        panicHere("is_prime: expected int");
+    });
+    globals_->vars["powmod"] = biFn({"b", "e", "m"}, [](std::vector<Value>& a) -> Value {
+        bignum::Big base = bignum::fromStr(toStr(a[0]));
+        bignum::Big exp  = bignum::fromStr(toStr(a[1]));
+        bignum::Big mod  = bignum::fromStr(toStr(a[2]));
+        bignum::Big r = base.powmod(exp, mod);
+        Value v; v.k = VK::BigInt; v.neg = r.neg;
+        v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(r.limbs));
+        return v;
     });
 
     // pseudo-modules are prebound; explicit imports rebind the same values
@@ -3243,6 +3313,26 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         b.bi = std::move(fn);
         return b;
     };
+    auto bigOf = [](const Value& v) -> bignum::Big {
+        if (v.k == VK::BigInt) {
+            bignum::Big b;
+            b.neg = v.neg;
+            if (v.limbs) b.limbs = *v.limbs;
+            return b;
+        }
+        if (v.k == VK::Int) return bignum::fromI64(v.i);
+        panicHere("expected an int or bigint");
+        return {};
+    };
+    auto bigVal = [](bignum::Big b) -> Value {
+        Value v;
+        v.k = VK::BigInt;
+        v.neg = b.neg;
+        v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
+        return v;
+    };
+    auto hashSelf = [&](void) -> uint64_t { (void)obj; return 0; };
+    (void)hashSelf;
 
     // field access on struct values and heap objects (locks weak refs)
     {
@@ -4112,6 +4202,90 @@ return Value::none();
             break;
         }
 
+        case VK::BigInt: {
+            if (name == "pow") {
+                return bind({"exp"}, [bigOf, bigVal](std::vector<Value>& a) -> Value {
+                    bignum::Big base = bigOf(a[0]);
+                    bignum::Big exp  = bigOf(a[1]);
+                    if (exp.neg || exp.limbs.size() > 1) return Value::none();
+                    uint64_t e = exp.limbs.empty() ? 0 : exp.limbs[0];
+                    return bigVal(base.pow(e));
+                });
+            }
+            if (name == "powmod") {
+                return bind({"exp", "mod"}, [bigOf, bigVal](std::vector<Value>& a) -> Value {
+                    bignum::Big base = bigOf(a[0]);
+                    bignum::Big exp  = bigOf(a[1]);
+                    bignum::Big mod  = bigOf(a[2]);
+                    if (mod.zero()) return Value::none();
+                    return bigVal(base.powmod(exp, mod));
+                });
+            }
+            if (name == "bit_length") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big b = bigOf(a[0]);
+                    return Value::integer(bignum::bitLength(b.limbs));
+                });
+            }
+            if (name == "bit_count") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big b = bigOf(a[0]);
+                    return Value::integer(bignum::bitCount(b.limbs));
+                });
+            }
+            if (name == "to_int") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big b = bigOf(a[0]);
+                    if (b.limbs.empty()) return Value::integer(0);
+                    uint64_t lo = b.limbs[0];
+                    int64_t v = (int64_t)lo;
+                    if (b.neg) v = -(int64_t)lo;
+                    return Value::integer(v);
+                });
+            }
+            if (name == "is_prime") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big n = bigOf(a[0]);
+                    if (n.zero() || n.neg) return Value::boolean(false);
+                    if (n.limbs.size() == 1) {
+                        uint64_t v = n.limbs[0];
+                        if (v < 2) return Value::boolean(false);
+                        for (uint64_t d = 2; d * d <= v && d * d >= d; ++d)
+                            if (v % d == 0) return Value::boolean(false);
+                        return Value::boolean(true);
+                    }
+                    for (uint64_t d = 2; d < 65536; ++d)
+                        if (bignum::modSmall(n.limbs, d) == 0)
+                            return Value::boolean(false);
+                    return Value::boolean(true);
+                });
+            }
+            if (name == "to_string") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big b = bigOf(a[0]);
+                    return Value::str(b.toString());
+                });
+            }
+            if (name == "to_rational") {
+                return bind({}, [bigOf](std::vector<Value>& a) -> Value {
+                    bignum::Big b = bigOf(a[0]);
+                    if (b.limbs.empty()) {
+                        Value v; v.k = VK::Rational; v.num = 0; v.den = 1;
+                        return v;
+                    }
+                    if (b.limbs[0] > (uint64_t)INT64_MAX) {
+                        panicHere("rational numerator out of range");
+                    }
+                    Value v; v.k = VK::Rational;
+                    v.num = (int64_t)b.limbs[0];
+                    v.den = 1;
+                    if (b.neg) v.num = -v.num;
+                    return v;
+                });
+            }
+            break;
+        }
+
         default:
             break;
     }
@@ -4123,10 +4297,37 @@ return Value::none();
 // operators & equality
 // ---------------------------------------------------------------------------
 
+static bignum::Big toBigNum(const Value& v) {
+    if (v.k == VK::BigInt) {
+        bignum::Big b;
+        b.neg = v.neg;
+        if (v.limbs) b.limbs = *v.limbs;
+        else b.limbs.clear();
+        return b;
+    }
+    if (v.k == VK::Int) return bignum::fromI64(v.i);
+    panicHere("expected an int or bigint");
+    return {};
+}
+
+static double numToDouble(const Value& v) {
+    if (v.k == VK::BigInt) return std::stod(toBigNum(v).toString());
+    if (v.k == VK::Int) return (double)v.i;
+    return v.d;
+}
+
 static bool valEq(const Value& a, const Value& b) {
     if (a.k != b.k) {
-        if ((a.k == VK::Int || a.k == VK::Float) &&
-            (b.k == VK::Int || b.k == VK::Float)) {
+        if ((a.k == VK::Int || a.k == VK::Float || a.k == VK::BigInt) &&
+            (b.k == VK::Int || b.k == VK::Float || b.k == VK::BigInt)) {
+            if (a.k == VK::BigInt || b.k == VK::BigInt) {
+                if (a.k == VK::Float || b.k == VK::Float) {
+                    double x = numToDouble(a);
+                    double y = numToDouble(b);
+                    return x == y;
+                }
+                return toBigNum(a).compare(toBigNum(b)) == 0;
+            }
             double x = a.k == VK::Int ? (double)a.i : a.d;
             double y = b.k == VK::Int ? (double)b.i : b.d;
             return x == y;
@@ -4138,6 +4339,12 @@ static bool valEq(const Value& a, const Value& b) {
         case VK::Bool:  return a.b == b.b;
         case VK::Int:   return a.i == b.i;
         case VK::Float: return a.d == b.d;
+        case VK::BigInt:
+            return a.neg == b.neg &&
+                   (a.limbs == b.limbs ||
+                    (a.limbs && b.limbs && *a.limbs == *b.limbs) ||
+                    (!a.limbs && b.limbs && b.limbs->empty()) ||
+                    (a.limbs && !b.limbs && a.limbs->empty()));
         case VK::Char:  return a.ch == b.ch;
         case VK::Str:
         case VK::Bytes: return a.s == b.s;
@@ -4190,8 +4397,13 @@ bool Interpreter::valuesEqual(const Value& a, const Value& b) {
 
 static bool valLess(const Value& l, const Value& r) {
     if (l.k == VK::Int && r.k == VK::Int) return l.i < r.i;
-    if ((l.k == VK::Int || l.k == VK::Float) &&
-        (r.k == VK::Int || r.k == VK::Float)) {
+    if ((l.k == VK::Int || l.k == VK::Float || l.k == VK::BigInt) &&
+        (r.k == VK::Int || r.k == VK::Float || r.k == VK::BigInt)) {
+        if (l.k == VK::BigInt || r.k == VK::BigInt) {
+            if (l.k == VK::Float || r.k == VK::Float)
+                return numToDouble(l) < numToDouble(r);
+            return toBigNum(l).compare(toBigNum(r)) < 0;
+        }
         double x = l.k == VK::Int ? (double)l.i : l.d;
         double y = r.k == VK::Int ? (double)r.i : r.d;
         return x < y;
@@ -4288,8 +4500,22 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
 
     auto numL = [&]() { return l.k == VK::Int ? (double)l.i : l.d; };
     auto numR = [&]() { return r.k == VK::Int ? (double)r.i : r.d; };
+    auto isBig = [](VK k) { return k == VK::BigInt; };
+    auto bigRes = [](bignum::Big b) -> Value {
+        Value v;
+        v.k = VK::BigInt;
+        v.neg = b.neg;
+        v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
+        return v;
+    };
 
     if (op == "+") {
+        if (isBig(l.k) || isBig(r.k)) {
+            if (l.k == VK::Str || r.k == VK::Str)
+                return Value::str(l.k == VK::Str ? l.s + toStr(r)
+                                                 : toStr(l) + r.s);
+            return bigRes(toBigNum(l).add(toBigNum(r)));
+        }
         if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i + r.i);
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
@@ -4308,12 +4534,17 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
     }
     if (op == "-") {
+        if (isBig(l.k) || isBig(r.k))
+            return bigRes(toBigNum(l).sub(toBigNum(r)));
         if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i - r.i);
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
             return Value::floating(numL() - numR());
     }
     if (op == "*") {
+        if (isBig(l.k) || isBig(r.k)) {
+            return bigRes(toBigNum(l).mul(toBigNum(r)));
+        }
         if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i * r.i);
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
@@ -4331,6 +4562,11 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
     }
     if (op == "/") {
+        if (isBig(l.k) || isBig(r.k)) {
+            double x = numToDouble(l), y = numToDouble(r);
+            if (y == 0.0) panicHere("division by zero");
+            return Value::floating(x / y);
+        }
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float)) {
             if (numR() == 0.0) panicHere("division by zero");
@@ -4338,6 +4574,11 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
     }
     if (op == "//") {
+        if (isBig(l.k) || isBig(r.k)) {
+            bignum::Big q = toBigNum(l).div(toBigNum(r));
+            // div() already applies floor semantics
+            return bigRes(q);
+        }
         if (l.k == VK::Int && r.k == VK::Int) {
             if (r.i == 0) panicHere("division by zero");
             int64_t q = l.i / r.i;
@@ -4351,6 +4592,11 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
     }
     if (op == "%") {
+        if (isBig(l.k) || isBig(r.k)) {
+            bignum::Big m = toBigNum(r);
+            if (m.zero()) panicHere("modulo by zero");
+            return bigRes(toBigNum(l).mod(m));
+        }
         if (l.k == VK::Int && r.k == VK::Int) {
             if (r.i == 0) panicHere("modulo by zero");
             int64_t mres = l.i % r.i;
@@ -4364,6 +4610,12 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                                              numR()));
     }
     if (op == "**") {
+        if (isBig(l.k) || isBig(r.k)) {
+            bignum::Big e = toBigNum(r);
+            if (e.neg) return bigRes(toBigNum(l).pow(0));
+            uint64_t ee = e.limbs.empty() ? 0 : e.limbs[0];
+            return bigRes(toBigNum(l).pow(ee));
+        }
         if (l.k == VK::Int && r.k == VK::Int && r.i >= 0) {
             int64_t p;
             ipow64(l.i, r.i, p);

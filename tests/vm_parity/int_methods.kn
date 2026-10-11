@@ -9,9 +9,15 @@ def main() -> none {
     print(a.saturating_add(1_000_000_000));    # i32 max
     print(b.checked_add(10));                  # 130 (fit in i8? 130>127 -> none)
     print(b.checked_add(7));                   # 127 ok
-    print(neg7.div_euclid(4), neg7.rem_euclid(4));   # -2 1
-    print(neg7.div_ceil(4));                   # -1 (since -7/4=-2ceil? -2? compute: -7/4=-1.75ceil -1)
+print(neg7.div_euclid(4), neg7.rem_euclid(4));   # -2 1
+    print(7.div_euclid(-2), 7.rem_euclid(-2));         # -3 1 (Rust euclid)
+    print((-7).div_euclid(-2), (-7).rem_euclid(-2));   # 4 1 (Rust euclid)
+    print(neg7.div_ceil(4));                   # -1 (since -7/4=-1.75ceil -1? compute: ceil(-1.75)=-1)
+    print(7.div_ceil(-3), (-7).div_ceil(-3), (-7).div_ceil(3));  # -2 3 -2
     print(pw.count_ones(), pw.ilog2(), pw.is_power_of_two());
+    print(256.is_power_of_two(), 7.next_power_of_two());  # true 8
+    print((-4).leading_zeros(), (8).leading_zeros());    # 0 60 (even-value regression)
+    print((1).leading_ones(), (0x00ff).leading_zeros()); # 0 56
     print(bit_length(256), bit_count(255), bit_count(-255));
     print(c.checked_div(0));                   # none? division by zero -> panic? our wrapping has panic; checked_div by zero returns none. Good.
     print(256.wrapping_sub(512));              # -256 (i64 path)

@@ -825,9 +825,39 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         // truncation toward zero
         return Value::integer((a[0].num >= 0 ? a[0].num : -a[0].num) / a[0].den * (a[0].num >= 0 ? 1 : -1));
     });
+    globals_->vars["to_rational"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        const Value& v = a[0];
+        if (v.k == VK::Int) {
+            Value r; r.k = VK::Rational; r.num = v.i; r.den = 1; return r;
+        }
+        if (v.k == VK::Rational) return v;
+        if (v.k == VK::BigInt) {
+            if (!v.limbs || v.limbs->empty()) {
+                Value r; r.k = VK::Rational; r.num = 0; r.den = 1; return r;
+            }
+            for (size_t i = 1; i < v.limbs->size(); ++i)
+                if ((*v.limbs)[i] != 0) panicHere("to_rational: numerator out of range");
+            if ((*v.limbs)[0] > (uint64_t)INT64_MAX)
+                panicHere("to_rational: numerator out of range");
+            Value r; r.k = VK::Rational;
+            r.num = (int64_t)(*v.limbs)[0];
+            r.den = 1;
+            if (v.neg) r.num = -r.num;
+            return r;
+        }
+        panicHere("to_rational: unsupported operand");
+        return Value::none();
+    });
     globals_->vars["fabs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("fabs: argument is not a float");
         return Value::floating(std::fabs(a[0].d));
+    });
+    globals_->vars["abs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Int)
+            return Value::integer(a[0].i < 0 ? -a[0].i : a[0].i);
+        if (a[0].k == VK::Float) return Value::floating(std::fabs(a[0].d));
+        panicHere("abs: argument is not a number");
+        return Value::none();
     });
     globals_->vars["floor"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("floor: argument is not a float");
@@ -1353,6 +1383,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(out);
     });
     globals_->vars["to_bytes"] = biFn({"x", "len", "endian"}, [](std::vector<Value>& a) -> Value {
+        if (a.size() < 2) panicHere("to_bytes: missing length argument");
         int64_t n = a[1].i;
         if (n < 0) panicHere("to_bytes: length must be non-negative");
         std::vector<uint8_t> bytes((size_t)n, 0);
@@ -4384,22 +4415,23 @@ return Value::none();
                         return name == "div_euclid" ? Value::integer(q)
                                                     : Value::integer(a0 - q * b0);
                     }
-                    int64_t r = x % y;
-                    if (r != 0 && ((r < 0) != (y < 0))) { if (r > 0) {/*down*/} }
-                    int64_t q = x / y;
-                    int64_t rem = x - q * y;
-                    if (rem != 0 && ((rem < 0) != (y < 0))) { q -= 1; rem += y; }
-                    if (name == "div_euclid") return Value::integer(q);
-                    if (name == "rem_euclid") return Value::integer(rem);
-                    int64_t up = (x % y == 0) ? x / y
-                                              : ((x < 0) == (y < 0)) ? (x / y) + (x % y != 0 ? (x >= 0 && y > 0 ? 1 : y > 0 && x < 0 ? 0 : 1) : 0)
-                                                                     : (x / y);
-                    // simpler & correct for signed; handle both signs:
-                    int64_t qq = x / y; int64_t rr = x - qq * y;
-                    if (rr != 0) {
-                        if ((x > 0) == (y > 0)) qq += 1;
+                    if (name == "div_ceil") {
+                        int64_t q = x / y, r = x - q * y;
+                        if (r != 0 && ((x > 0) == (y > 0))) q += 1;
+                        return Value::integer(q);
                     }
-                    return Value::integer(qq);
+                    // Rust euclidean division: quotient rounded toward -inf on
+                    // negative remainder, remainder always in [0, |y|) for
+                    // div_euclid; rem_euclid remainder never negative.
+                    int64_t q = x / y;
+                    int64_t r = x % y;
+                    if (r < 0) {
+                        if (name == "rem_euclid") {
+                            return Value::integer(y < 0 ? r - y : r + y);
+                        }
+                        return Value::integer(y > 0 ? q - 1 : q + 1);
+                    }
+                    return Value::integer(name == "rem_euclid" ? r : q);
                 });
             }
 
@@ -4433,8 +4465,6 @@ return Value::none();
                         if (name == "leading_ones") x = ~x & wmask;
                         int leading = 0;
                         if (x == 0) return Value::integer(wb);
-                        unsigned long long v = x;
-                        while (!(v & 1ull) && leading < wb) { /*count from LSB? no*/ }
                         // count from the MSB of the field:
                         for (int i = wb - 1; i >= 0; --i) {
                             if (x & (1ull << i)) break;
@@ -4633,6 +4663,9 @@ return Value::none();
                         Value v; v.k = VK::Rational; v.num = 0; v.den = 1;
                         return v;
                     }
+                    for (size_t i = 1; i < b.limbs.size(); ++i)
+                        if (b.limbs[i] != 0)
+                            panicHere("rational numerator out of range");
                     if (b.limbs[0] > (uint64_t)INT64_MAX) {
                         panicHere("rational numerator out of range");
                     }

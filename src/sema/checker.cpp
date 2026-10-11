@@ -434,6 +434,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("to_float", {unkTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("to_int", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("fabs", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("abs", {unkTy()}, {"x"}, unkTy(), false, 1);
     makeBuiltinFunc("add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
     makeBuiltinFunc("mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
     makeBuiltinFunc("exp", {floatTy()}, {"x"}, floatTy(), false, 1);
@@ -457,7 +458,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
     makeBuiltinFunc("is_prime", {unkTy()}, {"n"}, boolTy(), false, 1);
     makeBuiltinFunc("powmod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
-    makeBuiltinFunc("to_bytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 1);
+    makeBuiltinFunc("to_bytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 2);
     makeBuiltinFunc("from_bytes", {unkTy()}, {"b"}, unkTy(), false, 1);
     makeBuiltinFunc("hex_digits", {unkTy(), intTy()}, {"x", "n"}, strTy(), false, 2);
     makeBuiltinFunc("to_string", {unkTy()}, {"x"}, strTy(), false, 1);

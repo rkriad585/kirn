@@ -19,6 +19,9 @@ def main() -> none {
     print(c.rotate_left(8));            # 65280
     print(c.rotate_right(8));           # -16777216
     print(c.min(), c.max(), c.bits());  # i32 bounds, 32
+    print((-4).leading_zeros());            # 0 (even value; regression: used to hang)
+    print((1).leading_zeros(), (8).leading_zeros());   # 63 60
+    print(x.leading_zeros(), z.trailing_zeros(), z.count_ones());  # i8:6 3 3
 
     # Phase 1: free bit helpers and base conversion
     print(hex_digits(255, 4));          # 00ff
@@ -38,6 +41,7 @@ def main() -> none {
     print(math.floor_div(-7, 2));       # -4
     print(math.fmod(7.0, 3.0));         # 1.0
     print(math.copysign(3.0, -1.0));    # -3.0
+    print(abs(-5), abs(-3.5));          # 5 3.5 (free abs, Phase 2 example)
 
     # Phase 2: exact rationals
     a = rational(1, 2);
@@ -46,11 +50,13 @@ def main() -> none {
     print(a + 1, a * 2);                # 3/2 1/1
     print(a ** 2, a ** -1);             # 1/4 2/1
     print(a.numerator(), a.denominator(), a.to_float());   # 1 2 0.5
-    print(a < b, a == b, b > a);        # true false true
+    print(a < b, a == b, b > a);        # false false false (1/2 vs 1/3)
 
     # Phase 3: bigint base/bytes/float conversions
     print(big_int(255).to_string(16));  # ff
     print(str(big_int(255), 2));        # 11111111
     print(big_int(1000).to_float());    # 1000.0
     print(big_int(258).to_bytes(2));    # b'\x02\x01'
+    print(to_rational(big_int(42)));    # 42/1 (free to_rational)
+    print(big_int("42").to_rational()); # 42/1
 }

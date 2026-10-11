@@ -73,21 +73,20 @@ inline std::vector<Limb> addMag(const std::vector<Limb>& a,
 inline std::vector<Limb> subMag(const std::vector<Limb>& a,
                                 const std::vector<Limb>& b) {
     std::vector<Limb> out(a.size());
-    bool borrow = false;
+    Wdbl borrow = 0;
     for (size_t i = 0; i < a.size(); ++i) {
         Limb av = a[i];
-        Limb bv = i < b.size() ? b[i] : 0;
-        Wdbl diff = (Wdbl)av - bv - (borrow ? 1 : 0);
-        out[i] = (Limb)diff;
-        borrow = (av < bv + (borrow ? 1 : 0));
+        Wdbl bv = (i < b.size() ? (Wdbl)b[i] : (Wdbl)0) + borrow;
+        out[i] = (Limb)((Wdbl)av - bv);
+        borrow = av < bv ? 1 : 0;
     }
     while (!out.empty() && out.back() == 0) out.pop_back();
     return out;
 }
 
-// multiply |a|*|b| (schoolbook; Karatsuba left for a later increment)
-inline std::vector<Limb> mulMag(const std::vector<Limb>& a,
-                                const std::vector<Limb>& b) {
+// multiply |a|*|b| (schoolbook; O(n*m))
+inline std::vector<Limb> mulSchoolbook(const std::vector<Limb>& a,
+                                       const std::vector<Limb>& b) {
     if (a.empty() || b.empty()) return {};
     std::vector<Limb> out(a.size() + b.size(), 0);
     for (size_t i = 0; i < a.size(); ++i) {
@@ -109,6 +108,45 @@ inline std::vector<Limb> mulMag(const std::vector<Limb>& a,
     }
     while (!out.empty() && out.back() == 0) out.pop_back();
     return out;
+}
+
+// monthly a << (64*k) (append k zero limbs)
+inline std::vector<Limb> shiftUp(const std::vector<Limb>& a, size_t k) {
+    if (a.empty()) return {};
+    std::vector<Limb> out(k, 0);
+    out.insert(out.end(), a.begin(), a.end());
+    return out;
+}
+
+// Karatsuba threshold in limbs (CPython uses ~70; 32 keeps tests fast)
+static const size_t kKaratsubaCutoff = 32;
+
+inline std::vector<Limb> mulMag(const std::vector<Limb>& a,
+                                const std::vector<Limb>& b) {
+    size_t n = std::min(a.size(), b.size());
+    if (n < kKaratsubaCutoff) return mulSchoolbook(a, b);
+
+    size_t m = n / 2;                       // split point (limbs)
+    std::vector<Limb> a0(a.begin(), a.begin() + m);
+    std::vector<Limb> a1(a.begin() + m, a.end());
+    std::vector<Limb> b0(b.begin(), b.begin() + m);
+    std::vector<Limb> b1(b.begin() + m, b.end());
+    while (!a0.empty() && a0.back() == 0) a0.pop_back();
+    while (!b0.empty() && b0.back() == 0) b0.pop_back();
+
+    std::vector<Limb> z0 = mulMag(a0, b0);
+    std::vector<Limb> z2 = mulMag(a1, b1);
+    std::vector<Limb> as = addMag(a0, a1);
+    std::vector<Limb> bs = addMag(b0, b1);
+    std::vector<Limb> z1 = mulMag(as, bs);
+    z1 = subMag(z1, z0);
+    z1 = subMag(z1, z2);
+
+    std::vector<Limb> out = z0;
+    std::vector<Limb> mid = addMag(out, shiftUp(z1, m));
+    std::vector<Limb> res = addMag(mid, shiftUp(z2, 2 * m));
+    while (!res.empty() && res.back() == 0) res.pop_back();
+    return res;
 }
 
 // decimal string -> magnitude limbs
@@ -192,6 +230,122 @@ inline std::vector<Limb> divSmall(const std::vector<Limb>& a, Limb d) {
     return q;
 }
 
+inline unsigned clzLimb(Limb x) { return x ? (unsigned)__builtin_clzll(x) : 64u; }
+
+// magnitude << s bits (0<=s<64) in place
+inline void shlMagInPlace(std::vector<Limb>& v, unsigned s) {
+    if (s == 0 || v.empty()) return;
+    v.push_back(0);
+    for (size_t i = v.size() - 1; i > 0; --i)
+        v[i] = (v[i] << s) | (v[i - 1] >> (64 - s));
+    v[0] <<= s;
+    while (!v.empty() && v.back() == 0) v.pop_back();
+}
+
+// magnitude >> s bits (0<=s<64) in place
+inline void shrMagInPlace(std::vector<Limb>& v, unsigned s) {
+    if (s == 0 || v.empty()) return;
+    for (size_t i = 0; i + 1 < v.size(); ++i)
+        v[i] = (v[i] >> s) | (v[i + 1] << (64 - s));
+    v.back() >>= s;
+    while (!v.empty() && v.back() == 0) v.pop_back();
+}
+
+// u[j..j+n] -= qhat*v[0..n-1]; returns true if a borrow out occurred.
+inline bool mulSub(std::vector<Limb>& u, const std::vector<Limb>& v,
+                   Wdbl qhat, size_t j) {
+    size_t n = v.size();
+    Wdbl t = 0;
+    for (size_t i = 0; i < n; ++i) {
+        t += qhat * v[i];
+        Wdbl sub = (Wdbl)u[j + i] - (Limb)t;
+        u[j + i] = (Limb)sub;
+        t = (t >> 64) + ((sub >> 64) & 1);
+    }
+    Wdbl sub = (Wdbl)u[j + n] - (Limb)t;
+    u[j + n] = (Limb)sub;
+    return (sub >> 64) != 0;
+}
+
+// full Knuth Algorithm D: returns (quotient, remainder) of |u|/|v|.
+inline std::pair<std::vector<Limb>, std::vector<Limb>>
+divmodMag(const std::vector<Limb>& u0, const std::vector<Limb>& v0) {
+    if (v0.empty()) return {{}, {}};
+    if (magCmp(u0, v0) < 0) return {{}, u0};
+    if (v0.size() == 1) return {divSmall(u0, v0[0]),
+                                [&] {
+                                    Limb r = 0;
+                                    for (size_t i = u0.size(); i-- > 0;)
+                                        r = (Limb)((((Wdbl)r << 64) | u0[i]) % v0[0]);
+                                    std::vector<Limb> rem;
+                                    if (r) rem.push_back(r);
+                                    return rem;
+                                }()};
+    int n = (int)v0.size();
+    int m = (int)u0.size() - n;
+    int s = (int)clzLimb(v0.back());
+    std::vector<Limb> v = v0, u = u0;
+    shlMagInPlace(v, (unsigned)s);
+    shlMagInPlace(u, (unsigned)s);
+    u.resize((size_t)(m + n + 1), 0);
+    std::vector<Limb> q((size_t)(m + 1), 0);
+    Limb vn1 = v[n - 1], vn2 = v[n - 2];
+    for (int j = m; j >= 0; --j) {
+        Wdbl num = ((Wdbl)u[j + n] << 64) | u[j + n - 1];
+        Wdbl qhat = num / vn1;
+        Wdbl rhat = num % vn1;
+        while (qhat >= ((Wdbl)1 << 64) ||
+               qhat * vn2 > ((rhat << 64) | u[j + n - 2])) {
+            --qhat;
+            rhat += vn1;
+            if (rhat >= ((Wdbl)1 << 64)) break;
+        }
+        if (mulSub(u, v, qhat, (size_t)j)) {
+            --qhat;
+            Wdbl c = 0;
+            for (int i = 0; i < n; ++i) {
+                Wdbl sum = (Wdbl)u[j + i] + v[i] + (Limb)c;
+                u[j + i] = (Limb)sum;
+                c = sum >> 64;
+            }
+            u[j + n] = (Limb)((Wdbl)u[j + n] + (Limb)c);
+        }
+        q[j] = (Limb)qhat;
+    }
+    while (!q.empty() && q.back() == 0) q.pop_back();
+    std::vector<Limb> r(u.begin(), u.begin() + n);
+    shrMagInPlace(r, (unsigned)s);
+    return {q, r};
+}
+
+// bitwise kernels on equal-length limb arrays
+inline std::vector<Limb> magAnd(const std::vector<Limb>& a,
+                                const std::vector<Limb>& b) {
+    size_t n = std::min(a.size(), b.size());
+    std::vector<Limb> r(n);
+    for (size_t i = 0; i < n; ++i) r[i] = a[i] & b[i];
+    while (!r.empty() && r.back() == 0) r.pop_back();
+    return r;
+}
+inline std::vector<Limb> magOr(const std::vector<Limb>& a,
+                               const std::vector<Limb>& b) {
+    size_t n = std::max(a.size(), b.size());
+    std::vector<Limb> r(n);
+    for (size_t i = 0; i < n; ++i)
+        r[i] = (i < a.size() ? a[i] : 0) | (i < b.size() ? b[i] : 0);
+    while (!r.empty() && r.back() == 0) r.pop_back();
+    return r;
+}
+inline std::vector<Limb> magXor(const std::vector<Limb>& a,
+                                const std::vector<Limb>& b) {
+    size_t n = std::max(a.size(), b.size());
+    std::vector<Limb> r(n);
+    for (size_t i = 0; i < n; ++i)
+        r[i] = (i < a.size() ? a[i] : 0) ^ (i < b.size() ? b[i] : 0);
+    while (!r.empty() && r.back() == 0) r.pop_back();
+    return r;
+}
+
 struct Big {
     std::vector<Limb> limbs;
     bool neg = false;
@@ -246,35 +400,24 @@ struct Big {
     // floor division: returns quotient (Python/Ruby semantics)
     Big div(const Big& o) const {
         if (o.zero()) return {};
-        // small-divisor fast path
-        if (o.limbs.size() == 1) {
-            Big q; q.limbs = divSmall(limbs, o.limbs[0]);
-            // floor: trunc toward zero first; if signs differ and there is a
-            // remainder, pull the quotient one further negative (Python).
-            bool negq = neg != o.neg && !q.zero();
-            Wdbl r = 0;
-            for (size_t i = limbs.size(); i-- > 0;) r = ((r << 64) | limbs[i]) % o.limbs[0];
-            if (negq && r != 0) {
-                Big one; one.limbs = fromInt(1);
-                q = q.add(one);
-            }
-            q.neg = negq && !q.zero();
-            return q;
-        }
-        // big-divisor: return 0 for now (full Knuth D deferred). The Phase-3
-        // example only needs small moduli (powmod uses modSmall above).
-        Big q;
+        auto qr = divmodMag(limbs, o.limbs);
+        Big q; q.limbs = qr.first;
+        bool signDiff = (neg != o.neg);
+        // floor: if signs differ and there is a nonzero remainder, pull the
+        // truncated quotient one further negative (Python).
+        if (signDiff && !qr.second.empty())
+            q.limbs = addMag(q.limbs, fromInt(1));
+        q.neg = signDiff && !q.zero();
         return q;
     }
 
-    // a mod m (positive m), Python-style nonnegative result
+    // a mod m (Python-style: result has the sign of m)
     Big mod(const Big& m) const {
         if (m.zero()) return {};
         Big q = div(m);
-        Big prod = q.mul(m);
-        Big r = sub(prod);               // |r| < m
-        if (r.neg) r = r.add(m);         // normalize to [0, m)
-        return r;
+        // with floor division this remainder already lies in [0,m) for m>0 and
+        // (m,0] for m<0 — exactly Python/Ruby semantics.
+        return sub(q.mul(m));
     }
 
     // (this^e) mod m via modular exponentiation
@@ -312,6 +455,31 @@ struct Big {
         return mag;
     }
 
+    // base 2..36 representation (lowercase digits)
+    std::string toStringBase(unsigned base) const {
+        if (base < 2 || base > 36) base = 10;
+        if (zero()) return "0";
+        std::vector<Limb> cur = limbs;
+        std::string out;
+        while (!cur.empty()) {
+            Wdbl r = 0;
+            std::vector<Limb> q(cur.size(), 0);
+            for (size_t i = cur.size(); i-- > 0;) {
+                Wdbl v = (r << 64) | cur[i];
+                q[i] = (Limb)(v / base);
+                r = v % base;
+            }
+            while (!q.empty() && q.back() == 0) q.pop_back();
+            int digit = (int)r;
+            out.push_back(digit < 10 ? char('0' + digit)
+                                     : char('a' + digit - 10));
+            cur = q;
+        }
+        std::reverse(out.begin(), out.end());
+        if (neg) out = "-" + out;
+        return out;
+    }
+
     int compare(const Big& o) const {
         if (zero() && o.zero()) return 0;
         int s1 = sign(), s2 = o.sign();
@@ -320,7 +488,221 @@ struct Big {
         if (s1 > 0) return c;
         return -c;
     }
+
+    bool isEven() const { return limbs.empty() || (limbs[0] & 1) == 0; }
+
+    // left shift by k bits (multiply by 2^k), sign preserved
+    Big shlBits(uint64_t k) const {
+        if (zero() || k == 0) return *this;
+        Big r;
+        r.limbs = shiftUp(limbs, (size_t)(k / 64));
+        unsigned bits = (unsigned)(k % 64);
+        if (bits) shlMagInPlace(r.limbs, bits);
+        r.neg = neg && !r.zero();
+        return r;
+    }
+
+    // arithmetic shift right by k bits = floor(this / 2^k)
+    Big shrBits(uint64_t k) const {
+        if (zero() || k == 0) return *this;
+        Big p2; p2.limbs = fromInt(1);
+        p2 = p2.shlBits(k);
+        return div(p2);
+    }
 };
+
+inline Big fromI64(int64_t v) {
+    Big b;
+    if (v < 0) {
+        uint64_t mag = (uint64_t)0 - (uint64_t)v;
+        b.neg = true;
+        if (mag) b.limbs.push_back(mag);
+    } else if (v != 0) {
+        b.limbs.push_back((uint64_t)v);
+    }
+    return b;
+}
+
+inline Big fromBig(int64_t v) { return fromI64(v); }
+
+inline uint64_t toU64(const Big& b) {
+    return b.limbs.empty() ? 0 : b.limbs[0];
+}
+
+// ---- bitwise ops with infinite two's-complement semantics (Python/Ruby) ----
+
+inline std::vector<Limb> toTwosComp(const std::vector<Limb>& mag, bool negv,
+                                    size_t n) {
+    std::vector<Limb> r(n, 0);
+    for (size_t i = 0; i < mag.size() && i < n; ++i) r[i] = mag[i];
+    if (negv) {
+        for (auto& l : r) l = ~l;
+        Wdbl carry = 1;
+        for (size_t i = 0; i < n && carry; ++i) {
+            Wdbl s = (Wdbl)r[i] + carry;
+            r[i] = (Limb)s;
+            carry = s >> 64;
+        }
+    }
+    return r;
+}
+
+inline Big fromTwosComp(std::vector<Limb> r) {
+    Big b;
+    if (r.empty()) return b;
+    bool negv = (r.back() >> 63) & 1;
+    if (!negv) {
+        while (!r.empty() && r.back() == 0) r.pop_back();
+        b.limbs = std::move(r);
+        return b;
+    }
+    for (auto& l : r) l = ~l;
+    Wdbl carry = 1;
+    for (size_t i = 0; i < r.size() && carry; ++i) {
+        Wdbl s = (Wdbl)r[i] + carry;
+        r[i] = (Limb)s;
+        carry = s >> 64;
+    }
+    while (!r.empty() && r.back() == 0) r.pop_back();
+    b.limbs = std::move(r);
+    b.neg = !b.limbs.empty();
+    return b;
+}
+
+inline Big bitwiseOp(const Big& a, const Big& b, char op) {
+    size_t bits =
+        (size_t)std::max(bitLength(a.limbs), bitLength(b.limbs)) + 1;
+    size_t n = (bits + 63) / 64;
+    if (n == 0) n = 1;
+    auto x = toTwosComp(a.limbs, a.neg, n);
+    auto y = toTwosComp(b.limbs, b.neg, n);
+    std::vector<Limb> z(n);
+    for (size_t i = 0; i < n; ++i)
+        z[i] = op == '&' ? (x[i] & y[i])
+               : op == '|' ? (x[i] | y[i])
+                           : (x[i] ^ y[i]);
+    return fromTwosComp(std::move(z));
+}
+
+// ---- number theory ---------------------------------------------------------
+
+inline Big gcd(const Big& a, const Big& b) {
+    Big x = a.abs(), y = b.abs();
+    while (!y.zero()) {
+        Big r = x.mod(y);
+        x = y;
+        y = r;
+    }
+    return x;
+}
+
+// extended Euclid; returns true and sets out to a^-1 mod m when it exists
+inline bool modInverse(const Big& a, const Big& m, Big& out) {
+    Big m0 = m.abs();
+    if (m0.zero()) return false;
+    Big oldR = a.mod(m0), r = m0;
+    Big oldS; oldS.limbs = fromInt(1);
+    Big s;
+    while (!r.zero()) {
+        Big q = oldR.div(r);
+        Big nr = oldR.sub(q.mul(r));
+        Big ns = oldS.sub(q.mul(s));
+        oldR = r; r = nr;
+        oldS = s; s = ns;
+    }
+    Big one; one.limbs = fromInt(1);
+    if (oldR.compare(one) != 0) return false;
+    out = oldS.mod(m0);
+    return true;
+}
+
+// Tonelli-Shanks: square root of a mod p (p an odd prime). Returns true on
+// success (a is a quadratic residue).
+inline bool modSqrt(const Big& a, const Big& p, Big& out) {
+    Big one; one.limbs = fromInt(1);
+    Big two; two.limbs = fromInt(2);
+    Big A = a.mod(p);
+    if (A.zero()) { out = A; return true; }
+    Big pm1 = p.sub(one);
+    // p == 2
+    if (pm1.zero()) { out = A.mod(two); return true; }
+    // Legendre symbol A^((p-1)/2) mod p
+    Big leg = A.powmod(pm1.div(two), p);
+    if (leg.compare(one) != 0) return false;
+    // p ≡ 3 (mod 4): r = A^((p+1)/4)
+    if (modSmall(pm1.limbs, 4) == 3) {
+        out = A.powmod(pm1.add(one).div(fromBig(4)), p);
+        return true;
+    }
+    // factor p-1 = q * 2^s
+    Big q = pm1;
+    int s = 0;
+    while (q.isEven()) { q = q.shrBits(1); ++s; }
+    // find a quadratic non-residue z
+    Big z; z.limbs = fromInt(2);
+    Big pz = p;
+    Big zz = z;
+    for (;;) {
+        Big e = pz.sub(one).div(two);
+        if (zz.powmod(e, pz).compare(pm1) == 0) break;
+        zz = zz.add(one);
+    }
+    Big m = fromBig((int64_t)s);
+    Big c = zz.powmod(q, p);
+    Big t = A.powmod(q, p);
+    Big r = A.powmod(q.add(one).div(two), p);
+    while (t.compare(one) != 0) {
+        int i = 0;
+        Big tt = t;
+        while (tt.compare(one) != 0) { tt = tt.mul(tt).mod(p); ++i; }
+        // b = c^(2^(m-i-1))
+        Big b = c;
+        for (int k = 0; k < (int)(toU64(m) - i - 1); ++k) b = b.mul(b).mod(p);
+        m = fromBig((int64_t)i);
+        c = b.mul(b).mod(p);
+        t = t.mul(c).mod(p);
+        r = r.mul(b).mod(p);
+    }
+    out = r.mod(p);
+    return true;
+}
+
+// deterministic Miller-Rabin (bases valid for n < 3.3e24)
+inline bool isPrime(const Big& n0) {
+    Big one; one.limbs = fromInt(1);
+    Big two; two.limbs = fromInt(2);
+    if (n0.neg || n0.zero()) return false;
+    Big n = n0;
+    if (n.compare(one) == 0) return false;
+    if (n.compare(two) == 0) return true;
+    if (n.isEven()) return false;
+    // small trial division
+    static const uint64_t small[] = {3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37};
+    for (uint64_t sp : small) {
+        if (modSmall(n.limbs, sp) == 0) {
+            Big b; b.limbs = fromInt((int64_t)sp);
+            return n.compare(b) == 0;
+        }
+    }
+    Big nm1 = n.sub(one);
+    Big d = nm1;
+    int s = 0;
+    while (d.isEven()) { d = d.shrBits(1); ++s; }
+    static const uint64_t bases[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37};
+    for (uint64_t a : bases) {
+        Big base; base.limbs = fromInt((int64_t)a);
+        if (base.compare(n) >= 0) continue;
+        Big x = base.powmod(d, n);
+        if (x.compare(one) == 0 || x.compare(nm1) == 0) continue;
+        bool ok = false;
+        for (int i = 1; i < s; ++i) {
+            x = x.mul(x).mod(n);
+            if (x.compare(nm1) == 0) { ok = true; break; }
+        }
+        if (!ok) return false;
+    }
+    return true;
+}
 
 inline Big fromStr(const std::string& s) {
     Big b;
@@ -331,21 +713,6 @@ inline Big fromStr(const std::string& s) {
     }
     b.limbs = fromStringMagnitude(s.substr(i0));
     if (b.limbs.empty()) b.neg = false;
-    return b;
-}
-
-inline Big fromI64(int64_t v) {
-    Big b;
-    if (v < 0) {
-        // magnitude of the signed value: -(int64)v is technically UB for LLONG_MIN
-        // but the plan pins i64 bodies; LLONG_MIN -> |LLONG_MIN| fits in uint64.
-        uint64_t mag = (uint64_t)0 - (uint64_t)v; // wraps correctly
-        b.neg = true;
-        b.limbs.clear();
-        if (mag) b.limbs.push_back(mag);
-    } else if (v != 0) {
-        b.limbs.push_back((uint64_t)v);
-    }
     return b;
 }
 

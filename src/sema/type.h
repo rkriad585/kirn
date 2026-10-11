@@ -17,6 +17,7 @@ enum class TyK {
     Int,        // name = i8..u64, usize (default "int" -> i64)
     Float,      // f32 | f64
     BigInt,     // arbitrary-precision integer (VK::BigInt)
+    Rational,   // exact rational num/den (VK::Rational)
     Str,
     Char,
     Bytes,       // immutable byte buffer, VK::Bytes at runtime
@@ -87,6 +88,7 @@ inline TyP bytesTy()      { return Ty::named(TyK::Bytes, "bytes"); }
 inline TyP intTy(std::string n = "i64")  { return Ty::named(TyK::Int, std::move(n)); }
 inline TyP floatTy(std::string n = "f64") { return Ty::named(TyK::Float, std::move(n)); }
 inline TyP bigIntTy(std::string n = "bigint") { return Ty::named(TyK::BigInt, std::move(n)); }
+inline TyP rationalTy(std::string n = "rational") { return Ty::named(TyK::Rational, std::move(n)); }
 inline TyP listTy(TyP e)  { return Ty::one(TyK::List, std::move(e)); }
 inline TyP setTy(TyP e)   { return Ty::one(TyK::Set, std::move(e)); }
 inline TyP chanTy(TyP e)  { return Ty::one(TyK::Chan, std::move(e)); }
@@ -143,7 +145,8 @@ inline TyP fnTy(std::vector<TyP> ps, TyP r) {
 }
 
 inline bool isNumeric(const Ty& t) {
-    return t.k == TyK::Int || t.k == TyK::Float || t.k == TyK::BigInt;
+    return t.k == TyK::Int || t.k == TyK::Float || t.k == TyK::BigInt ||
+           t.k == TyK::Rational;
 }
 
 // Structural equality (ignores span-ish metadata; none exists).

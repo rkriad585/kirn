@@ -28,4 +28,35 @@ def main() -> none {
     print(bit_length(big_int(256)), bit_count(big_int(255)));
     print(big_int(17).is_prime());                   # true
     print(big_int(15).is_prime());                   # false
+    # Phase 3: Knuth-D division / Karatsuba (multi-limb)
+    a = big_int("123456789012345678901234567890");
+    b = big_int("9876543210987654321");
+    print(a // b);                                   # 12499999886
+    print(a % b);                                    # 925925941327160484
+    print(a // big_int(-7));                         # -17636684144620811271604938270
+    print(a % big_int(-7));                          # 0
+    # Phase 3: arithmetic helpers
+    print(big_int(48).gcd(36));                      # 12
+    print(big_int(48).lcm(36));                      # 144
+    print(big_int(3).mod_inverse(11).to_int());      # 4
+    print(big_int(3).mod_inverse(4).to_int());       # 3 (2*3=6 ≡ 2 mod 4)
+    print(big_int(4).mod_sqrt(13).to_int());         # 11 (11^2 ≡ 4 mod 13)
+    print(big_int(2).mod_sqrt(7).to_int());          # 4  (4^2 ≡ 2 mod 7)
+    # Phase 3: bitwise (two's complement) + shifts
+    print(big_int(-6) & big_int(3));                 # 2
+    print(big_int(-6) | big_int(3));                 # -5
+    print(big_int(-6) ^ big_int(3));                 # -7
+    print(big_int(5) << 100);                        # 6338253001141147007483516026880
+    print((big_int(2).pow(100)) >> 99);              # 2
+    print(big_int(-7) >> 1);                         # -4 (arithmetic)
+    # Phase 3: Miller-Rabin / conversions
+    print(big_int(2).pow(127) - big_int(1) == big_int("170141183460469231731687303715884105727"));  # true
+    print(big_int("170141183460469231731687303715884105727").is_prime());   # true  (2^127-1 Mersenne)
+    print(big_int("170141183460469231731687303715884105725").is_prime());   # false
+    print(big_int(1000000007).is_prime());           # true
+    print(str(big_int(255), 16));                    # ff
+    print(to_bytes(big_int(258), 2));                # b'\x02\x01' (little)
+    print(to_bytes(big_int(258), 2, "big"));         # b'\x01\x02' (big)
+    print(from_bytes(big_int(-1).to_bytes(4)));      # -1
+    print(big_int(1000).to_float());                 # 1000.0
 }

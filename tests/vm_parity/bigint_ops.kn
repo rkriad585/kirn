@@ -1,0 +1,49 @@
+def main() -> none {
+    # full Knuth-D division with multi-limb divisors (Python semantics)
+    a = big_int("123456789012345678901234567890");
+    print(a // big_int("9876543210987654321"));      # 12499999886
+    print(a % big_int("9876543210987654321"));       # 925925941327160484
+    print(a // big_int(-7));                         # -17636684144620811271604938270
+    print(a % big_int(-7));                          # 0
+
+    # Karatsuba multiply (>= 32 limbs) is exact and commutative
+    x = big_int(2).pow(2000) + big_int(123456789);
+    y = big_int(2).pow(1999) + big_int(987654321);
+    print(x * y == y * x);                           # true
+    print((x * y).bit_length());                     # 4000
+
+    # gcd / lcm / modular inverse / modular square root
+    print(big_int(48).gcd(big_int(36)));             # 12
+    print(big_int(48).lcm(big_int(36)));             # 144
+    print(big_int(3).mod_inverse(11));               # 4
+    print(big_int(3).mod_inverse(4));                # 3
+    print(big_int(4).mod_sqrt(13));                  # 11 (a root)
+    print(big_int(2).mod_sqrt(7));                   # 4   (7 ≡ 3 mod 4)
+
+    # bit ops (infinite two's complement, Python/Ruby semantics)
+    print(big_int(-6) & big_int(3));                 # 2
+    print(big_int(-6) | big_int(3));                 # -5
+    print(big_int(-6) ^ big_int(3));                 # -7
+    print(big_int(5) << 100);                        # 6338253001141147007483516026880
+    print(big_int(2).pow(100) >> 99);                # 2
+    print(big_int(-7) >> 1);                         # -4 (floor)
+
+    # Miller-Rabin primality (multi-limb)
+    print(big_int("170141183460469231731687303715884105727").is_prime());   # true  (2^127-1)
+    print(big_int("170141183460469231731687303715884105725").is_prime());   # false
+    print(big_int(1000000007).is_prime());           # true
+
+    # conversions
+    print(str(big_int(-255), 16));                   # -ff
+    print(to_bytes(258, 2));                         # b'\x02\x01'
+    print(to_bytes(258, 2, "big"));                  # b'\x01\x02'
+    print(from_bytes(big_int(-1).to_bytes(4)));      # -1
+    print(big_int(1000).to_float());                 # 1000.0
+
+    # floor division agrees with int arithmetic across a signed range
+    for i in range(-25, 25) {
+        assert_eq((big_int(i) // big_int(7)).to_int(), i // 7);
+        assert_eq((big_int(i) % big_int(7)).to_int(), i % 7);
+    }
+    print("ok");
+}

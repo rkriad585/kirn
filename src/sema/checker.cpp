@@ -30,6 +30,7 @@ std::string toString(const Ty& t) {
         case TyK::Int:     return t.name.empty() ? "int" : t.name;
         case TyK::Float:   return t.name.empty() ? "float" : t.name;
         case TyK::BigInt:  return t.name.empty() ? "bigint" : t.name;
+        case TyK::Rational: return t.name.empty() ? "rational" : t.name;
         case TyK::Str:     return t.name.empty() ? "string" : t.name;
         case TyK::Char:    return t.name.empty() ? "char" : t.name;
         case TyK::Bytes:   return "bytes";
@@ -427,7 +428,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("assert_eq", {unkTy(), unkTy()}, {"a", "b"}, noneTy(),
                     false, 2);
     // Rational and float builtins (Phase 2)
-    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, unkTy(), false, 1);
+    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
     makeBuiltinFunc("numerator", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("denominator", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("to_float", {unkTy()}, {"x"}, floatTy(), false, 1);
@@ -456,8 +457,9 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
     makeBuiltinFunc("is_prime", {unkTy()}, {"n"}, boolTy(), false, 1);
     makeBuiltinFunc("powmod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
-    makeBuiltinFunc("to_bytes", {unkTy(), intTy()}, {"x", "len"}, unkTy(), false, 1);
+    makeBuiltinFunc("to_bytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 1);
     makeBuiltinFunc("from_bytes", {unkTy()}, {"b"}, unkTy(), false, 1);
+    makeBuiltinFunc("hex_digits", {unkTy(), intTy()}, {"x", "n"}, strTy(), false, 2);
     makeBuiltinFunc("to_string", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("to_rational", {unkTy()}, {"x"}, unkTy(), false, 1);
     makeBuiltinFunc("rational_add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
@@ -475,7 +477,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     // WHY-1 / SP-8: batteries-included conversion & collection builtins.
     // Polymorphic params use Unknown (dynamic v1) matched at runtime.
-    makeBuiltinFunc("str", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("str", {unkTy(), intTy()}, {"x", "base"}, strTy(), false, 1);
     makeBuiltinFunc("int", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("float", {unkTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("bool", {unkTy()}, {"x"}, boolTy(), false, 1);
@@ -947,6 +949,7 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             if (n == "strings") return strTy("strings");
             if (n == "bytes")   return bytesTy();
             if (n == "bigint")  return bigIntTy();
+            if (n == "rational") return rationalTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -1069,6 +1072,7 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     if (kFrom == TyK::Int && kTo == TyK::Int) return true;
     if (kFrom == TyK::Float && kTo == TyK::Float) return true;
     if (kFrom == TyK::BigInt && kTo == TyK::BigInt) return true;
+    if (kFrom == TyK::Rational && kTo == TyK::Rational) return true;
 
     // The width families (b8/b16/b32, char8/16/32, string/str/strings,
     // bytes) are distinct spellings of one runtime value kind, so they are
@@ -1160,6 +1164,13 @@ TyP Checker::unify(const TyP& a, const TyP& b, uint32_t line, uint32_t col,
         (b->is(TyK::BigInt) || b->is(TyK::Int)) &&
         (a->is(TyK::BigInt) || b->is(TyK::BigInt)))
         return bigIntTy();
+    if (a->is(TyK::Rational) && b->is(TyK::Rational)) return rationalTy();
+    if (a->is(TyK::Rational) &&
+        (b->is(TyK::Int) || b->is(TyK::BigInt)))
+        return rationalTy();
+    if (b->is(TyK::Rational) &&
+        (a->is(TyK::Int) || a->is(TyK::BigInt)))
+        return rationalTy();
     if (a->is(TyK::None) && !b->is(TyK::None)) return optTy(b);
     if (b->is(TyK::None) && !a->is(TyK::None)) return optTy(a);
     if (a->is(TyK::Opt) && !b->is(TyK::Opt))
@@ -1287,14 +1298,18 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
     if (recv->is(TyK::Int)) {
         static const char* kIntMethods[] = {
             "checked_add", "checked_sub", "checked_mul", "checked_div",
-            "checked_rem", "checked_neg", "wrapping_add", "wrapping_sub",
+            "checked_rem", "checked_neg", "checked_shl", "checked_shr",
+            "checked_pow", "wrapping_add", "wrapping_sub",
             "wrapping_mul", "wrapping_div", "wrapping_rem", "wrapping_neg",
-            "wrapping_abs", "saturating_add", "saturating_sub",
+            "wrapping_abs", "wrapping_shl", "wrapping_shr", "wrapping_pow",
+            "saturating_add", "saturating_sub",
             "saturating_mul", "saturating_div", "saturating_neg",
-            "saturating_abs", "div_euclid", "rem_euclid", "div_ceil",
-            "count_ones", "count_zeros", "leading_zeros", "trailing_zeros",
-            "leading_ones", "trailing_ones", "is_power_of_two",
-            "next_power_of_two", "abs", "signum", "ilog2", "pow", nullptr};
+            "saturating_abs", "saturating_pow", "div_euclid", "rem_euclid",
+            "div_ceil", "count_ones", "count_zeros", "leading_zeros",
+            "trailing_zeros", "leading_ones", "trailing_ones",
+            "reverse_bits", "rotate_left", "rotate_right", "swap_bytes",
+            "is_power_of_two", "next_power_of_two", "abs", "signum",
+            "ilog2", "min", "max", "bits", "pow", nullptr};
         for (int i = 0; kIntMethods[i]; ++i) {
             if (name != kIntMethods[i]) continue;
             FuncSig s;
@@ -1303,9 +1318,11 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                  name.rfind("wrapping_", 0) == 0 ||
                  name.rfind("saturating_", 0) == 0 ||
                  name == "div_euclid" || name == "rem_euclid" ||
-                 name == "div_ceil" || name == "pow") &&
+                 name == "div_ceil" || name == "rotate_left" ||
+                 name == "rotate_right" || name == "pow") &&
                 name != "checked_neg" && name != "wrapping_neg" &&
-                name != "saturating_neg" && name != "wrapping_abs") {
+                name != "saturating_neg" && name != "wrapping_abs" &&
+                name != "saturating_abs") {
                 s.params.push_back(intTy(recv->name.empty() ? "i64" : recv->name));
                 s.names.push_back("rhs");
                 s.required = 1;
@@ -1320,11 +1337,11 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         FuncSig s;
         if (name == "pow" || name == "powmod") {
             s.ret = bigIntTy();
-            s.params.push_back(intTy("i64"));
+            s.params.push_back(unkTy());
             s.names.push_back("exp");
             s.required = 1;
             if (name == "powmod") {
-                s.params.push_back(intTy("i64"));
+                s.params.push_back(unkTy());
                 s.names.push_back("mod");
                 s.required = 2;
             }
@@ -1342,11 +1359,106 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         }
         if (name == "to_string") {
             s.ret = strTy();
+            s.params.push_back(intTy("i64"));
+            s.names.push_back("base");
+            s.required = 0;
+            return s;
+        }
+        if (name == "to_float") {
+            s.ret = floatTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "gcd" || name == "lcm" || name == "mod_inverse" ||
+            name == "mod_sqrt") {
+            s.ret = (name == "mod_inverse" || name == "mod_sqrt")
+                        ? unkTy() : bigIntTy();
+            s.params.push_back(unkTy());
+            s.names.push_back(name == "mod_inverse" || name == "mod_sqrt"
+                                  ? "mod" : "other");
+            s.required = 1;
+            return s;
+        }
+        if (name == "to_bytes") {
+            s.ret = unkTy();
+            s.params.push_back(intTy("i64"));
+            s.names.push_back("len");
+            s.params.push_back(strTy());
+            s.names.push_back("endian");
             s.required = 0;
             return s;
         }
         if (name == "to_rational") {
             s.ret = unkTy();
+            s.required = 0;
+            return s;
+        }
+        return std::nullopt;
+    }
+
+    // Phase 2 float method surface (DATA_TYPE_PLAN.md).
+    if (recv->is(TyK::Float)) {
+        FuncSig s;
+        if (name == "floor" || name == "ceil" || name == "trunc") {
+            s.ret = intTy("i64");
+            s.required = 0;
+            return s;
+        }
+        if (name == "round") {
+            s.ret = intTy("i64");
+            s.params.push_back(intTy("i64"));
+            s.names.push_back("n");
+            s.required = 0;
+            return s;
+        }
+        if (name == "fract" || name == "abs" || name == "signum" ||
+            name == "sqrt" || name == "exp" || name == "ln" ||
+            name == "log2" || name == "log10" || name == "to_degrees" ||
+            name == "to_radians") {
+            s.ret = floatTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "log" || name == "pow" || name == "copysign" ||
+            name == "atan2" || name == "min" || name == "max" ||
+            name == "total_cmp") {
+            s.ret = name == "total_cmp" ? intTy("i64") : floatTy();
+            s.params.push_back(floatTy());
+            s.names.push_back("x");
+            s.required = 1;
+            return s;
+        }
+        if (name == "sin" || name == "cos" || name == "tan" ||
+            name == "asin" || name == "acos" || name == "atan" ||
+            name == "sinh" || name == "cosh" || name == "tanh") {
+            s.ret = floatTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "is_nan" || name == "is_infinite" || name == "is_finite") {
+            s.ret = boolTy();
+            s.required = 0;
+            return s;
+        }
+        return std::nullopt;
+    }
+
+    // Phase 2 exact rational method surface (DATA_TYPE_PLAN.md).
+    if (recv->is(TyK::Rational)) {
+        FuncSig s;
+        if (name == "numerator" || name == "denominator" ||
+            name == "to_int") {
+            s.ret = intTy("i64");
+            s.required = 0;
+            return s;
+        }
+        if (name == "to_float") {
+            s.ret = floatTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "abs") {
+            s.ret = recv;
             s.required = 0;
             return s;
         }
@@ -2708,6 +2820,10 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 if (dynish(rt)) return lt;
                 if (isNumeric(*lt) && isNumeric(*rt)) {
                     if (lt->is(TyK::Float) || rt->is(TyK::Float)) return floatTy();
+                    if (lt->is(TyK::Rational) || rt->is(TyK::Rational)) {
+                        // exact rational arithmetic; `/` and `**` stay rational
+                        return rationalTy();
+                    }
                     if (lt->is(TyK::BigInt) || rt->is(TyK::BigInt)) {
                         if (op == "/") return floatTy();
                         return bigIntTy();

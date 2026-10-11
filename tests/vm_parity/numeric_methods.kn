@@ -1,0 +1,56 @@
+import math;
+x: i8 = 2;
+y: i8 = 100;
+z: u8 = 200;
+c: i32 = 255;
+neg: i32 = -7;
+def main() -> none {
+    # Phase 1: width-aware checked/wrapping/saturating + bit ops
+    print(x.checked_shl(6));            # none (128 > i8 max)
+    print(x.checked_shl(3));            # 16
+    print(x.checked_pow(6));            # 64
+    print(x.checked_pow(7));            # none
+    print(y.saturating_pow(3));         # 127 (saturated)
+    print(z.wrapping_add(100));         # 44
+    print(z.wrapping_shl(1));           # 144
+    print(neg.div_euclid(2), neg.rem_euclid(2));   # -4 1
+    print(c.reverse_bits());            # -16777216 (0xff000000)
+    print(c.swap_bytes());              # -16777216
+    print(c.rotate_left(8));            # 65280
+    print(c.rotate_right(8));           # -16777216
+    print(c.min(), c.max(), c.bits());  # i32 bounds, 32
+
+    # Phase 1: free bit helpers and base conversion
+    print(hex_digits(255, 4));          # 00ff
+    print(str(255, 16), str(255, 2));   # ff 11111111
+    print(from_bytes(to_bytes(258, 2)));       # 258
+    print(from_bytes(to_bytes(-1, 2)));        # -1
+
+    # Phase 2: float methods
+    print(2.5.floor(), 2.5.ceil(), 2.5.trunc(), 2.5.round());   # 2 3 2 2
+    print((-2.5).round(), (2.5).round(), (3.5).round());        # -2 2 4 (half-even)
+    print(2.5.fract(), (-2.5).abs(), (-2.5).signum());          # 0.5 2.5 -1.0
+    print(4.0.sqrt(), 4.0.log2(), 8.0.log(2.0));                # 2.0 2.0 3.0
+    print(math.nan.is_nan(), math.inf.is_infinite(), 1.0.is_finite());
+    print(2.345.round(2));              # 2.35
+
+    # Phase 2: math module
+    print(math.floor_div(-7, 2));       # -4
+    print(math.fmod(7.0, 3.0));         # 1.0
+    print(math.copysign(3.0, -1.0));    # -3.0
+
+    # Phase 2: exact rationals
+    a = rational(1, 2);
+    b = rational(1, 3);
+    print(a + b, a - b, a * b, a / b);  # 5/6 1/6 1/6 3/2
+    print(a + 1, a * 2);                # 3/2 1/1
+    print(a ** 2, a ** -1);             # 1/4 2/1
+    print(a.numerator(), a.denominator(), a.to_float());   # 1 2 0.5
+    print(a < b, a == b, b > a);        # true false true
+
+    # Phase 3: bigint base/bytes/float conversions
+    print(big_int(255).to_string(16));  # ff
+    print(str(big_int(255), 2));        # 11111111
+    print(big_int(1000).to_float());    # 1000.0
+    print(big_int(258).to_bytes(2));    # b'\x02\x01'
+}

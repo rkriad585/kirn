@@ -1076,7 +1076,7 @@ symbols via `dlsym` like C. Strings must be converted via `CStr`/`CString`; slic
 are not supported (opaque handles only).
 
 **Implementation steps:** `rust` tag; `rustc -C cdylib -o lib<stem>.so <stem>.rs`; `--extern`
-generated header via `cbindgen` optional; marshalling: `i64/f64/bool` direct, `string` via
+generated header via `cbindgen` optional; marshalling: `i64/f64/Bool` direct, `Str` via
 `CString::into_raw`/`CStr`, callbacks via `extern "C" fn` pointer.
 
 **Syntax/AST changes:** new `rust` tag only.
@@ -1597,7 +1597,7 @@ headers.
 ```kirn
 use import c:sortlib;
 use from c:sortlib import qsort;
-fn cmp(a: *char, b: *char) -> i32 { return cmp_str(a, b); }
+fn cmp(a: *Char, b: *Char) -> i32 { return cmp_str(a, b); }
 qsort(arr, len, 8, callback(cmp));   # foreign calls KIRN cmp
 ```
 

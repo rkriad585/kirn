@@ -194,23 +194,23 @@ fn main() -> none {
 
 **Capability (adopts `SYNTAX_PLAN.md` SP-8 + adds stdlib-first builtins)**
 
-- `str(x)` — add the deliberately-absent `str()` (D10 in SYNTAX_PLAN).
+- `Str(x)` — add the deliberately-absent `Str()` (D10 in SYNTAX_PLAN).
 - Collection helpers: `map, filter, reduce, sorted, reversed, min, max, sum, any, all, zip,
 enumerate`.
 - Text: `split, join, trim, upper, lower, replace, starts_with, ends_with, contains, format`.
-- Numeric/any: `int(x), float(x), bool(x), type(x), isinstance(x, T), len`.
+- Numeric/any: `Int(x), Float(x), Bool(x), type(x), isinstance(x, T), len`.
 - Conversion helpers that lower cleanly to existing ops.
 
 **Design notes / rationale**
 
 - Nothing new to the AST — each helper is a `fn`-shaped builtin registered in
   `installBuiltins()` (`runtime.cpp:485-613`); bytecode and AOT lower them as calls → zero-cost.
-- `str()` restores the missing primitive→string coercion users expect (currently only via
+- `Str()` restores the missing primitive→string coercion users expect (currently only via
   f-strings).
 - Prefer _names over symbols_ (Python-style) to keep code readable (principle 4).
 
 **Exit criteria:** `examples/34_batteries.kn` runs using only builtins (no imports); corpus stays
-green; `str()`/`map`/`filter`/etc. covered by `tests/syntax/builtins_*.kn`.
+green; `Str()`/`map`/`filter`/etc. covered by `tests/syntax/builtins_*.kn`.
 
 ---
 
@@ -715,7 +715,7 @@ Phase-1/2 lint infra fully.
 
 ```kn
 fn main() -> none {
-    var x: Int? = nil;
+    var x: Int? = none;
     print(Str(x));   # W-numbered optional-unwrap finding, suppressible with @allow
 }
 ```
@@ -822,7 +822,7 @@ WHY-12/13→SP-14; WHY-15→SP-17/PLAN P9.
 
 | #   | Decision             | Options                                             | Recommend                                    |
 | --- | -------------------- | --------------------------------------------------- | -------------------------------------------- |
-| E1  | `str()` builtin      | add `str(x)` / keep absent                          | add `str(x)` (mirrors SYNTAX SP-8 D10)       |
+| E1  | `Str()` builtin      | add `Str(x)` / keep absent                          | add `Str(x)` (mirrors SYNTAX SP-8 D10)       |
 | E2  | Dynamic type toggle  | always-on `any` / `--strict` flag / `@checked` attr | `any` keyword + `@checked` ratchet (WHY-2)   |
 | E3  | Registry scope       | local mirror / public kirn-libs page / both         | local-first, then public (WHY-5)             |
 | E4  | Stdlib impl language | `.kn` on runtime / native C++ / mixed               | `.kn` via `pin.kn` where possible (WHY-7)    |

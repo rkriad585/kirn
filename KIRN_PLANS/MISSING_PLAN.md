@@ -195,9 +195,9 @@ for compile-time-only code and (later) compile-time reflection (Rust 2026 roadma
 const traits, struct/enum const params, comptime reflection).
 
 **Numeric types (P6):** 13. **big_int** — arbitrary-precision integers, `VK::BigInt` sign+limbs (`DATA P3`). Kirn keeps
-fixed-width `int` default + `big_int` opt-in (see DATA §3.7 pragmatism, line 54). Methods:
+fixed-width `Int` default + `big_int` opt-in (see DATA §3.7 pragmatism, line 54). Methods:
 `bit_length`, `bit_count`, `is_prime` (Miller-Rabin), `powmod`, `gcd`, `to_bytes/from_bytes`,
-`str(x, base 2..36)`. 14. **complex / rational / decimal** — `complex(re, im)`, `.real/.imag/.conjugate()`, full
+`Str(x, base 2..36)`. 14. **complex / rational / decimal** — `complex(re, im)`, `.real/.imag/.conjugate()`, full
 arithmetic (ANSI C Annex G semantics, `DATA P4`); `rational(num, den)` auto-reduces,
 `.numerator/.denominator` (`DATA P2`); `decimal("0.1")` context precision, money-safe, does
 **not** auto-promote to float (`DATA P5`). Promote along `Integral < Rational < Real < Complex`.
@@ -239,7 +239,7 @@ position (`var x: typeof(get_value()) = …`); sugar over `reflect.type`. (`SYNT
 | R7  | `Drop` vs `with` vs `defer` | EXP P3 says `Drop` + `defer`                   | **Ship all three** with clearly separated roles: `Drop`=type-scoped RAII, `defer`=function-scope (exists), `with`=block-scoped context manager. | They serve different scopes; all are requested.                                                                                                                                                                                                                        |
 | R8  | `with` keyword              | SYNTAX SP-4/7: "keyword?"                      | **Soft/contextual keyword** `with` (statement position), never reserved.                                                                        | Frozen-keyword constraint (lexer:39-46); backward-compat.                                                                                                                                                                                                              |
 | R9  | `const fn` vs `comptime`    | EXP P4 + SYNTAX SP-14/15 both                  | **`const fn` first** (EXP P4 as-is), then `@comptime`/`comptime` blocks (SP-14/15) gated behind const-eval maturity.                            | Progressive relaxation per canonical §3.12.                                                                                                                                                                                                                            |
-| R10 | `int` default vs `big_int`  | DATA P3 (keeps both)                           | **Keep `int` default; `big_int` opt-in.** No automatic silent promotion (perf + FFI safety).                                                    | DATA §3 rule #5.                                                                                                                                                                                                                                                       |
+| R10 | `Int` default vs `big_int`  | DATA P3 (keeps both)                           | **Keep `Int` default; `big_int` opt-in.** No automatic silent promotion (perf + FFI safety).                                                    | DATA §3 rule #5.                                                                                                                                                                                                                                                       |
 
 These ratifications should be applied **back** to the owner docs as `[AMEND]` markers (SP-2
 precedence, EXP P5 pipe model, SP-4 chain + `??` no-mixing).
@@ -495,9 +495,9 @@ Progressive relaxation per canonical §3.12: arithmetic → control flow → mea
 **Syntax/example:**
 
 ```kirn
-const fn fact(n: int) -> int { return n <= 1 ? 1 : n * fact(n-1); }
+const fn fact(n: Int) -> Int { return n <= 1 ? 1 : n * fact(n-1); }
 const TABLE = [fact(i) for i in 0..=20];       # folded at compile time
-const fn sum_of(n: int) -> int { ... }
+const fn sum_of(n: Int) -> Int { ... }
 aligned = @comptime(alignof(Point));            # comptime expression
 comptime { validate(enum::variants); }          # compile-time-only block
 ```
@@ -517,7 +517,7 @@ compile-time-only code; native output folds constants.
 
 **Goal:** land the four extended numeric `VK` types backed by `DATA_PLAN` Phases 2/3/4/5.
 
-**Must Follow:** keep `int` default, `big_int` opt-in (R10); no silent float promotion for decimal.
+**Must Follow:** keep `Int` default, `big_int` opt-in (R10); no silent float promotion for decimal.
 **Important Note:** promotion is `Integral < Rational < Real < Complex`; division by zero raises.
 
 > Reference: Python — bignum `int`, `fractions`, `decimal` (`cpython/Lib/fractions.py`, `cpython/Lib/decimal.py`).
@@ -530,7 +530,7 @@ runtime.cpp` (`toStr`/`repr`/`truthy`/`len`/`binop` cases; operators), `src/sema
 **Architectural changes:**
 
 - **big_int**: sign + `std::vector<uint64_t>` limbs; schoolbook + Karatsuba; div/mod; `pow`, `gcd`,
-  `is_prime` (Miller-Rabin), `powmod`, `bit_length`, `bit_count`, `to_bytes/from_bytes`, `str(s,base)`.
+  `is_prime` (Miller-Rabin), `powmod`, `bit_length`, `bit_count`, `to_bytes/from_bytes`, `Str(s,base)`.
 - **complex**: two doubles; ANSI C Annex G arithmetic; `.real/.imag/.conjugate()/abs`, trig, `pow`,
   `exp`, `log`.
 - **rational**: `Value::Int` num/den, GCD-normalized; `.numerator/.denominator`, auto-reduce.
@@ -557,8 +557,8 @@ x: big_int = big_int(2) ** 1000;                     # prints full 2^1000
 **Testing:** per-type `tests/numbers/*_test.kn` (arith identities, rounding, precision); promotion
 order; `examples/56_numeric_types.kn`.
 
-**Expected result:** all four numeric types work with correct promotion and precision; existing `int`/
-`float` behavior unchanged.
+**Expected result:** all four numeric types work with correct promotion and precision; existing `Int`/
+`Float` behavior unchanged.
 
 ---
 
@@ -659,7 +659,7 @@ var mu = sync.Mutex(); var wg = sync.WaitGroup();
 wg.go(fn(){ mu.lock(); count += 1 in mu; mu.unlock(); });
 wg.go(fn(){ ... });
 wg.wait();
-var a = sync.Atomic[int](0); a.add(1); print(a.load());
+var a = sync.Atomic[Int](0); a.add(1); print(a.load());
 ```
 
 **Testing:** `tests/sync/*_test.kn`; worker-pool (10k tasks) ASan + TSan clean on CI; deadlock-negative

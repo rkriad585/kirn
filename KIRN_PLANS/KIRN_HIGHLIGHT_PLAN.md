@@ -550,7 +550,7 @@ identifiers).
 
 ```kirn
 # interpolated string: FStr{...}
-fn greet(name: string, score: int) -> string {
+fn greet(name: Str, score: Int) -> Str {
     return f"Hello {name}, score={score:04}";   # f-string + format spec
 }
 ```

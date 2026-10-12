@@ -79,7 +79,7 @@ Existing Kirn-written stdlib modules in `stdlib/lib/` (Phase 6 of `DO_FIRST_PLAN
 and `runtime.cpp:1385-1502`:
 
 - **Free builtins:** `print`, `len`, `sqrt`, `ord`, `chr`, `assert`, `assert_eq`,
-  `range`, `panic`, `catch_panic`, `printf`, `strlen`, `str`, `int`, `float`, `bool`,
+  `range`, `panic`, `catch_panic`, `printf`, `strlen`, `Str`, `Int`, `Float`, `Bool`,
   `type`, `repr`, `sum`, `min`, `max`, `any`, `all`, `sorted`, `reversed`,
   `enumerate`, `map`, `filter`, `reduce`, `upper`, `lower`, `trim`, `contains`,
   `starts_with`, `ends_with`, `replace`, `split`, `join`.
@@ -301,13 +301,13 @@ messages are plain `Str`.
 Canonical error values + sentinels (Python `errors`, Go `errors`).
 
 ```kirn
-pub fn new(msg: string) -> string? { return msg; }
-pub const NotFound: string = "not found";
-pub const Exists: string = "already exists";
-pub const PermissionDenied: string = "permission denied";
-pub const InvalidJson: string = "invalid json";
-pub fn message(e) -> string { return str(e); }
-pub fn is_error(e) -> bool { return e is not nil; }
+pub fn new(msg: Str) -> Str? { return msg; }
+pub const NotFound: Str = "not found";
+pub const Exists: Str = "already exists";
+pub const PermissionDenied: Str = "permission denied";
+pub const InvalidJson: Str = "invalid json";
+pub fn message(e) -> Str { return Str(e); }
+pub fn is_error(e) -> Bool { return e is not none; }
 ```
 
 Hmm — Kirn module `errors` shadows nothing; fine. Consumers: `os`, `io`, `path`.
@@ -320,15 +320,15 @@ Hmm — Kirn module `errors` shadows nothing; fine. Consumers: `os`, `io`, `path
 
 ```kirn
 priv_open = io.open;          # capture pseudo-module (self-shadow guard)
-pub fn read(path: string) -> string { f = priv_open(path); s = f.read(); f.close(); return s; }
-pub fn read_text(path) -> string { return read(path); }
+pub fn read(path: Str) -> Str { f = priv_open(path); s = f.read(); f.close(); return s; }
+pub fn read_text(path) -> Str { return read(path); }
 pub fn read_bytes(path) -> bytes { ... }          # Phase 0 bytes
-pub fn write(path: string, data: string) { f = priv_open(path); f.write_w(data); f.close(); }
-pub fn append(path: string, data: string) { f = priv_open(path); f.write_a(data); f.close(); }
-pub fn read_lines(path: string) -> list { return read(path).split("\n"); }
-pub fn write_lines(path: string, lines: list) { write(path, strings.join(lines, "\n") + "\n"); }
-pub fn exists(path) -> bool { return os.exist(path); }     # Phase 0
-pub fn is_dir(path) -> bool { return os.is_dir(path); }
+pub fn write(path: Str, data: Str) { f = priv_open(path); f.write_w(data); f.close(); }
+pub fn append(path: Str, data: Str) { f = priv_open(path); f.write_a(data); f.close(); }
+pub fn read_lines(path: Str) -> list { return read(path).split("\n"); }
+pub fn write_lines(path: Str, lines: list) { write(path, strings.join(lines, "\n") + "\n"); }
+pub fn exists(path) -> Bool { return os.exist(path); }     # Phase 0
+pub fn is_dir(path) -> Bool { return os.is_dir(path); }
 pub fn copy(src, dst) { write(dst, read(src)); }
 ```
 
@@ -339,23 +339,23 @@ pub fn copy(src, dst) { write(dst, read(src)); }
 **Important Note:** `walk` is Python-style `[(dir,[subdirs],[files])]`; `system` delegates to `process.run`.
 
 ```kirn
-pub fn getcwd() -> string { return os.cwd(); }
+pub fn getcwd() -> Str { return os.cwd(); }
 pub fn chdir(p) { os.chdir(p); }
-pub fn mkdir(p, parents=true) -> bool { if parents { return os.mkdir_all(p); } return os.mkdir(p); }
+pub fn mkdir(p, parents=true) -> Bool { if parents { return os.mkdir_all(p); } return os.mkdir(p); }
 pub fn rmdir(p) { os.rmdir(p); }
 pub fn remove(p) { os.remove(p); }
 pub fn rename(src, dst) { os.rename(src, dst); }
 pub fn listdir(p=".") -> list { return os.listdir(p); }
 pub fn walk(root) -> list { ... }            # [(dir,[subdirs],[files]), ...], Python-style
-pub fn env(name, default=nil) { v = os.getenv(name); if v is nil { return default; } return v; }
+pub fn env(name, default=none) { v = os.getenv(name); if v is none { return default; } return v; }
 pub fn environ() -> dict { return os.environ(); }
 pub fn setenv(k, v) { os.setenv(k, v); }
-pub fn getpid() -> int { return os.getpid(); }
-pub fn cpu_count() -> int { return os.cpu_count(); }
-pub fn hostname() -> string { return os.hostname(); }
-pub fn system(cmd: string) -> int { return process.run(cmd).status; }   # Phase 0 process
-pub const linesep: string = "\n";              # platform-adjusted in Phase 0
-pub const sep: string = "/";
+pub fn getpid() -> Int { return os.getpid(); }
+pub fn cpu_count() -> Int { return os.cpu_count(); }
+pub fn hostname() -> Str { return os.hostname(); }
+pub fn system(cmd: Str) -> Int { return process.run(cmd).status; }   # Phase 0 process
+pub const linesep: Str = "\n";              # platform-adjusted in Phase 0
+pub const sep: Str = "/";
 ```
 
 `lib.os.exec`: `run(cmd, args=[])`, `spawn`, `output`, `look_path`.
@@ -367,15 +367,15 @@ pub const sep: string = "/";
 **Important Note:** extends the existing pure-Kirn `path`; here `abs(p)` is the path function, **not** the numeric `__Abs` builtin.
 
 ```kirn
-pub const sep: string = os.sep();
-pub fn join(parts: list) -> string { ... }       # honor sep on windows ('\\')
-pub fn abs(p) -> string { return os.realpath(p); }
-pub fn norm(p) -> string { ... }                 # collapse '..' '.'
-pub fn is_abs(p) -> bool { ... }
-pub fn basename(p), dirname(p), extname(p), stem(p) -> string  { ... }
+pub const sep: Str = os.sep();
+pub fn join(parts: list) -> Str { ... }       # honor sep on windows ('\\')
+pub fn abs(p) -> Str { return os.realpath(p); }
+pub fn norm(p) -> Str { ... }                 # collapse '..' '.'
+pub fn is_abs(p) -> Bool { ... }
+pub fn basename(p), dirname(p), extname(p), stem(p) -> Str  { ... }
 pub fn glob(pattern) -> list { ... }             # '*','?','[]','**'
-pub fn exists(p) -> bool { return os.exist(p); }
-pub fn expanduser(p) -> string { ... }           # '~' → home
+pub fn exists(p) -> Bool { return os.exist(p); }
+pub fn expanduser(p) -> Str { ... }           # '~' → home
 ```
 
 Adds `rel`, `commonpath`, `clean` (Go `path/filepath`), `split_drive`.
@@ -408,24 +408,24 @@ green. **Consumes:** Phase 0. **Consumed by:** all later phases.
 Add (Python/Go/Ruby convergent set):
 
 ```kirn
-pub fn index(s, sub) -> int { return s.index(sub); }          # -1 if absent / Python
-pub fn rindex(s, sub) -> int { ... }
+pub fn index(s, sub) -> Int { return s.index(sub); }          # -1 if absent / Python
+pub fn rindex(s, sub) -> Int { ... }
 pub fn find_all(s, sub) -> list { ... }                       # all start indices
-pub fn count(s, sub) -> int { ... }
-pub fn capitalize(s) -> string { ... }
-pub fn title(s) -> string { ... }                             # Go strings.Title
-pub fn swapcase(s) -> string { ... }
+pub fn count(s, sub) -> Int { ... }
+pub fn capitalize(s) -> Str { ... }
+pub fn title(s) -> Str { ... }                             # Go strings.Title
+pub fn swapcase(s) -> Str { ... }
 pub fn fields(s) -> list { ... }                              # split on whitespace (Go Fields)
 pub fn split_whitespace(s) -> list { return fields(s); }
-pub fn strip_prefix(s, pre) -> string? { ... }                # Rust strip_prefix
-pub fn strip_suffix(s, suf) -> string? { ... }
-pub fn byte_len(s) -> int { return s.len(); }
-pub fn char_count(s) -> int { return s.chars().len(); }
-pub fn sub(s, start, end) -> string { return s[start..end]; } # Go substring
-pub fn index_of_char(s, c) -> int { ... }
-pub fn is_whitespace(s) -> bool { return s.trim() == ""; }
-pub fn lower(s), upper(s) -> string                        # aliases to builtins
-pub fn format(fmt: string, args: list) -> string { ... }     # printf → string (Go fmt.Sprintf)
+pub fn strip_prefix(s, pre) -> Str? { ... }                # Rust strip_prefix
+pub fn strip_suffix(s, suf) -> Str? { ... }
+pub fn byte_len(s) -> Int { return s.len(); }
+pub fn char_count(s) -> Int { return s.chars().len(); }
+pub fn sub(s, start, end) -> Str { return s[start..end]; } # Go substring
+pub fn index_of_char(s, c) -> Int { ... }
+pub fn is_whitespace(s) -> Bool { return s.trim() == ""; }
+pub fn lower(s), upper(s) -> Str                        # aliases to builtins
+pub fn format(fmt: Str, args: list) -> Str { ... }     # printf → string (Go fmt.Sprintf)
 ```
 
 Conversions to/from bytes live in `lib.bytes`.
@@ -437,14 +437,14 @@ Conversions to/from bytes live in `lib.bytes`.
 **Important Note:** distinct from `strings` — operates on single `Char`s, not whole `Str`s.
 
 ```kirn
-pub fn is_digit(c) -> bool { ... }       # '0'..'9'
-pub fn is_alpha(c) -> bool { ... }
-pub fn is_alnum(c) -> bool { ... }
-pub fn is_space(c) -> bool { ... }
-pub fn is_upper(c)/is_lower(c) -> bool { ... }
-pub fn to_upper(c)/to_lower(c) -> string { ... }
-pub fn ord(c) -> int { return ord(c); }
-pub fn chr(n) -> string { return chr(n); }
+pub fn is_digit(c) -> Bool { ... }       # '0'..'9'
+pub fn is_alpha(c) -> Bool { ... }
+pub fn is_alnum(c) -> Bool { ... }
+pub fn is_space(c) -> Bool { ... }
+pub fn is_upper(c)/is_lower(c) -> Bool { ... }
+pub fn to_upper(c)/to_lower(c) -> Str { ... }
+pub fn ord(c) -> Int { return ord(c); }
+pub fn chr(n) -> Str { return chr(n); }
 ```
 
 (Python `str.isdigit`/`isalpha`; Rust `char::is_*`.)
@@ -460,32 +460,32 @@ pub fn chr(n) -> string { return chr(n); }
 ```kirn
 pub struct HashSet {
     var buckets: dict;
-    fn add(self, v) { self.buckets[str(v)] = true; }
-    fn has(self, v) -> bool { return str(v) in self.buckets; }
-    fn remove(self, v) { if str(v) in self.buckets { self.buckets.remove(str(v)); } }
-    fn size(self) -> int { return self.buckets.len(); }
+    fn add(self, v) { self.buckets[Str(v)] = true; }
+    fn has(self, v) -> Bool { return Str(v) in self.buckets; }
+    fn remove(self, v) { if Str(v) in self.buckets { self.buckets.remove(Str(v)); } }
+    fn size(self) -> Int { return self.buckets.len(); }
     fn to_list(self) -> list { return self.buckets.keys(); }
     fn union(self, o), intersection(self, o), difference(self, o) -> HashSet { ... }
 }
 pub struct Deque {                                   # Python collections.deque
     var items: list;
-    var head: int;
+    var head: Int;
     fn append(self, v) { self.items.append(v); }
     fn append_left(self, v) { ... }
     fn pop(self) { ... } fn popleft(self) { ... }
     fn rotate(self, n) { ... }
-    fn len(self) -> int { ... } fn get(self, i) { ... }
+    fn len(self) -> Int { ... } fn get(self, i) { ... }
 }
 pub struct Counter {                                 # Python Counter
     var counts: dict;
     fn add(self, v) { ... } fn get(self, v) { ... }
     fn most_common(self, n) -> list { ... }         # [(k,count), ...]
-    fn total(self) -> int { ... }
+    fn total(self) -> Int { ... }
 }
 pub fn chain(xs, ys) -> list, flatten(ls) -> list, range_step(a,b,step) -> list { ... }
 pub fn zip2(a, b) -> list { ... }                   # list of 2-tuples (Rust/Go iter.zip)
 pub fn dedup(xs) -> list { ... }
-pub fn binary_search(xs, v) -> int { ... }          # index or -1 (Go sort.Search)
+pub fn binary_search(xs, v) -> Int { ... }          # index or -1 (Go sort.Search)
 pub fn partition(xs, pred) -> (list, list) { ... }
 ```
 
@@ -515,8 +515,8 @@ pub fn chain(xs) -> list, product(xs) -> list, permutations(xs, r) -> list,
 ```kirn
 pub fn sort(xs: list) -> list { return sorted(xs); }
 pub fn sort_by(xs, key) -> list { ... }             # key = function
-pub fn search(xs, v) -> int { ... }                 # Go sort.Search → insertion point
-pub fn is_sorted(xs) -> bool { ... }
+pub fn search(xs, v) -> Int { ... }                 # Go sort.Search → insertion point
+pub fn is_sorted(xs) -> Bool { ... }
 pub fn reverse(xs) -> list { return reversed(xs); }
 pub fn stable_sort(xs) -> list { ... }
 ```
@@ -551,36 +551,36 @@ Import with `import lib.math;` uses **qualified** `math.sqrt(...)` so it does no
 shadow the native `math` pseudo-module; no self-shadow hazard.
 
 ```kirn
-pub const PI: float = 3.1415926535897932384;
-pub const E: float = 2.7182818284590452353;
-pub const TAU: float = 6.2831853071795864769;
+pub const PI: Float = 3.1415926535897932384;
+pub const E: Float = 2.7182818284590452353;
+pub const TAU: Float = 6.2831853071795864769;
 pub fn-ish ...
-pub fn sqrt(x) -> float { ... }        # have (Newton)
-pub fn cbrt(x) -> float { ... }
-pub fn pow(base, exp) -> float { ... } # fpow + float result for float exp
-pub fn exp(x)/exp2(x)/expm1(x) -> float { ... }
-pub fn log(x)/log2(x)/log10(x)/log1p(x) -> float { ... }
-pub fn sin/cos/tan(x) -> float { if x < 0 { x = x + TAU; } ... }  # native math.sin
-pub fn asin/acos/atan(x), atan2(y, x) -> float { ... }
-pub fn sinh/cosh/tanh(x), asinh/acosh/atanh(x) -> float { ... }
-pub fn hypot(a, b) -> float { return sqrt(a*a + b*b); }
-pub fn floor/ceil/trunc/round(x) -> int { ... }
-pub fn fabs(x) -> float { return abs(x); }
-pub fn copysign(x, y) -> float { ... }
-pub fn fmod(a, b) -> float { ... }
-pub fn isclose(a, b) -> bool { d = a - b; if d < 0 { d = -d; } return d < 1e-9; }
-pub fn isnan(x) -> bool { return x != x; }
-pub fn isinf(x) -> bool { return x == inf or x == -inf; }
-pub fn isfinite(x) -> bool { return not (isnan(x) or isinf(x)); }
-pub fn degrees(r) -> float { return r * 180.0 / PI; }
-pub fn radians(d) -> float { return d * PI / 180.0; }
-pub fn gcd(a, b) -> int { while b != 0 { t = b; b = a % b; a = t; } return abs(a); }
-pub fn lcm(a, b) -> int { if a == 0 or b == 0 { return 0; } return abs(a / gcd(a, b) * b); }
-pub fn factorial(n) -> int { r = 1; i = 2; while i <= n { r = r * i; i = i + 1; } return r; }   # big via bigint later
-pub fn comb(n, k) -> int { ... }
-pub fn clamp(x, lo, hi) -> float { ... }   # have
+pub fn sqrt(x) -> Float { ... }        # have (Newton)
+pub fn cbrt(x) -> Float { ... }
+pub fn pow(base, exp) -> Float { ... } # fpow + float result for float exp
+pub fn exp(x)/exp2(x)/expm1(x) -> Float { ... }
+pub fn log(x)/log2(x)/log10(x)/log1p(x) -> Float { ... }
+pub fn sin/cos/tan(x) -> Float { if x < 0 { x = x + TAU; } ... }  # native math.sin
+pub fn asin/acos/atan(x), atan2(y, x) -> Float { ... }
+pub fn sinh/cosh/tanh(x), asinh/acosh/atanh(x) -> Float { ... }
+pub fn hypot(a, b) -> Float { return sqrt(a*a + b*b); }
+pub fn floor/ceil/trunc/round(x) -> Int { ... }
+pub fn fabs(x) -> Float { return abs(x); }
+pub fn copysign(x, y) -> Float { ... }
+pub fn fmod(a, b) -> Float { ... }
+pub fn isclose(a, b) -> Bool { d = a - b; if d < 0 { d = -d; } return d < 1e-9; }
+pub fn isnan(x) -> Bool { return x != x; }
+pub fn isinf(x) -> Bool { return x == inf or x == -inf; }
+pub fn isfinite(x) -> Bool { return not (isnan(x) or isinf(x)); }
+pub fn degrees(r) -> Float { return r * 180.0 / PI; }
+pub fn radians(d) -> Float { return d * PI / 180.0; }
+pub fn gcd(a, b) -> Int { while b != 0 { t = b; b = a % b; a = t; } return abs(a); }
+pub fn lcm(a, b) -> Int { if a == 0 or b == 0 { return 0; } return abs(a / gcd(a, b) * b); }
+pub fn factorial(n) -> Int { r = 1; i = 2; while i <= n { r = r * i; i = i + 1; } return r; }   # big via bigint later
+pub fn comb(n, k) -> Int { ... }
+pub fn clamp(x, lo, hi) -> Float { ... }   # have
 pub fn min2/max2(a, b) { ... }             # have
-pub fn fsum(xs) -> float { s = 0.0; for x in xs { s = s + float(x); } return s; }
+pub fn fsum(xs) -> Float { s = 0.0; for x in xs { s = s + Float(x); } return s; }
 ```
 
 > `math` free functions overlap with global builtins (`sqrt`, `abs`). Keep the
@@ -602,19 +602,19 @@ deterministic PRNG in Kirn (Mersenne-Twister or xorshift128+ / PCG).
 
 ```kirn
 pub struct Rng {
-    var state: int;
-    fn init(self, seed: int) { self.state = seed; }
-    fn next(self) -> int { ... }                 # 32-bit value from the PRNG
-    fn random(self) -> float { return float(self.next() % 100000) / 100000.0; }  # [0,1)
-    fn randrange(self, lo, hi) -> int { ... }
+    var state: Int;
+    fn init(self, seed: Int) { self.state = seed; }
+    fn next(self) -> Int { ... }                 # 32-bit value from the PRNG
+    fn random(self) -> Float { return Float(self.next() % 100000) / 100000.0; }  # [0,1)
+    fn randrange(self, lo, hi) -> Int { ... }
     fn choice(self, xs) { ... }
     fn shuffle(self, xs) -> list { ... }
     fn sample(self, xs, k) -> list { ... }
-    fn gauss(self) -> float { ... }              # Box-Muller
+    fn gauss(self) -> Float { ... }              # Box-Muller
 }
 pub fn seed(n) { ... }
-pub fn random() -> float { ... }                 # module-level default Rng
-pub fn randint(a, b) -> int { ... }
+pub fn random() -> Float { ... }                 # module-level default Rng
+pub fn randint(a, b) -> Int { ... }
 pub fn choice(xs) { ... }
 pub fn shuffle(xs) -> list { ... }
 ```
@@ -628,15 +628,15 @@ pub fn shuffle(xs) -> list { ... }
 > Reference: Rust — `std::time` `Instant/Duration` (`rust/library/std/src/time.rs`).
 
 ```kirn
-pub fn now() -> float { return float(time.now()) / 1000.0; }   # have
-pub fn now_ms() -> int { return time.now(); }                   # have
-pub fn monotonic() -> float { return time.monotonic(); }        # Phase 0
+pub fn now() -> Float { return Float(time.now()) / 1000.0; }   # have
+pub fn now_ms() -> Int { return time.now(); }                   # have
+pub fn monotonic() -> Float { return time.monotonic(); }        # Phase 0
 pub fn localtime() -> dict { return time.local_breakdown(time.now()); }  # Phase 0: {year,month,day,hour,min,sec,...}
 pub fn gmtime() -> dict { ... }
-pub fn mktime(fields: dict) -> int { return time.mktime(fields); }
-pub fn strftime(fmt: string, t) -> string { ... }               # %Y %m %d %H %M %S map + apply
-fn pad2(n) -> string { if n < 10 { return "0" + str(n); } return str(n); }
-pub fn format_iso(t) -> string { f = localtime(); return str(f.year) + "-" + pad2(f.month) + "-" + pad2(f.day); }
+pub fn mktime(fields: dict) -> Int { return time.mktime(fields); }
+pub fn strftime(fmt: Str, t) -> Str { ... }               # %Y %m %d %H %M %S map + apply
+fn pad2(n) -> Str { if n < 10 { return "0" + Str(n); } return Str(n); }
+pub fn format_iso(t) -> Str { f = localtime(); return Str(f.year) + "-" + pad2(f.month) + "-" + pad2(f.day); }
 ```
 
 Keep `sleep`, `ordinal`.
@@ -651,15 +651,15 @@ Keep `sleep`, `ordinal`.
 
 ```kirn
 pub struct Date {
-    var year: int; var month: int; var day: int;
+    var year: Int; var month: Int; var day: Int;
     fn init(self, y, m, d) { self.year = y; self.month = m; self.day = d; }
-    fn is_leap(self) -> bool { y = self.year; return (y % 4 == 0 and y % 100 != 0) or y % 400 == 0; }
-    fn days_in_month(self) -> int { ... }
-    fn weekday(self) -> int { ... }            # 0=Mon..6=Sun (Python weekday)
-    fn to_ordinal(self) -> int { ... }         # days since 0001-01-01
+    fn is_leap(self) -> Bool { y = self.year; return (y % 4 == 0 and y % 100 != 0) or y % 400 == 0; }
+    fn days_in_month(self) -> Int { ... }
+    fn weekday(self) -> Int { ... }            # 0=Mon..6=Sun (Python weekday)
+    fn to_ordinal(self) -> Int { ... }         # days since 0001-01-01
     fn add_days(self, n) -> Date { ... }
-    fn iso(self) -> string { return str(self.year) + "-" + pad2(self.month) + "-" + pad2(self.day); }
-    fn strftime(self, fmt) -> string { ... }
+    fn iso(self) -> Str { return Str(self.year) + "-" + pad2(self.month) + "-" + pad2(self.day); }
+    fn strftime(self, fmt) -> Str { ... }
 }
 pub fn today() -> Date { f = time.local_breakdown(time.now()); return Date(f.year, f.month, f.day); }
 pub fn parse(s) -> Date { ... }                # YYYY-MM-DD
@@ -667,19 +667,19 @@ pub fn from_ordinal(n) -> Date { ... }
 pub fn add_months(d, n) -> Date { ... }
 
 pub struct DateTime {                            # date + time + tz offset minutes
-    var year, month, day, hour, min, sec, tz_min: int;
+    var year, month, day, hour, min, sec, tz_min: Int;
     ...
-    fn to_epoch(self) -> int { ... }
-    fn iso(self) -> string { return self.date_iso() + "T" + self.time_iso(); }
+    fn to_epoch(self) -> Int { ... }
+    fn iso(self) -> Str { return self.date_iso() + "T" + self.time_iso(); }
 }
 pub fn now() -> DateTime { ... }
 pub fn from_epoch(sec) -> DateTime { ... }
 
 pub struct Duration {                            # Rust std::time::Duration
-    var secs: int; var nanos: int;
+    var secs: Int; var nanos: Int;
     fn from_secs(s) -> Duration { return Duration(s, 0); }
     fn from_millis(ms) -> Duration { return Duration(ms / 1000, (ms % 1000) * 1000000); }
-    fn as_secs(self) -> int { ... } fn as_millis(self) -> int { ... } fn as_nanos(self) -> int { ... }
+    fn as_secs(self) -> Int { ... } fn as_millis(self) -> Int { ... } fn as_nanos(self) -> Int { ... }
     fn add(self, o) -> Duration { ... } fn sub(self, o) -> Duration { ... }
 }
 ```
@@ -693,14 +693,14 @@ pub struct Duration {                            # Rust std::time::Duration
 > Reference: CPython — `statistics` (pure-Python module; same algorithm set).
 
 ```kirn
-pub fn mean(xs) -> float { s = 0.0; for x in xs { s = s + float(x); } return s / float(xs.len()); }
-pub fn median(xs) -> float { xs2 = sorted(xs); n = xs2.len(); if n % 2 == 1 { return float(xs2[n / 2]); } return (float(xs2[n/2-1]) + float(xs2[n/2])) / 2.0; }
+pub fn mean(xs) -> Float { s = 0.0; for x in xs { s = s + Float(x); } return s / Float(xs.len()); }
+pub fn median(xs) -> Float { xs2 = sorted(xs); n = xs2.len(); if n % 2 == 1 { return Float(xs2[n / 2]); } return (Float(xs2[n/2-1]) + Float(xs2[n/2])) / 2.0; }
 pub fn mode(xs) { m = collections.Counter(); for x in xs { m.add(x); } return m.most_common(1)[0][0]; }
-pub fn stdev(xs) -> float { ... }
-pub fn variance(xs) -> float { ... }
+pub fn stdev(xs) -> Float { ... }
+pub fn variance(xs) -> Float { ... }
 pub fn quantiles(xs, n=4) -> list { ... }
-pub fn cov(xs, ys), corr(xs, ys) -> float { ... }
-pub fn linear_regression(xs, ys) -> (float, float) { ... }
+pub fn cov(xs, ys), corr(xs, ys) -> Float { ... }
+pub fn linear_regression(xs, ys) -> (Float, Float) { ... }
 ```
 
 **Exit:** `math_test`, `random_test`, `time_test`, `datetime_test`, `statistics_test`
@@ -725,17 +725,17 @@ secrets/binascii`, Go `encoding/base64/encoding/hex/hash/crypto`, Ruby
 **Important Note:** Phase 0 must land first; every later binary pet builds on this.
 
 ```kirn
-pub fn new(cap: int=0) -> bytes { return bytes.new(cap); }
-pub fn from_str(s: string) -> bytes { return bytes.from_str(s); }
+pub fn new(cap: Int=0) -> bytes { return bytes.new(cap); }
+pub fn from_str(s: Str) -> bytes { return bytes.from_str(s); }
 pub fn from_list(xs: list) -> bytes { ... }
-pub fn to_str(b: bytes) -> string { return b.to_str(); }
+pub fn to_str(b: bytes) -> Str { return b.to_str(); }
 pub fn to_list(b: bytes) -> list { ... }
-pub fn len(b: bytes) -> int { return b.len(); }
+pub fn len(b: bytes) -> Int { return b.len(); }
 pub fn concat(a: bytes, b: bytes) -> bytes { return bytes.concat(a, b); }
 pub fn slice(b: bytes, i, j) -> bytes { return b.slice(i, j); }
-pub fn get(b: bytes, i) -> int { return b.get(i); }
+pub fn get(b: bytes, i) -> Int { return b.get(i); }
 pub fn set(b: bytes, i, v) { b.set(i, v); }
-pub fn equals(a, b) -> bool { ... }
+pub fn equals(a, b) -> Bool { ... }
 ```
 
 ### 4b. `lib.base64` (new; Python `base64`, Go `encoding/base64`, Ruby `Base64`)
@@ -747,11 +747,11 @@ pub fn equals(a, b) -> bool { ... }
 > Reference: Go — `encoding/base64` (`EncodeToString`/`DecodeString`) in `go/src/encoding/base64`; CPython — `Lib/base64.py`.
 
 ```kirn
-const ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-const URL_ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-pub fn b64encode(data: string, urlsafe=false) -> string { ... }   # uses bytes internally
-pub fn b64decode(data: string, urlsafe=false) -> string { ... }
-pub fn hex(a: string) -> string { return bytes.from_str(a).hex(); }   # ≠ hex module
+const ALPHABET: Str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const URL_ALPHABET: Str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+pub fn b64encode(data: Str, urlsafe=false) -> Str { ... }   # uses bytes internally
+pub fn b64decode(data: Str, urlsafe=false) -> Str { ... }
+pub fn hex(a: Str) -> Str { return bytes.from_str(a).hex(); }   # ≠ hex module
 ```
 
 > Keep these **pure-Kirn string algorithms** (no Phase-0 bytes needed) so they float
@@ -765,10 +765,10 @@ pub fn hex(a: string) -> string { return bytes.from_str(a).hex(); }   # ≠ hex 
 **Important Note:** distinct from `base64.hex`; canonical byte order (Python `binascii`, Ruby `H*`).
 
 ```kirn
-pub fn encode(b: bytes) -> string { return b.hex(); }
-pub fn decode(s: string) -> bytes { return bytes.unhex(s); }
-pub fn encode_str(s: string) -> string { return bytes.from_str(s).hex(); }
-pub fn decode_str(s: string) -> string { return bytes.unhex(s).to_str(); }
+pub fn encode(b: bytes) -> Str { return b.hex(); }
+pub fn decode(s: Str) -> bytes { return bytes.unhex(s); }
+pub fn encode_str(s: Str) -> Str { return bytes.from_str(s).hex(); }
+pub fn decode_str(s: Str) -> Str { return bytes.unhex(s).to_str(); }
 ```
 
 ### 4d. `lib.hashlib` (new; Python `hashlib`, Go `hash`, Ruby `Digest`)
@@ -781,16 +781,16 @@ pub fn decode_str(s: string) -> string { return bytes.unhex(s).to_str(); }
 
 ```kirn
 pub struct Hash {
-    var algo: string; var h: crypto;   # Phase-0 crypto object
-    fn init(self, name: string) { self.algo = name; self.h = crypto.digest(name); }
-    fn update(self, data: string) { self.h.update(data); }
-    fn hexdigest(self) -> string { return self.h.hexdigest(); }
+    var algo: Str; var h: crypto;   # Phase-0 crypto object
+    fn init(self, name: Str) { self.algo = name; self.h = crypto.digest(name); }
+    fn update(self, data: Str) { self.h.update(data); }
+    fn hexdigest(self) -> Str { return self.h.hexdigest(); }
     fn digest(self) -> bytes { return self.h.digest(); }
     fn copy(self) -> Hash { ... }
 }
 pub fn md5(data="") -> Hash { h = Hash(); h.init("md5"); if data != "" { h.update(data); } return h; }
 pub fn sha1(data="") -> Hash, sha224(...), sha256(...), sha384(...), sha512(...) -> Hash { ... }
-pub fn new(name: string) -> Hash { ... }
+pub fn new(name: Str) -> Hash { ... }
 ```
 
 ### 4e. `lib.hmac` (new; Python `hmac`) & `lib.secrets` (Python `secrets`, Ruby `SecureRandom`)
@@ -803,12 +803,12 @@ pub fn new(name: string) -> Hash { ... }
 
 ```kirn
 # hmac
-pub fn new(key: string, msg="") -> Hmac { ... }
-pub fn hmac_sha256(key: string, msg: string) -> string { ... }
+pub fn new(key: Str, msg="") -> Hmac { ... }
+pub fn hmac_sha256(key: Str, msg: Str) -> Str { ... }
 # secrets (crypto.random_bytes = Phase 0, OS entropy)
-pub fn token_bytes(n) -> string { return crypto.random_bytes(n).to_str(); }
-pub fn token_hex(n) -> string { return hex.encode_str(secrets_bytes...); }
-pub fn compare_digest(a, b) -> bool { return crypto.constant_time_eq(a, b); }
+pub fn token_bytes(n) -> Str { return crypto.random_bytes(n).to_str(); }
+pub fn token_hex(n) -> Str { return hex.encode_str(secrets_bytes...); }
+pub fn compare_digest(a, b) -> Bool { return crypto.constant_time_eq(a, b); }
 ```
 
 ### 4f. `lib.crypto` (new; Go `crypto/*`, Rust crates note, OpenSSL)
@@ -826,7 +826,7 @@ pub fn chacha20(key, nonce, data) -> bytes { ... }
 # asymmetric (RSA) over bigint
 pub struct RsaKey { var n, e, d: bigint; fn encrypt(self, m), decrypt(self, c), sign, verify ... }
 pub fn generate_rsa(bits) -> RsaKey { ... }
-pub fn sha256_hmac(key, msg) -> string { ... }
+pub fn sha256_hmac(key, msg) -> Str { ... }
 pub fn random_prime(bits) -> bigint, random_number(n) -> bigint { ... }
 ```
 
@@ -864,23 +864,23 @@ replace` signatures; add:
 
 ```kirn
 pub struct Pattern {
-    var src: string;
+    var src: Str;
     fn init(self, p) { self.src = p; }
-    fn search(self, s) -> Match? { ... }        # first match or nil
+    fn search(self, s) -> Match? { ... }        # first match or none
     fn findall(self, s) -> list { ... }
-    fn sub(self, s, repl) -> string { ... }
+    fn sub(self, s, repl) -> Str { ... }
     fn split(self, s) -> list { ... }
-    fn test(self, s) -> bool { ... }
+    fn test(self, s) -> Bool { ... }
 }
 pub struct Match {
-    var start: int; var end: int; var groups: list;
-    fn span(self) -> (int, int) { return (self.start, self.end); }
+    var start: Int; var end: Int; var groups: list;
+    fn span(self) -> (Int, Int) { return (self.start, self.end); }
     fn group(self, i) { ... }
 }
 pub fn compile(p) -> Pattern { return Pattern(p); }
 pub fn search(pat, s) -> Match? { ... }
-pub fn match(pat, s) -> bool { ... }            # keep glob-compatible (used by path.glob)
-pub fn findall(pat, s) -> list, sub(pat, s, repl) -> string, split(pat, s) -> list { ... }
+pub fn match(pat, s) -> Bool { ... }            # keep glob-compatible (used by path.glob)
+pub fn findall(pat, s) -> list, sub(pat, s, repl) -> Str, split(pat, s) -> list { ... }
 ```
 
 Syntax subset: `.` `*` `+` `?` `|` `()` `[]` `\d \w \s` `^` `$` `{n,m}` `\b`.
@@ -893,23 +893,23 @@ Syntax subset: `.` `*` `+` `?` `|` `()` `[]` `\d \w \s` `^` `$` `{n,m}` `\b`.
 
 ```kirn
 pub struct Reader {
-    var data: list; var sep: string; var quote: string;
-    var rows: list; var i: int;
+    var data: list; var sep: Str; var quote: Str;
+    var rows: list; var i: Int;
     fn init(self, text, sep=",", quote="\"") { self.parse(text); }
     fn parse(self, text) { ... }
     fn read_row(self) -> list? { ... }
     fn read_all(self) -> list { return self.rows; }
 }
 pub struct Writer {
-    var buf: string; var sep: string; var quote: string;
+    var buf: Str; var sep: Str; var quote: Str;
     fn init(self, sep=",", quote="\"") { self.buf = ""; }
     fn write_row(self, row: list) { ... }
-    fn to_string(self) -> string { return self.buf; }
+    fn to_string(self) -> Str { return self.buf; }
 }
 pub fn reader(text, sep=",") -> Reader { ... }
 pub fn writer(sep=",") -> Writer { ... }
 pub fn parse(text, sep=",") -> list { return reader(text, sep).read_all(); }
-pub fn generate(rows: list, sep=",") -> string { ... }
+pub fn generate(rows: list, sep=",") -> Str { ... }
 ```
 
 ### 5c. `lib.toml` (new; Python `tomllib`, Go `BurntSushi/toml` pattern, Rust `toml`; Ruby has **none**, note)
@@ -921,8 +921,8 @@ pub fn generate(rows: list, sep=",") -> string { ... }
 > Reference: CPython — `Lib/tomllib` (stdlib TOML reader).
 
 ```kirn
-pub fn loads(s: string) -> dict { ... }        # tables, arrays-of-tables, inline, dotted
-pub fn dumps(d: dict) -> string { ... }
+pub fn loads(s: Str) -> dict { ... }        # tables, arrays-of-tables, inline, dotted
+pub fn dumps(d: dict) -> Str { ... }
 pub fn load(path) -> dict { return loads(io.read(path)); }
 pub fn dump(d: dict, path) { io.write(path, dumps(d)); }
 ```
@@ -939,13 +939,13 @@ inline `{a=1}`, dotted `a.b.c`.
 > Reference: Go — `encoding/json` (Marshal/Unmarshal/Valid) in `go/src/encoding/json`; CPython — `json` stdlib; Nim — `Nim/lib/pure/json.nim`.
 
 ```kirn
-pub fn dumps(v) -> string { return priv_dumps(v); }        # native
+pub fn dumps(v) -> Str { return priv_dumps(v); }        # native
 pub fn loads(s) { ... }                                     # fixed parser (Phase 1)
 # options (optional, does not break existing):
-pub fn dumps_pretty(v) -> string { ... }                    # indent 2
+pub fn dumps_pretty(v) -> Str { ... }                    # indent 2
 pub fn loads_from_file(path) { return loads(io.read(path)); }
 pub fn dumps_to_file(path, v) { io.write(path, dumps(v)); }
-pub fn valid(s) -> bool { try { loads(s); return true; } catch _ { return false; } }
+pub fn valid(s) -> Bool { try { loads(s); return true; } catch _ { return false; } }
 ```
 
 **Exit:** `regexp_test`, `csv_test`, `toml_test`, `json_test` green.
@@ -971,18 +971,18 @@ platform`, Go `flag/log/testing`, Ruby `OptionParser/Benchmark`, Rust `env/proce
 
 ```kirn
 pub class ArgumentParser {
-    var prog: string; var description: string;
+    var prog: Str; var description: Str;
     var specs: list;                      # [{flags, dest, type, default, nargs, help}]
     var values: dict;
     fn __init__(self, prog="", description="") { ... }   # or class + fn init
-    fn add(self, flags: list, dest="", type="str", default=nil, nargs=1, help="") {
+    fn add(self, flags: list, dest="", type="str", default=none, nargs=1, help="") {
         self.specs.append({flags: flags, dest: dest, type: type, default: default, nargs: nargs, help: help});
     }
     fn parse(self, argv: list) { ... }   # fills self.values
     fn get(self, name) { return self.values[name]; }
-    fn help_text(self) -> string { ... }
+    fn help_text(self) -> Str { ... }
 }
-pub fn getopt(argv: list, short: string, long: list) -> (list, list) { ... }   # Python getopt
+pub fn getopt(argv: list, short: Str, long: list) -> (list, list) { ... }   # Python getopt
 ```
 
 ### 6b. `lib.console` (new; Ruby/`getch`, Go `github.com/eiannone/keyboard`-style)
@@ -992,12 +992,12 @@ pub fn getopt(argv: list, short: string, long: list) -> (list, list) { ... }   #
 **Important Note:** interactive — tests gated by env var; no TTY in CI.
 
 ```kirn
-pub fn getch() -> string { return keyboard.read_key(true).to_str(); }   # Phase 0 keyboard
+pub fn getch() -> Str { return keyboard.read_key(true).to_str(); }   # Phase 0 keyboard
 pub fn clear() { print("\x1b[2J\x1b[H"); }
 pub fn set_color(code) { printf("\x1b[%dm", code); }
 pub fn reset() { printf("\x1b[0m"); }
-pub fn read_line(prompt) -> string { ... }
-pub fn input(prompt) -> string { ... }        # Python input
+pub fn read_line(prompt) -> Str { ... }
+pub fn input(prompt) -> Str { ... }        # Python input
 ```
 
 ### 6c. `lib.keyboard` (new)
@@ -1007,9 +1007,9 @@ pub fn input(prompt) -> string { ... }        # Python input
 **Important Note:** gated by env var; exercised by a driver in Phase 12.
 
 ```kirn
-pub struct Key { var code: int; var name: string; var shift: bool; var ctrl: bool; }
+pub struct Key { var code: Int; var name: Str; var shift: Bool; var ctrl: Bool; }
 pub fn read_key(blocking=true) -> Key? { return keyboard.read_key(blocking); }
-pub fn is_printable(k) -> bool { ... }
+pub fn is_printable(k) -> Bool { ... }
 ```
 
 ### 6d. `lib.log` (new; Go `log`, Python `logging` simplified, Rust `log`)
@@ -1020,7 +1020,7 @@ pub fn is_printable(k) -> bool { ... }
 
 ```kirn
 pub struct Logger {
-    var level: string; var prefix: string; var out: string;   # 'stdout'|'stderr'|file
+    var level: Str; var prefix: Str; var out: Str;   # 'stdout'|'stderr'|file
     fn init(self, prefix="", out="stderr") { ... }
     fn debug(self, msg) { ... } fn info(self, msg) { ... }
     fn warn(self, msg) { ... } fn error(self, msg) { ... }
@@ -1037,8 +1037,8 @@ pub fn info(msg), warn(msg), error(msg), debug(msg) { ... }   # module-level to 
 **Important Note:** the basis for `kirn bench` measurements cited across this plan.
 
 ```kirn
-pub fn realtime(f) -> float { t0 = time.monotonic(); f(); return time.monotonic() - t0; }
-pub fn measure(f) -> string { t = realtime(f); return str(t) + "s"; }
+pub fn realtime(f) -> Float { t0 = time.monotonic(); f(); return time.monotonic() - t0; }
+pub fn measure(f) -> Str { t = realtime(f); return Str(t) + "s"; }
 pub fn bm(fns: list) -> list { ... }           # [{name,seconds}]
 ```
 
@@ -1051,13 +1051,13 @@ pub fn bm(fns: list) -> list { ... }           # [{name,seconds}]
 Over Phase-0 `os`/`process`.
 
 ```kirn
-pub fn cpu_percent(interval=0.0) -> float { ... }
-pub fn cpu_count(logical=true) -> int { return os.cpu_count(); }
+pub fn cpu_percent(interval=0.0) -> Float { ... }
+pub fn cpu_count(logical=true) -> Int { return os.cpu_count(); }
 pub fn virtual_memory() -> dict { ... }        # {total, available, percent}
 pub fn disk_usage(path) -> dict { ... }
-pub fn pid_exists(pid) -> bool { ... }
+pub fn pid_exists(pid) -> Bool { ... }
 pub fn process_iter() -> list { ... }          # [{pid, name, ...}]
-pub fn boot_time() -> float { ... }
+pub fn boot_time() -> Float { ... }
 pub fn users() -> list { ... }
 ```
 
@@ -1069,15 +1069,15 @@ pub fn users() -> list { ... }
 
 ```kirn
 pub fn argv() -> list { return os.args(); }
-pub fn stdin_line() -> string { return sys.stdin_read_line(); }
+pub fn stdin_line() -> Str { return sys.stdin_read_line(); }
 pub fn stdout_write(s) { sys.stdout_write(s); }
 pub fn stderr_write(s) { sys.stderr_write(s); }
 pub fn exit(code=0) { os.exit(code); }
-pub fn platform() -> string { return sys.platform(); }
-pub fn version() -> string { return sys.version(); }
-pub const max_int: int = 9007199254740991;
+pub fn platform() -> Str { return sys.platform(); }
+pub fn version() -> Str { return sys.version(); }
+pub const max_int: Int = 9007199254740991;
 pub fn set_recursion_limit(n) { sys.set_recursion_limit(n); }
-pub fn get_recursion_limit() -> int { ... }
+pub fn get_recursion_limit() -> Int { ... }
 ```
 
 **Exit:** `args_test`, `console_test`, `keyboard_test` (may be interactive; gate by
@@ -1108,9 +1108,9 @@ These sit on the Phase-0 `socket` substrate.
 pub struct Socket {
     var fd: socket;
     fn connect(self, host, port) { ... }
-    fn send(self, data) -> int { ... }
-    fn recv(self, n) -> string { ... }
-    fn recv_line(self) -> string { ... }
+    fn send(self, data) -> Int { ... }
+    fn recv(self, n) -> Str { ... }
+    fn recv_line(self) -> Str { ... }
     fn close(self) { ... }
     fn set_timeout(self, ms) { ... }
 }
@@ -1123,7 +1123,7 @@ pub struct Server {
 }
 pub fn tcp_connect(host, port) -> Socket { ... }
 pub fn tcp_server(host, port) -> Server { ... }
-pub fn resolve(host, port) -> string { return socket.resolve(host, port); }
+pub fn resolve(host, port) -> Str { return socket.resolve(host, port); }
 ```
 
 ### 7b. `lib.url` (new; Python `urllib.parse`, Go `net/url`, Rust `Url`)
@@ -1134,15 +1134,15 @@ pub fn resolve(host, port) -> string { return socket.resolve(host, port); }
 
 ```kirn
 pub struct Url {
-    var scheme, host, path, query, fragment: string;
-    var port: int;
+    var scheme, host, path, query, fragment: Str;
+    var port: Int;
     fn parse(s) -> Url { ... }
-    fn to_string(self) -> string { ... }
-    fn quote(self), unquote(self) -> string { ... }
-    fn encode_query(self, params: dict) -> string { ... }
+    fn to_string(self) -> Str { ... }
+    fn quote(self), unquote(self) -> Str { ... }
+    fn encode_query(self, params: dict) -> Str { ... }
 }
 pub fn parse(s) -> Url { return Url.parse(s); }
-pub fn quote(s) -> string, unquote(s) -> string, encode_form(params) -> string { ... }
+pub fn quote(s) -> Str, unquote(s) -> Str, encode_form(params) -> Str { ... }
 ```
 
 ### 7c. `lib.http` (new; Go `net/http`, Python `http.client/urllib.request`, Ruby `Net::HTTP`)
@@ -1155,11 +1155,11 @@ pub fn quote(s) -> string, unquote(s) -> string, encode_form(params) -> string {
 
 ```kirn
 pub struct Request {
-    var method, url, path, body: string;
+    var method, url, path, body: Str;
     var headers: dict;
 }
 pub struct Response {
-    var status: int; var reason, body: string; var headers: dict;
+    var status: Int; var reason, body: Str; var headers: dict;
 }
 pub fn get(url) -> Response { return request("GET", url, "", {}); }
 pub fn post(url, body) -> Response { return request("POST", url, body, {}); }
@@ -1180,8 +1180,8 @@ pub struct Server {   # minimal HTTP server (Go http.Server / wsgi)
 
 ```kirn
 pub fn parse_cookie(header) -> dict { ... }
-pub fn set_cookie(name, value, opts) -> string { ... }
-pub fn guess_type(path) -> string { ... }    # via extension table
+pub fn set_cookie(name, value, opts) -> Str { ... }
+pub fn guess_type(path) -> Str { ... }    # via extension table
 ```
 
 ### 7e. `lib.tls` (new; Python `ssl`, Go `crypto/tls`, Ruby `OpenSSL::SSL`)
@@ -1192,7 +1192,7 @@ pub fn guess_type(path) -> string { ... }    # via extension table
 
 ```kirn
 pub struct TlsContext {
-    var verify: bool; var ca_file: string;
+    var verify: Bool; var ca_file: Str;
     fn load_cert(self, cert, key) { ... }
     fn wrap(self, sock) -> Socket { ... }
 }
@@ -1208,10 +1208,10 @@ pub fn client(host, port, opts) -> Socket { ... }   # TCP + TLS handshake
 
 ```kirn
 pub struct Smtp {
-    var socket: Socket; var host: string; var port: int; var tls: bool;
+    var socket: Socket; var host: Str; var port: Int; var tls: Bool;
     fn connect(self, host, port, tls=false) { ... }
-    fn login(self, user, passwd) -> bool { ... }
-    fn sendmail(self, from, to: list, msg) -> bool { ... }
+    fn login(self, user, passwd) -> Bool { ... }
+    fn sendmail(self, from, to: list, msg) -> Bool { ... }
     fn quit(self) { ... }
 }
 ```
@@ -1219,7 +1219,7 @@ pub struct Smtp {
 ### 7g. `lib.wsgi` (new; Python `wsgiref` — server gateway spec)
 
 **Goal:** portable server/app contract (Python `wsgiref`).
-**Must Follow:** app = `fn(environ: dict) -> (status: int, headers: dict, body: string)`; `run`/`make_environ`.
+**Must Follow:** app = `fn(environ: dict) -> (status: Int, headers: dict, body: Str)`; `run`/`make_environ`.
 **Important Note:** models the contract only; no framework.
 
 Define a portable server/application contract modeling `WSGI`:
@@ -1254,13 +1254,13 @@ is arbitrary precision; Go `math/big`; Rust `num-bigint` crate; PHP `gmp`).
 > Reference: Go — `math/big` (`Int` methods) in `go/src/math/big`; LLVM — `APInt` fixed-width big-int ops in `llvm/llvm/include/llvm/ADT/APInt.h`.
 
 ```kirn
-pub const BN: string = "__bigint__";
+pub const BN: Str = "__bigint__";
 pub fn from_str(s) -> bigint { return bigint.from_str(s); }
 pub fn from_int(n) -> bigint { ... }
-pub fn to_str(b) -> string { return b.to_str(); }
+pub fn to_str(b) -> Str { return b.to_str(); }
 pub fn add(a, b) -> bigint, sub, mul, div, mod, pow, gcd, modinv, is_prime { ... }
-pub fn compare(a, b) -> int { ... }
-pub fn to_int(b) -> int { ... }
+pub fn compare(a, b) -> Int { ... }
+pub fn to_int(b) -> Int { ... }
 ```
 
 ### 8b. `lib.crypto` big-key ops
@@ -1303,10 +1303,10 @@ Phase 4 (crypto). **Consumed by:** `crypto`(RSA), `binascii`-style big ints in `
 **Important Note:** bulk path native; streaming API later.
 
 ```kirn
-pub fn compress(data: string, level=-1) -> bytes { return compress.deflate(bytes.from_str(data), level); }
-pub fn decompress(data: bytes) -> string { return compress.inflate(data).to_str(); }
-pub fn crc32(data: string) -> int { return compress.b64_crc32(bytes.from_str(data)); }
-pub fn adler32(data: string) -> int { ... }
+pub fn compress(data: Str, level=-1) -> bytes { return compress.deflate(bytes.from_str(data), level); }
+pub fn decompress(data: bytes) -> Str { return compress.inflate(data).to_str(); }
+pub fn crc32(data: Str) -> Int { return compress.b64_crc32(bytes.from_str(data)); }
+pub fn adler32(data: Str) -> Int { ... }
 ```
 
 ### 9b. `lib.gzip` (new)
@@ -1318,9 +1318,9 @@ pub fn adler32(data: string) -> int { ... }
 > Reference: Go — `compress/gzip` (`Writer`/`Reader`) in `go/src/compress/gzip`.
 
 ```kirn
-pub fn compress(data: string) -> bytes { ... }    # gzip header + deflate + trailer
-pub fn decompress(data: bytes) -> string { ... }
-pub fn read_file(path) -> string { return decompress(bytes.from_str(io.read(path))); }
+pub fn compress(data: Str) -> bytes { ... }    # gzip header + deflate + trailer
+pub fn decompress(data: bytes) -> Str { ... }
+pub fn read_file(path) -> Str { return decompress(bytes.from_str(io.read(path))); }
 ```
 
 ### 9c. `lib.zip` (new; Python `zipfile`, Go `archive/zip`)
@@ -1332,12 +1332,12 @@ pub fn read_file(path) -> string { return decompress(bytes.from_str(io.read(path
 > Reference: Go — `archive/zip` (`Reader`/`Writer`) in `go/src/archive/zip`.
 
 ```kirn
-pub struct Entry { var name, data: string; var crc: int; }
+pub struct Entry { var name, data: Str; var crc: Int; }
 pub struct ZipFile {
     var entries: list;
     fn read(self) -> list { ... }                 # local + central directory parse
     fn names(self) -> list { ... }
-    fn read_entry(self, name) -> string? { ... }
+    fn read_entry(self, name) -> Str? { ... }
 }
 pub fn open(path) -> ZipFile { ... }
 pub fn to_bytes(entries: list) -> bytes { ... }   # build a zip
@@ -1351,7 +1351,7 @@ pub fn write(path, entries: list) { io.write_bytes(path, to_bytes(entries)); }
 **Important Note:** pairs with gzip for `.tar.gz`; golden-file tests.
 
 ```kirn
-pub struct TarEntry { var name, mode, type: string; var data: bytes; }
+pub struct TarEntry { var name, mode, type: Str; var data: bytes; }
 pub fn open(path) -> list { ... }                 # header + body parse (ustar POSIX)
 pub fn to_bytes(entries: list) -> bytes { ... }
 pub fn write(path, entries: list) { io.write_bytes(path, to_bytes(entries)); }
@@ -1379,8 +1379,8 @@ Phase 2 (`path`). **Consumed by:** archive tooling, `http`(multipart not needed)
 > Reference: Go — `text/template` (`New/Parse/Execute`) in `go/src/text/template`.
 
 ```kirn
-pub fn render(tpl: string, ctx: dict) -> string { ... }   # support {{var}} {{each xs}} {{if}}
-pub fn compile(tpl) -> (func) -> string { ... }           # precompile
+pub fn render(tpl: Str, ctx: dict) -> Str { ... }   # support {{var}} {{each xs}} {{if}}
+pub fn compile(tpl) -> (func) -> Str { ... }           # precompile
 ```
 
 ### 10b. `lib.html` (new; Python `html`, Go `html`)
@@ -1390,9 +1390,9 @@ pub fn compile(tpl) -> (func) -> string { ... }           # precompile
 **Important Note:** server rendering reuses this via `http`.
 
 ```kirn
-pub fn escape(s: string) -> string { ... }      # &, <, >, ", '
-pub fn unescape(s: string) -> string { ... }
-pub fn strip_tags(s: string) -> string { ... }
+pub fn escape(s: Str) -> Str { ... }      # &, <, >, ", '
+pub fn unescape(s: Str) -> Str { ... }
+pub fn strip_tags(s: Str) -> Str { ... }
 ```
 
 ### 10c. `lib.yaml` (new; only if desired — Ruby `YAML`/Psych, Python `yaml`
@@ -1404,8 +1404,8 @@ external; Go `gopkg.in/yaml.v3` external)
 **Important Note:** unlike `toml`/`http`, YAML is not in Python/Go stdlib — keep it out of the core pet set.
 
 ```kirn
-pub fn dump(v) -> string { ... }
-pub fn load(s: string) { ... }
+pub fn dump(v) -> Str { ... }
+pub fn load(s: Str) { ... }
 pub fn load_file(path) { ... }
 ```
 
@@ -1432,10 +1432,10 @@ pub struct Connection {
     var db: sqlite;
     fn init(self, path) { self.db = sqlite.connect(path); }
     fn close(self) { self.db.close(); }
-    fn execute(self, sql: string, params: list=[]) { ... }     # rowcount via db.exec
-    fn query(self, sql: string, params: list=[]) -> list { ... }  # list of row-tuples + column names
+    fn execute(self, sql: Str, params: list=[]) { ... }     # rowcount via db.exec
+    fn query(self, sql: Str, params: list=[]) -> list { ... }  # list of row-tuples + column names
     fn query_one(self, sql, params) -> tuple? { ... }
-    fn last_insert_id(self) -> int { ... }
+    fn last_insert_id(self) -> Int { ... }
     fn transaction(self, fn) { self.db.exec("BEGIN"); try { fn(); self.db.exec("COMMIT"); } catch e { self.db.exec("ROLLBACK"); raise e; } }
 }
 pub fn connect(path) -> Connection { return Connection(path); }
@@ -1456,10 +1456,10 @@ Refine `keyboard`/`console` with raw terminal, termios-style modes:
 
 ```kirn
 # console raw mode (Phase 0 getch already gives keys)
-pub fn raw_mode(on: bool) { ... }
+pub fn raw_mode(on: Bool) { ... }
 pub fn get_key() -> Key { ... }        # returns printable char or name ('UP','F1')
-pub fn term_size() -> (int, int) { ... }
-pub fn read_password(prompt) -> string { ... }   # no echo
+pub fn term_size() -> (Int, Int) { ... }
+pub fn read_password(prompt) -> Str { ... }   # no echo
 ```
 
 **Exit:** `keyboard_test`, `console_test` green under a driver. **Consumes:**
@@ -1500,11 +1500,11 @@ pub fn copytree(src, dst) { ... }
 **Important Note:** TempFile cleanup must be exception-safe.
 
 ```kirn
-pub fn mktemp(suffix="", prefix="") -> string { ... }   # os.tmpdir + random
-pub fn mkdtemp(prefix="") -> string { ... }
+pub fn mktemp(suffix="", prefix="") -> Str { ... }   # os.tmpdir + random
+pub fn mkdtemp(prefix="") -> Str { ... }
 pub struct TempFile {
-    var path: string; var f: File;
-    fn write(self, data) { ... } fn read(self) -> string { ... } fn close(self, delete=true) { ... }
+    var path: Str; var f: File;
+    fn write(self, data) { ... } fn read(self) -> Str { ... } fn close(self, delete=true) { ... }
 }
 pub fn NamedTemporaryFile(suffix="") -> TempFile { ... }
 ```
@@ -1516,12 +1516,12 @@ pub fn NamedTemporaryFile(suffix="") -> TempFile { ... }
 **Important Note:** env/cwd/stdio pass through; no shell unless explicitly asked.
 
 ```kirn
-pub struct Process { var pid: int; var status: int; var stdout, stderr: string;
-    fn wait(self) -> int { ... } fn exit_code(self) -> int { return self.status; } }
-pub fn run(cmd: string, args: list=[]) -> Process { ... }        # blocks
-pub fn spawn(cmd: string, args: list=[]) -> Process { ... }       # non-blocking
-pub fn output(cmd: string, args: list=[]) -> string { return run(cmd, args).stdout; }
-pub fn look_path(cmd: string) -> string? { ... }
+pub struct Process { var pid: Int; var status: Int; var stdout, stderr: Str;
+    fn wait(self) -> Int { ... } fn exit_code(self) -> Int { return self.status; } }
+pub fn run(cmd: Str, args: list=[]) -> Process { ... }        # blocks
+pub fn spawn(cmd: Str, args: list=[]) -> Process { ... }       # non-blocking
+pub fn output(cmd: Str, args: list=[]) -> Str { return run(cmd, args).stdout; }
+pub fn look_path(cmd: Str) -> Str? { ... }
 ```
 
 **Exit:** `fileutils_test`, `tempfile_test`, `os_exec_test` green.
@@ -1539,14 +1539,14 @@ pub fn look_path(cmd: string) -> string? { ... }
 
 ```kirn
 # lib.signal
-pub fn trap(sig: string, handler) { os.signal(sig, handler); }
+pub fn trap(sig: Str, handler) { os.signal(sig, handler); }
 pub fn kill(pid, sig="TERM") { os.kill(pid, sig); }
 pub fn list_signals() -> dict { return os.signal_list(); }
 # lib.random additions
-pub fn randbytes(n) -> bytes, gauss(mu, sigma) -> float, expovariate(l), normal_seed(n) { ... }
+pub fn randbytes(n) -> bytes, gauss(mu, sigma) -> Float, expovariate(l), normal_seed(n) { ... }
 # lib.time additions
-pub fn perf_counter() -> float { return time.perf_counter(); }
-pub fn process_time() -> float { ... }
+pub fn perf_counter() -> Float { return time.perf_counter(); }
+pub fn process_time() -> Float { ... }
 ```
 
 **Exit:** `signal_test`, `random_test`(extended), `time_test`(extended) green.
@@ -1627,7 +1627,7 @@ accidental cycle fails CI.
 
 ```kirn
 fn main() {
-    if os.getenv("KIRN_TEST_OS") == nil { print("skipped"); return; }
+    if os.getenv("KIRN_TEST_OS") == none { print("skipped"); return; }
     ...
 }
 ```
@@ -1816,13 +1816,13 @@ fn main() {
     ap.add(["-d", "--db"], dest="db", default="cache.db", help="sqlite path");
     ap.add(["-t", "--ttl"], dest="ttl", default=30, type="int", help="cache ttl (s)");
     ap.parse(args.argv());
-    url = ap.get("url"); if url is nil { print(ap.help_text()); return; }
+    url = ap.get("url"); if url is none { print(ap.help_text()); return; }
 
     db = sqlite3.connect(ap.get("db"));
     db.execute("CREATE TABLE IF NOT EXISTS cache (url TEXT PRIMARY KEY, body TEXT, at INT)");
-    row = db.query_one("SELECT body FROM cache WHERE url = ? AND at > ?", [url, time.now_ms() / 1000 - int(ap.get("ttl"))]);
+    row = db.query_one("SELECT body FROM cache WHERE url = ? AND at > ?", [url, time.now_ms() / 1000 - Int(ap.get("ttl"))]);
 
-    if row is not nil {
+    if row is not none {
         log.info("cache hit: " + url);
         print(row[0]);
     } else {
@@ -1833,7 +1833,7 @@ fn main() {
                        [url, body, time.now_ms() / 1000]);
             print(body);
         } else {
-            log.error("status " + str(r.status));
+            log.error("status " + Str(r.status));
         }
     }
     db.close();
@@ -1893,9 +1893,9 @@ For each phase:
 3. **Argument order:** follow Python where 2+ languages conflict
    (`json.dumps/loads`, `csv.reader/writer`, `datetime.strftime`). For `join`, expose
    `join(xs, sep)` (Go is the odd one out).
-4. **Errors:** `raise(string)`, `catch e {}`; canonical messages from `lib.errors`.
+4. **Errors:** `raise(Str)`, `catch e {}`; canonical messages from `lib.errors`.
 5. **Return `nil`/`?` vs raise:** predicate/optional getters return `nil`; operations
-   that are expected to fail by contract raise (`json.loads`, `int()`).
+   that are expected to fail by contract raise (`json.loads`, `Int()`).
 6. **Files:** `io.write` overwrites, `io.append` appends (after Phase-0 truncate).
 7. **Test names:** `<module>_test.kn`; net/OS-dependent tests gated by env vars.
 

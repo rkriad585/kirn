@@ -92,13 +92,13 @@ One file, both ends of the spectrum — `tools/crawl.kn`:
 
 ```kirn
 import lib.core, lib.net, lib.json;
-fn fetch(url: Str) -> Result[Str, Str] {
+fn fetch(url: Str) -> result[Str, Str] {
     body = net.get(url);                       # stdlib batteries, no deps
     return json.valid(body) ? ok(body) : err("bad json");
 }
-fn worker(q: Chan[Str]) {
+fn worker(q: chan[Str]) {
     for u in q {
-        match fetch(u) { case Ok(b) => index.digest(b); case Err(e) => log.warn(e); }
+        match fetch(u) { case ok(b) => index.digest(b); case err(e) => log.warn(e); }
     }
 }
 fn main() {
@@ -164,7 +164,7 @@ From the audit of `src/` (~14,800 LOC C++20), `stdlib/`, `tools/`, `examples/` (
 
 | Capability                                 | Kirn               | Notes (evidence)                                                                                                                                                                                                    |
 | ------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Python-grade builtins                      | ✅ (mostly)        | `map/filter/reduce/any/all/sum/min/max/sorted/enumerate/str/int/float/bool/type/upper/lower/...` live in `installBuiltins()` (`src/interp/runtime.cpp:485-613`); residual `zip/flatten/round/floor/ceil/input` gaps |
+| Python-grade builtins                      | ✅ (mostly)        | `map/filter/reduce/any/all/sum/min/max/sorted/enumerate/Str/Int/Float/Bool/type/upper/lower/...` live in `installBuiltins()` (`src/interp/runtime.cpp:485-613`); residual `zip/flatten/round/floor/ceil/input` gaps |
 | Comprehensions                             | ✅                 | list comps + multi-`for`/`if` clauses (`CompClause`, `src/ast/ast.h:92-97`)                                                                                                                                         |
 | Dynamic/gradual typing                     | ✅ `any`/`dynamic` | both → `unkTy()` (`src/sema/checker.cpp:868`)                                                                                                                                                                       |
 | Go-style concurrency                       | ✅                 | `spawn`/`chan`/`select`, real OS threads (`src/interp/runtime.cpp`), examples 22/23/30                                                                                                                              |
@@ -234,12 +234,12 @@ below is the pitch in miniature.
 Same algorithm, a few readable Kirn lines where Rust needs HashMap + named lifetimes:
 
 ```kirn
-fn freq(text: Str) -> Dict[Str, Int] {
+fn freq(text: Str) -> dict[Str, Int] {
     d = { };
     for w in re.split(r"\W+", text.lower()) { d[w] = d.get(w, 0) + 1; }
     return d;
 }
-fn top(counts: Dict[Str, Int]) -> Str {
+fn top(counts: dict[Str, Int]) -> Str {
     items = sort_by(counts.items(), |kv| kv.1, desc=true)[0..3];
     return join(items.map(|kv| kv.0 + ":" + Str(kv.1)), ", ");
 }
@@ -398,7 +398,7 @@ moat. **Important Note:** owner `WHY_PLAN.md` WHY-4/WHY-14; the lint set grows o
   ```kirn
   $ kirn check app.kn          # type errors reported with spans; exit 1 on failure
   $ kirn lint app.kn           # W0101 (unused), W0103 (immutable reassign hint), ...
-  $ kirn vet app.kn            # safety subset: nil-unwrap, index-range, borrow-escape heuristics
+  $ kirn vet app.kn            # safety subset: none-unwrap, index-range, borrow-escape heuristics
   ```
 - **Testing:** extend `tests/negative/` (n01–n18) + `types/` to be driven through `kirn check`;
   add `tests/lint/` with one file per W-code.
@@ -521,7 +521,7 @@ The "fast for real code" target, in Kirn:
 
 ```kirn
 struct Point { var x: i32; var y: i32; }
-fn grid_sum(pts: List[Point]) -> i32 {
+fn grid_sum(pts: list[Point]) -> i32 {
     s = 0;
     for p in pts { s += p.x * p.y; }   # hot loop lowers to native; output ≡ VM
     return s;
@@ -647,7 +647,7 @@ every stricter level's diagnostics are W-coded and `@allow`-able. **Important No
 - **Code/syntax examples:**
   ```kirn
   any x = get_anything();       # ok anywhere
-  @checked fn f(y: any) -> int { return y; }   # ERROR: 'any' not allowed in checked scope
+  @checked fn f(y: any) -> Int { return y; }   # ERROR: 'any' not allowed in checked scope
   ```
 - **Testing:** positive/negative sets for each level; existing corpus must pass unchanged in the
   default (non-strict) mode.
@@ -819,7 +819,7 @@ Python (GIL) and Ruby. **Must Follow:** deadlock/race findings are `kirn lint` h
   `src/sema/checker.cpp`.
 - **Code/syntax examples:**
   ```kirn
-  ch = chan[int](2);
+  ch = chan[Int](2);
   spawn (() => { for i in 1..=5 { ch.send(i); }; ch.close(); });
   for v in ch { print(v); }         # range over a channel
   ```

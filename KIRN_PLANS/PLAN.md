@@ -469,7 +469,7 @@ module** `reflect`, implemented by exposing `Value::k`/fields:
 
 ### 5.5 Eval / dynamic code execution (optional, guarded)
 
-- A `core.dyn.eval(string)` under an explicit `--enable-eval` flag (Python's `eval` analogue).
+- A `core.dyn.eval(Str)` under an explicit `--enable-eval` flag (Python's `eval` analogue).
   Default-off for safety; powers REPL (Phase 9) and scripting.
 
 ### Exit criteria
@@ -514,12 +514,12 @@ fn area(s: Shape): Float {
 
 ### 6.2 Records (immutable data carriers)
 
-- Add `record Point(x: int, y: int)` — like Java records: value-equality,
+- Add `record Point(x: Int, y: Int)` — like Java records: value-equality,
   copy-on-write-safe, auto-`repr`, structural immutability. Cheap on the by-value struct model.
 
 ### 6.3 Generics maturity
 
-- Default type parameters `[T = int]`; associated constants/type items on traits (advanced);
+- Default type parameters `[T = Int]`; associated constants/type items on traits (advanced);
   `Interface` bounds (Phase 5.3); bidirectional context-driven inference for lambdas.
 - `iota`-style enum discriminants (described in FEATURE_GAP §3.3; add `enum E { A, B }` →
   implicit ints with `E.A.to_int()`).

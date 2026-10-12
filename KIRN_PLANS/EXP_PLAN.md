@@ -181,7 +181,7 @@ Compound assignment: `+= -= *= /= %= **= //= &= |= ^= <<= >>=`. No `++`/`--`, no
 ### 2.5 Free builtins (runtime `installBuiltins` + checker `predeclareBuiltins`)
 
 ```
-print len sqrt ord chr assert assert_eq range panic catch_panic printf str int float bool type repr
+print len sqrt ord chr assert assert_eq range panic catch_panic printf Str Int Float Bool type repr
 sum min max any all sorted reversed enumerate map filter reduce upper lower trim contains
 starts_with ends_with replace split join    NaN inf nil
 ```
@@ -255,7 +255,7 @@ We introduce a 5-layer model so new features compose.
 ```
 
 - **L1 (values)** — the _math expression_ engine. Numeric operator dispatch is table-driven (add/sub/mul/... per numeric TyK+VK), so `+ - * / % // ** << >> & | ^` behave correctly across `i8..u64`, `f32/f64`, and (later) `BigInt`, `complex`, `rational`. Vector/array element-wise math lives here.
-- **L2 (dynamic)** — a small `any`-protocol table so `a + b`, `a[i]`, `len(a)`, `str(a)` on `any` dispatch by runtime tag; plus reflection (`type`, `methods`, `fields`, `size`).
+- **L2 (dynamic)** — a small `any`-protocol table so `a + b`, `a[i]`, `len(a)`, `Str(a)` on `any` dispatch by runtime tag; plus reflection (`type`, `methods`, `fields`, `size`).
 - **L3 (magic)** — the dunder/well-known trait system. Kirn's operator overloading already exists; we generalize it into a **magic-method protocol** sugar layer so both `impl Add for Vec2 { fn add ... }` and (optionally) a `__dunder__` spelling drive the same dispatcher.
 - **L4 (syntax)** — pure desugaring sugar: walrus, pipe, spread/rest, `var-else`, safe-call/elvis, infix, chaining. Each lowers to L3/L1 primitives.
 - **L5 (static)** — compile-time guarantees layered on top: constant folding, `const fn`, contracts, freeze, exhaustiveness extensions.
@@ -434,7 +434,7 @@ Each phase: **Goal**, **C++/interpreter substrate**, **Kirn surface**, **code ex
 
 **Tests:** `kirn test` golden on `15_operator_overloading` and `25_operator_precedence` still pass; a unit test drives `dispatchBin` for every numeric pair.
 
-```co
+```kn
 fn main() {
     a = Vec2(x: 1.0, y: 2.0);
     b = Vec2(x: 3.0, y: 4.0);
@@ -485,7 +485,7 @@ Number      gcd lcm divmod mod
 String→Num  parse_int(s, [radix]) parse_float(s)
 ```
 
-```co
+```kn
 fn main() {
     print(sin(PI / 2));       # 1.0
     print(atan2(1, 1));       # 0.785...
@@ -528,23 +528,23 @@ fn main() {
 **Substrate/checker/runtime:**
 
 - Define the well-known trait set and wire each to a dispatch hook:
-  - `Call` → `f(x)`; `Index`/`IndexAssign` → `a[i]`/`a[i]=v`; `Len` → `len(a)`; `Iter`/`Next` → `for x in a` and generator protocol; `Contains` → `x in a`; `Bool` → truthiness in `if`/`and`/`or`; `Hash` → hash for dict/set membership; `ToString`/`ToRepr` → `str(a)`/`repr(a)`; `Format` → f-string `{a:spec}`; `Neg`/`Pos`/`Abs`/`Invert` unary.
+  - `Call` → `f(x)`; `Index`/`IndexAssign` → `a[i]`/`a[i]=v`; `Len` → `len(a)`; `Iter`/`Next` → `for x in a` and generator protocol; `Contains` → `x in a`; `Bool` → truthiness in `if`/`and`/`or`; `Hash` → hash for dict/set membership; `ToString`/`ToRepr` → `Str(a)`/`repr(a)`; `Format` → f-string `{a:spec}`; `Neg`/`Pos`/`Abs`/`Invert` unary.
 - Add **reflected** operator support (`5 * vec` → `Vec2.mul(scalar_left, 5)` when left operand lacks the trait) and **in-place** variants (`x += y` → `AddAssign`).
 - Add an optional `__dunder__` method-name spelling that maps onto the same traits (so both `impl Add` and `__add__` target one dispatcher) — decided: **default to Rust-style traits** (already Kirn's idiom) and treat `__x__` as aliases for discoverability/teaching.
 
 **Kirn surface / examples:**
 
-```co
-struct Fraction { num: int; den: int; }
+```kn
+struct Fraction { num: Int; den: Int; }
 impl Add for Fraction { fn add(self, o: Fraction) -> Fraction {...} }
-impl Mul for Fraction { fn mul(self, k: int) -> Fraction { ... } }
+impl Mul for Fraction { fn mul(self, k: Int) -> Fraction { ... } }
 impl Call for Greeter { fn call(self, name) { print("hi " + name); } }
-impl Len for Bag { fn len(self) -> int { return self.items.len(); } }
-impl Iter for Bag { fn iter(self) -> gen[int] { for x in self.items { yield x; } } }
-impl Contains for Bag { fn contains(self, x) -> bool { return self.items.contains(x); } }
-impl Bool for Bag { fn bool(self) -> bool { return self.items.len() > 0; } }
-impl Hash for Point { fn hash(self) -> int { return self.x * 31 + self.y; } }
-impl ToString for Vec2 { fn to_string(self) -> string { return f"({self.x}, {self.y})"; } }
+impl Len for Bag { fn len(self) -> Int { return self.items.len(); } }
+impl Iter for Bag { fn iter(self) -> gen[Int] { for x in self.items { yield x; } } }
+impl Contains for Bag { fn contains(self, x) -> Bool { return self.items.contains(x); } }
+impl Bool for Bag { fn bool(self) -> Bool { return self.items.len() > 0; } }
+impl Hash for Point { fn hash(self) -> Int { return self.x * 31 + self.y; } }
+impl ToString for Vec2 { fn to_string(self) -> Str { return f"({self.x}, {self.y})"; } }
 
 fn main() {
     g = Greeter();
@@ -577,7 +577,7 @@ fn main() {
 - Extend `defer` to accept arbitrary expressions (today it's Go-style call-only) and add LIFO + `defer`-with-args snapshot semantics already Go-like; add `defer { block }` form.
 - Provide `using` alias for C# familiarity (decision: `with` is canonical, `using` accepted as alias).
 
-```co
+```kn
 fn main() {
     with File.open("log.txt") as f {
         f.write("hello");
@@ -615,8 +615,8 @@ fn main() {
 - Add `const fn name(...) -> T { ... }` declaring a function that may be called at compile time with constant args; calls with non-constant args are a static error (or fall back to runtime — decide: error, like Rust v1; `comptime` keyword reserved for Zig-style in stretch).
 - Track _const-ness_ through the expression tree and reject non-const calls inside `const`/`const fn`.
 
-```co
-const fn fact(n: int) -> int {
+```kn
+const fn fact(n: Int) -> Int {
     if n <= 1 { return 1; }
     return n * fact(n - 1);
 }
@@ -656,10 +656,10 @@ fn main() {
 - **`var-else`** — `var x = expr else { handle; }` binds `x` from a pattern-match or non-optional, else runs the else block and returns (Rust `let-else` / Swift `guard let`).
 - **Trailing lambda / trailing closure** — `xs.map { x => x * 2 }` as sugar for `xs.map((x) => x * 2)`; last-arg omission with a block.
 
-```co
+```kn
 fn main() {
     if (n := len("hello world")) > 5 {
-        print("long: " + str(n));   # n bound in scope
+        print("long: " + Str(n));   # n bound in scope
     }
 
     text = "  hello  ";
@@ -703,9 +703,9 @@ fn main() {
 - **Non-null assertion `!`** — postfix `x!` asserts non-`none` and unwraps, panicking if `none` (Swift `!`).
 - **Smart casts** — in `if x != none { …x… }` narrow the static type of `x` to the non-optional inside the branch (checker improvement; requires the checker to track narrowed types — a bounded feature).
 
-```co
+```kn
 fn main() {
-    name: string? = get_name();
+    name: Str? = get_name();
     print(name?.len());        # none if name none, else length
     print(name?.upper());
     safe = name ?? "guest";    # "guest" if none
@@ -739,13 +739,13 @@ fn main() {
 
 **Substrate/runtime:**
 
-- **Reflection builtins** (out-of-the-box): `type(x)` (exists, returns `string`), add `methods(x)`, `fields(x)`, `size(x)`, `type_name(x)` typed as reflection metadata; `typeof`/`traitof` for asking "does x satisfy trait T".
+- **Reflection builtins** (out-of-the-box): `type(x)` (exists, returns `Str`), add `methods(x)`, `fields(x)`, `size(x)`, `type_name(x)` typed as reflection metadata; `typeof`/`traitof` for asking "does x satisfy trait T".
 - **Dynamic dispatch polish** — when the receiver is `any`, route method calls through a runtime method-table by the value's tag (partially present via `dynamic` duck typing); complete for operator dispatch (Phase 0 helper) and magic methods (Phase 2).
 - **Casts** — `x as T` (exists) plus a _checked_ `dynamic_casts`: `x as? T` returns `T?`, panicking form `as!`.
 - **`dynamic` object** — a `Dynamic` record/protocol type (Python-ish dict-with-attributes) for scripting: `d.name = 5; d["key"] = 2;` attribute/index read-write on an `any` bag. Expose via a `Object`/`Dynamic` type from `DATA_TYPE_PLAN.md`.
 - **`hasattr`/`getattr`/`setattr`** builtins (Ruby/Python) for scripts.
 
-```co
+```kn
 fn main() {
     v: any = Complex(3, 4);
     print(type(v));             # "complex" (or nominal name)
@@ -758,7 +758,7 @@ fn main() {
     print(d.name, d["version"]);
 
     x: any = "42";
-    n: int? = x as? int;        # safe checked cast → none if not an int
+    n: Int? = x as? Int;        # safe checked cast → none if not an int
     print(n);
     # p: Point = v as! Point;   # panicking cast
 
@@ -788,8 +788,8 @@ fn main() {
 - **Exhaustiveness & const improvements** — carry Phase 4 const-folding into more contexts (array literals, default params), and extend match exhaustiveness (partially done).
 - **`static`/`inline`** hints — `static` local that persists across calls (like C), `inline` function body substitution (simple, when provably small).
 
-```co
-fn divide(a: int, b: int) -> int {
+```kn
+fn divide(a: Int, b: Int) -> Int {
     require b != 0;            # precondition
     return a // b;
 }
@@ -799,7 +799,7 @@ fn main() {
     print(divide(10, 2));
 
     x: any = 5;
-    if x is int {              # type test + smart cast
+    if x is Int {              # type test + smart cast
         y = x + 1;             # x narrowed to int
         print(y);
     }
@@ -821,12 +821,12 @@ fn main() {
 
 **Substrate/runtime:**
 
-- Define a **vector** display + numeric dispatch: when either operand of `+ - * /` is a `list[float]`/`list[int]` (or a dedicated `Vec`/`Array` from `DATA_TYPE_PLAN.md`) and the other is a scalar or same-length list, do element-wise operation. Gated behind an explicit rule so user code stays predictable.
+- Define a **vector** display + numeric dispatch: when either operand of `+ - * /` is a `list[Float]`/`list[Int]` (or a dedicated `Vec`/`Array` from `DATA_TYPE_PLAN.md`) and the other is a scalar or same-length list, do element-wise operation. Gated behind an explicit rule so user code stays predictable.
 - Add **broadcasting** for scalar↔array and same-shape arrays (start same-shape + scalar; extend to trailing-dim broadcast later).
 - Add math builtins `dot(a,b)`, `cross(a,b)`, `matmul(A,B)`/`@` operator (Phase 13), `sum/min/max/mean/var/std` on arrays (mean/var/std to `math`/`statistics` in `STD_LIBS_PLAN.md`, but element-wise ops are the expression story here).
 - Provide `Vec2/Vec3/Vec4` convenience types + operator overload (via Phase 2 traits) for games/graphics.
 
-```co
+```kn
 fn main() {
     a = [1.0, 2.0, 3.0];
     b = [4.0, 5.0, 6.0];
@@ -868,7 +868,7 @@ and_then, or_else, unwrap_or, unwrap_or_else`) are ALSO specified in **Phase 14*
 - **Combinators as methods** on `result[T,E]`/`option[T]`: `map`, `map_err`, `and_then`, `or_else`, `unwrap_or`, `unwrap_or_else`, `flat_map` (Rust flavour, complements existing `?`) — these slot on the `Result`/`Option` types from `DATA_TYPE_PLAN.md`, but the _method surface_ is defined here.
 - **Lazy/`lazy` thunk** — `lazy { expr }` defers evaluation until first use.
 
-```co
+```kn
 fn main() {
     sum = (a, b) => a + b;        # lambda is already callable
     print(sum(2, 3));
@@ -879,7 +879,7 @@ fn main() {
     print(zip([1,2], ["a","b"]));            # [(1,"a"),(2,"b")]
     print(enumerate(xs, start: 1));          # [(1,1),(2,2),...]
 
-    r: result[int, string] = parse_num("42");
+    r: result[Int, Str] = parse_num("42");
     print(r.map((x) => x * 2).unwrap_or(0));   # 84
 
     v = lazy { expensive(); };   # not computed until v is used
@@ -893,7 +893,7 @@ fn main() {
 ### Phase 11
 
 **Goal:** Formatting & number/string conversion breadth — the question every language gets asked: "how do I format a number / parse a number safely / control precision".
-**Must Follow:** full printf-style f-string grammar over the existing `{expr:spec}` seam; safe `parse_int`/`parse_float` return optionals while `int`/`float` keep throwing.
+**Must Follow:** full printf-style f-string grammar over the existing `{expr:spec}` seam; safe `parse_int`/`parse_float` return optionals while `Int`/`Float` keep throwing.
 **Important Note:** keep the spec grammar identical across f-strings and `format(x, spec)`; include debug `f"{x=}"`.
 
 > Reference: cpython — format spec (`cpython/Objects`); go — `strconv` parse/format (`go/src/strconv`).
@@ -902,10 +902,10 @@ fn main() {
 
 - **Format builtins**: `format(x, spec)` and rich f-string format specs (Kirn f-strings already take `{expr:spec}`; extend the spec grammar to the full printf-style set): `width.precision type` + alignment `< > ^`, `+`/`-`/space signs, `#` alt (0x), `0` zero-pad, `,` thousands, `%` percent, `e/E/f/g/`, integer `b/o/x/d`).
 - **Debug f-strings** `f"{x=}"` → `x=42` (Python).
-- **Robust parsing**: `parse_int(s, radix?)` → `int?` (none on failure, no panic), `parse_float(s)` → `float?`, `parse_bool`, radix support; handle whitespace/sign. Replace/augment the bare `int(s)`/`float(s)` (which currently throw on bad input) with safe variants while keeping the throw-forms for convenience.
+- **Robust parsing**: `parse_int(s, radix?)` → `Int?` (none on failure, no panic), `parse_float(s)` → `Float?`, `parse_bool`, radix support; handle whitespace/sign. Replace/augment the bare `Int(s)`/`Float(s)` (which currently throw on bad input) with safe variants while keeping the throw-forms for convenience.
 - **Number formatting**: `to_hex(to_fixed, to_sci, to_percent, with_separators)` methods on int/float; f32/f64 precision control.
 
-```co
+```kn
 fn main() {
     print(format(3.14159, ".2f"));    # "3.14"
     print(format(255, "#08x"));       # "0x0000ff"
@@ -916,9 +916,9 @@ fn main() {
     print(f"{x=}");                   # "x=42"
     print(f"{1234567:,}");            # "1,234,567"
 
-    n: int? = parse_int("ff", 16);    # 255 (safe, none on failure)
+    n: Int? = parse_int("ff", 16);    # 255 (safe, none on failure)
     print(n);
-    print(int("0xff"));               # 255 (existing convenience)
+    print(Int("0xff"));               # 255 (existing convenience)
 }
 ```
 
@@ -941,7 +941,7 @@ fn main() {
 - **Comprehension generosity**: allow dict comprehension `{k: v for p in it}`, set comprehension `{x for p in it if c}` (currently list + generator only).
 - **`range` sugar** — `range(n)`, `range(a,b,step)` (exists); add `0..10` iterable directly usable in comprehensions (partially), `x.times { }` Ruby-like block enlargement for readability (toggle: provide as method, not grammar).
 
-```co
+```kn
 fn main() {
     squares = {k: k * k for k in 0..5};   # dict comprehension
     evens   = {x for x in 1..10 if x % 2 == 0};  # set comprehension
@@ -952,7 +952,7 @@ fn main() {
     merged = {**d1, **d2};                # spread-merge
     print(merged);
 
-    3.times { i => print("hi " + str(i)); };   # Ruby-style block
+    3.times { i => print("hi " + Str(i)); };   # Ruby-style block
     print(sorted([3, 1, 2], reverse: true));   # [3, 2, 1]
 }
 ```
@@ -971,15 +971,15 @@ fn main() {
 
 **Substrate/parser/checker:**
 
-- **`infix` functions** — `infix fn poww(a: int, b: int) -> int {...}` lets you call `2 poww 10`. Introduces a user-defined operator name; precedence is fixed (a documented "custom-operator" precedence band, lowest, or named like the `+` level — decision: a single band just above `or`, requiring parens when ambiguous).
+- **`infix` functions** — `infix fn poww(a: Int, b: Int) -> Int {...}` lets you call `2 poww 10`. Introduces a user-defined operator name; precedence is fixed (a documented "custom-operator" precedence band, lowest, or named like the `+` level — decision: a single band just above `or`, requiring parens when ambiguous).
 - **Custom unary/operator overloading breadth** — complete the trait table (Phase 2) for all operators: `Add/Sub/Mul/Div/Rem/Pow/Shl/Shr/BitAnd/BitOr/BitXor/Neg/Pos/Not/Index/IndexAssign/...` + reflected + in-place.
 - **`@` operator** — currently token exists (`@` is pattern-only); add binary `@` → `MatMul` trait for `A @ B` matrix multiply (Julia/Python), plus element-wise via `Vector` ops (Phase 9).
 - **`in`/`not in`** — is already membership; keep. Add `is`/`is not` refinement.
 
-```co
-infix fn poww(a: int, b: int) -> int { return ipow(a, b); }
+```kn
+infix fn poww(a: Int, b: Int) -> Int { return ipow(a, b); }
 
-struct Matrix { rows: list[list[float]]; }
+struct Matrix { rows: list[list[Float]]; }
 impl MatMul for Matrix {
     fn matmul(self, o: Matrix) -> Matrix { ... }
 }
@@ -1020,7 +1020,7 @@ fn main() {
 - **Error wrapping** — Go `%w`-style context chaining: `raise "read failed: " + err` or `.wrap(msg)` on a result produce a wrapped error whose `root(err)`/`cause(err)` unwinds.
 - **Multi-catch** — `try { } catch (TypeA e) {} catch (TypeB e) {}` typed catches (currently single generic catch); exception groups later.
 
-```co
+```kn
 fn main() {
     # try-as-expression with fallback
     v = try { parseInt("42") } catch e { 0 };
@@ -1030,7 +1030,7 @@ fn main() {
     data = escape_risk() catch "fallback";
 
     # combinator chain on result
-    r: result[int, string] = parse("7");
+    r: result[Int, Str] = parse("7");
     doubled = r.map((x) => x * 2).or_else((err) => err).unwrap_or(0);
     print(doubled);                 # 14
 
@@ -1067,7 +1067,7 @@ fn main() {
 - **Number theory** (builtins): `is_prime`, `next_prime`, `prime_factors`, `phi` (totient), `pow_mod(base, exp, mod)` (modular exponentiation), `inv_mod`, `binomial(n,k)`, `factorial`, `isqrt`. Land in `math.kn` / `number_theory` module, exposed as builtins for the out-of-the-box feel of the rare ones.
 - **Special math** (module): `gamma`, `lgamma`, `erf`, `erfc`, `beta`, `zeta` (via `STD_LIBS_PLAN.md` `math` module; defined here for naming).
 
-```co
+```kn
 fn main() {
     print(rand_int(1, 7));        # die roll 1-6
     xs = [1,2,3,4];
@@ -1149,7 +1149,7 @@ fn main() {
 | `Bool`                                | `__bool__`                                   | `if a`, `and/or/not`          | 2     |
 | `Hash`                                | `__hash__`                                   | dict/set key                  | 2     |
 | `Eq`/`Ne`/`Cmp`                       | `__eq__`/`__lt__`…                           | `== != < <= > >=`             | 2/13  |
-| `ToString`/`ToRepr`/`Format`          | `__str__`/`__repr__`/`__format__`            | `str(a)`/`repr(a)`/`f"{a:…}"` | 2/11  |
+| `ToString`/`ToRepr`/`Format`          | `__str__`/`__repr__`/`__format__`            | `Str(a)`/`repr(a)`/`f"{a:…}"` | 2/11  |
 | `Call`                                | `__call__`                                   | `f(x)`                        | 2/10  |
 | `Enter`/`Exit`                        | `__enter__`/`__exit__`                       | `with`                        | 3     |
 | `Drop`                                | `__del__` (approx)                           | end-of-scope RAII             | 3     |
@@ -1199,7 +1199,7 @@ print(n)                                  # 255
 
 ### 9.1 Existing → keep / extend
 
-`print len sqrt ord chr assert assert_eq range panic catch_panic printf str int float bool type repr sum min max any all sorted reversed enumerate map filter reduce upper lower trim contains starts_with ends_with replace split join`
+`print len sqrt ord chr assert assert_eq range panic catch_panic printf Str Int Float Bool type repr sum min max any all sorted reversed enumerate map filter reduce upper lower trim contains starts_with ends_with replace split join`
 
 **Goal:** freeze the existing builtin list as back-compat surface.
 **Must Follow:** never remove or rename an existing builtin; add new ones alongside.
@@ -1318,7 +1318,7 @@ print(f"{3.14159:.2f}")               # "3.14"
 ```kn
 # what Kirn takes from go
 defer print("cleanup")     # LIFO at scope exit (go defer)
-print(int("ff", 16))       # strconv.ParseInt parity
+print(Int("ff", 16))       # strconv.ParseInt parity
 print(isnan(0.0 / 0.0))    # math.IsNaN parity
 ```
 
@@ -1342,7 +1342,7 @@ const FACT: Int = fact(10)                 # const fn, folded
 var v: Int = maybe() else { return; }      # var-else
 
 fn main() {
-    r: Result[Int, Str] = parse("7");
+    r: result[Int, Str] = parse("7");
     print(r.map((x) => x * 2).unwrap_or(0));   # ?/combinators
 }
 ```

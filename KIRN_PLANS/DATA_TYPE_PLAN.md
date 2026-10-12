@@ -63,7 +63,7 @@ Existing structure to preserve: §3 unified target type model, §3.2 `bytes` uni
 
 The goal is a **cohesive superset**: adopt the _best fit_ of each language's data types so that a developer coming from any of the four languages feels at home, without Kirn becoming a grab-bag of contradictory semantics.
 
-1. **One value model, many types.** All types live in a single consistent representation (`src/interp/value.h` `Value` discriminated by `VK`), so a Go-style `any`, a Python-style heterogeneous list, and a Rust-style homogeneous `list[int]` coexist.
+1. **One value model, many types.** All types live in a single consistent representation (`src/interp/value.h` `Value` discriminated by `VK`), so a Go-style `any`, a Python-style heterogeneous list, and a Rust-style homogeneous `list[Int]` coexist.
 2. **Value vs. reference is explicit.** Python/Ruby/Go lean reference; Rust leans value + ownership. Kirn keeps **value semantics for structs** (KIRN_PLAN §6.1) while **list/dict/set are reference types** (aliased). The plan extends this consistently to every new type.
 3. **Option & Result as first-class types, not ad-hoc.** Rust's `Option<T>`/`Result<T,E>` discipline + the existing `T?` / `result[T,E]` sugar is the spine of error handling.
 4. **Rich primitives with method families**, macro-generated per width (Rust `int_macros.rs` pattern) rather than hand-written per width.
@@ -94,19 +94,19 @@ Audited from source (`src/sema/type.h`, `src/sema/checker.cpp`, `src/interp/valu
 
 ### 2.3 Scalar & width spellings the checker already understands (`checker.cpp` ~830)
 
-`bool, string, char, int (i64), float (f64), f32, i8 i16 i32 i64 u8 u16 u32 u64 usize, bytes` coexists as a runtime `VK::Bytes` but has **no type spelling aliasing** in `checker.cpp` (no `bytes` in the `n ==` clauses) — a known gap.
+`Bool, Str, Char, Int (i64), Float (f64), f32, i8 i16 i32 i64 u8 u16 u32 u64 usize, bytes` coexists as a runtime `VK::Bytes` but has **no type spelling aliasing** in `checker.cpp` (no `bytes` in the `n ==` clauses) — a known gap.
 
 ### 2.4 Container / abstract spellings
 
-`list[T]`, `set[T]`, `chan[T]`, `gen[T]`, `dict[K,V]`, `result[T,E]`, `(T1, T2)`, `int?` (`option[int]`), `*T`, `&T`, `&mut T`, `fn(...)->R`, `any` / `dynamic` (both → `Unknown`). `box[T]`, `T?` desugared by `?` postfix.
+`list[T]`, `set[T]`, `chan[T]`, `gen[T]`, `dict[K,V]`, `result[T,E]`, `(T1, T2)`, `Int?` (`option[Int]`), `*T`, `&T`, `&mut T`, `fn(...)->R`, `any` / `dynamic` (both → `Unknown`). `box[T]`, `T?` desugared by `?` postfix.
 
 ### 2.5 Builtin functions (free, `installBuiltins`)
 
-`print, nil, NaN, inf, len, sqrt, ord, chr, assert, assert_eq, range, panic, catch_panic, printf, strlen, str, int, float, bool, type, repr, sum, min, max, any, all, sorted, reversed, enumerate, map, filter, reduce, upper, lower, trim, contains, starts_with, ends_with, replace, split, join`
+`print, nil, NaN, inf, len, sqrt, ord, chr, assert, assert_eq, range, panic, catch_panic, printf, strlen, Str, Int, Float, Bool, type, repr, sum, min, max, any, all, sorted, reversed, enumerate, map, filter, reduce, upper, lower, trim, contains, starts_with, ends_with, replace, split, join`
 
 ### 2.6 Builtin methods already dispatched (per value kind)
 
-- `string`: `len repeat contains starts_with ends_with replace find capitalize` (+ global `upper lower trim strip split join`), `to_int`, `[]` slicing/index, `to_str`
+- `Str`: `len repeat contains starts_with ends_with replace find capitalize` (+ global `upper lower trim strip split join`), `to_int`, `[]` slicing/index, `to_str`
 - `list`: `append extend reverse pop remove clear contains index len sort`
 - `dict`: `len contains setdefault remove get keys values items`
 - `set`: `add remove contains len`
@@ -120,7 +120,7 @@ Audited from source (`src/sema/type.h`, `src/sema/checker.cpp`, `src/interp/valu
 | No arbitrary-precision int                                                                | —                             | 3         |
 | No `complex` / rational / decimal                                                         | —                             | 4 / 2 / 5 |
 | Integral method families (checked/wrapping/saturating, bit ops) thin                      | `runtime.cpp`                 | 1         |
-| `float` breadth (round, abs, floor, ceil, pow, trig) mostly via `math` pseudo-module only | `runtime.cpp`/`math.kn`       | 2         |
+| `Float` breadth (round, abs, floor, ceil, pow, trig) mostly via `math` pseudo-module only | `runtime.cpp`/`math.kn`       | 2         |
 | Error **types** richer than `result[T,E]` string-ish `err`                                | `checker.cpp`/`runtime.cpp`   | 8         |
 | Specialized collections (deque, linked list, heap, ordered/counter, tree map)             | —                             | 10        |
 | Smart pointers / interior mutability beyond `new`/`weak`                                  | `value.h` Heatp               | 11        |
@@ -139,7 +139,7 @@ The final model is a **4-layer stack**, mirroring how real languages organize (P
 Layer 4  Reflect & Meta     type(), repr(), kind(), fields/methods reflection, protocols
 Layer 3  Rich/Nominal       error types, Option/Result, collections, time, pointers, sync
 Layer 2  Composite builtins list, dict, set, tuple, range, gen, bytes/view, chan, fn
-Layer 1  Scalar primitives  int widths, float widths, complex, bool, char, string
+Layer 1  Scalar primitives  Int widths, Float widths, complex, Bool, Char, Str
 Layer 0  Native substrate   interp/value.h VK tags, sema/type.h TyK, runtime.cpp builtins
 ```
 
@@ -175,7 +175,7 @@ Layer 0  Native substrate   interp/value.h VK tags, sema/type.h TyK, runtime.cpp
 
 Four languages have wildly different byte models. We pick a **single unifying answer**:
 
-- `string` = immutable UTF-8 text (as today).
+- `Str` = immutable UTF-8 text (as today).
 - `bytes` = immutable byte buffer (like Python `bytes` / Go `[]byte` read-only / Rust `&[u8]`). **Immutable + hashable** so it can be a `dict` key.
 - `bytearray` = mutable byte buffer (Python `bytearray` / Go `[]byte`). This is the workhorse for I/O, network, zip, crypto.
 - `bytes_view`/`slice` = non-owning view (Rust `&[u8]`, Python `memoryview`, Go slices). Zero-copy bridge for parsing large buffers.
@@ -221,7 +221,7 @@ New types must be able to **use each other** without cycles. We define a strict 
 
 ```
 Native substrate (Phase 0)
-   └─► Scalars (1: int widths) ──► (2: float+rational) ──► (3: big.Int) ──► (4: complex)
+   └─► Scalars (1: Int widths) ──► (2: Float+rational) ──► (3: big.Int) ──► (4: complex)
         └─► (5: decimal, big.Float)
    ├─► Text/Bytes (6,7)
    └─► Option/Result/error (8)
@@ -333,7 +333,7 @@ fn main() {
     assert_eq((-7).div_euclid(2), -4);
     assert_eq(7.rem_euclid(2), 1);
     # Go/Ruby-style toString with radix:
-    assert_eq(str(255, 16), "ff");
+    assert_eq(Str(255, 16), "ff");
 }
 ```
 
@@ -356,11 +356,11 @@ _Dependencies:_ Phase 0. Go/Rust parity for `div_euclid` semantics.
 
 > Reference: cpython — `fractions.Fraction` and float surface (`Lib/fractions.py`); go — `math/big` `Rat`.
 
-_Goal:_ Complete the `float`/`f32` surface and add exact **rational** arithmetic (Python `fractions.Fraction` / Ruby `Rational` / Go `big.Rat`).
+_Goal:_ Complete the `Float`/`f32` surface and add exact **rational** arithmetic (Python `fractions.Fraction` / Ruby `Rational` / Go `big.Rat`).
 
 _Substrate:_
 
-- `float` methods: `round([n])`, `floor`, `ceil`, `trunc`, `fract`, `abs`, `copysign`, `pow`, `sqrt`, `exp`, `ln`, `log2`, `log10`, `log(base)`, trig (`sin cos tan`) + hyperbolic + inverse, `is_nan`/`is_infinite`/`is_finite`, `to_degrees`/`to_radians`, `total_cmp`.
+- `Float` methods: `round([n])`, `floor`, `ceil`, `trunc`, `fract`, `abs`, `copysign`, `pow`, `sqrt`, `exp`, `ln`, `log2`, `log10`, `log(base)`, trig (`sin cos tan`) + hyperbolic + inverse, `is_nan`/`is_infinite`/`is_finite`, `to_degrees`/`to_radians`, `total_cmp`.
 - Function-style `math` pseudomodule grows to match (this also serves `STD_LIBS_PLAN.md` math phase): `pi`, `tau`, `e`, `inf`, `nan`, `floor,ceil,trunc,round,abs,copysign,fmod,floor_div,sqrt,exp,ln,log2,log10,sin,cos,tan,asin,acos,atan,atan2,sinh,cosh,tanh,pow,min,max,fma,gamma,lgamma`.
 - Add `VK::Rational` (numerator/denominator as `Value::Int`), normalizing by GCD. Zero denominator → panic/raise.
 
@@ -391,7 +391,7 @@ _Dependencies:_ Phase 1 (int widths). Cross-links to `STD_LIBS_PLAN` Phase 3 (ma
 
 > **Ownership/cross-ref (dedup):** this phase owns the **`big_int` type**. The **`bigint` module
 > packaging** (and crypto over it) is `STD_LIBS_PLAN.md` Phase 0/8 (→). Note: TypeScript/Go/Rust use
-> fixed-width by default; Python/Ruby are unbounded — Kirn keeps **both** (`int` + `big_int`), as
+> fixed-width by default; Python/Ruby are unbounded — Kirn keeps **both** (`Int` + `big_int`), as
 > this phase states.
 
 **Arbitrary-precision integers (BigInt)**
@@ -402,13 +402,13 @@ _Dependencies:_ Phase 1 (int widths). Cross-links to `STD_LIBS_PLAN` Phase 3 (ma
 
 > Reference: cpython — arbitrary-precision `longobject.c`; ruby — `bignum.c`.
 
-_Goal:_ Python/Ruby-style unbounded integers, exposed as a `big_int` type (and optionally a `math/big`-like module). Fixed-width `int` stays the default for performance; no breaking change.
+_Goal:_ Python/Ruby-style unbounded integers, exposed as a `big_int` type (and optionally a `math/big`-like module). Fixed-width `Int` stays the default for performance; no breaking change.
 
 _Substrate:_
 
 - `VK::BigInt` backed by sign + `std::vector<uint64_t>` little-endian limbs.
 - Arithmetic: add/sub/mul (schoolbook + Karatsuba at a size cutoff, CPython `longobject.c` pattern), div/mod (floor division to match Python/Ruby), power (sliding window), GCD/ModInverse/ModSqrt, bit ops.
-- Conversions: `to_bytes(len, endian)` / `from_bytes`, `str(x, base)` for base 2–36, `float()`/`int()` truncation, `to_rational`.
+- Conversions: `to_bytes(len, endian)` / `from_bytes`, `Str(x, base)` for base 2–36, `Float()`/`Int()` truncation, `to_rational`.
 - Methods: `bit_length`, `bit_count`, `is_prime` (Miller–Rabin), `powmod`.
 
 _Kirn surface:_ `big_int(string_or_int)` constructor; literal suffix optional later.
@@ -418,8 +418,8 @@ _Code example (project-euler style):_
 ```kirn
 fn main() {
     n = big_int(2).pow(1000);              # 2^1000 exactly
-    digits = str(n);
-    total = sum([int(ch) for ch in digits.split("")]);
+    digits = Str(n);
+    total = sum([Int(ch) for ch in digits.split("")]);
     print(total);                          # 1366
     huge = big_int("123456789012345678901234567890");
     m = huge * huge + 1;
@@ -491,7 +491,7 @@ _Substrate:_
 - `VK::BigFloat` (significand × 2^exp, `prec` bits, rounding mode) — Go `big.Float` parity.
 - Money safe: `decimal("0.10") + decimal("0.20") == decimal("0.30")` exactly.
 
-_Kirn surface:_ `decimal(str)`, methods; `big_float(str)` with `prec`.
+_Kirn surface:_ `decimal(Str)`, methods; `big_float(Str)` with `prec`.
 
 _Code example:_
 
@@ -569,11 +569,11 @@ _Dependencies:_ Phase 0/1. **This is the biggest cross-cutting enabler for `STD_
 
 > Reference: cpython — `str` method surface; ruby — `string.c`; Nim — `strutils.nim`.
 
-_Goal:_ Round out `string`/`char` to near-Python richness while keeping UTF-8.
+_Goal:_ Round out `Str`/`Char` to near-Python richness while keeping UTF-8.
 
-_Substrate:_ Add missing `string` methods duck-typed from Python/Ruby/Rust: `split_lines`, `strip/trim_start/trim_end`, `ljust/rjust/center`, `zfill`, `title`, `swapcase`, `casefold`, `remove_prefix/remove_suffix`, `partition`, `split_whitespace`, `is_*` predicates (`is_alpha/is_digit/is_alnum/is_space/is_upper/is_lower/is_ascii`), `count`, `find/rfind`, `repeat`, `join` on a list, `to_upper/lower`, `translate`, `grapheme` iteration, `char_at`, `code_points`, `bytes`.
+_Substrate:_ Add missing `Str` methods duck-typed from Python/Ruby/Rust: `split_lines`, `strip/trim_start/trim_end`, `ljust/rjust/center`, `zfill`, `title`, `swapcase`, `casefold`, `remove_prefix/remove_suffix`, `partition`, `split_whitespace`, `is_*` predicates (`is_alpha/is_digit/is_alnum/is_space/is_upper/is_lower/is_ascii`), `count`, `find/rfind`, `repeat`, `join` on a list, `to_upper/lower`, `translate`, `grapheme` iteration, `char_at`, `code_points`, `bytes`.
 
-- `char` methods: `to_int` (ord), `from_int` (chr), `is_alpha/is_digit/is_space/to_upper/to_lower`.
+- `Char` methods: `to_int` (ord), `from_int` (chr), `is_alpha/is_digit/is_space/to_upper/to_lower`.
 - Format spec completeness (fill/align/sign/#/0/width/,/precision/type) in f-strings (most present; verify `.precision` for strings, `#` alternate form, `,`/`_` grouping).
 - `symbol` type (Phase 15) interacts here via `"foo".intern()`.
 
@@ -592,7 +592,7 @@ fn main() {
     assert_eq("42".zfill(5), "00042");
     assert_eq("HELLO".lower(), "hello");
     assert_eq("a,b,c".split(",").join(" | "), "a | b | c");
-    assert_eq(String.repeat("ab", 3), "ababab");          # or "ab"*3
+    assert_eq(Str.repeat("ab", 3), "ababab");          # or "ab"*3
 }
 ```
 
@@ -624,7 +624,7 @@ _Substrate:_
 - Complete `Option` (`T?`/`option[T]`) combinator methods mirroring Rust: `is_some`, `is_none`, `map`, `map_or`, `and_then`/`>>=`-ish, `filter`, `zip`, `flatten`, `unwrap`, `unwrap_or`, `unwrap_or_else`, `expect`, `ok_or`, `take`, `get_or_insert`.
 - Complete `Result` (`result[T,E]`) methods: `is_ok`, `is_err`, `ok`, `err`, `map`, `map_err`, `and_then`, `or_else`, `unwrap`, `unwrap_err`, `expect`, `expect_err`, `flatten`, `transpose`.
 - `?` and `try` already work; keep them.
-- Introduce a structured **error type equality/testable** story. Keep the runtime `VK::Result` but back `E` by a nominal `error` interface (Go `error` interface: `fn message(self) -> string`). Provide sentinel errors (`error.new`, I/O error, `error.from_errno`).
+- Introduce a structured **error type equality/testable** story. Keep the runtime `VK::Result` but back `E` by a nominal `error` interface (Go `error` interface: `fn message(self) -> Str`). Provide sentinel errors (`error.new`, I/O error, `error.from_errno`).
 - Python/Ruby-hierarchy _type names_ as a convenience bogus-free taxonomy: `error`, `value_error`, `type_error`, `index_error`, `key_error`, `io_error`, `flag_error`, `memory_error`, `overflow_error`, `zero_division_error`, `assertion_error` — but implemented as **values with a `kind`**, not a C++ inheritance graph.
 
 _Kirn surface:_ method surfaces; `error` interface; `raise` constructs typed errors.
@@ -632,7 +632,7 @@ _Kirn surface:_ method surfaces; `error` interface; `raise` constructs typed err
 _Code example:_
 
 ```kirn
-fn sqrt_checked(x: float) -> result[float, error] {
+fn sqrt_checked(x: Float) -> result[Float, error] {
     if x < 0 {
         return err(error.new("domain error", kind: "value_error"));
     }
@@ -814,7 +814,7 @@ fn main() {
     wg.wait();
     assert_eq(counter.load(), 8 * 10);
 }
-fn worker(wg: wait_group, counter: atomic_int, id: int) {
+fn worker(wg: wait_group, counter: atomic_int, id: Int) {
     wg.add(1);
     defer wg.done();
     # bump counter 10 times under a mutex
@@ -901,18 +901,18 @@ _Kirn example (protocol + reflection):_
 
 ```kirn
 struct Money {
-    cents: int;
+    cents: Int;
 
-    fn __str__(self) -> string {        # protocol: printable
-        return "$" + str(self.cents / 100) + "." + str(self.cents % 100);
+    fn __str__(self) -> Str {        # protocol: printable
+        return "$" + Str(self.cents / 100) + "." + Str(self.cents % 100);
     }
-    fn __len__(self) -> int {           # protocol: len()
+    fn __len__(self) -> Int {           # protocol: len()
         return 1;
     }
 }
 fn main() {
     m = Money(cents: 1234);
-    assert_eq(str(m), "$12.34");
+    assert_eq(Str(m), "$12.34");
     assert_eq(len(m), 1);
     assert_eq(reflect.kind_of(m), "struct");
     assert_eq(reflect.field_names(m), ["cents"]);
@@ -987,12 +987,12 @@ Stretch goals that round out the model but are lower priority:
 
 ```kn
 fn main() {
-    xs: List[Int] = [1, 2, 3, 4];
+    xs: list[Int] = [1, 2, 3, 4];
     evens = xs.iter().filter((x) => x % 2 == 0).collect();
     assert_eq(evens, [2, 4]);
     total = xs.iter().take(2).sum();
     assert_eq(total, 3);
-    assert_eq(unsafe.size_of(List[Int]) > 0, true);
+    assert_eq(unsafe.size_of(list[Int]) > 0, true);
 }
 ```
 
@@ -1044,7 +1044,7 @@ fn main() {
 
 ### 8.7 Type-relation protocol (Phase 14)
 
-`type(x)`, `repr(x)`, `str(x)`, `len(x)`, iteration, `in`, `==`, `hash`, `to_str`, `to_int`, `to_float`, `to_bytes`, `to_rational`, `to_complex`.
+`type(x)`, `repr(x)`, `Str(x)`, `len(x)`, iteration, `in`, `==`, `hash`, `to_str`, `to_int`, `to_float`, `to_bytes`, `to_rational`, `to_complex`.
 
 ---
 
@@ -1053,11 +1053,11 @@ fn main() {
 Every phase ships a `<mod>_test.kn` executed by `kirn test`, plus a golden-differential test where the same program runs on the reference implementation (see existing `stdlib/lib/*_test.kn` pattern and `tools/` harness).
 
 1. **Per-phase unit tests** (`stdlib/lib/datatypeN_test.kn`) asserting exact values/`repr`/`type` strings.
-2. **Cross-type dependency tests** — e.g. `big.Int → bytes → hex → string`, `complex → float → rational`, `decimal → big.Int`.
+2. **Cross-type dependency tests** — e.g. `big.Int → bytes → hex → Str`, `complex → Float → rational`, `decimal → big.Int`.
 3. **Compat tests** — the existing 9 stdlib modules and the 45+ example programs must stay green; run full regression (the `runall`, `vm_diff`, `negative`, `types` suites referenced in the repo).
 4. **Property tests** (phase 1–2 numerics): round-trip `add`/`sub`, `checked`/`wrapping` relationships, `to_string(base)`/`parse` round trips.
 5. **Protocol tests** (phase 14): define structs implementing `__str__`, `__len__`, `__iter__` and assert operator dispatch.
-6. **Interop tests** (phase 6): `bytes`↔`string` encode/decode round trips across `utf-8`, `ascii`, `latin1`.
+6. **Interop tests** (phase 6): `bytes`↔`Str` encode/decode round trips across `utf-8`, `ascii`, `latin1`.
 7. **Concurrency tests** (phase 12): waitgroup/atomic/mutex increments under `spawn`; determinism via joins; no data race visible.
 
 Verification command conventions from the repo: build then run the test harness; keep `kirn test` green before committing (per repo conventions — only commit when asked).
@@ -1167,5 +1167,5 @@ _Source: `ruby-master` (numeric.c, string.c, array.c, hash.c, range.c, rational.
 
 - **Sequence of delivery vs. dependencies:** strictly `Phase 0 → 1 → … → 15`; each phase only pulls types it already has. The cross-type dependency graph in §5 is the invariant that keeps libraries usable together.
 - **Kirn-first:** wherever a type can be implemented in Kirn `stdlib/lib` (e.g. `deque`, `heap`, `rational` over existing ints), prefer that over new C++ — consistent with `STD_LIBS_PLAN.md` philosophy and the existing stdlib. C++ substrate is reserved for _new value kinds_ that the interpreter must represent (`BigInt`, `Complex`, `Decimal`, `ByteArray`, `Symbol`, sync/time primitives).
-- **No breaking changes:** every phase keeps `kirn test` and the example suite green; new capabilities are additive, and promotion of `int` auto-upgrade to `BigInt` is opt-in.
+- **No breaking changes:** every phase keeps `kirn test` and the example suite green; new capabilities are additive, and promotion of `Int` auto-upgrade to `BigInt` is opt-in.
 - This plan's research ("understand everything first") was verified against the four real source trees (`cpython-main`, `go-master`, `rust-main`, `ruby-master`) and against the Kirn compiler sources (`src/sema/type.h`, `src/sema/checker.cpp`, `src/interp/value.h`, `src/interp/runtime.cpp`, `grammar/kirn.ebnf`) — see the appendices for the condensed catalogues, and the four subagent reports they were transcribed from.

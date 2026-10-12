@@ -385,7 +385,7 @@ var best = xs.par_iter().max_by_key(fn (x) { return f(x); });
 
 ### 4.3 Slice / string / collection ops
 
-`par_sort`, `par_sort_by`, `par_sort_by_key`, `par_sort_unstable`; `par_chunks`/`par_chunks_mut`, `par_windows`, `par_split`, `par_chunk_by`; `parallel.String.par_lines`/`par_split`/`par_bytes`. `ParallelDrainRange` for `list`/`str`.
+`par_sort`, `par_sort_by`, `par_sort_by_key`, `par_sort_unstable`; `par_chunks`/`par_chunks_mut`, `par_windows`, `par_split`, `par_chunk_by`; `parallel.String.par_lines`/`par_split`/`par_bytes`. `ParallelDrainRange` for `list`/`Str`.
 
 ```kn
 var mut rows = load_rows(path);
@@ -422,7 +422,7 @@ rows.par_iter_mut().for_each(fn (row) { row.score = score(row); });
 ```kn
 import pet.error;
 
-fn load(path: Str) -> error.Result[Config] {       # == result[Config, error.Error]
+fn load(path: Str) -> error.result[Config] {       # == result[Config, error.Error]
     var text = read_to_string(path).context("reading config")?;
     var cfg  = json.from_string[Config](text).context("parsing config")?;
     return ok(cfg);
@@ -444,7 +444,7 @@ API: `Error`, `Error.new(e)`, `Error.msg(s)`, `.context(c)` / `.with_context(f)`
 ### 5.2 `bail` / `ensure`
 
 ```kn
-fn check(user: Int) -> error.Result[()] {
+fn check(user: Int) -> error.result[()] {
     ensure(user == 0, "only user 0 is allowed");   # if !cond -> bail(msg)
     bail("nope");                                  # return err(error.msg("nope"))
 }

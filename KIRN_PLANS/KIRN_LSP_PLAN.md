@@ -813,7 +813,7 @@ completion; the checker already resolves all of it.
      (the checker's scopes) or the symbol tables (`funcs_`, `structs_`, â€¦).
      Where the checker has recorded `typeOf(expr)`, use `Ty::toString`.
    - Compose Markdown: a code block with `Kind: name`, the type
-     (`: int` / `-> string`), visibility, and any `#` doc-comment lines
+     (`: Int` / `-> Str`), visibility, and any `#` doc-comment lines
      immediately above the declaration (harvested from the buffer).
 2. **Completion (`textDocument/completion`):**
    - Locals in the innermost `Scope` (walk parents) â†’ `Variable` items with the

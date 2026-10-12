@@ -101,7 +101,7 @@ unsafe extern new box self Self and or not is as true false none pass class
 interface record implements extends dynamic None del pr local global temp bucket
 ```
 
-Operators (multi-char): `<<= >>= ..= .?.` ; `** // == != <= >= << >> += -= *= /= %= &= |= ^= -> <- .. =>`; single `+ - * / % & | ^ ~ < > = ? @`; punctuation `()[]{},:.;`. Types: `int, usize, bool, string, float, list, dict, set, any, dynamic, fn`. This is the data you'll register as a Shiki custom language (Â§6.3).
+Operators (multi-char): `<<= >>= ..= .?.` ; `** // == != <= >= << >> += -= *= /= %= &= |= ^= -> <- .. =>`; single `+ - * / % & | ^ ~ < > = ? @`; punctuation `()[]{},:.;`. Types: `Int, usize, Bool, Str, Float, list, dict, set, any, dynamic, fn`. This is the data you'll register as a Shiki custom language (Â§6.3).
 
 ### 0.5 Branding, license, version, hosting facts
 
@@ -156,7 +156,7 @@ The doc comments are the single generated source for both basins' reference half
 # pet/math.kn — `///` doc comments generate the reference page + JSON record
 /// Square root of a non-negative number.
 /// ```
-/// assert eq(__Sqrt(16.0), 4.0)
+/// assert_eq(__Sqrt(16.0), 4.0)
 /// ```
 pub fn sqrt(x: Float) -> Float { __Sqrt(x) }
 
@@ -476,13 +476,13 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 - **Implementation approach:** each page = one concept, one idiomatic verified example, plus a short "how Kirn compares" note (honest, Â§1.3). E.g. optionals page demonstrates `T?`, `none`, `.?.`; results page demonstrates `try`/`raise`.
 - **Code example â€” optionals (verified construct, mirror `examples/18`):**
   ```kirn
-  fn lookup(key: string, table: dict) -> int? {
+  fn lookup(key: Str, table: dict) -> Int? {
       return table.get(key);     # int? or none
   }
   fn main() {
       t: dict = { "answer": 42 };
       v = lookup("answer", t);
-      print(if v is none { "missing" } else { str(v) });   # safe access
+      print(if v is none { "missing" } else { Str(v) });   # safe access
   }
   ```
 - **Content requirements:** mark each page `INTERMEDIATE`; include a "common pitfalls" callout (e.g. pointer-vs-value, exhaustive match).
@@ -503,12 +503,12 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 - **Implementation approach:** lead each page with a **real, verified example** (e.g. the spawn/channels example from `examples/22` which I ran successfully, and the trait/`impl` pattern from `examples/13`). Position concurrency as "green threads + channels" (verified) â€” **not** "goroutines/async-await/actor model" unless the code supports it.
 - **Code example â€” concurrency (verified output, adapted from examples/22):**
   ```kirn
-  fn worker(jobs: chan[int], done: chan[int]) {
+  fn worker(jobs: chan[Int], done: chan[Int]) {
       for j in jobs { done.send(j); }
   }
   fn main() {
-      jobs = chan[int](cap: 8);
-      done = chan[int]();
+      jobs = chan[Int](cap: 8);
+      done = chan[Int]();
       for _ in 1..=3 { spawn worker(jobs, done); }
       for j in 1..=5 { jobs.send(j); }
       jobs.close();
@@ -578,7 +578,7 @@ The source doc comments that generate that page and its JSON record:
 ```kn
 # stdlib/pet/math.kn — single source for ref/stdlib/math (markdown + JSON)
 /// Square root of a non-negative number.
-/// assert eq(__Sqrt(16.0), 4.0)     # doc-test, run by `kirn test`
+/// assert_eq(__Sqrt(16.0), 4.0)     # doc-test, run by `kirn test`
 pub fn sqrt(x: Float) -> Float { __Sqrt(x) }
 ```
 
@@ -735,7 +735,7 @@ fn root(n: BigInt) -> BigInt { __Sqrt(n) }
 ```kn
 # pet/docgen.kn — one pass emits markdown + JSON + fingerprints from doc comments
 /// Parse a pet module's `///` blocks into the reference bundle.
-pub fn gen(module: Str) -> Dict { parse_docs(module) }
+pub fn gen(module: Str) -> dict { parse_docs(module) }
 ```
 
 `> Reference: Rust — rustdoc (rust/src/tools/rustdoc)`, `> Reference: Nim — nim docgen (Nim/doc/docgen.md)`.

@@ -82,8 +82,8 @@ OOP keywords as **desugaring** so existing code keeps working:
 - `class Foo { … }` → `struct Foo` + inherent `impl` (methods inside the body).
 - `class Dog extends Animal implements Barkable { … }` → single inheritance over a base, plus
   trait `interface`s — Java/C#-style.
-- `record Point(x: int, y: int)` → immutable value type, structural `==`/`hash`, auto-`repr`.
-- `interface Len { fn len() -> int }` → **structural/duck-typed** trait bound (Go-style).
+- `record Point(x: Int, y: Int)` → immutable value type, structural `==`/`hash`, auto-`repr`.
+- `interface Len { fn len() -> Int }` → **structural/duck-typed** trait bound (Go-style).
 
 ---
 
@@ -102,7 +102,7 @@ seed):
 
 ```kirn
 # examples/37_try_catch.kn
-fn risky(n: int) -> int {
+fn risky(n: Int) -> Int {
     if n < 0 { raise("n must be >= 0"); }
     return n * n;
 }
@@ -156,17 +156,17 @@ case ast::StKind::Try: {
 
 ```kirn
 # examples/38_oop_classes.kn
-interface Named { fn name(self) -> string; }   # structural bound
+interface Named { fn name(self) -> Str; }   # structural bound
 
 class Animal {                                 # == struct + inherent impl
-    var name: string;
-    fn speak(self) -> string { return "?"; }
+    var name: Str;
+    fn speak(self) -> Str { return "?"; }
 }
 class Dog extends Animal implements Named {    # single inheritance + trait
-    fn speak(self) -> string { return "woof"; }
-    fn name(self) -> string { return self.name; }
+    fn speak(self) -> Str { return "woof"; }
+    fn name(self) -> Str { return self.name; }
 }
-record Point(x: int, y: int) { }               # immutable, structural ==
+record Point(x: Int, y: Int) { }               # immutable, structural ==
 
 fn main() {
     d = Dog(name: "Rex");
@@ -174,7 +174,7 @@ fn main() {
     g = render(d);                             # via interface Named
     p = Point(x: 1, y: 2);
     print(p == Point(x: 1, y: 2));             # true (structural)
-    fn_plus = fn (a: int, b: int) -> int { return a + b; };  # fn == fn alias
+    fn_plus = fn (a: Int, b: Int) -> Int { return a + b; };  # fn == fn alias
     print(fn_plus(2, 3));
 }
 ```
@@ -183,9 +183,9 @@ fn main() {
 
 ```kirn
 # desugared class Dog …
-struct Dog extends Animal { var name: string; }
+struct Dog extends Animal { var name: Str; }
 # Dog inherits Animal fields/methods (single inheritance, vtable)
-impl Named for Dog { fn name(self) -> string { return self.name; } }
+impl Named for Dog { fn name(self) -> Str { return self.name; } }
 fn speak_dog(self) { return "woof"; }   # override replaces base method in vtable
 ```
 
@@ -290,14 +290,14 @@ stable for new forms.
 > **Status: DONE** — multi-statement block closures `fn (v) { stmts }` work end-to-end (checker + runtime), verified in `examples/44_block_closures.kn` (VM ≡ tree-walker); the `fn` alias for `fn` also landed (Phase 2). See `SYNTAX_PLAN.md` SP-11 for the still-missing `fn`-as-first-class value breadth (resumable generator frames) — not part of this milestone.
 
 **Goal:** Complete the constructs requested with smallest change; multi-statement closures unblock many idioms while keeping `kirn` + `kirnc` minimal.
-**Must Follow:** Extend lambda/closure to block body; use `fn`/`var`/CapCase types (e.g. `fn(int) -> Int` form); verify with `kirn test`, `scripts/gates_linux.sh`.
+**Must Follow:** Extend lambda/closure to block body; use `fn`/`var`/CapCase types (e.g. `fn(Int) -> Int` form); verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Diff oracle remains `examples/25_operator_precedence.kn`; keep semantics identical. > Reference: Rust — closures `|v| { … }` (`rustc_hir/src/hir.rs`); Ruby — blocks/lambdas (`ruby/parse.y` in `/home/rkriad585/Projects/langs-source-code/ruby`).
 
 **Target Kirn (multi-statement closure):**
 
 ```kirn
 # examples/36_multistmt_closure.kn
-fn map(xs, f: fn(int) -> int) -> list {
+fn map(xs, f: fn(Int) -> Int) -> list {
     out = [];
     for x in xs { out.append(f(x)); }
     return out;
@@ -329,11 +329,11 @@ oracle for the precedence table; corpus green.
 
 ```kirn
 # 5.1 default type params
-fn make_pair[T = int](a: T, b: T) -> (T, T) { return (a, b); }
+fn make_pair[T = Int](a: T, b: T) -> (T, T) { return (a, b); }
 # 5.3 iota-like enum discriminants
 enum Status { Ok, Err, Running; }           # implicit 0,1,2 via .to_int()
 # 5.4 exhaustiveness
-fn grade(c) -> string {
+fn grade(c) -> Str {
     match c {
         case 90..=100 { return "A"; }
         case 80..=89  { return "B"; }       # missing 0..=79 and other ints → ERROR/fix-it
@@ -371,18 +371,18 @@ existing `tests/negative/n*.kn` are still rejected with identical text.
 # stdlib/collections.kn  — written in Kirn, exported & importable
 pub struct HashMap[K, V] {
     var buckets: dict;
-    fn put(self, k: K, v: V) { self.buckets[str(k)] = v; }
-    fn get(self, k: K) -> V? { return self.buckets[str(k)]; }
+    fn put(self, k: K, v: V) { self.buckets[Str(k)] = v; }
+    fn get(self, k: K) -> V? { return self.buckets[Str(k)]; }
 }
-pub fn split(s: string, sep: string) -> list { … }
-pub fn join(parts: list, sep: string) -> string { … }
+pub fn split(s: Str, sep: Str) -> list { … }
+pub fn join(parts: list, sep: Str) -> Str { … }
 ```
 
 ```kirn
 # consumer
 import lib.collections;
 fn main() {
-    m = collections.HashMap[string, int]();
+    m = collections.HashMap[Str, Int]();
     m.put("a", 1);
     print(m.get("a"));
     print(collections.join(["x", "y"], "-"));   # "x-y"
@@ -455,7 +455,7 @@ func main() {
 **Important Note:** Fix lowered-`main` exit-code discrepancy; aim ASan/UBSan clean; measure against corpus. > Reference: LLVM — lowering patterns (`llvm/lib/CodeGen/` in `/home/rkriad585/Projects/langs-source-code/llvm`); Zig — backend lowering (`zig/src/codegen/` in `/home/rkriad585/Projects/langs-source-code/zig`).
 
 **C++ (extend `src/backend/native.cpp`):** lower strings/lists; hybrid calls to non-lowered fns;
-finally lower `main` itself; resolve the lowered-`main -> int` exit-code discrepancy (350→0);
+finally lower `main` itself; resolve the lowered-`main -> Int` exit-code discrepancy (350→0);
 `--release`/`-O2` on emitted C++.
 
 ```cpp

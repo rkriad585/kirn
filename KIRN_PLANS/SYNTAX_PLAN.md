@@ -77,12 +77,12 @@ Deep source review (evidence base in Appendix A) establishes the current surface
 | Area                              | Current built-in syntax (implemented)                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Blocks/terminators                | `{ }` brace blocks, `;` simple-statement terminator, free layout, `#` comments                                                                                                                                                                                                                                                                                                                                |
-| Declarations                      | `fn f(a: int=0, *rest: int) -> int`, `struct`, `enum`, `trait`, `impl`, `const`, `var`                                                                                                                                                                                                                                                                                                                        |
+| Declarations                      | `fn f(a: Int=0, *rest: Int) -> Int`, `struct`, `enum`, `trait`, `impl`, `const`, `var`                                                                                                                                                                                                                                                                                                                        |
 | Statements                        | `if/elif/else`, `while`, `for p in expr`, `match … case …`, `select`, `unsafe`, `spawn`, `defer`, `return`, `raise`, `break`/`continue [label]`, `import`/`from…import`, `export`, `pass`                                                                                                                                                                                                                     |
 | Expressions                       | binary/unary ops, `..`/`..=` ranges, slices `a[1:3]`, `and/or/not/is/in`, ternary-`if`-expr, lambdas `(x)=>e`, list/dict/set literals, f-strings `f"{x:>10}"`, tuple/comprehensions, `new`, `T?`, `.?.`, `?` propagation, `name: value` named args                                                                                                                                                            |
 | Patterns                          | Wild `_`, Bind `x`, `x is T`, alias `x @ pat`, Or `a                                                                                                                                                                                                                                                                                                                                                          | b`, Tuple, Ctor `Point(x: 0)`, Range, Slice `[a,b,..r]`, Rest `..`, guards |
-| Types                             | `int/i8..u64/f32/f64/bool/char/string/bytes`, `list[T]/dict[K,V]/set[T]/tuple/T?/fn/ptr/ref`, generics `[T is Bound]`, `result[T,E]`                                                                                                                                                                                                                                                                          |
-| Builtin fns (runtime.cpp:485-613) | `print, len, sqrt, ord, chr, assert, assert_eq, range, panic, catch_panic, printf, strlen` **+** the Phase-WHY-1/SP-8 battery `str, int, float, bool, type, repr, sum, min, max, any, all, sorted, reversed, enumerate, map, filter, reduce, upper, lower, trim, contains, starts_with, ends_with, replace, split, join` (see `EXP_PLAN.md` §9 for the full inventory; `WHY_PLAN.md` WHY-1 for the rationale) |
+| Types                             | `Int/i8..u64/f32/f64/Bool/Char/Str/bytes`, `list[T]/dict[K,V]/set[T]/tuple/T?/fn/ptr/ref`, generics `[T is Bound]`, `result[T,E]`                                                                                                                                                                                                                                                                          |
+| Builtin fns (runtime.cpp:485-613) | `print, len, sqrt, ord, chr, assert, assert_eq, range, panic, catch_panic, printf, strlen` **+** the Phase-WHY-1/SP-8 battery `Str, Int, Float, Bool, type, repr, sum, min, max, any, all, sorted, reversed, enumerate, map, filter, reduce, upper, lower, trim, contains, starts_with, ends_with, replace, split, join` (see `EXP_PLAN.md` §9 for the full inventory; `WHY_PLAN.md` WHY-1 for the rationale) |
 | Builtin modules                   | `math, time, io, mem, json, text, os` (stubs) + real `.kn` stdlib                                                                                                                                                                                                                                                                                                                                             |
 | Concurrency                       | `spawn`, `chan`, `select`, real OS threads, channels (mutex/condvar)                                                                                                                                                                                                                                                                                                                                          |
 | `@` today                         | **Only** Rust-style pattern alias `name @ sub-pattern` (`parser.cpp`)                                                                                                                                                                                                                                                                                                                                         |
@@ -438,7 +438,7 @@ result = value ?? Fallback();
 > **Status:** the `any` (alias `dynamic`) type ships — `var x: any = 5; x = "hi"` works with the
 > checker deferring and the runtime dispatching on the value tag; verified in
 > `examples/37_dynamic_any.kn` (VM ≡ tree-walker). See `DO_FIRST_PLAN.md` Phase 2.
-> **Still new below:** `typeof(x)`, `is`-type-test patterns, union `int | string`, and
+> **Still new below:** `typeof(x)`, `is`-type-test patterns, union `Int | Str`, and
 > interface-as-method-set duck typing. (→ `EXP_PLAN.md` Phase 7 for the runtime-dispatch/reflection
 > side; `WHY_PLAN.md` WHY-2 for the adoption rationale; `DATA_TYPE_PLAN.md` Phase 14 for reflect.)
 
@@ -453,9 +453,9 @@ print(x.upper());`. Static checker defers; the runtime `Value::k` tag already di
   runtime.
 - **`typeof(x)` operator** (C23/TS): produce a runtime type-name string →
   `typeof(5) == "int"`. Backed by `reflect.type` (PLAN Phase 5.2).
-- **`is` type-test in patterns**: `case x is Point { … }` and `if x is string { … }` (Java
+- **`is` type-test in patterns**: `case x is Point { … }` and `if x is Str { … }` (Java
   `instanceof` pattern, Rust `is`-typed binding). Add a `type_pat` to the pattern grammar.
-- **Union types (TS)** `int | string` as an `any`-like surface for `is`-narrowing; checker keeps
+- **Union types (TS)** `Int | Str` as an `any`-like surface for `is`-narrowing; checker keeps
   the union as an opt-in type until narrowing.
 - **Duck typing / interface-as-method-set** (Go): a value satisfies an `interface{ name() }`
   bound if it provides the method set (structural typing) — spec here, implement where PLAN.md
@@ -467,7 +467,7 @@ print(x.upper());`. Static checker defers; the runtime `Value::k` tag already di
   any-typed operands straight through (defer), preserving soundness elsewhere.
 - `typeof`/`is`-narrowing must be **conservative in `--strict`** and dynamic in default mode.
 
-**Exit criteria:** `any` assignments/ops run; `typeof` returns correct names; `is string`/`is
+**Exit criteria:** `any` assignments/ops run; `typeof` returns correct names; `is Str`/`is
 Point` pattern matches narrow; union `|` types parse; examples `36_dynamic_typing.kn`.
 
 ```kn
@@ -477,7 +477,7 @@ if x is Str {
     print(x.upper());
 }
 
-var v: int | string = 3;
+var v: Int | Str = 3;
 print(typeof(v));
 ```
 
@@ -521,7 +521,7 @@ fn logged(fn) {
 }
 
 @logged
-fn Compute(n: int) -> int {
+fn Compute(n: Int) -> Int {
     return n * n;
 }
 ```
@@ -594,12 +594,12 @@ always-in-scope**, cheap to call.
   `reversed(xs)`, `sorted(xs, key: …)`, `flatten(xss)`, `take(n)`, `skip(n)`, `first(xs)`,
   `last(xs)`, `count(xs, v)`.
 - **Numbers:** `abs`, `round`, `floor`, `ceil`, `min`, `max`, `clamp`, `pow`, `is_even`,
-  `is_odd`, `is_prime(? bench)`, `rand` (xoshiro, Phase 8 of PLAN.md), `int(x)`, `float(x)`.
+  `is_odd`, `is_prime(? bench)`, `rand` (xoshiro, Phase 8 of PLAN.md), `Int(x)`, `Float(x)`.
 - **Text:** `upper`, `lower`, `strip`, `split(sep)`, `join(sep, xs)`, `replace`, `contains`,
   `startswith`, `endswith`, `repeat`, `pad`, `format` (already f-strings), `repr`.
-- **Type/convert:** `str(x)` — **note:** there is deliberately **no `str()` today** (documented
-  constraint); this phase _adds_ `str(x)` as the canonical string-conversion builtin (English name,
-  TS `String(x)`), plus `int/float/bool/char/list/dict/set/tuple/bytes` casts.
+- **Type/convert:** `Str(x)` — **note:** there is deliberately **no `Str()` today** (documented
+  constraint); this phase _adds_ `Str(x)` as the canonical string-conversion builtin (English name,
+  TS `String(x)`), plus `Int/Float/Bool/Char/list/dict/set/tuple/bytes` casts.
 - **Reflect/inspect:** `typeof`, `is_none`, `is_list`, `is_dict`, `type_name`.
 - **IO/time:** `print` (have), `input(prompt)`, `read_file(path)`, `write_file(path, data)`,
   `sleep(ms)`.
@@ -608,7 +608,7 @@ always-in-scope**, cheap to call.
 **Design notes**
 
 - Each is a `biFn` in `installBuiltins()` (runtime.cpp:485) — additive, no parser change except
-  `str`/conversion-cast names which are just identifiers.
+  `Str`/conversion-cast names which are just identifiers.
 - `map/filter/reduce` take a `fn` value (lambdas are first-class, example 07) — natureal fit.
 - New builtins are **not keywords**, so no reserved-word churn; they compete in normal scope so
   users can shadow them.
@@ -645,7 +645,7 @@ print(Str(doubled), BigInt(big[0]));
 **Feature list**
 
 - **Splat/unpacking:** `f(*xs)` -> positional spread; `Point(**d)` -> named spread (Python).
-  Reuses `CallArg`/VarArgs (PLAN.md Phase 5.4); AST: `CallArg{ spread: bool }`.
+  Reuses `CallArg`/VarArgs (PLAN.md Phase 5.4); AST: `CallArg{ spread: Bool }`.
 - **Set/dict/sequence built-ins:** `len/x`-free membership via `in` (have); **dict comprehension**
   `{k: v for k in ks}`, **set comprehension** `{x for x in xs}` (currently only list/generator).
 - **Generator expressions** fully lazy: `(f(x) for x in xs if c)` (have `for x yield e`, add
@@ -755,9 +755,9 @@ for x in 1..=3 {
 
 **Feature list**
 
-- **`fn` alias for `fn`:** `fn add(a: int, b: int) -> int { … }` accepted; `fn` stays. (Frozen
+- **`fn` alias for `fn`:** `fn add(a: Int, b: Int) -> Int { … }` accepted; `fn` stays. (Frozen
   keyword not required — `fn` is a soft contextual keyword in declaration position.)
-- **Named function-type annotation:** `var op: fn(int) -> int = add;` (have `fn(...)` type; add
+- **Named function-type annotation:** `var op: fn(Int) -> Int = add;` (have `fn(...)` type; add
   lead `fn` declaration).
 - **Multi-statement closures** (biggest ergonomics ilar): `map(xs, fn (v) { return v*2; })` —
   a lambda with a `{ }` body (Rust `|x| {}`, TS arrow-with-block). Currently only single-expression
@@ -779,11 +779,11 @@ for x in 1..=3 {
 42_functions_co`; corpus green; negatives for `yield` outside generator.
 
 ```kn
-fn add(a: int, b: int) -> int {
+fn add(a: Int, b: Int) -> Int {
     return a + b;
 }
 
-var op: fn(int, int) -> int = add;
+var op: fn(Int, Int) -> Int = add;
 var doubled = Map(xs, fn (v) { return v * 2; });
 
 fn gen() {
@@ -806,18 +806,18 @@ fn gen() {
 
 **Feature list**
 
-- **Union / intersection types** (TS): `int | string`, `A & B` — supported for `any`-narrowing
-  and `is` type-tests (SP-5). `any` = `int | string | …`.
+- **Union / intersection types** (TS): `Int | Str`, `A & B` — supported for `any`-narrowing
+  and `is` type-tests (SP-5). `any` = `Int | Str | …`.
 - **`as` casts are sugar:** `x as Type` already exists (`Cast`); add **`is` narrowing** promotion
   and `typeof` (SP-5) integrated.
-- **Record types (Java records / Rust structural):** `record Point(x: int, y: int)` — value
+- **Record types (Java records / Rust structural):** `record Point(x: Int, y: Int)` — value
   equality, auto-`repr`, immutable (PLAN.md Phase 6.2); here as syntax, trimmed.
 - **`option[T]` / `result[T,E]` combinators** as chaining sugar: `x.map(f).unwrap_or(d)`
   (Rust), `?` (have), `try` (have) — surface the already-lowerable `result` ops:
   - `.map(f)`, `.and_then(f)`, `.unwrap_or(d)`, `.ok_or(e)`, `result.ok()`/`.err()`.
-- **Named & default type params** (Go/Java style): `fn pair[K, V = string]()`, `struct G[T = int]`
+- **Named & default type params** (Go/Java style): `fn pair[K, V = Str]()`, `struct G[T = Int]`
   (PLAN.md Phase 6.3). Soft extensions to `type_params`.
-- **`type` aliases:** `type Id = int; type Handler = fn(HttpCtx) -> Json;` (Go `type`, TS type
+- **`type` aliases:** `type Id = Int; type Handler = fn(HttpCtx) -> Json;` (Go `type`, TS type
   alias) — big readability win, cheap alias resolution in checker.
 - **`impl` blocks for free (extension) functions** already exist; add **`interface` sugar** =
   structural trait bound (SP-5).
@@ -832,16 +832,16 @@ fn gen() {
 `examples/43_types.kn`; corpus green; negatives for bad alias/union uses.
 
 ```kn
-type Id = int;
+type Id = Int;
 type Handler = fn(HttpCtx) -> Json;
 
-record Point(x: int, y: int);
+record Point(x: Int, y: Int);
 
 fn pair[K, V = Str]() -> Point {
     return Point(0, 0);
 }
 
-var r: result[int, Str] = Ok(3);
+var r: result[Int, Str] = ok(3);
 print(r.unwrap_or(0));
 ```
 
@@ -978,8 +978,8 @@ examples `46_meta.kn`; corpus green; negatives for deriving on unsupported kinds
 ```kn
 @derive(repr, eq, clone)
 struct Point {
-    x: int;
-    y: int;
+    x: Int;
+    y: Int;
 }
 
 const K = @comptime(Factorial(5));
@@ -1122,7 +1122,7 @@ For **maximum user-visible benefit quickly**: SP-1 (decorators) → SP-8 (builti
 | D7  | Dynamic type keyword      | `any`, `dynamic`, both                              | `any` + alias `dynamic`                   |
 | D8  | Step-ranges spelling      | `0..10 step 2`, `range(s,e,step)`                   | `0..10 step 2`                            |
 | D9  | Dict iteration            | `for k,v in d` vs `.items()`                        | `for k,v in d` (tuple-pattern, SP-10)     |
-| D10 | `str()` builtin           | add `str(x)` (name) / keep none                     | add `str(x)` (currently absent by design) |
+| D10 | `Str()` builtin           | add `Str(x)` (name) / keep none                     | add `Str(x)` (currently absent by design) |
 | D11 | Block-lambda keyword      | `fn (x) { }` / `fn (x) { }` / `\|x\| { }`           | `fn (x) { }` (SP-11)                      |
 | D12 | `fn` alias promotion      | always-soft / edition-gated                         | always accepted (soft)                    |
 | D13 | Struct-pattern brace form | `Point { x: 0, .. }`                                | add (SP-13)                               |

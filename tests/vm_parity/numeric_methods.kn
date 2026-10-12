@@ -4,7 +4,7 @@ y: i8 = 100;
 z: u8 = 200;
 c: i32 = 255;
 neg: i32 = -7;
-def main() -> none {
+fn main() -> none {
     # Phase 1: width-aware checked/wrapping/saturating + bit ops
     print(x.checked_shl(6));            # none (128 > i8 max)
     print(x.checked_shl(3));            # 16
@@ -24,10 +24,10 @@ def main() -> none {
     print(x.leading_zeros(), z.trailing_zeros(), z.count_ones());  # i8:6 3 3
 
     # Phase 1: free bit helpers and base conversion
-    print(hex_digits(255, 4));          # 00ff
-    print(str(255, 16), str(255, 2));   # ff 11111111
-    print(from_bytes(to_bytes(258, 2)));       # 258
-    print(from_bytes(to_bytes(-1, 2)));        # -1
+    print(HexDigits(255, 4));          # 00ff
+    print(Str(255, 16), Str(255, 2));   # ff 11111111
+    print(FromBytes(ToBytes(258, 2)));       # 258
+    print(FromBytes(ToBytes(-1, 2)));        # -1
 
     # Phase 2: float methods
     print(2.5.floor(), 2.5.ceil(), 2.5.trunc(), 2.5.round());   # 2 3 2 2
@@ -41,11 +41,11 @@ def main() -> none {
     print(math.floor_div(-7, 2));       # -4
     print(math.fmod(7.0, 3.0));         # 1.0
     print(math.copysign(3.0, -1.0));    # -3.0
-    print(abs(-5), abs(-3.5));          # 5 3.5 (free abs, Phase 2 example)
+    print(__Abs(-5), __Abs(-3.5));          # 5 3.5 (free abs, Kirn style: __Abs)
 
     # Phase 2: exact rationals
-    a = rational(1, 2);
-    b = rational(1, 3);
+    a = Rational(1, 2);
+    b = Rational(1, 3);
     print(a + b, a - b, a * b, a / b);  # 5/6 1/6 1/6 3/2
     print(a + 1, a * 2);                # 3/2 1/1
     print(a ** 2, a ** -1);             # 1/4 2/1
@@ -53,10 +53,10 @@ def main() -> none {
     print(a < b, a == b, b > a);        # false false false (1/2 vs 1/3)
 
     # Phase 3: bigint base/bytes/float conversions
-    print(big_int(255).to_string(16));  # ff
-    print(str(big_int(255), 2));        # 11111111
-    print(big_int(1000).to_float());    # 1000.0
-    print(big_int(258).to_bytes(2));    # b'\x02\x01'
-    print(to_rational(big_int(42)));    # 42/1 (free to_rational)
-    print(big_int("42").to_rational()); # 42/1
+    print(BigInt(255).to_string(16));  # ff
+    print(Str(BigInt(255), 2));        # 11111111
+    print(BigInt(1000).to_float());    # 1000.0
+    print(BigInt(258).to_bytes(2));    # b'\x02\x01'
+    print(ToRational(BigInt(42)));    # 42/1 (free to_rational)
+    print(BigInt("42").to_rational()); # 42/1
 }

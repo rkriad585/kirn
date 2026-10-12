@@ -1,9 +1,9 @@
 ﻿#!/usr/bin/env python3
-"""scripts/rename_kirn.py - idempotent, dry-run-first, examples-first Coco->Kirn PROSE renamer.
+"""scripts/rename_kirn.py - idempotent, dry-run-first, examples-first Kirn->Kirn PROSE renamer.
 
 Plain Python 3, stdlib only (argparse, pathlib, re). Zero deps. This is the
 single tool that executes the PROSE layer of the rename per
-COCO_PLANS/COCO_TO_KIRN_PLAN.md x4.5 ("one name, four case-forms").
+KIRN_PLANS/REBRAND_PLAN.md x4.5 ("one name, four case-forms").
 
 GATE - never break the corpus. Dry-run against examples/ FIRST (the whole demo
 corpus - small, self-contained, rebuild-free). Only when that passes G-VERIFY
@@ -11,9 +11,9 @@ corpus - small, self-contained, rebuild-free). Only when that passes G-VERIFY
 tests/ docs/).
 
 PROSE ONLY. Deliberately does NOT touch later-phase layers (own gates):
-  - .co -> .kn source extension (Phase 5)
-  - coco_* identifiers, coco::/lib. namespaces, .cob/COCOB magic (frozen)
-  - .cocolib -> .pet bundle, coco_libs/ -> pets/ deps dir, coco.toml/lock
+  - .kn -> .kn source extension (Phase 5)
+  - kirn_* identifiers, kirn::/lib. namespaces, .cob/KIRNB magic (frozen)
+  - .kirnlib -> .pet bundle, kirn_libs/ -> pets/ deps dir, kirn.toml/lock
 Usage:
     python scripts/rename_kirn.py --scan examples     # dry-run inventory, no writes
     python scripts/rename_kirn.py --apply examples    # examples FIRST, after scan green
@@ -26,22 +26,22 @@ import sys
 from pathlib import Path
 
 CASE_FORMS = [
-    (re.compile(r"\bCoco\b"), "Kirn"),  # prose / capitalized
-    (re.compile(r"\bcoco\b"), "kirn"),  # identifiers / strings / commands
-    (re.compile(r"\bCOCO\b"), "KIRN"),  # env / cmake / magic
+    (re.compile(r"\bKirn\b"), "Kirn"),  # prose / capitalized
+    (re.compile(r"\bkirn\b"), "kirn"),  # identifiers / strings / commands
+    (re.compile(r"\bKIRN\b"), "KIRN"),  # env / cmake / magic
 ]
 
 # Blocklist: tokens the PROSE layer must never touch - they belong to later
 # phases (extensions -> Phase 5, identifiers -> Phase 6, bundle/registry ->
 # Phase 7, dirs -> Phase 7). Short-circuits a whole line.
 BLOCKLIST = re.compile(
-    r"coco_|coco/|/coco|\.co\b|\.cob\b|\.cocolib\b|COCOB\b|COCO_|"
-    r"cocolib|lib\.|github\.com/coco|coco_libs|coco\.toml|coco\.lock|"
-    r"coco-lib|coco-libs|coco-ffi|coco-pkg|coco-registry|\.coco-"
+    r"kirn_|kirn/|/kirn|\.kn\b|\.cob\b|\.kirnlib\b|KIRNB\b|KIRN_|"
+    r"kirnlib|lib\.|github\.com/kirn|kirn_libs|kirn\.toml|kirn\.lock|"
+    r"kirn-lib|kirn-libs|kirn-ffi|kirn-pkg|kirn-registry|\.kirn-"
 )
 
-SKIP_SUFFIX = {".py", ".ps1", ".exe", ".dll", ".obj", ".lib", ".cob", ".co", ".kn"}
-SKIP_PART = {"build", ".git", "third_party", "coco_libs"}
+SKIP_SUFFIX = {".py", ".ps1", ".exe", ".dll", ".obj", ".lib", ".cob", ".kn", ".kn"}
+SKIP_PART = {"build", ".git", "third_party", "kirn_libs"}
 
 
 def _iter_target_files(dirs):

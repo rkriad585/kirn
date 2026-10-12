@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/native_main.kn
 FuncDef "square"
-  Param "n" : int
-  Ret int
+  Param "n" : Int
+  Ret Int
   Body
     Return
       Value 
@@ -9,7 +9,7 @@ FuncDef "square"
           Lhs Ident "n"
           Rhs Ident "n"
 FuncDef "main"
-  Ret int
+  Ret Int
   Body
     Assign
       Target Ident "total"

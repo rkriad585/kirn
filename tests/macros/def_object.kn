@@ -1,11 +1,11 @@
 # Object-like and function-like macro definitions, both spellings of the
 # body separator, and a body that itself contains `.` and `}`.
-{.def LIMIT. 10.}
-{.def ANSWER = 42.}
-{.def SQR(x) = x * x.}
-{.def BLOCK() = { 1 }.}
-{.def FLOATISH. 1.5.}
-def main() -> none {
+{.fn LIMIT. 10.}
+{.fn ANSWER = 42.}
+{.fn SQR(x) = x * x.}
+{.fn BLOCK() = { 1 }.}
+{.fn FLOATISH. 1.5.}
+fn main() -> none {
   print(LIMIT);
   print(ANSWER);
   print(SQR(7));

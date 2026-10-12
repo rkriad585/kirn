@@ -1,6 +1,6 @@
 # scripts/rename_baseline.ps1 - Phase 1 safety net: build + record harness transcripts.
 #
-# COCO_PLANS/COCO_TO_KIRN_PLAN.md Phase 1 ("Baseline snapshot & safety netting")
+# KIRN_PLANS/REBRAND_PLAN.md Phase 1 ("Baseline snapshot & safety netting")
 # requires a reproducible baseline we can roll back to before ANY rename work:
 #   1. record git state
 #   2. confirm the build (`cmake -S . -B build` + `cmake --build build --config Debug`)

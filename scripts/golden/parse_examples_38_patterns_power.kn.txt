@@ -1,12 +1,12 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/38_patterns_power.kn
 StructDef "Point"
-  Field "x" var : int
+  Field "x" var : Int
     Default Int "0"
-  Field "y" var : int
+  Field "y" var : Int
     Default Int "0"
 FuncDef "describe"
   Param "xs" : <inferred>
-  Ret string
+  Ret Str
   Body
     Return
       Value 
@@ -34,19 +34,19 @@ FuncDef "describe"
                                   Lhs Str "a="
                                   Rhs 
                                     Call
-                                      Callee Ident "str"
+                                      Callee Ident "Str"
                                       Arg
                                         Value Ident "a"
                               Rhs Str " b="
                           Rhs 
                             Call
-                              Callee Ident "str"
+                              Callee Ident "Str"
                               Arg
                                 Value Ident "b"
                       Rhs Str " rest="
                   Rhs 
                     Call
-                      Callee Ident "str"
+                      Callee Ident "Str"
                       Arg
                         Value Ident "rest"
           Arm
@@ -58,7 +58,7 @@ FuncDef "describe"
                   Lhs Str "front="
                   Rhs 
                     Call
-                      Callee Ident "str"
+                      Callee Ident "Str"
                       Arg
                         Value Ident "a"
           Arm
@@ -67,7 +67,7 @@ FuncDef "describe"
               Value Str "other"
 FuncDef "tup_sum"
   Param "t" : <inferred>
-  Ret string
+  Ret Str
   Body
     Return
       Value 
@@ -87,13 +87,13 @@ FuncDef "tup_sum"
                           Lhs Str "t="
                           Rhs 
                             Call
-                              Callee Ident "str"
+                              Callee Ident "Str"
                               Arg
                                 Value Ident "x"
                       Rhs Str ","
                   Rhs 
                     Call
-                      Callee Ident "str"
+                      Callee Ident "Str"
                       Arg
                         Value Ident "y"
           Arm
@@ -105,7 +105,7 @@ FuncDef "tup_sum"
                   Lhs Str "one="
                   Rhs 
                     Call
-                      Callee Ident "str"
+                      Callee Ident "Str"
                       Arg
                         Value Ident "x"
           Arm
@@ -209,7 +209,7 @@ FuncDef "main"
                   Lhs Str "small "
                   Rhs 
                     Call
-                      Callee Ident "str"
+                      Callee Ident "Str"
                       Arg
                         Value Ident "v"
           Arm

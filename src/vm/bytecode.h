@@ -150,7 +150,7 @@ struct VmFunction {
     int32_t nParams = 0;
     int32_t varIdx = -1;                  // variadic param index or -1
     std::vector<std::string> paramNames;
-    bool isResult = false;                // def returns result[T,E]
+    bool isResult = false;                // fn returns result[T,E]
     // Slot-based locals (frame storage). Empty => use env lookup path.
     // slotNames[i] is the local bound to frame slot i; useSlots true means the
     // body was compiled with OP_LOAD_LOCAL/OP_STORE_LOCAL for these names.

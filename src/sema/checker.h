@@ -73,7 +73,7 @@ public:
     //
     // A CACHE, not a recomputation, and that distinction is the whole point.
     // resolveSig/resolveType read `typeVars_`, which a TvGuard pushes and pops
-    // around each generic function: inside `def f[T](x: T)` the name T resolves
+    // around each generic function: inside `fn f[T](x: T)` the name T resolves
     // to a TypeVar, and after checkModule() returns it does not resolve at all.
     // Calling them from outside therefore yields "unknown type 'T'" for every
     // generic function -- which is exactly what happened when HIR first used them

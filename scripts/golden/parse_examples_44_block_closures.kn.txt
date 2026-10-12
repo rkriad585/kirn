@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/44_block_closures.kn
 FuncDef "dmap"
   Param "xs" : <inferred>
-  Param "f" : fn(int) -> int
+  Param "f" : fn(Int) -> Int
   Ret list
   Body
     Assign
@@ -28,12 +28,12 @@ FuncDef "dmap"
       Value Ident "out"
 FuncDef "makeScaler"
   Param "factor" : <inferred>
-  Ret fn(int) -> int
+  Ret fn(Int) -> Int
   Body
     Return
       Value 
-        Lambda params=(x: int)
-          Ret int
+        Lambda params=(x: Int)
+          Ret Int
           Body
             Return
               Value 
@@ -79,7 +79,7 @@ FuncDef "main"
                 Lhs Str "dmap="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "ys"
     Assign
@@ -124,7 +124,7 @@ FuncDef "main"
                 Lhs Str "typed="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "typed"
     Assign
@@ -144,7 +144,7 @@ FuncDef "main"
                 Lhs Str "scale="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -176,7 +176,7 @@ FuncDef "main"
                                 Lhs Str "counter="
                                 Rhs 
                                   Call
-                                    Callee Ident "str"
+                                    Callee Ident "Str"
                                     Arg
                                       Value 
                                         Call
@@ -184,7 +184,7 @@ FuncDef "main"
                             Rhs Str " "
                         Rhs 
                           Call
-                            Callee Ident "str"
+                            Callee Ident "Str"
                             Arg
                               Value 
                                 Call
@@ -192,7 +192,7 @@ FuncDef "main"
                     Rhs Str " "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -222,7 +222,7 @@ FuncDef "main"
                 Lhs Str "early="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -232,8 +232,8 @@ FuncDef "main"
     Assign
       Target Ident "pipe"
       Value 
-        Lambda params=(x: int)
-          Ret int
+        Lambda params=(x: Int)
+          Ret Int
           Body
             Assign
               Target Ident "y"
@@ -271,7 +271,7 @@ FuncDef "main"
                 Lhs Str "pipeline="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -310,7 +310,7 @@ FuncDef "main"
                 Lhs Str "folded="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "folded"
     Assign
@@ -331,7 +331,7 @@ FuncDef "main"
                 Lhs Str "arrow="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call

@@ -1,7 +1,7 @@
 # stdlib/pet/regexp_test.kn - tests for pet.regexp.
 import pet.regexp;
 
-def main() -> none {
+fn main() -> none {
     assert(regexp.match("a*b", "ab"));
     assert(regexp.match("a*b", "aaab"));
     assert(regexp.match("a*b", "acb") and not regexp.match("a*bx", "acb"));

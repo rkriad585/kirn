@@ -1,4 +1,4 @@
-def main() -> int {
-    let total = 0;
+fn main() -> Int {
+    var total = 0;
     return total;
 }

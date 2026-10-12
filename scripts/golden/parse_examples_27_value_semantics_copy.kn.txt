@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/27_value_semantics_copy.kn
 StructDef "Sensor"
-  Field "id" : int
+  Field "id" : Int
   Field "reading" var : f64
 FuncDef "main"
   Ret none

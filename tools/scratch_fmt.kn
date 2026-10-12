@@ -1,1 +1,1 @@
-def main() -> none { s = "ab:x"; for i in range(len(s)) { print(i, ord(s[i])); } print(str(65)); }
+fn main() -> none { s = "ab:x"; for i in range(len(s)) { print(i, Ord(s[i])); } print(Str(65)); }

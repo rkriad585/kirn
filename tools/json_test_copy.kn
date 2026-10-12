@@ -1,7 +1,7 @@
 import pet.json;
-def main() -> none {
+fn main() -> none {
     o = {};
-    o["name"] = "coco";
+    o["name"] = "kirn";
     o["n"] = 42;
     o["ok"] = true;
     nest = {};

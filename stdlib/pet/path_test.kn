@@ -1,7 +1,7 @@
 # stdlib/pet/path_test.kn - tests for pet.path.
 import pet.path;
 
-def main() -> none {
+fn main() -> none {
     assert_eq(path.basename("/a/b/c.txt"), "c.txt");
     assert_eq(path.dirname("/a/b/c.txt"), "/a/b");
     assert_eq(path.dirname("top.txt"), "");

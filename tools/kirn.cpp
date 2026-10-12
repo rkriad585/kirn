@@ -150,9 +150,9 @@ std::vector<LockEntry> readLock(const fs::path& dir) {
     std::vector<LockEntry> out;
     std::string text;
     if (!readFile((dir / "kirn.lock").string(), text)) {
-        if (fs::is_regular_file(dir / "coco.lock"))
-            std::cerr << "kirn: ignoring stale 'coco.lock' (renamed to "
-                         "'kirn.lock'); delete it and re-run:  rm coco.lock\n";
+        if (fs::is_regular_file(dir / "kirn.lock"))
+            std::cerr << "kirn: ignoring stale 'kirn.lock' (renamed to "
+                         "'kirn.lock'); delete it and re-run:  rm kirn.lock\n";
         return out;
     }
     Doc d = kirn::tomlmini::parse(text);
@@ -330,10 +330,10 @@ int cmdNew(const std::string& name, bool lib) {
                   "## `kirn doc " + name + "` turns them into a browsable API\n"
                   "## reference.\n\n"
                   "## Say hello to someone.\n"
-                  "pub def hello(who: string) -> string {\n"
+                  "pub fn hello(who: string) -> string {\n"
                   "    return \"hello from " + name + ", \" + who + \"!\";\n}\n\n"
                   "## Shout it louder.\n"
-                  "pub def shout(who: string) -> string {\n"
+                  "pub fn shout(who: string) -> string {\n"
                   "    s = hello(who);\n"
                   "    out = \"\";\n"
                   "    for ch in s {\n"
@@ -351,7 +351,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# (import the package's pin.kn initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
                   "import \"code/pin.kn\" as " + name + ";\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    assert_eq(" + name + ".hello(\"no one\"),\n"
                   "              \"hello from " + name + ", no one!\");\n"
                   "    print(\"all tests passed\");\n}\n");
@@ -390,12 +390,12 @@ int cmdNew(const std::string& name, bool lib) {
 
         writeFile(root / "code" / "main.kn",
                   "# " + name + " - a Kirn application.\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    print(\"hello from " + name + "\");\n}\n");
 
         writeFile(root / "tests" / "main_test.kn",
                   "# tests live in tests/ and are named <file>_test.kn\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    assert_eq(2 + 2, 4);\n"
                   "    print(\"all tests passed\");\n}\n");
 
@@ -1416,7 +1416,7 @@ int cmdDoc(const std::string& target, int port) {
 
 
 
-// Phase 8: the COCO_* environment variables are renamed to KIRN_* and are a
+// Phase 8: the KIRN_* environment variables are renamed to KIRN_* and are a
 // hard cut - the old names are never read. If a user/script still exports one,
 // say so once (aggregated) rather than silently discarding it: a stale var
 // losing effect quietly is exactly how module paths and toolchains silently

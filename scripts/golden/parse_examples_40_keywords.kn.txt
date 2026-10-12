@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/40_keywords.kn
 FuncDef "secret"
-  Ret string
+  Ret Str
   Body
     Return
       Value Str "hidden"
@@ -8,9 +8,9 @@ VarDecl
   Target Ident "counter"
   Value Int "0"
 StructDef "Gadget"
-  Field "label" var : string
+  Field "label" var : Str
     Default Str ""
-  Field "n" var : int
+  Field "n" var : Int
     Default Int "0"
 FuncDef "bump"
   Param "by" : <inferred>
@@ -39,7 +39,7 @@ FuncDef "main"
                 Lhs Str "None="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "nada"
     Assign
@@ -74,7 +74,7 @@ FuncDef "main"
                 Lhs Str "dict="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "d"
     Assign
@@ -99,7 +99,7 @@ FuncDef "main"
                 Lhs Str "list="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "xs"
     Assign
@@ -135,7 +135,7 @@ FuncDef "main"
                 Lhs Str "gadget-n-after-del="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Member name="n"
@@ -173,7 +173,7 @@ FuncDef "main"
                 Lhs Str "counter="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "counter"
     LocalDecl 'count'
@@ -188,7 +188,7 @@ FuncDef "main"
                 Lhs Str "local="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "count"
     TempDecl 'scratch' x3
@@ -204,7 +204,7 @@ FuncDef "main"
                 Lhs Str "t1="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "scratch"
     ExprStmt
@@ -217,7 +217,7 @@ FuncDef "main"
                 Lhs Str "t2="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Binary op="+"
@@ -233,7 +233,7 @@ FuncDef "main"
                 Lhs Str "t3="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "scratch"
     BucketDecl 'heavy' park
@@ -254,7 +254,7 @@ FuncDef "main"
                 Lhs Str "bucket="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "heavy"
 <ROOT>/examples/40_keywords.kn: OK (5 top-level statements)

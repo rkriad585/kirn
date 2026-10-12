@@ -33,9 +33,9 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 
 ### Syntax / structure
 - `{ }` blocks, `;` statement terminators — C/Go/Rust style, layout-free.
-- `def f(a: int, b: int) -> int { ... }` — typed function declarations.
-  - diverging from Rust's `fn`, Python's `def`; keyword `def` retained for
-    familiarity; `fn` is accepted as an alias for `def` (resolved).
+- `fn f(a: int, b: int) -> int { ... }` — typed function declarations.
+  - diverging from Rust's `fn`, Python's `fn`; keyword `fn` retained for
+    familiarity; `fn` is accepted as an alias for `fn` (resolved).
 - `struct`/`enum`/`trait`/`impl` — full nominal type system (Rust-like).
 - Type parameters `[T is Bound]` on functions/structs/enums/traits.
 - `match` with guards, exhaustiveness-aware arm checking.
@@ -43,7 +43,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 - Visibility `pub`; modules (`code/`, `text/slug`, `json`, `math`, `time`, ...).
 - Ownership-lite: `&` borrow, `*` deref, `weak` references, value semantics.
 - Concurrency: `spawn`, `chan`, `select` (Go's goroutine/channel/select trio).
-- Safety valve: `unsafe` blocks, `extern def` FFI, `new`, `box`.
+- Safety valve: `unsafe` blocks, `extern fn` FFI, `new`, `box`.
 - `defer` (Go), `raise`/`?` (Rust error propagation), `panic`/recover analogue
   via `raise`/`catch`.
 - `var` mutable vs immutable bindings; `const`; Rust-style `:` type annotations.

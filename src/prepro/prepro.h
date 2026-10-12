@@ -7,9 +7,9 @@
 // `std::vector<Token>`. Nothing here re-lexes source text, and nothing here
 // knows about the AST, the parser, or the checker.
 //
-// ## Why `{. ... .}` and not `#def`
+// ## Why `{. ... .}` and not `#fn`
 //
-// The plan proposed C-style `#def` / `#if` / `#undef`, and justified the sigil
+// The plan proposed C-style `#fn` / `#if` / `#undef`, and justified the sigil
 // with "`#` is unused today except in comments -- verify in lexer". That check
 // came back the other way: `#` is the *active, normative* line-comment sigil
 // (`grammar/kirn.ebnf:43`, `src/lex/lexer.cpp:186-189`), so the plan's syntax
@@ -56,7 +56,7 @@ struct Macro {
     std::vector<Token> body;
     // Distinguishes "no parameter list was written" (object-like) from "an empty
     // parameter list was written" (function-like, called as `F()`). Without this
-    // the two are indistinguishable and `{.def F() = ...}` is treated as
+    // the two are indistinguishable and `{.fn F() = ...}` is treated as
     // object-like, so the `()` at the call site is never consumed and the
     // expansion is spliced in beside a dangling empty argument list.
     bool functionLike = false;
@@ -97,7 +97,7 @@ public:
 
 private:
     // --- stage 1: directives -------------------------------------------------
-    // Splits the stream into kept tokens and directives, applying def/undef
+    // Splits the stream into kept tokens and directives, applying fn/undef
     // and evaluating conditionals. Conditional branches are tracked with a
     // stack so that a dead branch still has its {.if.}/{.endif.} nesting
     // consumed -- otherwise a file with #if 0 around a {.if.} would confuse

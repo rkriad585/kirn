@@ -1,5 +1,5 @@
 # 25 — Operator precedence showcase       (grammar §2)
-def main() -> none {
+fn main() -> none {
     r1 = -2 ** 2; # -(2**2) = -4   (** binds tighter than unary -)
     r2 = (-2) ** 2; # 4              (parentheses override)
     r3 = 7 // 2; # 3              (floor division, ints)

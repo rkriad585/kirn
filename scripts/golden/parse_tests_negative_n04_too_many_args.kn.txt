@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n04_too_many_args.kn
 FuncDef "f"
-  Param "a" : int
-  Ret int
+  Param "a" : Int
+  Ret Int
   Body
     Return
       Value Ident "a"

@@ -1,8 +1,8 @@
-def is_even(n: int) -> bool {
+fn is_even(n: Int) -> Bool {
     return n % 2 == 0;
 }
 
-def classify(n: int) -> int {
+fn classify(n: Int) -> Int {
     if n < 0 {
         return -1;
     } elif n == 0 {
@@ -14,7 +14,7 @@ def classify(n: int) -> int {
     }
 }
 
-def powf(b: f64, n: int) -> f64 {
+fn powf(b: f64, n: Int) -> f64 {
     r: f64 = 1.0;
     while n > 0 {
         r = r * b;
@@ -23,7 +23,7 @@ def powf(b: f64, n: int) -> f64 {
     return r;
 }
 
-def main() -> none {
+fn main() -> none {
     evens = 0;
     odds = 0;
     sum = 0;

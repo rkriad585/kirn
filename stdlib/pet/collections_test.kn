@@ -1,7 +1,7 @@
 # stdlib/pet/collections_test.kn - tests for pet.collections.
 import pet.collections;
 
-def main() -> none {
+fn main() -> none {
     m = collections.HashMap();
     m.put("a", 1);
     m.put("b", 2);

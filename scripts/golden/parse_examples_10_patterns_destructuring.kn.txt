@@ -1,14 +1,14 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/10_patterns_destructuring.kn
 StructDef "Point"
-  Field "x" : int
-  Field "y" : int
+  Field "x" : Int
+  Field "y" : Int
 EnumDef "Shape"
-  Variant Circle {radius: int}
-  Variant Rect {w: int, h: int}
+  Variant Circle {radius: Int}
+  Variant Rect {w: Int, h: Int}
   Variant Dot
 FuncDef "area"
   Param "s" : Shape
-  Ret int
+  Ret Int
   Body
     Match
       Subject Ident "s"
@@ -136,7 +136,7 @@ FuncDef "main"
                 Arg
                   Value Str "success range"
       Arm
-        PatBind other : string
+        PatBind other : Str
         Body
           ExprStmt
             Value 

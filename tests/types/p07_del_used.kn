@@ -1,8 +1,8 @@
 # `del` of a variable is a legitimate create-then-destroy pattern and must not
 # raise an "unused variable" (W0102) warning: x is intentionally deleted, so it
 # counts as used. DIDACTIC — guards the Phase-5 lint fix.
-def main() -> none {
-    x: int = 55;
+fn main() -> none {
+    x: Int = 55;
     del x;
     y = 3;
     del y;

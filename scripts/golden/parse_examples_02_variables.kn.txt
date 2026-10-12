@@ -17,7 +17,7 @@ FuncDef "main"
     VarDecl : f64
       Target Ident "z"
       Value Float "3.14"
-    VarDecl : bool
+    VarDecl : Bool
       Target Ident "flag"
       Value Ident "true"
     Assign

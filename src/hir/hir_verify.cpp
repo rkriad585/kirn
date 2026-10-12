@@ -540,11 +540,11 @@ std::string tyName(const sema::TyP& t) {
     // Prints the type NAME, never the address, and never a numeric id, so the
     // dump is stable across runs. Unknown falls back to the nominal name.
     switch (t->k) {
-        case sema::TyK::Int:      return t->name.empty() ? "int" : t->name;
-        case sema::TyK::Float:    return t->name.empty() ? "float" : t->name;
-        case sema::TyK::Bool:     return "bool";
-        case sema::TyK::Char:     return t->name.empty() ? "char" : t->name;
-        case sema::TyK::Str:      return "str";
+        case sema::TyK::Int:      return t->name.empty() ? "Int" : t->name;
+        case sema::TyK::Float:    return t->name.empty() ? "Float" : t->name;
+        case sema::TyK::Bool:     return "Bool";
+        case sema::TyK::Char:     return t->name.empty() ? "Char" : t->name;
+        case sema::TyK::Str:      return "Str";
         case sema::TyK::Bytes:    return "bytes";
         case sema::TyK::None:     return "none";
         case sema::TyK::Unknown:  return "any";

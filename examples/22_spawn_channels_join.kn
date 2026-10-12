@@ -1,14 +1,14 @@
 # 22 — Concurrency: spawn, channels, join   (plan §7)
-def worker(jobs: chan[int], done: chan[int]) -> none {
+fn worker(jobs: chan[Int], done: chan[Int]) -> none {
     for j in jobs { # recv loop until channel closes
         done.send(j);
 
 }
 
 }
-def main() -> none {
-    jobs = chan[int](cap: 8); # buffered channel
-    done = chan[int](); # unbuffered
+fn main() -> none {
+    jobs = chan[Int](cap: 8); # buffered channel
+    done = chan[Int](); # unbuffered
 
     handles = [];
     for _ in 1..=3 {
@@ -28,7 +28,7 @@ def main() -> none {
 }
     results.sort(); # which worker claims which job is racy; sorted jobs are deterministic
     for r in results {
-        print("job " + str(r) + " finished");
+        print("job " + Str(r) + " finished");
 
 }
 

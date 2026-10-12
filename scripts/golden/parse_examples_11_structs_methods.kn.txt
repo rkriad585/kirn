@@ -10,7 +10,7 @@ StructDef "Point"
       Return
         Value 
           Call
-            Callee Ident "sqrt"
+            Callee Ident "__Sqrt"
             Arg
               Value 
                 Binary op="+"

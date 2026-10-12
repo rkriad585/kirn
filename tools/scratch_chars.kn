@@ -1,1 +1,1 @@
-def main() -> none { s = "ab?x"; c = s[0]; print(c); lst = []; for i in range(len(s)) { lst.append(s[i]); } print(lst); print(ord(s[0]), ord(s[3])); }
+fn main() -> none { s = "ab?x"; c = s[0]; print(c); lst = []; for i in range(len(s)) { lst.append(s[i]); } print(lst); print(Ord(s[0]), Ord(s[3])); }

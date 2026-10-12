@@ -57,7 +57,7 @@ function Bench($name, $src) {
 }
 
 Write-Host "== VM vs tree-walker (lower ratio = VM faster; <1 means VM wins) =="
-Bench "range loop (30M)"   "def b(n:int)->int { total=0; for i in 0..n { total += i*3-7; } return total; } def main(){ print(b(30000000)); }"
-Bench "while loop (30M)"   "def b(n:int)->int { total=0; i=0; while i<n { total += (i%97)+(i%13)-5; i+=1; } return total; } def main(){ print(b(30000000)); }"
-Bench "call-heavy fib(25)" "def f(n:int)->int { if n<=1 { return n; } return f(n-1)+f(n-2); } def main(){ print(f(25)); }"
+Bench "range loop (30M)"   "fn b(n:int)->int { total=0; for i in 0..n { total += i*3-7; } return total; } fn main(){ print(b(30000000)); }"
+Bench "while loop (30M)"   "fn b(n:int)->int { total=0; i=0; while i<n { total += (i%97)+(i%13)-5; i+=1; } return total; } fn main(){ print(b(30000000)); }"
+Bench "call-heavy fib(25)" "fn f(n:int)->int { if n<=1 { return n; } return f(n-1)+f(n-2); } fn main(){ print(f(25)); }"
 Remove-Item $tmp -ErrorAction SilentlyContinue

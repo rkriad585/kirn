@@ -1,15 +1,15 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n04_too_many_args.kn
 Punct	1:1	;
-Ident	2:1	def
-Ident	2:5	f
-Punct	2:6	(
-Ident	2:7	a
-Punct	2:8	:
-Ident	2:10	int
-Punct	2:13	)
-Op	2:15	->
-Ident	2:18	int
-Punct	2:22	{
+Ident	2:1	fn
+Ident	2:4	f
+Punct	2:5	(
+Ident	2:6	a
+Punct	2:7	:
+Ident	2:9	Int
+Punct	2:12	)
+Op	2:14	->
+Ident	2:17	Int
+Punct	2:21	{
 Ident	3:5	return
 Ident	3:12	a
 Punct	3:13	;

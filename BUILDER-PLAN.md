@@ -1,5 +1,21 @@
 # BUILDER-PLAN: A staged AOT toolchain with `kirn` + `kirnc`
 
+## Goal
+
+Drive the Kirn toolchain to a **two-executable** (`kirn` + `kirnc`), staged **AOT** build path that is industry-standard, **AI-first**, and measurably **faster than Rust and Go** for build+run — by adopting the smallest proven patterns from the reference languages (Rust, Go, CPython, Ruby, Nim, Odin, V, Zig, LLVM) rather than over-engineering new machinery.
+
+## Must Follow
+
+- The build produces **only** the `kirn` and `kirnc` executables — no extra shipped binaries. (`kirnrt` is a data artifact; `kirnlex/parse/check/run` become `kirnc` verbs.)
+- **No over-engineering:** prefer the smallest proven design lifted from Rust/Go/CPython/Ruby over novel abstractions.
+- **AI-first:** every stage must expose machine-consumable output — structured diagnostics, `--emit=` IR dumps, stage hooks, `--stop-after`, dry-run/`-###` — so agents and tooling can drive and inspect the pipeline.
+- **Kirn-style spellings:** lowercase width micros (`i4..i256`, `u4..u256`, `f4..f256`, `uf4..uf256`, `isize`/`usize`) plus capitalized primitives (`Int`, `Float`, `Bool`, `Str`, `Char`, `BigInt`, `Rational`, `UInt`, `UFloat`, `Int4..UInt256`, `Float4..UFloat256`); methods are lowercase (`.to_int()`, `.checked_mul()`), free builtins/types are capitalized.
+- **Performance:** each AOT stage must be engineered to beat the Rust/Go equivalent, verified with the §7 bench harness.
+
+## Important Note
+
+Key invariants this plan already fixes and must not lose: the two-tool split modeled on Go's `cmd/go` ↔ `cmd/compile`; the phase list modeled on `gc.Main` / rustc's query spine; stage hooks modeled on rustc `Callbacks`; `--emit=` output types and `-###` dry-run; the SSA pipeline modeled on Go's `ssacompile`; the IR shape from CPython ASDL (AST→bytecode flatten-late from Ruby); the six cross-language rules in §3.4.14; and the phased plan in §6, testing strategy in §7, and open questions in §9.
+
 Date: 2026-09-30
 Scope: how the Kirn build path becomes a real ahead-of-time (AOT) compilation
 pipeline described by `prepro -> compile -> assemb -> executable`, exposed as
@@ -9,6 +25,10 @@ driver that also drives C/C++).
 ---
 
 ## 1. The ask, restated
+
+**Goal:** Restate the staged AOT pipeline and the exactly-two-tool ask (`kirn` + `kirnc`) so every later section has one fixed target.
+**Must Follow:** Keep the `prepro → compile → assemb → executable` stages and the `kirn`/`kirnc` split; ship no third tool.
+**Important Note:** This restatement is the contract later sections refine — do not widen the tool count.
 
 1. The build must be a staged AOT pipeline:
 
@@ -37,6 +57,10 @@ driver that also drives C/C++).
 
 ## 2. Current state (verified by code reading, 2026-09-30)
 
+**Goal:** Record what actually exists today, verified by code reading, so the plan builds on reality rather than assumptions.
+**Must Follow:** Cite `file:line` evidence; mark every "does not exist yet" item as a gap and reuse the existing front end/VM/runtime wherever possible.
+**Important Note:** The gap table is load-bearing — several plan assumptions (LLVM, macros, HIR/MIR/SSA) were false; keep the corrections visible.
+
 Important reality check: several things the ask assumes **do not exist yet**.
 
 | The ask assumes…                        | Reality today                                                                                                                                                                                                                                  | Evidence                                                                                                             |
@@ -60,7 +84,7 @@ What **does** exist and is solid:
 - `kirn build` modes today: `-S` sasm listing, default host bundle, GNU C++
   cross/native (used on Linux), MSVC `-O`/link, pet pack
   (`kirn_driver::buildProgram`).
-- FFI to C via `extern def` + `unsafe` (`examples/24_ffi_unsafe.kn`); symbols
+- FFI to C via `extern fn` + `unsafe` (`examples/24_ffi_unsafe.kn`); symbols
   resolve through the process's linked C runtime
   (`src/interp/runtime.cpp:823`).
 - `LintConfig` exists but is dead code — a free hook for a lint surface
@@ -82,7 +106,15 @@ What **does** exist and is solid:
 
 ## 3. Target architecture
 
+**Goal:** Define the target pipeline and the strict two-tool responsibility split before any per-stage design.
+**Must Follow:** One ordered stage list modeled on real drivers; exactly two shipped executables.
+**Important Note:** Every later section must stay consistent with this architecture.
+
 ### 3.1 The pipeline
+
+**Goal:** Fix the canonical stage list and each stage's IR/form and stop-at verb/flag.
+**Must Follow:** Keep the ordered `prepro → lex → parse → check → hir → mir → ssa → llvm → asm → link` spine; do not hand-write SSA — `mem2reg` produces it.
+**Important Note:** This table is the spine `-###`, `check`, and `--emit-*` all reason about; keep it in one place.
 
 ```
  source .kn/.c/.cpp
@@ -120,6 +152,10 @@ Spelling per stage, matching the ask:
 
 ### 3.2 The two tools
 
+**Goal:** Define the strict responsibilities of `kirn` (orchestrator) and `kirnc` (compiler proper).
+**Must Follow:** `kirn` execs `kirnc` and never links the compiler; exactly two shipped executables.
+**Important Note:** Modeled on Go's `cmd/go` ↔ `cmd/compile`; the oracle tools consolidate into `kirnc` verbs as temporary aliases.
+
 ```
 kirn  = cargo/zig-style orchestrator (user operations)
 kirnc = rustc/gcc-style driver (the compiler proper)
@@ -138,6 +174,10 @@ kirnc = rustc/gcc-style driver (the compiler proper)
   not a user tool, and is dropped when real AOT is the default.
 
 ### 3.3 `kirnc` CLI surface (initial proposal)
+
+**Goal:** Specify the `kirnc` CLI — verbs, stop-at-stage flags, `--emit-*`, and backend selectors.
+**Must Follow:** Adopt GCC's `-E/-S/-c/-o/-###` grammar and Zig's `--emit-*`/`zig cc` forwarding; reject unknown args rather than treating them as filenames.
+**Important Note:** Verified against real drivers (Ruby `--dump=`, rustc `OutputType`, Go `Shell`); `run` semantics remain an open decision (§9).
 
 ```
 kirnc <verb> [inputs] [flags]
@@ -202,6 +242,10 @@ Notes:
   predicates (§3.4.5); dry-run ↔ Go's `Shell` + `-n`/`-x` (§3.4.6).
 
 ### 3.4 Reference code: how Go, Rust, Ruby and CPython implement each stage
+
+**Goal:** Quote the actual reference-language sources each Kirn design choice borrows from, so no stage is invented.
+**Must Follow:** Prefer one small proven pattern per stage from Rust/Go/CPython/Ruby/Nim/Odin/V/Zig/LLVM, and cite `file:line`.
+**Important Note:** The six rules distilled in §3.4.14 are the inherited contract; the rest of the plan must stay consistent with them.
 
 This section quotes the _actual_ compiler sources (local trees in
 `/home/rkriad585/Projects/go-rust-ruby-cpython-source-code`) that the Kirn
@@ -359,7 +403,7 @@ fixpoint, with the Resolver borrowed live so `use` and `macro` interleave:
 ```
 
 > **Adopt in Kirn:** `src/prepro/` (see §4.0) follows the same two rules:
-> expansion is a to-fixpoint worklist, and `#def` bodies are stored _before_
+> expansion is a to-fixpoint worklist, and `#fn` bodies are stored _before_
 > parsing, expanded into the token stream before `parse` begins.
 
 #### 3.4.5 `--emit=`-style stage outputs — modeled on rustc `OutputType`
@@ -721,10 +765,18 @@ And the whole 5-pass story is documented at the top of compile.c:
 
 ## 4. Design by stage
 
+**Goal:** Turn the pipeline of §3 into per-stage designs, from `prepro` to `executable`.
+**Must Follow:** Reuse existing `kirn_lex/sema/vm` code; add new code only where a stage does not exist; keep house `unique_ptr` style.
+**Important Note:** Each `### 4.x` carries its own Goal/Must Follow/Important Note and the §3.4 grounding that justifies it.
+
 ### 4.0 Preprocessor / macros (`prepro`) — module `src/prepro/`
 
+**Goal:** Add a token-level preprocessor in `src/prepro/` with `-D/-U`, conditionals, and `__FILE__`-style builtins.
+**Must Follow:** Directives are Nim-style `{. … .}` (never `#`, Kirn's comment sigil); hygiene is capture-free; `kirnc -E` prints the expanded token stream.
+**Important Note:** A `#`-based design silently deleted directives; the `{.` choice needs no lexer change. See the measured demonstration below.
+
 **The `#` premise in this section was wrong, and the error mattered.** The
-original text proposed C-style `#def` / `#if` / `#undef` and justified the sigil
+original text proposed C-style `#fn` / `#if` / `#undef` and justified the sigil
 with "`#` is unused today except in comments — verify in lexer". Verifying it
 (`src/lex/lexer.cpp:186-189`, `grammar/kirn.ebnf:43`) came back the other way:
 `#` is the _active, normative_ line-comment sigil, the lexer erases from `#` to
@@ -737,11 +789,11 @@ an error today — it is a **silent no-op**:
 
 ```
 $ cat probe.kn
-#def SQR(x) = x * x
+#fn SQR(x) = x * x
 #ifdef DEBUG
 print("debug");
 #endif
-def main() { print("hi"); }
+fn main() { print("hi"); }
 $ kirnlex --dump probe.kn      # every directive silently gone, exit 0
 $ kirncheck probe.kn           # probe.kn: OK     exit 0
 ```
@@ -754,8 +806,8 @@ Design as built:
 - **Unit**: the token stream _before_ parsing, so a macro can synthesize syntax.
 - **Syntax**: Nim's `{. … .}`, which is what Nim itself uses in a language whose
   comment sigil is also `#`.
-  - `{.def NAME. body.}` and `{.def NAME = body.}` — object-like, two spellings
-  - `{.def NAME(a, b) = body.}` — function-like
+  - `{.fn NAME. body.}` and `{.fn NAME = body.}` — object-like, two spellings
+  - `{.fn NAME(a, b) = body.}` — function-like
   - `{.undef NAME.}`, `{.ifdef NAME.}`, `{.ifndef NAME.}`, `{.if EXPR.}`,
     `{.elif EXPR.}`, `{.else.}`, `{.endif.}`
   - built-ins: `__FILE__`, `__LINE__`, `__KIRN__`, `__VERSION__`
@@ -789,7 +841,7 @@ Design as built:
     definition time, so `INNER` must be defined before `OUTER` names it.
   - Mutual recursion is therefore **structurally impossible**, not merely
     bounded: a body can only name a macro that already existed, so the reference
-    graph only ever points backwards. `{.def A. A.}` is caught at definition time
+    graph only ever points backwards. `{.fn A. A.}` is caught at definition time
     with a message that names the cause. `kMaxSteps` remains as defence in depth.
 - **No `#include`.** Module imports stay semantic (`import pet.math`), as
   originally decided.
@@ -807,7 +859,22 @@ Design as built:
 Placement: `src/prepro/` library (`kirn_prepro` in CMake), consuming a `Token`
 stream and returning an expanded `Token` stream.
 
+```kn
+{.fn MAX(a, b) = {.if a > b.} a {.else.} b {.endif.}.}
+
+fn main() -> none {
+    print(MAX(3, 9));
+}
+```
+
+> Reference: Nim — `{. … .}` pragma/directive syntax, chosen because Nim also
+> uses `#` for comments.
+
 ### 4.1 Scanning (lexing) — exists
+
+**Goal:** Reuse the existing lexer (`kirn::Lexer`) behind `kirnc lex` and `-E`.
+**Must Follow:** Keep the `kind\tline:col\ttext` output; add no new `Tok` enumerators.
+**Important Note:** The token stream carries no filename, no newline/indent token, and no multi-line strings — every later stage is constrained by this.
 
 `kirn::Lexer` (`src/lex/lexer.cpp`), `kirnlex --dump`. No changes needed beyond
 exposing through `kirnc lex`. Output format: `kind\tline:col\ttext`, printed in
@@ -832,23 +899,54 @@ verified rather than assumed:
   unconditionally), so a macro body cannot contain a multi-line literal. There
   are no block comments either; `#` is the only comment form.
 
+```kn
+fn main() -> none {
+    var x = 1;
+    print(x);
+}
+```
+
 ### 4.2 Parsing — exists
+
+**Goal:** Reuse `kirn::Parser` behind `kirnc parse`.
+**Must Follow:** Parse the source exactly once — fix the `-S` double parse.
+**Important Note:** `frontEnd()` should hand the AST back so no later stage re-lexes or re-parses.
 
 `kirn::Parser` (`src/parser/parser.cpp:1-2192`), `kirnparse --ast`. `kirnc
 parse` reuses it. Fix: `frontEnd()` runs lex+parse; the `-S` path currently
 parses twice (the `-S` branch of `kirn_driver::buildProgram`) — centralize to one parse
 and keep the AST.
 
+```kn
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+```
+
 ### 4.3 Type checking — exists
+
+**Goal:** Reuse `sema::Checker::checkModule` behind `kirnc check`, and wire the dormant `LintConfig` into `-W`.
+**Must Follow:** `check` is the front end only — no codegen; exit 1 on user errors, 64 on CLI misuse.
+**Important Note:** Grounded in CPython `symtable` and Ruby `ruby -c` (§3.4.9).
 
 `sema::Checker::checkModule` (`src/sema/checker.cpp:318`). `kirnc check` =
 exactly this (like `kirncheck`). Wire the dormant `LintConfig`
 (`src/sema/checker.h:22-25`) into `-W` flags.
 
+```kn
+fn main() -> none {
+    var x: Int = "not an int";
+}
+```
+
 > Grounding: §3.4.9 — CPython's `symtable` (scope tree reachable from AST
 > node pointers) and Ruby's `--dump=syntax` / `ruby -c` "Syntax OK" verb.
 
 ### 4.4 HIR — NEW `src/hir/`
+
+**Goal:** Introduce a sugar-free, name-resolved HIR in `src/hir/`.
+**Must Follow:** Per-kind `std::variant` payload (no fat node), resolved `DeclId`s, explicit scopes, `unique_ptr` ownership.
+**Important Note:** Do not mix ownership strategies across stages; an unmapped construct must be `Unhandled`/`Nop` (never a silent drop). Grounding: §3.4.8.
 
 Purpose: a sugar-free AST. Today the AST _is_ the parse tree plus a
 desugar buffer (`src/parser/parser.h:104`). HIR lowers/match-evaluates:
@@ -866,7 +964,21 @@ Contains: lowered statements/expressions with explicit scopes, resolved
 > `miniNode` header; keep house `unique_ptr` style, note the shapes for a
 > future `ast.dump`-style public IR.
 
+> Reference: CPython — ASDL tagged-union node shape; Nim — variant objects; LLVM/MLIR — per-kind payload unions.
+
+```kn
+fn main() -> none {
+    for i in 0..3 {
+        print(f"i={i}");
+    }
+}
+```
+
 ### 4.5 MIR — NEW `src/mir/`
+
+**Goal:** Introduce a CFG-based, value-oriented MIR in `src/mir/` — the plane `rt`/`--emit-mir` dump and AOT consume.
+**Must Follow:** Successor edges derived not stored; entry is block 0; alloca/load/store shaped with no hand-built SSA (`mem2reg` later).
+**Important Note:** Keep `src/vm/compiler.cpp` a separate specializer; the MIR ownership decision must be explicit. Grounding: §3.4.10.
 
 Purpose: CFG-based, value-oriented, destructor-free IR — the plane on which
 `rt` dumps and future optimization live.
@@ -883,7 +995,27 @@ Purpose: CFG-based, value-oriented, destructor-free IR — the plane on which
 > opcode array for `rb_iseq_disasm`; MIR is kirn's equivalent flat
 > list → flatten-late plane.
 
+> Reference: LLVM — derived successor edges; Ruby — flatten-late instruction list.
+
+```kn
+fn total(n: Int) -> Int {
+    var sum = 0;
+    var i = 0;
+    while i < n {
+        sum += i;
+        i += 1;
+    }
+    return sum;
+}
+```
+
+_Target: the bytecode VM path (`kirn run`) must beat the Rust/Go equivalent for the phase's programs, measured by the §7 bench harness._
+
 ### 4.6 Optimization + SSA — LLVM `opt`
+
+**Goal:** Map optimization to the LLVM new pass manager; keep no in-tree hand-written SSA/optimizer.
+**Must Follow:** Front end emits allocas + stores; `mem2reg` produces SSA; `-O0..3` maps to passes.
+**Important Note:** If Kirn ever hand-writes passes, copy Go's data-declared `passes` table + `init()` order check (§3.4.7).
 
 Two honest options; the plan picks a sequence:
 
@@ -900,7 +1032,21 @@ Two honest options; the plan picks a sequence:
 > and skips non-required ones under `-N`; if Kirn ever hand-writes SSA passes,
 > copy that table + `init()` order-check.
 
+> Reference: LLVM — `mem2reg` + new pass manager; Go — data-declared pass table.
+
+```kn
+fn area(w: Int, h: Int) -> Int {
+    return w * h + 0;
+}
+```
+
+_Target: `-O`/`--release` builds of the phase's programs must beat the Rust/Go equivalent, measured by the §7 bench harness._
+
 ### 4.7 LLVM codegen — NEW `src/backends/llvm/`
+
+**Goal:** Add an opt-in LLVM backend (`src/backends/llvm/`, `KIRN_WITH_LLVM`) lowering MIR → `llvm::Module`.
+**Must Follow:** In-process libs first (no PATH deps); scalar subset (int64/double/bool) first; `--emit-llvm` writes `.ll`/`.bc`.
+**Important Note:** Keep `kirn`/driver libraries LLVM-free; non-scalar features fall back to the runtime or are rejected with a clear diagnostic.
 
 - New lib `kirn_llvm` guarded by an opt-in CMake `KIRN_WITH_LLVM` (LLVM is
   heavy; keep it optional so dev machines and release pipelines without LLVM
@@ -916,7 +1062,25 @@ Two honest options; the plan picks a sequence:
   alternative.
 - `--emit-llvm` writes `.ll`/`.bc` for inspection/tests.
 
+> Reference: LLVM — `llc` / in-process `TargetMachine` codegen.
+
+```kn
+fn addmul(a: Int, b: Int) -> Int {
+    return a + b * 2;
+}
+
+fn main() -> none {
+    print(addmul(3, 4));
+}
+```
+
+_Target: end-to-end `kirn build` and run of the phase's scalar feature must beat the Rust/Go equivalent, measured by the §7 bench harness._
+
 ### 4.8 Assembler — `assemb`
+
+**Goal:** Make assembling a real stage: `-c` → `.o`, `-S` → asm listing, via LLVM MC or the host assembler.
+**Must Follow:** One emission path so `-c`, `-S`, and `-###` work uniformly across targets.
+**Important Note:** Cross targets reuse the release-workflow machine-header checks (ELF/PE/Mach-O).
 
 - LLVM path: `llc`/`TargetMachine::addPassesToEmitFile(MCStreamer)` → `.s`/`.o`.
 - C++ path: today's implicit assembler inside `g++`/`cl.exe` stays.
@@ -924,7 +1088,21 @@ Two honest options; the plan picks a sequence:
   reuse the header/machine-verify pattern from the release workflow
   (ELF e_machine / PE 0xAA64 / Mach-O).
 
+> Reference: LLVM — MC layer / `llc` object emission; Zig — `-femit-asm` / `-femit-bin`.
+
+```kn
+fn main() -> none {
+    print(6 * 7);
+}
+```
+
+_Target: object emission for the phase's program must beat the Rust/Go equivalent, measured by the §7 bench harness._
+
 ### 4.9 Linker — `executable`
+
+**Goal:** Make linking a real stage: in-process LLD (or host-linker fallback) producing the executable.
+**Must Follow:** Select `lld::elf/coff/macho` by target; split today's fused `g++` call into explicit compile → assemble → link.
+**Important Note:** The C++ and MSVC `lib.exe` paths must emit the same stage commands that `-###` prints.
 
 - LLVM path: **LLD** (in-process `lld::elf::link`, `lld::coff::link`,
   `lld::macho` selection by target) → single driver, no PATH dependency.
@@ -936,9 +1114,25 @@ Two honest options; the plan picks a sequence:
 - MSVC `-O` path (`kirn_driver::buildProgram` (MSVC `-O`)) becomes: emit obj via cl, ar via
   `lib.exe`, honoring `KIRN_LIB_TOOL`.
 
+> Reference: LLVM — LLD in-process linkers; Go — a single `cmd/link`; Zig — self-contained linking.
+
+```kn
+import pet.math;
+
+fn main() -> none {
+    print(pet.math.abs(-4));
+}
+```
+
+_Target: link time for the phase's program must beat the Rust/Go equivalent, measured by the §7 bench harness._
+
 ---
 
 ## 5. Codebase refactors required (prereqs, in rough order)
+
+**Goal:** List the prerequisite refactors (mostly done) that unblock the pipeline.
+**Must Follow:** Extract the driver core, unify resolvers, single `frontEnd`, centralize path discovery, share payload formats, and type-check on every build path.
+**Important Note:** Items 1–3 are done; 4–6 remain and are prerequisites for the installer/AOT phases.
 
 1. ~~**Extract the driver core out of the `tools/kirn.cpp` monolith.**~~
    _Done — see the Phase 0 status note in §6._ The original wording said
@@ -1001,11 +1195,26 @@ cannot force it onto future consumers.
 
 ## 6. Phased implementation plan
 
+**Goal:** Sequence the work as independently shippable, CI-gated phases.
+**Must Follow:** Each phase ships behind the corpus gates + golden snapshots and stays behavior-preserving.
+**Important Note:** Phases 0–4 have landed; each carries a status note recording what reality corrected.
+
 Each phase is independently shippable and CI-gated (corpus + gates_linux).
 
 **Phase 0 — Driver-core extraction.** Split `tools/kirn.cpp` build plumbing;
 unify module resolvers; single `frontEnd`; move path assumptions behind one
 resolver. Merge `kirnrun`'s resolver back into the shared one.
+**Goal:** Extract the driver core out of the `tools/kirn.cpp` monolith into the `kirn_driver` library.
+**Must Follow:** Behavior-preserving move — one translation unit, forwarders not `using`, keep goldens byte-identical.
+**Important Note:** Substantially done; still open are §5.5 (payload sharing) and §5.4's root discovery. Modeled on Go's `cmd/go` ↔ `cmd/compile` split.
+
+```kn
+# behavior-preserving fixture: stdout/exit must not change
+fn main() -> none {
+    print("hello, kirn");
+}
+```
+
 _Verify:_ corpus gates green unchanged, byte-identical `kirn run`/`build`
 behavior, CI green.
 
@@ -1083,6 +1292,20 @@ Phase 6 needs for the installer and which phase 1 does not block.
 build` and `-E/-S/-c/-o/-###/-v`. `lex` and `parse` reuse the oracle code from
 `kirnlex`/`kirnparse`; `check` reuses `kirncheck`; `rt` reuses the current
 bundle path; `run` executes the bundled runtime. Keep old binaries as aliases.
+**Goal:** Stand up the `kirnc` skeleton with `check|lex|parse|rt|run|build` and the `-E/-S/-c/-o/-###/-v` flags.
+**Must Follow:** Reuse the extracted stage functions (no forked copies); reject unrecognized args explicitly instead of treating them as filenames.
+**Important Note:** `run`/`rt` are deliberately unimplemented pending §9's oracle decision; the stop-at flags land in later phases.
+
+```kn
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+
+fn main() -> none {
+    print(add(2, 3));
+}
+```
+
 _Verify:_ `kirnc X` output == old tool output on the corpus; new CI job runs
 the cross-check matrix.
 
@@ -1134,11 +1357,29 @@ the old tools did with any unrecognised argument), and `rt`.
 
 **Phase 2 — Preprocessor.** `src/prepro/` with a macro layer, `-D/-U`, and
 `__FILE__`-style builtins. `kirnc -E` dumps the expanded token stream.
+**Goal:** Land the preprocessor (`src/prepro/`) with macros, `-D/-U`, and builtins; `kirnc -E` dumps the expanded token stream.
+**Must Follow:** Nim-style `{. … .}` syntax, capture-free hygiene, no lexer change, byte-exact goldens.
+**Important Note:** First increment done; open are `-D/-U` beyond `-E`, per-file macro scope, and the normative grammar file is not yet updated.
+
+```kn
+{.fn DEBUG = 1.}
+
+fn main() -> none {
+    {.ifdef DEBUG.}
+    print("debug build");
+    {.else.}
+    print("release build");
+    {.endif.}
+}
+```
+
+> Reference: Nim — `{. … .}` token-level directives.
+
 _Verify:_ golden-file macro tests; macros cannot capture caller locals.
 
 _Status 2026-09-30: first increment landed; the phase's headline syntax decision
 had to be reversed before any of it could be written._ The plan proposed
-C-style `#def` / `#if` / `#undef`. That is not a clash to be negotiated but a
+C-style `#fn` / `#if` / `#undef`. That is not a clash to be negotiated but a
 silent data-loss bug: `#` is Kirn's line-comment sigil
 (`src/lex/lexer.cpp:186-189`), so the plan's directives were being discarded as
 comments and the file still type-checked at exit 0. See §4.0 for the measured
@@ -1148,7 +1389,7 @@ Landed:
 
 - `src/prepro/prepro.{h,cpp}` as `kirn_prepro`, between `kirn_lex` and
   `kirn_parser`. Two stages: a directive scan that applies
-  `def`/`undef`/conditionals and emits the surviving tokens, then a fixpoint
+  `fn`/`undef`/conditionals and emits the surviving tokens, then a fixpoint
   expansion worklist. **No lexer change and no new `Tok` enumerator** — `{.`
   already lexes as two `Punct` tokens, so the layer is pure pattern-matching.
 - Hooked into all four front-end paths: `frontEnd` (`kirn run`/`test`/`build`),
@@ -1206,6 +1447,26 @@ _Not done in this increment,_ recorded rather than left to be discovered:
 
 **Phase 3 — HIR/MIR.** `src/hir/`, `src/mir/` (arena CFG). `--emit-hir`,
 `--emit-mir`. `kirnc rt` dumps MIR.
+**Goal:** Land HIR (`src/hir/`) and MIR (`src/mir/`) with `--emit-hir`/`--emit-mir` and a `kirnc rt` dump.
+**Must Follow:** Structural verification, not execution; HIR per-kind `std::variant`; MIR derived CFG with no hand-built SSA.
+**Important Note:** Done — 53/53 corpus lower/verify/dump; the old "lower-verify vs direct run" criterion was unsatisfiable and was replaced.
+
+```kn
+fn classify(n: Int) -> Str {
+    if n < 0 { return "neg"; }
+    elif n == 0 { return "zero"; }
+    return "pos";
+}
+
+fn main() -> none {
+    print(classify(-1));
+    print(classify(0));
+    print(classify(7));
+}
+```
+
+> Reference: CPython — ASDL-tagged IR; Ruby — flatten-late instruction list.
+
 _Verify:_ AST→HIR→MIR preserves results on a corpus subset (run after
 lower-verify vs direct run).
 
@@ -1478,6 +1739,22 @@ _Not done, and recorded rather than left to be discovered:_
 
 **Phase 4 — LLVM codegen (opt-in).** `KIRN_WITH_LLVM=ON`; MIR→LLVM IR for the
 scalar subset; `--emit-llvm`; `mem2reg` for SSA; `-fbackend=llvm`.
+**Goal:** Add opt-in LLVM codegen (`KIRN_WITH_LLVM`) lowering verified MIR to `llvm::Module` for the scalar subset.
+**Must Follow:** Keep `kirn`/driver libraries LLVM-free; `mem2reg` for SSA; emit clean IR that passes `opt -verify` and runs under `lli`.
+**Important Note:** First increment done; the scalar subset is reachable only via annotations, and `-fbackend=llvm` answers with the phase-5 pointer.
+
+```kn
+fn square(x: Int) -> Int {
+    return x * x;
+}
+
+fn main() -> none {
+    print(square(6));
+}
+```
+
+> Reference: LLVM — `mem2reg` + new pass manager.
+
 _Verify:_ emitted `.ll` passes `opt -verify` and `lli`; scalar corpus programs
 match interpreter output numerically.
 
@@ -1518,6 +1795,22 @@ identical stdout on the gate-10 fixtures.
 **Phase 5 — Assemble + link.** In-process TargetMachine emission (`-c`, `-S`)
 and LLD linking (`-o`). `-###` prints every command; cross targets emit correct
 machine headers.
+**Goal:** Make assembling and linking real stages — in-process TargetMachine (`-c`/`-S`) and LLD (`-o`), with `-###` printing every command.
+**Must Follow:** One emission path for all targets; cross targets emit correct ELF/PE/Mach-O machine headers.
+**Important Note:** Reuse the release-workflow machine-header checks for all six release targets.
+
+```kn
+extern fn puts(s: *Char) -> i32;
+
+fn main() -> none {
+    unsafe {
+        puts(c"hello, kirn");
+    }
+}
+```
+
+> Reference: LLVM — LLD; Zig — `-femit-asm` / `-femit-bin` stage flags.
+
 _Verify:_ `kirnc -c` → object; linker output runs `hello` + `pet.math`; reuse
 release-workflow machine-header checks for all 6 release targets.
 
@@ -1525,6 +1818,16 @@ release-workflow machine-header checks for all 6 release targets.
 run` delegate to `kirnc`; `kirn -v/--verbose`, `kirn version`, `kirn doctor`;
 warn-and-remove for `kirnlex/parse/check/run`; retire the bundle as default on
 AOT-capable hosts (keep `--fbackend=runtime`).
+**Goal:** Integrate `kirnc` into `kirn` and ship a clean installed two-tool tree.
+**Must Follow:** `kirn build/run/check` delegate to `kirnc`; remove the oracle tools; retire the bundle as the AOT default on capable hosts.
+**Important Note:** Must work from an installed tree with no source checkout — needs §5.4 root discovery plus installer/CI/release updates.
+
+```kn
+fn main() -> none {
+    print("hello from an installed kirn");
+}
+```
+
 _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
 (via installer) with no source checkout; update `install.sh`, `ci.yml`,
 `release.yml` for `kirnc`; full release dry-run; end-to-end installer test.
@@ -1532,6 +1835,10 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
 ---
 
 ## 7. Testing & verification strategy
+
+**Goal:** Define the correctness floors and oracles (corpus gates, goldens, cross-checks) every phase must pass.
+**Must Follow:** Add a bench harness that measures `kirn build`/run against the Rust/Go equivalent for each phase.
+**Important Note:** Exit codes are load-bearing (1 = check errors, 64 CLI, 65 type errors, 66 no entry, 70 internal); goldens catch the whitespace/ordering changes the gates miss.
 
 - **Corpus gates** (`scripts/gates_linux.sh`) stay the correctness floor at
   every phase; phase 3+ adds pipeline property tests.
@@ -1578,6 +1885,10 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
 
 ## 8. Risks and decisions
 
+**Goal:** Record the risks (LLVM weight, dynamic-vs-SSA, runner staleness, installer coupling) and the decisions that bound scope.
+**Must Follow:** Keep LLVM opt-in (`KIRN_WITH_LLVM`); AOT covers the typed/scalar core first, dynamic features keep the runtime path.
+**Important Note:** These decisions bound the phase plan; do not silently expand scope.
+
 1. **LLVM weight.** Real LLVM (via `find_package(LLVM)`) is a large, slow,
    disk-heavy dependency; the repo deliberately avoids it today. Mitigation:
    opt-in `KIRN_WITH_LLVM`, in-process libs on dev hosts, and for _release
@@ -1605,6 +1916,10 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
 ---
 
 ## 9. Open questions (need user confirmation)
+
+**Goal:** Collect the questions that need the language owner's confirmation before their phases can be finalized.
+**Must Follow:** Keep unresolved items visible (meaning of `rt`, macro scope, C/C++ driver backend, LLVM policy, AOT promise) rather than guessing.
+**Important Note:** The `rt`/`run` contradiction is the sharpest — phase 1 deliberately implements neither until it is answered.
 
 1. **Meaning of `rt`.** The plan reads it as "run through the runtime"
    (bundle-and-interpret), distinct from `run` (full AOT). Alternative
@@ -1635,7 +1950,7 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    115/799/1061.
 
 2. **Macro scope.** Token-level macros (Nim-style, can synthesize syntax) vs
-   expression-level only. The plan assumes token-level `#def`.
+   expression-level only. The plan assumes token-level `#fn`.
 3. **C/C++ driver backend.** Wrap the _system_ compiler (whatever
    `clang`/`gcc`/`cl.exe` is found, Zig model) vs bundle its own clang. The
    plan assumes wrap-the-system-compiler for now, LLVM-clang later.

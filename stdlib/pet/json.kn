@@ -8,13 +8,13 @@
 priv_dumps = json.dumps;
 
 # Serialize a value to a JSON string (native dumper).
-pub def dumps(v) -> string {
+pub fn dumps(v) -> Str {
     return priv_dumps(v);
 }
 
 # Parse a JSON string into Kirn values. Parses objects, arrays, strings,
 # numbers, true/false/null. Raises on malformed input.
-pub def loads(s: string) -> none {
+pub fn loads(s: Str) -> none {
     p = Parser();
     p.init(s);
     return p.parse_value();
@@ -22,25 +22,25 @@ pub def loads(s: string) -> none {
 
 # Minimal JSON parser.
 struct Parser {
-    var src: string;
-    var i: int;
-    def init(self, s: string) -> none {
+    var src: Str;
+    var i: Int;
+    fn init(self, s: Str) -> none {
         self.src = s;
         self.i = 0;
     }
-    def skip_ws(self) -> none {
+    fn skip_ws(self) -> none {
         while self.i < self.src.len() and self.peek() == " " {
             self.i = self.i + 1;
         }
     }
-    def peek(self) -> string {
+    fn peek(self) -> Str {
         if self.i >= self.src.len() { return ""; }
         return self.src[self.i..self.i + 1];
     }
-    def advance(self) -> none {
+    fn advance(self) -> none {
         self.i = self.i + 1;
     }
-    def parse_value(self) -> none {
+    fn parse_value(self) -> none {
         self.skip_ws();
         c = self.peek();
         if c == "{" { return self.parse_object(); }
@@ -51,7 +51,7 @@ struct Parser {
         if c == "n" { self.expect_lit("null"); return nil; }
         return self.parse_number();
     }
-    def parse_object(self) -> dict {
+    fn parse_object(self) -> dict {
         self.advance();
         out = {};
         self.skip_ws();
@@ -74,7 +74,7 @@ struct Parser {
         }
         return out;
     }
-    def parse_array(self) -> list {
+    fn parse_array(self) -> list {
         self.advance();
         out = [];
         self.skip_ws();
@@ -90,7 +90,7 @@ struct Parser {
         }
         return out;
     }
-    def parse_string(self) -> string {
+    fn parse_string(self) -> Str {
         self.advance();
         out = "";
         while true {
@@ -114,7 +114,7 @@ struct Parser {
         }
         return out;
     }
-    def parse_number(self) -> float {
+    fn parse_number(self) -> Float {
         start = self.i;
         while self.i < self.src.len() {
             c = self.src[self.i..self.i + 1];
@@ -122,9 +122,9 @@ struct Parser {
             self.advance();
         }
         tok = self.src[start..self.i];
-        return float(tok);
+        return Float(tok);
     }
-    def expect_lit(self, lit: string) -> none {
+    fn expect_lit(self, lit: Str) -> none {
         if self.src[self.i..self.i + lit.len()] == lit {
             self.i = self.i + lit.len();
         } else {

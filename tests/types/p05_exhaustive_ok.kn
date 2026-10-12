@@ -1,21 +1,21 @@
 # 5.4 — exhaustive matching is required and accepted. Enum matches must cover
 # every variant (or use `case _`); integer/char matches must end in `case _`.
-enum Status { Idle, Running(pid: int), Failed(code: int) }
-def render(s: Status) -> string {
+enum Status { Idle, Running(pid: Int), Failed(code: Int) }
+fn render(s: Status) -> Str {
     match s {
         case Idle { return "idle"; }
         case Running(pid) { return f"pid={pid}"; }
         case Failed(code) { return f"err={code}"; }
     }
 }
-def classify(n: int) -> string {
+fn classify(n: Int) -> Str {
     match n {
         case 0 { return "none"; }
         case 1..=9 { return "digit"; }
         case _ { return "other"; }
     }
 }
-def main() -> none {
+fn main() -> none {
     print(render(Status.Running(pid: 7)));
     print(classify(5));
     print(classify(100));

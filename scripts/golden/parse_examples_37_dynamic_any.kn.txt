@@ -1,10 +1,10 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/37_dynamic_any.kn
 StructDef "Widget"
-  Field "w" var : int
+  Field "w" var : Int
     Default Int "3"
   FuncDef "size"
     Param "self" self : <inferred>
-    Ret int
+    Ret Int
     Body
       Return
         Value 
@@ -52,7 +52,7 @@ FuncDef "main"
                 Lhs Str "a = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "a"
     VarDecl : dynamic
@@ -71,7 +71,7 @@ FuncDef "main"
                 Lhs Str "d = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "d"
     VarDecl : any
@@ -91,7 +91,7 @@ FuncDef "main"
                 Lhs Str "len(lst) = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -116,7 +116,7 @@ FuncDef "main"
                 Lhs Str "widget size = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call

@@ -1,8 +1,8 @@
-# expect: must declare return type generator[...], got i64
-def gen() -> int {
+# expect: must declare return type generator[...], got Int64
+fn gen() -> Int {
     yield 1;
 }
 
-def main() -> none {
+fn main() -> none {
     print(gen());
 }

@@ -1,19 +1,19 @@
 # 07 — Closures & captures               (plan §5.5 · grammar §4 note 10)
-def make_counter() -> fn() -> int {
+fn make_counter() -> fn() -> Int {
     count = 0; # captured by reference (boxed if it escapes)
-    def tick() -> int { # nested named closure
+    fn tick() -> Int { # nested named closure
         count += 1;
         return count;
 }
     return tick;
 
 }
-def main() -> none {
+fn main() -> none {
     square = (x) => x * x; # single-expression lambda
     shout = (s) => f"{s.upper()}!";
 
     next_id = make_counter(); # stateful closure
-    print(square(9), shout("coco"));
+    print(square(9), shout("kirn"));
     print(next_id(), next_id(), next_id());
 
     ops = [(a) => a * 10, (a) => a + 1]; # lambdas are first-class values

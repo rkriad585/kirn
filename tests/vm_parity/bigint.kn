@@ -1,62 +1,62 @@
-def main() -> none {
-    n = big_int(2).pow(1000);
-    ds = str(n);
+fn main() -> none {
+    n = BigInt(2).pow(1000);
+    ds = Str(n);
     total = 0;
     for ch in ds {
-        total = total + (ord(ch) - 48);
+        total = total + (Ord(ch) - 48);
     }
     print(total);                                    # 1366 (digit sum of 2^1000)
     print(ds.len());                                 # 302 digits
-    huge = big_int("123456789012345678901234567890");
+    huge = BigInt("123456789012345678901234567890");
     m = huge * huge + 1;
     print(m.bit_length() > 100);                     # true
-    print(big_int(7).powmod(23, 31).to_int());       # 10 (matches pow(7,23,31))
-    print(big_int(-21) // big_int(4));               # -6 (floor division)
-    print(big_int(-21) % big_int(4));                # 3  (Python-style modulo)
-    print(big_int(21) ** big_int(3));                # 9261
-    print(big_int(2) * big_int(-3));                 # -6
-    print(big_int(-1) + big_int(1));                 # 0
-    print(big_int(-5).to_string());                  # -5
-    print(big_int(0).bit_length());                  # 0
-    print(big_int(0).to_int());                      # 0
-    print(big_int(123456789) * big_int(987654321));  # 121932631112635269
-    print(big_int("99999999999999999999") < big_int("100000000000000000000"));
-    print(big_int("-99999999999999999999") < big_int("-100000000000000000000"));
-    print(big_int(255) == big_int("255"));           # true
-    print(big_int(2) == 2);                          # true (int/bigint mix)
-    print(to_float(big_int(1000).to_rational()));    # 1000.0
-    print(bit_length(big_int(256)), bit_count(big_int(255)));
-    print(big_int(17).is_prime());                   # true
-    print(big_int(15).is_prime());                   # false
+    print(BigInt(7).powmod(23, 31).to_int());       # 10 (matches Pow(7,23,31))
+    print(BigInt(-21) // BigInt(4));               # -6 (floor division)
+    print(BigInt(-21) % BigInt(4));                # 3  (Python-style modulo)
+    print(BigInt(21) ** BigInt(3));                # 9261
+    print(BigInt(2) * BigInt(-3));                 # -6
+    print(BigInt(-1) + BigInt(1));                 # 0
+    print(BigInt(-5).to_string());                  # -5
+    print(BigInt(0).bit_length());                  # 0
+    print(BigInt(0).to_int());                      # 0
+    print(BigInt(123456789) * BigInt(987654321));  # 121932631112635269
+    print(BigInt("99999999999999999999") < BigInt("100000000000000000000"));
+    print(BigInt("-99999999999999999999") < BigInt("-100000000000000000000"));
+    print(BigInt(255) == BigInt("255"));           # true
+    print(BigInt(2) == 2);                          # true (int/bigint mix)
+    print(ToFloat(BigInt(1000).to_rational()));    # 1000.0
+    print(BitLength(BigInt(256)), BitCount(BigInt(255)));
+    print(BigInt(17).is_prime());                   # true
+    print(BigInt(15).is_prime());                   # false
     # Phase 3: Knuth-D division / Karatsuba (multi-limb)
-    a = big_int("123456789012345678901234567890");
-    b = big_int("9876543210987654321");
+    a = BigInt("123456789012345678901234567890");
+    b = BigInt("9876543210987654321");
     print(a // b);                                   # 12499999886
     print(a % b);                                    # 925925941327160484
-    print(a // big_int(-7));                         # -17636684144620811271604938270
-    print(a % big_int(-7));                          # 0
+    print(a // BigInt(-7));                         # -17636684144620811271604938270
+    print(a % BigInt(-7));                          # 0
     # Phase 3: arithmetic helpers
-    print(big_int(48).gcd(36));                      # 12
-    print(big_int(48).lcm(36));                      # 144
-    print(big_int(3).mod_inverse(11).to_int());      # 4
-    print(big_int(3).mod_inverse(4).to_int());       # 3 (2*3=6 ≡ 2 mod 4)
-    print(big_int(4).mod_sqrt(13).to_int());         # 11 (11^2 ≡ 4 mod 13)
-    print(big_int(2).mod_sqrt(7).to_int());          # 4  (4^2 ≡ 2 mod 7)
+    print(BigInt(48).gcd(36));                      # 12
+    print(BigInt(48).lcm(36));                      # 144
+    print(BigInt(3).mod_inverse(11).to_int());      # 4
+    print(BigInt(3).mod_inverse(4).to_int());       # 3 (2*3=6 ≡ 2 mod 4)
+    print(BigInt(4).mod_sqrt(13).to_int());         # 11 (11^2 ≡ 4 mod 13)
+    print(BigInt(2).mod_sqrt(7).to_int());          # 4  (4^2 ≡ 2 mod 7)
     # Phase 3: bitwise (two's complement) + shifts
-    print(big_int(-6) & big_int(3));                 # 2
-    print(big_int(-6) | big_int(3));                 # -5
-    print(big_int(-6) ^ big_int(3));                 # -7
-    print(big_int(5) << 100);                        # 6338253001141147007483516026880
-    print((big_int(2).pow(100)) >> 99);              # 2
-    print(big_int(-7) >> 1);                         # -4 (arithmetic)
+    print(BigInt(-6) & BigInt(3));                 # 2
+    print(BigInt(-6) | BigInt(3));                 # -5
+    print(BigInt(-6) ^ BigInt(3));                 # -7
+    print(BigInt(5) << 100);                        # 6338253001141147007483516026880
+    print((BigInt(2).pow(100)) >> 99);              # 2
+    print(BigInt(-7) >> 1);                         # -4 (arithmetic)
     # Phase 3: Miller-Rabin / conversions
-    print(big_int(2).pow(127) - big_int(1) == big_int("170141183460469231731687303715884105727"));  # true
-    print(big_int("170141183460469231731687303715884105727").is_prime());   # true  (2^127-1 Mersenne)
-    print(big_int("170141183460469231731687303715884105725").is_prime());   # false
-    print(big_int(1000000007).is_prime());           # true
-    print(str(big_int(255), 16));                    # ff
-    print(to_bytes(big_int(258), 2));                # b'\x02\x01' (little)
-    print(to_bytes(big_int(258), 2, "big"));         # b'\x01\x02' (big)
-    print(from_bytes(big_int(-1).to_bytes(4)));      # -1
-    print(big_int(1000).to_float());                 # 1000.0
+    print(BigInt(2).pow(127) - BigInt(1) == BigInt("170141183460469231731687303715884105727"));  # true
+    print(BigInt("170141183460469231731687303715884105727").is_prime());   # true  (2^127-1 Mersenne)
+    print(BigInt("170141183460469231731687303715884105725").is_prime());   # false
+    print(BigInt(1000000007).is_prime());           # true
+    print(Str(BigInt(255), 16));                    # ff
+    print(ToBytes(BigInt(258), 2));                # b'\x02\x01' (little)
+    print(ToBytes(BigInt(258), 2, "big"));         # b'\x01\x02' (big)
+    print(FromBytes(BigInt(-1).to_bytes(4)));      # -1
+    print(BigInt(1000).to_float());                 # 1000.0
 }

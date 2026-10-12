@@ -1,6 +1,6 @@
 ﻿; # expect: struct 'Point' has no field 'zzz'
 struct Point {
-    x: int;
+    x: Int;
 }
 p = Point(x: 1);
 print(p.zzz);

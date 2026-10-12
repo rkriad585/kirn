@@ -1,4 +1,4 @@
 ﻿; # expect: return type mismatch
-def f() -> int {
+fn f() -> Int {
     return "oops";
 }

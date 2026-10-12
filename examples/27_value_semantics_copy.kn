@@ -1,10 +1,10 @@
 # 27 — Value semantics: assignment copies (plan §6.1)
 struct Sensor {
-    id: int;
+    id: Int;
     var reading: f64; # mutable field
 
 }
-def main() -> none {
+fn main() -> none {
     s1 = Sensor(id: 1, reading: 20.5);
     s2 = s1; # FULL COPY — bytes duplicated, no aliasing
 

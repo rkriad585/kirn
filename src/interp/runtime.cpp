@@ -787,11 +787,11 @@ void Interpreter::installBuiltins() {
         }
     });
 
-    globals_->vars["sqrt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["__Sqrt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
         return Value::floating(std::sqrt(d));
     });
-    globals_->vars["rational"] = biFn({"num", "den"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Rational"] = biFn({"num", "den"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[0].i;
         int64_t d = a[1].i;
         if (d == 0) panicHere("rational denominator cannot be zero");
@@ -808,24 +808,24 @@ void Interpreter::installBuiltins() {
         v.den = d;
         return v;
     });
-    globals_->vars["numerator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Numerator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("numerator: argument is not a rational");
         return Value::integer(a[0].num);
     });
-    globals_->vars["denominator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Denominator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("denominator: argument is not a rational");
         return Value::integer(a[0].den);
     });
-    globals_->vars["to_float"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["ToFloat"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("to_float: argument is not a rational");
         return Value::floating((double)a[0].num / (double)a[0].den);
     });
-globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("to_int: argument is not a rational");
         // truncation toward zero
         return Value::integer((a[0].num >= 0 ? a[0].num : -a[0].num) / a[0].den * (a[0].num >= 0 ? 1 : -1));
     });
-    globals_->vars["to_rational"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["ToRational"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         const Value& v = a[0];
         if (v.k == VK::Int) {
             Value r; r.k = VK::Rational; r.num = v.i; r.den = 1; return r;
@@ -848,31 +848,31 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         panicHere("to_rational: unsupported operand");
         return Value::none();
     });
-    globals_->vars["fabs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["FAbs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("fabs: argument is not a float");
         return Value::floating(std::fabs(a[0].d));
     });
-    globals_->vars["abs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["__Abs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Int)
             return Value::integer(a[0].i < 0 ? -a[0].i : a[0].i);
         if (a[0].k == VK::Float) return Value::floating(std::fabs(a[0].d));
         panicHere("abs: argument is not a number");
         return Value::none();
     });
-    globals_->vars["floor"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Floor"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("floor: argument is not a float");
         return Value::integer((int64_t)std::floor(a[0].d));
     });
-    globals_->vars["ceil"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Ceil"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("ceil: argument is not a float");
         return Value::integer((int64_t)std::ceil(a[0].d));
     });
-    globals_->vars["round"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Round"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("round: argument is not a float");
         double d = std::round(a[0].d);
         return Value::integer((int64_t)d);
     });
-    globals_->vars["rational_add"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalAdd"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n = a[0].num * a[1].den + a[1].num * a[0].den;
             int64_t d = a[0].den * a[1].den;
@@ -908,7 +908,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
         return Value::floating(da + db);
     });
-    globals_->vars["rational_sub"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalSub"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n = a[0].num * a[1].den - a[1].num * a[0].den;
             int64_t d = a[0].den * a[1].den;
@@ -943,7 +943,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
         return Value::floating(da - db);
     });
-    globals_->vars["rational_mul"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalMul"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n = a[0].num * a[1].num;
             int64_t d = a[0].den * a[1].den;
@@ -978,7 +978,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
         return Value::floating(da * db);
     });
-    globals_->vars["rational_div"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalDiv"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             if (a[1].num == 0) panicHere("rational division by zero");
             int64_t n = a[0].num * a[1].den;
@@ -1013,7 +1013,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (db == 0.0) panicHere("float division by zero");
         return Value::floating(da / db);
     });
-    globals_->vars["rational_pow"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalPow"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Int) {
             int64_t e = a[1].i;
             __int128 n = a[0].num, d = a[0].den;
@@ -1043,7 +1043,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         double db = a[1].k == VK::Float ? a[1].d : (double)a[1].i;
         return Value::floating(std::pow(da, db));
     });
-    globals_->vars["rational_eq"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalEq"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             // compare normalized
             int64_t n1 = a[0].num, d1 = a[0].den;
@@ -1065,7 +1065,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         // float == float
         return Value::boolean(a[0].d == a[1].d);
     });
-    globals_->vars["rational_ne"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalNe"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n1 = a[0].num, d1 = a[0].den;
             int64_t n2 = a[1].num, d2 = a[1].den;
@@ -1083,7 +1083,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::boolean(a[0].d != a[1].d);
     });
-    globals_->vars["rational_lt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalLt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n1 = a[0].num, d1 = a[0].den;
             int64_t n2 = a[1].num, d2 = a[1].den;
@@ -1102,7 +1102,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::boolean(a[0].d < a[1].d);
     });
-    globals_->vars["rational_le"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalLe"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n1 = a[0].num, d1 = a[0].den;
             int64_t n2 = a[1].num, d2 = a[1].den;
@@ -1120,7 +1120,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::boolean(a[0].d <= a[1].d);
     });
-    globals_->vars["rational_gt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalGt"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n1 = a[0].num, d1 = a[0].den;
             int64_t n2 = a[1].num, d2 = a[1].den;
@@ -1138,7 +1138,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::boolean(a[0].d > a[1].d);
     });
-    globals_->vars["rational_ge"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["RationalGe"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Rational) {
             int64_t n1 = a[0].num, d1 = a[0].den;
             int64_t n2 = a[1].num, d2 = a[1].den;
@@ -1156,56 +1156,56 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::boolean(a[0].d >= a[1].d);
     });
-    globals_->vars["exp"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Exp"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("exp: argument is not a float");
         return Value::floating(std::exp(a[0].d));
     });
-    globals_->vars["log"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Log"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("log: argument is not a float");
         return Value::floating(std::log(a[0].d));
     });
-    globals_->vars["log2"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Log2"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("log2: argument is not a float");
         return Value::floating(std::log2(a[0].d));
     });
-    globals_->vars["log10"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Log10"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("log10: argument is not a float");
         return Value::floating(std::log10(a[0].d));
     });
-    globals_->vars["sin"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Sin"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("sin: argument is not a float");
         return Value::floating(std::sin(a[0].d));
     });
-    globals_->vars["cos"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Cos"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("cos: argument is not a float");
         return Value::floating(std::cos(a[0].d));
     });
-    globals_->vars["tan"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Tan"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("tan: argument is not a float");
         return Value::floating(std::tan(a[0].d));
     });
-    globals_->vars["sinh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Sinh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("sinh: argument is not a float");
         return Value::floating(std::sinh(a[0].d));
     });
-    globals_->vars["cosh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Cosh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("cosh: argument is not a float");
         return Value::floating(std::cosh(a[0].d));
     });
-    globals_->vars["tanh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Tanh"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("tanh: argument is not a float");
         return Value::floating(std::tanh(a[0].d));
     });
-    globals_->vars["copysign"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["CopySign"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float || a[1].k != VK::Float) panicHere("copysign: both arguments must be floats");
         double sign = (a[1].d >= 0.0) ? 1.0 : -1.0;
         return Value::floating(std::copysign(a[0].d, sign));
     });
-    globals_->vars["pow"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Pow"] = biFn({"x", "y"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float || a[1].k != VK::Float) panicHere("pow: both arguments must be floats");
         return Value::floating(std::pow(a[0].d, a[1].d));
     });
-    globals_->vars["ord"] = biFn({"c"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Ord"] = biFn({"c"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Char) return Value::integer((int64_t)a[0].ch);
         if (a[0].k == VK::Str && !a[0].s.empty())
             return Value::integer((int64_t)(unsigned char)a[0].s[0]);
@@ -1214,20 +1214,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     globals_->vars["typeof"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(typeName(a[0]));
     });
-    globals_->vars["bit_length"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
-        int64_t v = a[0].i;
-        uint64_t u = v < 0 ? (uint64_t)(-(v + 1)) + 1 : (uint64_t)v;
-        if (u == 0) return Value::integer(0);
-        int n = 0; while (u) { n++; u >>= 1; }
-        return Value::integer(n);
-    });
-    globals_->vars["bit_count"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
-        int64_t v = a[0].i;
-        uint64_t u = (uint64_t)v;
-        int n = 0; while (u) { n += (int)(u & 1ull); u >>= 1; }
-        return Value::integer(n);
-    });
-    globals_->vars["chr"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Chr"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[0].k == VK::Int ? a[0].i : 0;
         return Value::chr((char32_t)n);
     });
@@ -1310,7 +1297,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     });
 
     // ---- WHY-1 / SP-8: batteries-included conversion & type builtins --------
-    globals_->vars["str"] = biFn({"x", "base"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Str"] = biFn({"x", "base"}, [](std::vector<Value>& a) -> Value {
         if (a.size() >= 2 && a[0].k != VK::Float && a[1].k == VK::Int) {
             int64_t base = a[1].i;
             if (base < 2 || base > 36) panicHere("str(): base must be in 2..36");
@@ -1325,7 +1312,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::str(toStr(a[0]));
     });
-    globals_->vars["int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         const Value& v = a[0];
         if (v.k == VK::Int) return v;
         if (v.k == VK::Float) return Value::integer((int64_t)v.d);
@@ -1348,7 +1335,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         panicHere("int(): unsupported operand");
     });
-    globals_->vars["float"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Float"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         const Value& v = a[0];
         if (v.k == VK::Float) return v;
         if (v.k == VK::Int) return Value::floating((double)v.i);
@@ -1367,7 +1354,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         panicHere("float(): unsupported operand");
     });
-    globals_->vars["hex_digits"] = biFn({"x", "n"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["HexDigits"] = biFn({"x", "n"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[1].i;
         uint64_t u = 0;
         if (a[0].k == VK::BigInt) {
@@ -1382,7 +1369,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         return Value::str(out);
     });
-    globals_->vars["to_bytes"] = biFn({"x", "len", "endian"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["ToBytes"] = biFn({"x", "len", "endian"}, [](std::vector<Value>& a) -> Value {
         if (a.size() < 2) panicHere("to_bytes: missing length argument");
         int64_t n = a[1].i;
         if (n < 0) panicHere("to_bytes: length must be non-negative");
@@ -1413,7 +1400,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         b.k = VK::Bytes;
         return b;
     });
-    globals_->vars["from_bytes"] = biFn({"b"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["FromBytes"] = biFn({"b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Bytes && a[0].k != VK::Str)
             panicHere("from_bytes: expected bytes");
         const std::string& s = a[0].s;
@@ -1460,7 +1447,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(limbs));
         return v;
     });
-    globals_->vars["bool"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["Bool"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::boolean(truthy(a[0]));
     });
     globals_->vars["type"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
@@ -1482,7 +1469,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }, globals_);
         return acc;
     });
-    globals_->vars["min"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
+    globals_->vars["Min"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
         const Value& xs = a[0];
         bool first = true; Value best;
         iterateSeq(xs, [&](Value& item, Env&) -> bool {
@@ -1493,7 +1480,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (first) panicHere("min(): empty sequence");
         return best;
     });
-    globals_->vars["max"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
+    globals_->vars["Max"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
         const Value& xs = a[0];
         bool first = true; Value best;
         iterateSeq(xs, [&](Value& item, Env&) -> bool {
@@ -1657,7 +1644,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     });
 
     // Phase-3 bigint surface ------------------------------------------------
-    globals_->vars["big_int"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["BigInt"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {
         bignum::Big b;
         if (a[0].k == VK::Int) {
             b = bignum::fromI64(a[0].i);
@@ -1674,7 +1661,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
         return v;
     });
-    globals_->vars["bit_length"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["BitLength"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::BigInt) {
             if (!a[0].limbs) return Value::integer(0);
             return Value::integer(bignum::bitLength(*a[0].limbs));
@@ -1686,7 +1673,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         int n = 0; while (u) { n++; u >>= 1; }
         return Value::integer(n);
     });
-    globals_->vars["bit_count"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["BitCount"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::BigInt) {
             if (!a[0].limbs) return Value::integer(0);
             return Value::integer(bignum::bitCount(*a[0].limbs));
@@ -1697,7 +1684,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         while (u) { c += (u & 1); u >>= 1; }
         return Value::integer(c);
     });
-    globals_->vars["is_prime"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["IsPrime"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Int) {
             int64_t n = a[0].i;
             if (n < 2) return Value::boolean(false);
@@ -1713,7 +1700,7 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         panicHere("is_prime: expected int or bigint");
     });
-    globals_->vars["powmod"] = biFn({"b", "e", "m"}, [](std::vector<Value>& a) -> Value {
+    globals_->vars["PowMod"] = biFn({"b", "e", "m"}, [](std::vector<Value>& a) -> Value {
         bignum::Big base = bignum::fromStr(toStr(a[0]));
         bignum::Big exp  = bignum::fromStr(toStr(a[1]));
         bignum::Big mod  = bignum::fromStr(toStr(a[2]));
@@ -1722,6 +1709,55 @@ globals_->vars["to_int"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(r.limbs));
         return v;
     });
+
+    // Kirn-style: previously checker-only free builtins that the runtime did
+    // not bind. Implemented here so free Trunc/Fract/IsNan/IsInfinite/IsFinite
+    // and ToString work (they used to fail at runtime).
+    globals_->vars["Trunc"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
+        return Value::integer((int64_t)std::trunc(d));
+    });
+    globals_->vars["Fract"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
+        return Value::floating(d - std::trunc(d));
+    });
+    globals_->vars["IsNan"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
+        return Value::boolean(std::isnan(d));
+    });
+    globals_->vars["IsInfinite"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
+        return Value::boolean(std::isinf(d));
+    });
+    globals_->vars["IsFinite"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        double d = a[0].k == VK::Int ? (double)a[0].i : a[0].d;
+        return Value::boolean(std::isfinite(d));
+    });
+    globals_->vars["ToString"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        return Value::str(toStr(a[0]));
+    });
+
+    // Kirn-style dual-named free builtins: each CapCase name also binds the
+    // __CapCase form (e.g. Rational / __Rational). The old snake_case forms
+    // are gone.
+    for (const char* n : {
+             "Ord", "Chr", "BitLength", "BitCount",
+             "Rational", "Numerator", "Denominator",
+             "ToFloat", "ToInt", "ToRational", "FAbs",
+             "Exp", "Log", "Log2", "Log10",
+             "Sin", "Cos", "Tan", "Sinh", "Cosh", "Tanh",
+             "Floor", "Ceil", "Round", "Trunc", "Fract",
+             "IsNan", "IsInfinite", "IsFinite",
+             "BigInt", "IsPrime", "PowMod", "ToBytes", "FromBytes",
+             "HexDigits", "ToString",
+             "RationalAdd", "RationalSub", "RationalMul", "RationalDiv",
+             "RationalPow", "RationalEq", "RationalNe", "RationalLt",
+             "RationalLe", "RationalGt", "RationalGe",
+             "CopySign", "Pow"}) {
+        auto it = globals_->vars.find(n);
+        if (it != globals_->vars.end())
+            globals_->vars[std::string("__") + n] = it->second;
+    }
 
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
@@ -1768,10 +1804,10 @@ static bool resolvePackageEntry(const std::string& dir, std::string& out) {
     std::string manifest;
     if (readFileIfExists(dir + "/kirn.toml", manifest)) {
         // current manifest name
-    } else if (readFileIfExists(dir + "/coco.toml", manifest)) {
-        std::cerr << "note: found 'coco.toml' in '" << dir
+    } else if (readFileIfExists(dir + "/kirn.toml", manifest)) {
+        std::cerr << "note: found 'kirn.toml' in '" << dir
                   << "' but expected 'kirn.toml' (manifest renamed in this "
-                     "release); run:  mv coco.toml kirn.toml\n";
+                     "release); run:  mv kirn.toml kirn.toml\n";
     }
     if (!manifest.empty()) {
         kirn::tomlmini::Doc doc = kirn::tomlmini::parse(manifest);
@@ -2675,24 +2711,71 @@ bool Interpreter::isCmpOp(const std::string& op) {
     return op == "<" || op == "<=" || op == ">" || op == ">=";
 }
 
+// Type-name classification for `is`/`as`/casts and integral method width.
+// Accepts the full spelling surface: classic lowercase micros (i4..i256,
+// u4..u256, f4..f256, uf4..uf256, isize/usize, b8.., char8..) plus the
+// capitalized primitives and caps width families (Int/UInt/Float/UFloat,
+// Int4..UInt256, Float4..UFloat256, ISize/USize, Bool8.., Char8..).
+static bool allDigits(const std::string& s, size_t from) {
+    return s.size() > from &&
+           s.find_first_not_of("0123456789", from) == std::string::npos;
+}
+
+// Width/signedness for an integer type NAME; returns false for unknown.
+static bool intNameBits(const std::string& n, int& bits, bool& isUnsigned) {
+    if (n.empty() || n == "Int" || n == "int" || n == "ISize" ||
+        n == "isize") { bits = 64; isUnsigned = false; return true; }
+    if (n == "UInt" || n == "uint" || n == "USize" || n == "usize") {
+        bits = 64; isUnsigned = true; return true; }
+    if (n.rfind("UInt", 0) == 0 && allDigits(n, 4)) {
+        bits = atoi(n.c_str() + 4); isUnsigned = true; return true; }
+    if (n.rfind("Int", 0) == 0 && allDigits(n, 3)) {
+        bits = atoi(n.c_str() + 3); isUnsigned = false; return true; }
+    if (n.size() >= 2 && n[0] == 'u' && isdigit((unsigned char)n[1]) &&
+        allDigits(n, 1)) { bits = atoi(n.c_str() + 1); isUnsigned = true; return true; }
+    if (n.size() >= 2 && n[0] == 'i' && isdigit((unsigned char)n[1]) &&
+        allDigits(n, 1)) { bits = atoi(n.c_str() + 1); isUnsigned = false; return true; }
+    return false;
+}
+
+static bool isFloatTypeName(const std::string& t) {
+    if (t == "Float" || t == "float" || t == "UFloat") return true;
+    if (t.rfind("UFloat", 0) == 0 && allDigits(t, 6)) return true;
+    if (t.rfind("Float", 0) == 0 && allDigits(t, 5)) return true;
+    if (t.rfind("uf", 0) == 0 && t.size() >= 3 &&
+        isdigit((unsigned char)t[2]) && allDigits(t, 2)) return true;
+    if (t.size() >= 2 && t[0] == 'f' && isdigit((unsigned char)t[1]) &&
+        allDigits(t, 1)) return true;
+    return false;
+}
+
+static bool isBoolTypeName(const std::string& t) {
+    if (t == "Bool" || t == "bool") return true;
+    if (t.rfind("Bool", 0) == 0 && allDigits(t, 4)) return true;
+    if (t.size() >= 2 && t[0] == 'b' && isdigit((unsigned char)t[1]) &&
+        allDigits(t, 1)) return true;
+    return false;
+}
+
+static bool isCharTypeName(const std::string& t) {
+    if (t == "Char" || t == "char") return true;
+    if (t.rfind("Char", 0) == 0 && allDigits(t, 4)) return true;
+    if (t.rfind("char", 0) == 0 && t.size() > 4 &&
+        t.find_first_not_of("0123456789", 4) == std::string::npos) return true;
+    return false;
+}
+
 static bool typeTestMatches(const Value& v, const std::string& t) {
     if (t == "none") return v.k == VK::None;
-    if (t == "string" || t == "str" || t == "strings") return v.k == VK::Str;
+    if (t == "Str" || t == "str" || t == "String" || t == "string" ||
+        t == "strings")
+        return v.k == VK::Str;
     if (t == "bytes") return v.k == VK::Bytes;
-    if (t == "char" || t == "char8" || t == "char16" || t == "char32")
-        return v.k == VK::Char;
-    if (t == "bool" || t == "b8" || t == "b16" || t == "b32")
-        return v.k == VK::Bool;
-    if (t == "int" || t == "i4" || t == "i8" || t == "i16" || t == "i32" ||
-        t == "i64" || t == "i128" || t == "i256" ||
-        t == "u4" || t == "u8" || t == "u16" || t == "u32" || t == "u64" ||
-        t == "u128" || t == "u256" || t == "usize" || t == "isize")
-        return v.k == VK::Int;
-    if (t == "float" || t == "f4" || t == "f8" || t == "f16" || t == "f32" ||
-        t == "f64" || t == "f128" || t == "f256" || t == "uf4" || t == "uf8" ||
-        t == "uf16" || t == "uf32" || t == "uf64" || t == "uf128" ||
-        t == "uf256")
-        return v.k == VK::Float;
+    if (isCharTypeName(t)) return v.k == VK::Char;
+    if (isBoolTypeName(t)) return v.k == VK::Bool;
+    int bits; bool isUnsigned;
+    if (intNameBits(t, bits, isUnsigned)) return v.k == VK::Int;
+    if (isFloatTypeName(t)) return v.k == VK::Float;
     if (t == "list") return v.k == VK::List;
     if (t == "dict") return v.k == VK::Dict;
     if (t == "set")  return v.k == VK::Set;
@@ -3166,32 +3249,27 @@ Value cv = eval(*e.lhs, env);
         case ast::ExKind::Cast: {
             Value v = eval(*e.lhs, env);
             const std::string& t = e.newType->name;
-            if (t == "string" || t == "str") return Value::str(toStr(v));
-            if (t == "int") {
-                if (v.k == VK::Float) return Value::integer((int64_t)v.d);
-                if (v.k == VK::Bool) return Value::integer(v.b ? 1 : 0);
-                if (v.k == VK::Char) return Value::integer((int64_t)v.ch);
-                return v;
+            if (t == "Str" || t == "str" || t == "String" || t == "string")
+                return Value::str(toStr(v));
+            int wb; bool wu;
+            if (intNameBits(t, wb, wu)) {
+                if (wb >= 64) {
+                    if (v.k == VK::Float) return Value::integer((int64_t)v.d);
+                    if (v.k == VK::Bool) return Value::integer(v.b ? 1 : 0);
+                    if (v.k == VK::Char) return Value::integer((int64_t)v.ch);
+                    return v;
+                }
+                if (v.k == VK::Int) {
+                    uint64_t mask = (1ull << wb) - 1;
+                    return Value::integer((int64_t)((uint64_t)v.i & mask));
+                }
             }
-            if (t == "float" || t == "f32" || t == "f64" || t == "f4" ||
-                t == "f8" || t == "f16" || t == "f128" || t == "f256" ||
-                t == "uf4" || t == "uf8" || t == "uf16" || t == "uf32" ||
-                t == "uf64" || t == "uf128" || t == "uf256")
+            if (isFloatTypeName(t))
                 return Value::floating(v.k == VK::Int ? (double)v.i
                                                       : v.k == VK::Float ? v.d
                                                                          : 0.0);
-            if (t == "bool" || t == "b8" || t == "b16" || t == "b32")
-                return Value::boolean(truthy(v));
+            if (isBoolTypeName(t)) return Value::boolean(truthy(v));
             if (v.k == VK::None && t == "none") return v;
-            if ((t == "i4" || t == "i8" || t == "i16" || t == "i32" ||
-                 t == "u4" || t == "u8" || t == "u16" || t == "u32") &&
-                v.k == VK::Int) {
-                int bits = t == "i4" || t == "u4" ? 4
-                                      : t == "i8" || t == "u8" ? 8
-                                      : t == "i16" || t == "u16" ? 16 : 32;
-                uint64_t mask = bits == 64 ? ~0ull : (1ull << bits) - 1;
-                return Value::integer((int64_t)((uint64_t)v.i & mask));
-            }
             if (v.k != VK::None && !typeTestMatches(v, t))
                 panicHere("invalid cast to '" + t + "'");
             return v;
@@ -4223,15 +4301,7 @@ return Value::none();
             // Bare `int`/`isize` use the full i64 (unsigned usize => u64).
             int wb = 64;  bool wu = false;
             const std::string& wn = obj.declTyName;
-            if (wn == "int" || wn == "isize" || wn.empty()) { wb = 64; wu = false; }
-            else if (wn == "usize") { wb = 64; wu = true; }
-            else if (wn.size() >= 2 && wn[0] == 'u' &&
-                     wn[1] >= '0' && wn[1] <= '9') {
-                wb = std::atoi(wn.c_str() + 1); wu = true;
-            } else if (wn.size() >= 2 && wn[0] == 'i' &&
-                       wn[1] >= '0' && wn[1] <= '9') {
-                wb = std::atoi(wn.c_str() + 1); wu = false;
-            }
+            if (!intNameBits(wn, wb, wu)) { wb = 64; wu = false; }
             if (wb < 1 || wb > 64) wb = 64;
             const uint64_t wmask = wb >= 64 ? ~0ull : (1ull << wb) - 1ull;
 
@@ -6291,11 +6361,35 @@ void Interpreter::enableVm() {
     std::unordered_set<std::string> uf;
     for (const auto& kv : funcs_) uf.insert(kv.first);
     std::unordered_set<std::string> bi = {
-        "print","len","sqrt","ord","chr","assert","assert_eq","range","panic",
-        "catch_panic","printf","strlen","str","int","float","bool","type","sum",
-        "min","max","any","all","sorted","reversed","enumerate","map","filter",
-        "reduce","upper","lower","trim","contains","starts_with","ends_with",
-        "replace","split","join","typeof",
+        "print","len","range","panic","catch_panic","printf","strlen",
+        "assert","assert_eq","type","sum","typeof",
+        "any","all","sorted","reversed","enumerate","map","filter","reduce",
+        "upper","lower","trim","contains","starts_with","ends_with","replace",
+        "split","join",
+        // Kirn-style CapCase free builtins (CapCase + __CapCase forms)
+        "__Sqrt","Ord","__Ord","Chr","__Chr",
+        "BitLength","__BitLength","BitCount","__BitCount",
+        "Rational","__Rational","Numerator","__Numerator",
+        "Denominator","__Denominator",
+        "ToFloat","__ToFloat","ToInt","__ToInt","ToRational","__ToRational",
+        "FAbs","__FAbs","__Abs",
+        "Exp","__Exp","Log","__Log","Log2","__Log2","Log10","__Log10",
+        "Sin","__Sin","Cos","__Cos","Tan","__Tan",
+        "Sinh","__Sinh","Cosh","__Cosh","Tanh","__Tanh",
+        "Floor","__Floor","Ceil","__Ceil","Round","__Round",
+        "Trunc","__Trunc","Fract","__Fract",
+        "IsNan","__IsNan","IsInfinite","__IsInfinite","IsFinite","__IsFinite",
+        "BigInt","__BigInt","IsPrime","__IsPrime",
+        "PowMod","__PowMod","ToBytes","__ToBytes","FromBytes","__FromBytes",
+        "HexDigits","__HexDigits","ToString","__ToString",
+        "RationalAdd","__RationalAdd","RationalSub","__RationalSub",
+        "RationalMul","__RationalMul","RationalDiv","__RationalDiv",
+        "RationalPow","__RationalPow","RationalEq","__RationalEq",
+        "RationalNe","__RationalNe","RationalLt","__RationalLt",
+        "RationalLe","__RationalLe","RationalGt","__RationalGt",
+        "RationalGe","__RationalGe",
+        "CopySign","__CopySign","Pow","__Pow",
+        "Str","Int","Float","Bool","Min","Max",
     };
     std::unordered_set<std::string> mod = {
         "math","time","io","mem","json","text","os",
@@ -6490,7 +6584,8 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                     else if (k == B_SUB) res = a - b;
                     else if (k == B_MUL) res = a * b;
                     else if (k == B_DIV) res = a / b;
-                    else if (k == B_MOD) res = std::fmod(a, b);
+                    else if (k == B_MOD)
+                        res = std::fmod(std::fmod(a, b) + b, b);
                     else res = std::pow(a, b);
                     out.k = VK::Float; out.u.d = res; return true;
                 }
@@ -6498,8 +6593,15 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                 if (k == B_ADD) res = a + b;
                 else if (k == B_SUB) res = a - b;
                 else if (k == B_MUL) res = a * b;
-                else if (k == B_DIV) { out.k = VK::Float; out.u.d = (double)a / (double)b; return true; }
-                else if (k == B_MOD) res = a % b;
+                else if (k == B_DIV) {
+                    if (b == 0) return false;
+                    out.k = VK::Float; out.u.d = (double)a / (double)b; return true;
+                }
+                else if (k == B_MOD) {
+                    if (b == 0) return false;
+                    res = a % b;
+                    if (res != 0 && ((res < 0) != (b < 0))) res += b;
+                }
                 else { out.k = VK::Float; out.u.d = std::pow((double)a, (double)b); return true; }
                 out.k = VK::Int; out.u.i = res; return true;
             }

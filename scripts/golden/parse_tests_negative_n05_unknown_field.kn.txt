@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n05_unknown_field.kn
 StructDef "Point"
-  Field "x" : int
+  Field "x" : Int
 Assign
   Target Ident "p"
   Value 

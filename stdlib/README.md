@@ -27,6 +27,6 @@ Each `*_test.kn` runs under `kirn test`. Add a new module by dropping
 
 ## Conventions
 
-- Public entry points are declared `pub def` (visible to importers); see
+- Public entry points are declared `pub fn` (visible to importers); see
   `examples/21_modules_visibility.kn`.
 - Keep modules dependency-light and side-effect-free at import time.

@@ -6,28 +6,28 @@ struct Vec2 {
 
 }
 impl Add for Vec2 {
-    def add(self, other: Vec2) -> Vec2 {
+    fn add(self, other: Vec2) -> Vec2 {
         return Vec2(x: self.x + other.x, y: self.y + other.y);
 
 }
 }
 impl Eq for Vec2 {
-    def eq(self, other: Vec2) -> bool {
+    fn eq(self, other: Vec2) -> Bool {
         return self.x == other.x and self.y == other.y;
 
 }
 }
 struct Grid {
-    cells: list[int];
+    cells: list[Int];
 
 }
 impl Index for Grid {
-    def index(self, i: int) -> int {
+    fn index(self, i: Int) -> Int {
         return self.cells[i];
 
 }
 }
-def main() -> none {
+fn main() -> none {
     a = Vec2(x: 1.0, y: 2.0);
     b = Vec2(x: 3.0, y: 4.0);
     c = a + b; # calls Add.add

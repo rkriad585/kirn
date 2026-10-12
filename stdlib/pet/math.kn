@@ -2,11 +2,11 @@
 # Built on the runtime `sqrt`/`abs`/`float`/`int` builtins. Import with:
 #   import pet.math;
 
-pub const PI: float = 3.1415926535897932384;
-pub const E: float = 2.7182818284590452353;
+pub const PI: Float = 3.1415926535897932384;
+pub const E: Float = 2.7182818284590452353;
 
 # Square root via Newton's method (pure Kirn, no native sqrt needed).
-pub def sqrt(x: float) -> float {
+pub fn sqrt(x: Float) -> Float {
     if x <= 0.0 { return 0.0; }
     g = x;
     i = 0;
@@ -18,32 +18,32 @@ pub def sqrt(x: float) -> float {
     return g;
 }
 
-pub def abs(x) -> none {
+pub fn abs(x) -> none {
     if x < 0 { return -x; }
     return x;
 }
 
 # Clamp x into [lo, hi] (lo <= hi).
-pub def clamp(x: float, lo: float, hi: float) -> float {
+pub fn clamp(x: Float, lo: Float, hi: Float) -> Float {
     if x < lo { return lo; }
     if x > hi { return hi; }
     return x;
 }
 
 # Smaller of two values (works for numbers; strings compare lexically).
-pub def min2(a, b) -> none {
+pub fn min2(a, b) -> none {
     if a < b { return a; }
     return b;
 }
 
 # Larger of two values.
-pub def max2(a, b) -> none {
+pub fn max2(a, b) -> none {
     if a > b { return a; }
     return b;
 }
 
 # Integer exponentiation: base^exp (exp >= 0).
-pub def ipow(base: int, exp: int) -> int {
+pub fn ipow(base: Int, exp: Int) -> Int {
     r = 1;
     i = 0;
     while i < exp {
@@ -54,7 +54,7 @@ pub def ipow(base: int, exp: int) -> int {
 }
 
 # Floating power via repeated squaring (exp integral).
-pub def fpow(base: float, exp: int) -> float {
+pub fn fpow(base: Float, exp: Int) -> Float {
     r = 1.0;
     i = 0;
     while i < exp {

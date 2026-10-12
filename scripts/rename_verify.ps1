@@ -33,7 +33,7 @@
 #   after the brand. The brand pattern therefore matches the standalone word OR
 #   the identifier prefix/suffix.
 # * The old-source-extension pattern must exclude a following "." so a domain
-#   like foo.co.uk is not a violation, while a real old-extension file is.
+#   like foo.kn.uk is not a violation, while a real old-extension file is.
 # * This file cannot be free of the tokens: the extension pattern is a literal
 #   regex, and the brand appears nowhere else. It therefore exempts ITSELF via
 #   scripts/rename_allowlist.txt, which is why its own name is listed there.
@@ -140,9 +140,9 @@ $brand = '([Cc][Oo][Cc][Oo])([^A-Za-z0-9]|$)|[Cc][Oo][Cc][Oo][_-]'
 # The old CLI tool names concatenated the brand directly onto a verb
 # (brand+run / brand+check / brand+lex / brand+parse), leaving no separator for
 # the branch above to match. They are listed explicitly rather than loosening
-# the boundary, which would re-admit ordinary words like "coconut".
+# the boundary, which would re-admit ordinary words like "kirnnut".
 $brandTool = '[Cc][Oo][Cc][Oo](run|check|lex|parse|doc|test)'
-$oldExtension = '\.co([^A-Za-z0-9.]|$)'
+$oldExtension = '\.kn([^A-Za-z0-9.]|$)'
 $oldImport = 'import[[:space:]]+lib\.'
 
 $allow = Read-Allowlist

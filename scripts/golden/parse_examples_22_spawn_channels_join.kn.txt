@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/22_spawn_channels_join.kn
 FuncDef "worker"
-  Param "jobs" : chan[int]
-  Param "done" : chan[int]
+  Param "jobs" : chan[Int]
+  Param "done" : chan[Int]
   Ret none
   Body
     For
@@ -24,7 +24,7 @@ FuncDef "main"
       Value 
         Call
           Callee 
-            New type=chan[int]
+            New type=chan[Int]
           Arg name=cap
             Value Int "8"
     Assign
@@ -32,7 +32,7 @@ FuncDef "main"
       Value 
         Call
           Callee 
-            New type=chan[int]
+            New type=chan[Int]
     Assign
       Target Ident "handles"
       Value 
@@ -129,7 +129,7 @@ FuncDef "main"
                         Lhs Str "job "
                         Rhs 
                           Call
-                            Callee Ident "str"
+                            Callee Ident "Str"
                             Arg
                               Value Ident "r"
                     Rhs Str " finished"

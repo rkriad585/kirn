@@ -1,6 +1,6 @@
 # expect: match over integers/chars is non-exhaustive: add a 'case _' wildcard arm
 # 5.4 - integer match must end in a `case _` wildcard arm.
-def classify(n: int) -> string {
+fn classify(n: Int) -> Str {
     match n {
         case 0 { return "zero"; }
         case 1 { return "one"; }

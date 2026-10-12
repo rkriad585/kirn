@@ -15,7 +15,7 @@
 # therefore printed in the HIR dump as `lo..hi` / `lo..=hi` and the gate greps for
 # both, so a regression is visible in the dump as well as in the behaviour.
 
-def describe(n: int) -> string {
+fn describe(n: Int) -> Str {
     match n {
         case 0 { return "zero"; }
         case 1..=9 { return "small"; }
@@ -24,7 +24,7 @@ def describe(n: int) -> string {
     }
 }
 
-def sign(n: int) -> string {
+fn sign(n: Int) -> Str {
     match n {
         case 0 { return "zero"; }
         case x if x < 0 { return "negative"; }
@@ -32,23 +32,23 @@ def sign(n: int) -> string {
     }
 }
 
-def head_and_tail(xs: list) -> string {
+fn head_and_tail(xs: list) -> Str {
     match xs {
         case [] { return "empty"; }
-        case [only] { return "one: " + str(only); }
-        case [first, ..rest] { return "first: " + str(first) + " rest: " + str(len(rest)); }
+        case [only] { return "one: " + Str(only); }
+        case [first, ..rest] { return "first: " + Str(first) + " rest: " + Str(len(rest)); }
     }
 }
 
-def alias_or(n: int) -> string {
+fn alias_or(n: Int) -> Str {
     match n {
-        case v @ (1..=5) { return "small " + str(v); }
+        case v @ (1..=5) { return "small " + Str(v); }
         case 7 | 8 | 9 { return "lucky"; }
         case _ { return "other"; }
     }
 }
 
-def main() -> none {
+fn main() -> none {
     print(describe(0));
     print(describe(5));      # inclusive: 1..=9 contains 5
     print(describe(9));      # inclusive: and 9

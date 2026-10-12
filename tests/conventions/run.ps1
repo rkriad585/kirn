@@ -51,28 +51,28 @@ Write-Host "== run-entry resolution =="
 
 # 1. code/main.kn entry (the classic scaffold)
 $p = Join-Path $tmp "a"
-SetFile (Join-Path $p "code\main.kn") "def main() { print(`"A`"); }"
+SetFile (Join-Path $p "code\main.kn") "fn main() { print(`"A`"); }"
 $r = RunKirn @("run", $p)
 Check "code/main.kn entry" ($r.Code -eq 0 -and $r.Out -match "A") $r.Out
 
 # 2. manifest main = other path wins over code/main.kn
 $p = Join-Path $tmp "b"
 SetFile (Join-Path $p "kirn.toml") "[package]`nname=`"b`"`nmain=`"start.kn`"`n"
-SetFile (Join-Path $p "start.kn") "def main() { print(`"Bmain`"); }"
-SetFile (Join-Path $p "code\main.kn") "def main() { print(`"Bcode`"); }"
+SetFile (Join-Path $p "start.kn") "fn main() { print(`"Bmain`"); }"
+SetFile (Join-Path $p "code\main.kn") "fn main() { print(`"Bcode`"); }"
 $r = RunKirn @("run", $p)
 Check "manifest main preferred" ($r.Code -eq 0 -and $r.Out -match "Bmain") $r.Out
 
 # 3. pin.kn as the only entry (library-style, run directly)
 $p = Join-Path $tmp "c"
-SetFile (Join-Path $p "pin.kn") "pub def main() { print(`"C`"); }"
+SetFile (Join-Path $p "pin.kn") "pub fn main() { print(`"C`"); }"
 $r = RunKirn @("run", $p)
 Check "pin.kn as run entry" ($r.Code -eq 0 -and $r.Out -match "C") $r.Out
 
 # 4. no entry -> helpful fix-it error
 $p = Join-Path $tmp "d"
 New-Item -ItemType Directory -Path $p -Force | Out-Null
-SetFile (Join-Path $p "code\util.kn") "pub def u() -> int { return 1; }"
+SetFile (Join-Path $p "code\util.kn") "pub fn u() -> int { return 1; }"
 $r = RunKirn @("run", $p)
 Check "no entry -> fix-it error" ($r.Code -ne 0 -and $r.Out -match "no entry point") $r.Out
 
@@ -83,14 +83,14 @@ $p = Join-Path $tmp "proj"
 SetFile (Join-Path $p "pets\greet\code\pin.kn") @"
 var loads = 0;
 loads = loads + 1;
-pub def load_count() -> int { return loads; }
-pub def hi(who: string) -> string { return "hi " + who; }
+pub fn load_count() -> int { return loads; }
+pub fn hi(who: string) -> string { return "hi " + who; }
 "@
 SetFile (Join-Path $p "main.kn") @"
 import greet;
 import greet as g2;
 import greet as g3;
-def main() {
+fn main() {
     print("count=", greet.load_count());
     print(greet.hi("world"));
 }
@@ -102,11 +102,11 @@ Check "pin.kn pub surface" ($r.Code -eq 0 -and $r.Out -match "hi world") $r.Out
 # 6. pin.kn without a manifest, discovered in code/
 $p = Join-Path $tmp "proj2"
 SetFile (Join-Path $p "pets\nomanifest\code\pin.kn") @"
-pub def poke() -> string { return "poked"; }
+pub fn poke() -> string { return "poked"; }
 "@
 SetFile (Join-Path $p "main.kn") @"
 import nomanifest;
-def main() { print(nomanifest.poke()); }
+fn main() { print(nomanifest.poke()); }
 "@
 $r = RunKirn @("run", $p)
 Check "pin.kn discovered w/o manifest" ($r.Code -eq 0 -and $r.Out -match "poked") $r.Out

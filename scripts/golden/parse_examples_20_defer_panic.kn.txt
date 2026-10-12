@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/20_defer_panic.kn
 FuncDef "process"
-  Param "path" : string
+  Param "path" : Str
   Ret none
   Body
     Assign
@@ -29,8 +29,8 @@ FuncDef "process"
                 Interp
                   Value Ident "path"
 FuncDef "risky"
-  Param "n" : int
-  Ret int
+  Param "n" : Int
+  Ret Int
   Body
     If
       Cond 
@@ -50,7 +50,7 @@ FuncDef "risky"
           Lhs Ident "n"
           Rhs Ident "n"
 FuncDef "try_risky"
-  Ret int
+  Ret Int
   Body
     Return
       Value 

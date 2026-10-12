@@ -1,5 +1,5 @@
 # 03 — Literals & checked casts           (plan §5.1, §5.4)
-def main() -> none {
+fn main() -> none {
     big: i64 = 9_000_000_000; # digit separators
     tiny: i8 = 127;
     mask: u32 = 0xFF_FF; # hex literal
@@ -7,7 +7,7 @@ def main() -> none {
     mode = 0o755; # octal literal
 
     ratio: f64 = 1e-9; # exponent float
-    letter: char = 'A';
+    letter: Char = 'A';
     raw = r"C:\path\with\noescape"; # raw string: backslashes verbatim
     blob = b"\x00\x01"; # byte string
 

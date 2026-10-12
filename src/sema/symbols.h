@@ -53,7 +53,7 @@ struct Symbol {
 
     FuncSig sig;                      // Func
 
-    // Generic Func: type-param name -> resolved default type (`def f[T = int]`).
+    // Generic Func: type-param name -> resolved default type (`fn f[T = int]`).
     // Empty when the function declares no defaults. Read at call sites so an
     // unconstrained TypeVar in the return type becomes its default.
     std::map<std::string, TyP> typeDefaults;

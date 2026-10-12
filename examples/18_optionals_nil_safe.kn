@@ -1,5 +1,5 @@
 # 18 — Optionals: T?, none, nil-safe access   (plan §5.4)
-def find(xs: list[int], target: int) -> int? { # option sugar: int? == option[int]
+fn find(xs: list[Int], target: Int) -> Int? { # option sugar: int? == option[int]
     for i in 0..len(xs) {
         if xs[i] == target {
             return xs[i];
@@ -8,7 +8,7 @@ def find(xs: list[int], target: int) -> int? { # option sugar: int? == option[in
     return none;
 
 }
-def main() -> none {
+fn main() -> none {
     hit = find([10, 20, 30], 20);
     miss = find([10, 20, 30], 99);
 

@@ -8,28 +8,28 @@ priv_now = time.now;
 priv_ms = time.now;
 priv_sleep = time.sleep;
 
-# Seconds since epoch as float (millisecond precision from the substrate).
-pub def now() -> float {
-    return float(priv_now()) / 1000.0;
+# Seconds since epoch as Float (millisecond precision from the substrate).
+pub fn now() -> Float {
+    return Float(priv_now()) / 1000.0;
 }
 
 # Epoch milliseconds as int.
-pub def now_ms() -> int {
+pub fn now_ms() -> Int {
     return priv_ms();
 }
 
 # Sleep for ms milliseconds (no-op in < 0).
-pub def sleep(ms: int) -> none {
+pub fn sleep(ms: Int) -> none {
     if ms < 0 { return; }
     priv_sleep(ms);
 }
 
 # Human-readable positive-integer ordinal suffix: 1st, 2nd, 3rd, 11th, 21st...
-pub def ordinal(n: int) -> string {
-    if n >= 11 and n <= 13 { return str(n) + "th"; }
+pub fn ordinal(n: Int) -> Str {
+    if n >= 11 and n <= 13 { return Str(n) + "th"; }
     r = n % 10;
-    if r == 1 { return str(n) + "st"; }
-    if r == 2 { return str(n) + "nd"; }
-    if r == 3 { return str(n) + "rd"; }
-    return str(n) + "th";
+    if r == 1 { return Str(n) + "st"; }
+    if r == 2 { return Str(n) + "nd"; }
+    if r == 3 { return Str(n) + "rd"; }
+    return Str(n) + "th";
 }

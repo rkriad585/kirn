@@ -97,6 +97,11 @@ try {
     throw "archive did not contain bin\kirn.exe at $Prefix"
   }
 
+  $cexe = Join-Path $Prefix "bin\kirnc.exe"
+  if (-not (Test-Path -LiteralPath $cexe)) {
+    throw "archive did not contain bin\kirnc.exe at $Prefix"
+  }
+
   if (-not $NoModifyPath) {
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $bindir = Join-Path $Prefix "bin"

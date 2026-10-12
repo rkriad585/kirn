@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/31_advanced_patterns.kn
 FuncDef "fizzbuzz" pub
-  Param "n" : int
-  Ret string
+  Param "n" : Int
+  Ret Str
   Body
     Match
       Subject Ident "n"
@@ -59,8 +59,8 @@ FuncDef "fizzbuzz" pub
     Return
       Value Str "?"
 FuncDef "classify" pub
-  Param "inputs" : list[int]
-  Ret list[string]
+  Param "inputs" : list[Int]
+  Ret list[Str]
   Body
     Assign
       Target Ident "out"

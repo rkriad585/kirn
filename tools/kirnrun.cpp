@@ -52,16 +52,16 @@ void addModuleDirs(kirn::interp::Interpreter& interp,
         interp.addStdlibDir(dir);
 }
 
-// Phase 8: the COCO_* env vars became KIRN_* and are a hard cut - never read.
+// Phase 8: the KIRN_* env vars became KIRN_* and are a hard cut - never read.
 // If a user/script still exports the old names, say so once instead of silently
 // dropping the value (a stale var quietly losing effect is how module paths
 // silently stop applying).
 void warnLegacyEnv() {
     std::string found;
-    if (std::getenv("COCO_LIBS")) found = "COCO_LIBS -> KIRN_PETS";
-    if (std::getenv("COCO_STDLIB")) {
+    if (std::getenv("KIRN_LIBS")) found = "KIRN_LIBS -> KIRN_PETS";
+    if (std::getenv("KIRN_STDLIB")) {
         if (!found.empty()) found += ", ";
-        found += "COCO_STDLIB -> KIRN_STDLIB";
+        found += "KIRN_STDLIB -> KIRN_STDLIB";
     }
     if (!found.empty())
         std::cerr << "warning: " << found
@@ -88,7 +88,7 @@ static int runSources(const std::string& label, const std::string& src,
         // directly rather than just wanting an AST), so without this line
         // a file using macros type-checks under `kirn run` and fails to
         // PARSE under `kirnrun` with "expected expression, found '.'" on
-        // the {.def.} line: two tools disagreeing about the same file.
+        // the {.fn.} line: two tools disagreeing about the same file.
         toks = kirn::prepro::Preprocessor(label, diags).run(std::move(toks));
     }
     if (diags.errorCount() == 0) {

@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/42_control_goto_gather.kn
-Ident	21:1	def
-Ident	21:5	main
-Punct	21:9	(
-Punct	21:10	)
-Op	21:12	->
-Ident	21:15	none
-Punct	21:20	{
+Ident	21:1	fn
+Ident	21:4	main
+Punct	21:8	(
+Punct	21:9	)
+Op	21:11	->
+Ident	21:14	none
+Punct	21:19	{
 Ident	23:5	n
 Op	23:7	=
 Int	23:9	5
@@ -34,7 +34,7 @@ Ident	26:5	print
 Punct	26:10	(
 Str	26:11	doTotal=
 Op	26:22	+
-Ident	26:24	str
+Ident	26:24	Str
 Punct	26:27	(
 Ident	26:28	total
 Punct	26:33	)
@@ -58,7 +58,7 @@ Ident	30:5	print
 Punct	30:10	(
 Str	30:11	doOnce=
 Op	30:21	+
-Ident	30:23	str
+Ident	30:23	Str
 Punct	30:26	(
 Ident	30:27	z
 Punct	30:28	)
@@ -116,7 +116,7 @@ Ident	41:5	print
 Punct	41:10	(
 Str	41:11	searchSum=
 Op	41:24	+
-Ident	41:26	str
+Ident	41:26	Str
 Punct	41:29	(
 Ident	41:30	sum
 Punct	41:33	)
@@ -153,7 +153,7 @@ Ident	50:5	print
 Punct	50:10	(
 Str	50:11	gotoTotal=
 Op	50:24	+
-Ident	50:26	str
+Ident	50:26	Str
 Punct	50:29	(
 Ident	50:30	total2
 Punct	50:36	)
@@ -197,7 +197,7 @@ Ident	59:5	print
 Punct	59:10	(
 Str	59:11	gatherVisited=
 Op	59:28	+
-Ident	59:30	str
+Ident	59:30	Str
 Punct	59:33	(
 Ident	59:34	visited
 Punct	59:41	)
@@ -236,7 +236,7 @@ Ident	67:5	print
 Punct	67:10	(
 Str	67:11	gatherBfs=
 Op	67:24	+
-Ident	67:26	str
+Ident	67:26	Str
 Punct	67:29	(
 Ident	67:30	out
 Punct	67:33	)
@@ -250,7 +250,7 @@ Ident	71:5	print
 Punct	71:10	(
 Str	71:11	nilv=
 Op	71:19	+
-Ident	71:21	str
+Ident	71:21	Str
 Punct	71:24	(
 Ident	71:25	v
 Punct	71:26	)
@@ -260,7 +260,7 @@ Ident	72:5	print
 Punct	72:10	(
 Str	72:11	nan=|
 Op	72:19	+
-Ident	72:21	str
+Ident	72:21	Str
 Punct	72:24	(
 Ident	72:25	NaN
 Punct	72:28	)
@@ -272,7 +272,7 @@ Ident	73:5	print
 Punct	73:10	(
 Str	73:11	inf=
 Op	73:18	+
-Ident	73:20	str
+Ident	73:20	Str
 Punct	73:23	(
 Ident	73:24	inf
 Punct	73:27	)

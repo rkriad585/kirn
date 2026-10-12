@@ -6,50 +6,50 @@
 # to strings so int/str keys unify; lookups are O(1) amortized.
 pub struct HashMap {
     var buckets: dict;
-    def put(self, k, v) -> none {
-        self.buckets[str(k)] = v;
+    fn put(self, k, v) -> none {
+        self.buckets[Str(k)] = v;
     }
-    def get(self, k) -> none {
+    fn get(self, k) -> none {
         d = self.buckets;
-        return d[str(k)];
+        return d[Str(k)];
     }
-    def has(self, k) -> bool {
+    fn has(self, k) -> Bool {
         d = self.buckets;
-        return str(k) in d;
+        return Str(k) in d;
     }
-    def remove(self, k) -> none {
+    fn remove(self, k) -> none {
         d = self.buckets;
-        key = str(k);
+        key = Str(k);
         if key in d {
             d.remove(key);
         }
     }
-    def size(self) -> int {
+    fn size(self) -> Int {
         return self.buckets.len();
     }
 }
 
 # Split a string on a separator into a list of parts ("" -> empty when empty).
-pub def split(s: string, sep: string) -> list {
+pub fn split(s: Str, sep: Str) -> list {
     if s == "" { return []; }
     return s.split(sep);
 }
 
 # Join a list of values with sep. Note the argument order differs from the
 # low-level `join` builtin (sep, xs) - this is (parts, sep) for readability.
-pub def join(parts: list, sep: string) -> string {
+pub fn join(parts: list, sep: Str) -> Str {
     if parts.len() == 0 { return ""; }
-    out = str(parts[0]);
+    out = Str(parts[0]);
     i = 1;
     while i < parts.len() {
-        out = out + sep + str(parts[i]);
+        out = out + sep + Str(parts[i]);
         i = i + 1;
     }
     return out;
 }
 
 # True if xs contains an element equal to value.
-pub def contains(xs: list, value) -> bool {
+pub fn contains(xs: list, value) -> Bool {
     for x in xs {
         if x == value { return true; }
     }
@@ -57,12 +57,12 @@ pub def contains(xs: list, value) -> bool {
 }
 
 # Return a new list of unique elements (first-occurrence order preserved).
-pub def unique(xs: list) -> list {
+pub fn unique(xs: list) -> list {
     seen = {};
     out = [];
     for x in xs {
-        if not (str(x) in seen) {
-            seen[str(x)] = true;
+        if not (Str(x) in seen) {
+            seen[Str(x)] = true;
             out.append(x);
         }
     }
@@ -70,11 +70,11 @@ pub def unique(xs: list) -> list {
 }
 
 # Fisher-Yates shuffle of a copy.
-pub def shuffle(xs: list) -> list {
+pub fn shuffle(xs: list) -> list {
     out = [] + xs;
     i = out.len() - 1;
     while i > 0 {
-        j = int(rand_float() * float(i + 1));
+        j = Int(rand_float() * Float(i + 1));
         if j > i { j = i; }
         tmp = out[i];
         out[i] = out[j];
@@ -84,6 +84,6 @@ pub def shuffle(xs: list) -> list {
     return out;
 }
 
-pub def rand_float() -> float {
-    return float(time.now() % 100000) / 100000.0;
+pub fn rand_float() -> Float {
+    return Float(time.now() % 100000) / 100000.0;
 }

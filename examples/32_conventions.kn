@@ -8,7 +8,7 @@ import greet;
 import greet as via;      # importing again binds a second name...
 import greet as again;    # ...but pin.kn still runs ONCE, not three times
 
-def main() -> none {
+fn main() -> none {
     # the package's module state and pub API come from that single init
     print("load_count =", greet.load_count());     # 1, not 3
     print("via        =", via.load_count());       # share the same greeting

@@ -1,16 +1,16 @@
 # 10 — Patterns: tuples, constructors, type tests   (plan §5.7)
 struct Point {
-    x: int;
-    y: int;
+    x: Int;
+    y: Int;
 
 }
 enum Shape {
-    Circle(radius: int),
-    Rect(w: int, h: int),
+    Circle(radius: Int),
+    Rect(w: Int, h: Int),
     Dot,
 
 }
-def area(s: Shape) -> int {
+fn area(s: Shape) -> Int {
     match s {
         case Circle(r) { # positional payload binding
             return 3 * r * r;
@@ -24,7 +24,7 @@ def area(s: Shape) -> int {
 }
 }
 }
-def main() -> none {
+fn main() -> none {
     p = Point(x: 3, y: 4);
     match p {
         case Point(x: 0, y) { # named-field pattern with literal
@@ -47,7 +47,7 @@ def main() -> none {
         case 200..=299 {
             print("success range");
 }
-        case other is string { # binding with type test (never true here)
+        case other is Str { # binding with type test (never true here)
             print(other);
 }
         case _ {}

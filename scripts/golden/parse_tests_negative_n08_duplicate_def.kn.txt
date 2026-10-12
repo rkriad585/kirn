@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n08_duplicate_def.kn
 FuncDef "f"
-  Ret int
+  Ret Int
   Body
     Return
       Value Int "1"
 FuncDef "f"
-  Ret int
+  Ret Int
   Body
     Return
       Value Int "2"

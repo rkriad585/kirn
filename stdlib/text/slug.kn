@@ -1,15 +1,15 @@
 # stdlib/text/slug.kn — URL slugification (pure Kirn, no native stubs)
 #
 # Converts arbitrary text into a lowercase, hyphen-separated identifier:
-#   "Hello, Coco World!"  ->  "hello-coco-world"
+#   "Hello, Kirn World!"  ->  "hello-kirn-world"
 # Collapsing runs of separators and trimming leading/trailing hyphens
 # mirrors the behavior of the original builtin stub.
 
-pub def slugify(s: string) -> string {
+pub fn slugify(s: Str) -> Str {
     out = "";
     hyphen = false;
     for ch in s {
-        c = ord(ch);
+        c = Ord(ch);
         if c >= 65 and c <= 90 { # 'A'..'Z' -> lowercase
             c = c + 32;
 }
@@ -18,7 +18,7 @@ pub def slugify(s: string) -> string {
             if hyphen and out != "" {
                 out = out + "-";
 }
-            out = out + chr(c);
+            out = out + Chr(c);
             hyphen = false;
         } elif out != "" {
             hyphen = true;
@@ -30,12 +30,12 @@ pub def slugify(s: string) -> string {
 }
     return out;
 }
-pub def is_slug(s: string) -> bool {
+pub fn is_slug(s: Str) -> Bool {
     if s == "" {
         return false;
 }
     for ch in s {
-        c = ord(ch);
+        c = Ord(ch);
         ok = (c >= 97 and c <= 122) or (c >= 48 and c <= 57) or ch == '-';
         if not ok {
             return false;

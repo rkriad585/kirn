@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnc -E <ROOT>/tests/macros/hygiene_leak.kn
-Ident	6:1	def
-Ident	6:5	main
-Punct	6:9	(
-Punct	6:10	)
-Op	6:12	->
-Ident	6:15	none
-Punct	6:20	{
+Ident	6:1	fn
+Ident	6:4	main
+Punct	6:8	(
+Punct	6:9	)
+Op	6:11	->
+Ident	6:14	none
+Punct	6:19	{
 Ident	7:3	tmp
 Op	7:7	=
 Int	7:9	1

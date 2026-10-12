@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n03_return_mismatch.kn
 FuncDef "f"
-  Ret int
+  Ret Int
   Body
     Return
       Value Str "oops"

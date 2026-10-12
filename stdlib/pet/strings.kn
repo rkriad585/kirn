@@ -2,42 +2,42 @@
 # Built on the runtime string builtins (upper/lower/trim/replace/split/...)
 # plus additional Kirn-defined utilities. Import with: import pet.strings;
 
-pub def contains(s: string, sub: string) -> bool {
+pub fn contains(s: Str, sub: Str) -> Bool {
     return s.contains(sub);
 }
 
-pub def starts_with(s: string, prefix: string) -> bool {
+pub fn starts_with(s: Str, prefix: Str) -> Bool {
     return s.starts_with(prefix);
 }
 
-pub def ends_with(s: string, suffix: string) -> bool {
+pub fn ends_with(s: Str, suffix: Str) -> Bool {
     return s.ends_with(suffix);
 }
 
 # Repeatedly replace all occurrences of `from` with `to`.
-pub def replace_all(s: string, from: string, to: string) -> string {
+pub fn replace_all(s: Str, from: Str, to: Str) -> Str {
     return s.replace(from, to);
 }
 
 # Split into a list of parts; empty separators split per character.
-pub def split(s: string, sep: string) -> list {
+pub fn split(s: Str, sep: Str) -> list {
     return s.split(sep);
 }
 
 # Join a list of strings with sep.
-pub def join(parts: list, sep: string) -> string {
+pub fn join(parts: list, sep: Str) -> Str {
     if parts.len() == 0 { return ""; }
-    out = str(parts[0]);
+    out = Str(parts[0]);
     i = 1;
     while i < parts.len() {
-        out = out + sep + str(parts[i]);
+        out = out + sep + Str(parts[i]);
         i = i + 1;
     }
     return out;
 }
 
 # Repeat s n times (n <= 0 returns "").
-pub def repeat(s: string, n: int) -> string {
+pub fn repeat(s: Str, n: Int) -> Str {
     out = "";
     i = 0;
     while i < n {
@@ -48,12 +48,12 @@ pub def repeat(s: string, n: int) -> string {
 }
 
 # Reverse a string (per code point).
-pub def reverse(s: string) -> string {
+pub fn reverse(s: Str) -> Str {
     return join(reversed(s.split("")), "");
 }
 
 # Left-pad s to at least `width` chars with `pad` (or a space).
-pub def pad_left(s: string, width: int, pad: string) -> string {
+pub fn pad_left(s: Str, width: Int, pad: Str) -> Str {
     p = pad;
     if p == "" { p = " "; }
     while s.len() < width {
@@ -63,7 +63,7 @@ pub def pad_left(s: string, width: int, pad: string) -> string {
 }
 
 # Right-pad s to at least `width` chars with `pad` (or a space).
-pub def pad_right(s: string, width: int, pad: string) -> string {
+pub fn pad_right(s: Str, width: Int, pad: Str) -> Str {
     p = pad;
     if p == "" { p = " "; }
     while s.len() < width {
@@ -73,6 +73,6 @@ pub def pad_right(s: string, width: int, pad: string) -> string {
 }
 
 # Strip chars in `set` from both ends (default: whitespace).
-pub def strip(s: string) -> string {
+pub fn strip(s: Str) -> Str {
     return s.trim();
 }

@@ -82,11 +82,11 @@ std::string tyName(const Func& f, Type t) {
     std::string base = e.name;
     switch (e.kind) {
         case Ty::Void: base = "void"; break;
-        case Ty::Bool: base = "bool"; break;
-        case Ty::Int: if (base.empty()) base = "int"; break;
-        case Ty::Float: if (base.empty()) base = "float"; break;
-        case Ty::Char: if (base.empty()) base = "char"; break;
-        case Ty::Str: base = "str"; break;
+        case Ty::Bool: base = "Bool"; break;
+        case Ty::Int: if (base.empty()) base = "Int"; break;
+        case Ty::Float: if (base.empty()) base = "Float"; break;
+        case Ty::Char: if (base.empty()) base = "Char"; break;
+        case Ty::Str: base = "Str"; break;
         case Ty::Bytes: base = "bytes"; break;
         case Ty::CStr: base = "cstr"; break;
         case Ty::List: base = "list"; break;

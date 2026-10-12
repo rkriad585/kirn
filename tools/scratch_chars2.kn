@@ -1,1 +1,1 @@
-def main() -> none { s = "abc"; ch = s.chars(); print(ch); print(len(ch)); }
+fn main() -> none { s = "abc"; ch = s.chars(); print(ch); print(len(ch)); }

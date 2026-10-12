@@ -1,9 +1,9 @@
-def main() -> none {
-    print(ord('\u{0}'));
-    print(ord('\\'), ord('\''), ord('"'), ord('{'), ord('}'));
-    print(ord('\n'), ord('\r'), ord('\t'), ord(' '), ord('.'));
-    print(ord('x'), ord('e'), ord('E'), ord('+'), ord('-'));
-    print(ord('0'), ord('9'), ord('a'), ord('z'), ord('A'), ord('Z'), ord('_'));
+fn main() -> none {
+    print(Ord('\u{0}'));
+    print(Ord('\\'), Ord('\''), Ord('"'), Ord('{'), Ord('}'));
+    print(Ord('\n'), Ord('\r'), Ord('\t'), Ord(' '), Ord('.'));
+    print(Ord('x'), Ord('e'), Ord('E'), Ord('+'), Ord('-'));
+    print(Ord('0'), Ord('9'), Ord('a'), Ord('z'), Ord('A'), Ord('Z'), Ord('_'));
     s = "a\tb";
     print(s, len(s));
 }

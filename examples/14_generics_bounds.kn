@@ -1,5 +1,5 @@
 # 14 — Generics with bounds               (plan §5.9)
-def first[T](items: list[T]) -> T { # generic function, monomorphized
+fn first[T](items: list[T]) -> T { # generic function, monomorphized
     return items[0];
 
 }
@@ -9,24 +9,24 @@ struct Pair[A, B] { # generic struct
 
 }
 trait Hashable {
-    def hash(self) -> u64;
+    fn hash(self) -> u64;
 
 }
 struct Key {
-    code: int;
+    code: Int;
 
 }
 impl Hashable for Key {
-    def hash(self) -> u64 {
+    fn hash(self) -> u64 {
         return self.code as u64 * 2654435761 % 4294967296;
 
 }
 }
-def hash_bucket[T is Hashable](item: T) -> u64 { # trait bound checked at DEFINITION site
+fn hash_bucket[T is Hashable](item: T) -> u64 { # trait bound checked at DEFINITION site
     return item.hash() % 256;
 
 }
-def main() -> none {
+fn main() -> none {
     print(first([10, 20, 30])); # list[int]
     print(first(["a", "b"])); # list[string]
     p = Pair(first: 1, second: "two");

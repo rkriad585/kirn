@@ -8,13 +8,13 @@ keep working. Numbered files (`n_*.kn`) each demonstrate a focused feature;
 
 | #   | File                            | Exercises                                                                                        |
 | --- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 01  | `01_hello.kn`                   | `def`, `main`, f-strings, format specs                                                           |
-| 02  | `02_variables.kn`               | `const`/`var`/`let`, immutability default, type annotations                                      |
+| 01  | `01_hello.kn`                   | `fn`, `main`, f-strings, format specs                                                            |
+| 02  | `02_variables.kn`               | `const`/`var`, immutability default, type annotations                                            |
 | 03  | `03_literals_casts.kn`          | int widths, hex/bin/oct, raw/byte strings, checked `as`                                          |
 | 04  | `04_conditionals.kn`            | `if`/`elif`/`else` + conditional-expression form                                                 |
 | 05  | `05_loops_ranges.kn`            | `..` / `..=`, `while`, `break`/`continue`                                                        |
 | 06  | `06_functions_params.kn`        | defaults, variadics, fn-type params, named args                                                  |
-| 07  | `07_closures_captures.kn`       | lambdas, nested `def`s, captured state                                                           |
+| 07  | `07_closures_captures.kn`       | lambdas, nested `fn`s, captured state                                                            |
 | 08  | `08_comprehensions.kn`          | list comprehensions + generator views                                                            |
 | 09  | `09_match_guards_ranges.kn`     | literal / range patterns, guards, wildcard                                                       |
 | 10  | `10_patterns_destructuring.kn`  | tuples, named/positional ctor patterns, `is` type tests                                          |
@@ -31,7 +31,7 @@ keep working. Numbered files (`n_*.kn`) each demonstrate a focused feature;
 | 21  | `21_modules_visibility.kn`      | `import`/`from..as`, `pub`, `_` privacy                                                          |
 | 22  | `22_spawn_channels_join.kn`     | buffered/unbuffered `chan`, `spawn` handles                                                      |
 | 23  | `23_select_multiplex.kn`        | binding arms + `<-` discard arm, timers                                                          |
-| 24  | `24_ffi_unsafe.kn`              | `extern defs`, c-strings, `unsafe` blocks                                                        |
+| 24  | `24_ffi_unsafe.kn`              | `extern fn`s, c-strings, `unsafe` blocks                                                         |
 | 25  | `25_operator_precedence.kn`     | `**` associativity, `//`, shifts, chained comparisons                                            |
 | 26  | `26_iterators_views.kn`         | custom `Iterator` impl, lazy `map`/`filter` chains                                               |
 | 27  | `27_value_semantics_copy.kn`    | copy vs `new` heap-handle aliasing                                                               |

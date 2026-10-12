@@ -1,12 +1,12 @@
 # Type-system hardening (PLAN Phase 5) positive tests — each runs clean to
 # exit 0 through kirnrun (kirncheck must accept them too).
 #
-# 5.1 — default type parameters: `def f[T = int](...)`. An unresolved TypeVar in
+# 5.1 — default type parameters: `fn f[T = int](...)`. An unresolved TypeVar in
 # the generic's return type becomes its declared default.
-def empty_list[T = int]() -> list[T] {
+fn empty_list[T = Int]() -> list[T] {
     return [];
 }
-def main() -> none {
+fn main() -> none {
     a = empty_list();          # defaults T = int => list[int]
     print(len(a));
 }

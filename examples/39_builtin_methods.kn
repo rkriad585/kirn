@@ -2,7 +2,7 @@
 # length / containment / mutation helpers on string, list, dict, and set,
 # all typechecked by the checker and dispatched at runtime.
 
-def main() -> none {
+fn main() -> none {
     # ---- string
     s = "Hello World";
     print(s.len() == 11);

@@ -1,12 +1,12 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/07_closures_captures.kn
 FuncDef "make_counter"
-  Ret fn() -> int
+  Ret fn() -> Int
   Body
     Assign
       Target Ident "count"
       Value Int "0"
     FuncDef "tick"
-      Ret int
+      Ret Int
       Body
         AugAssign op="+="
           Target Ident "count"
@@ -59,7 +59,7 @@ FuncDef "main"
               Call
                 Callee Ident "shout"
                 Arg
-                  Value Str "coco"
+                  Value Str "kirn"
     ExprStmt
       Value 
         Call

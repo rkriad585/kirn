@@ -2,7 +2,7 @@
 # Rust-style: or-patterns, alias bindings (@), slice/tuple rest (..).
 # Go-style: labeled break / continue.
 
-pub def fizzbuzz(n: int) -> string {
+pub fn fizzbuzz(n: Int) -> Str {
     match n {
         case x if x % 15 == 0 { return "fizzbuzz"; }
         case x @ (3 | 6 | 9 | 12) {
@@ -15,7 +15,7 @@ pub def fizzbuzz(n: int) -> string {
     return "?";
 }
 
-pub def classify(inputs: list[int]) -> list[string] {
+pub fn classify(inputs: list[Int]) -> list[Str] {
     out = [];
     for v in inputs {
         out = out + [fizzbuzz(v)];
@@ -23,7 +23,7 @@ pub def classify(inputs: list[int]) -> list[string] {
     return out;
 }
 
-pub def main() -> none {
+pub fn main() -> none {
     print(classify([1, 3, 5, 15, 6, 10, 7]));
 
     # alias + or-pattern in match

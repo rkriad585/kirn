@@ -1,9 +1,9 @@
 # 19 — Errors: result[T,E], raise, try, ?   (plan §8)
 struct ParseError {
-    bad: string;
+    bad: Str;
 
 }
-def parse_port(text: string) -> result[int, ParseError] {
+fn parse_port(text: Str) -> result[Int, ParseError] {
     port = text.to_int();
     if port is none {
         raise ParseError(bad: text); # constructs Err + early return
@@ -11,7 +11,7 @@ def parse_port(text: string) -> result[int, ParseError] {
     return port; # auto-wraps in Ok
 
 }
-def read_config() -> result[int, ParseError] {
+fn read_config() -> result[Int, ParseError] {
     raw = "8080"; # imagine io.read_file(...) here
     port = try parse_port(raw); # prefix form: propagate on error
     doubled = parse_port(raw)?; # postfix form: identical semantics
@@ -19,7 +19,7 @@ def read_config() -> result[int, ParseError] {
     return port;
 
 }
-def main() -> none {
+fn main() -> none {
     match read_config() {
         case ok(p) {
             print(f"port = {p}");

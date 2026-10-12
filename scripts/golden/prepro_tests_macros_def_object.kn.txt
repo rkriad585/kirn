@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnc -E <ROOT>/tests/macros/def_object.kn
-Ident	8:1	def
-Ident	8:5	main
-Punct	8:9	(
-Punct	8:10	)
-Op	8:12	->
-Ident	8:15	none
-Punct	8:20	{
+Ident	8:1	fn
+Ident	8:4	main
+Punct	8:8	(
+Punct	8:9	)
+Op	8:11	->
+Ident	8:14	none
+Punct	8:19	{
 Ident	9:3	print
 Punct	9:8	(
 Int	9:9	10

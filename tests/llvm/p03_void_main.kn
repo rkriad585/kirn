@@ -1,11 +1,11 @@
 # Gate 10 positive fixture: a void main() (through `-> none`) and a void
 # helper, so the wrapper's `ret 0` path and the none->void mapping are covered.
 # The exit code must be 0 from both the LLVM interpreter and the tree-walker.
-def say() -> none {
+fn say() -> none {
     print("hello", 7);
 }
 
-def main() -> none {
+fn main() -> none {
     say();
     var s = 1.25;
     print("another=", s);

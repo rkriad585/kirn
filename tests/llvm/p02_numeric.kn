@@ -2,11 +2,11 @@
 # byte for byte -- +inf, -inf and NaN through kirn.fmt_f64 -- plus casts, unary
 # minus, '%', the `and`/`or` lowering, a continue out of a loop, and a bare
 # print() for the zero-arg "\n" path. main exits 7.
-def even(n: int) -> bool {
+fn even(n: Int) -> Bool {
     return n % 2 == 0;
 }
 
-def main() -> int {
+fn main() -> Int {
     var huge = 1e308;
     var ppos = huge * 10.0;
     var pneg = 0.0 - ppos;
@@ -15,10 +15,10 @@ def main() -> int {
     print("ninf=", pneg);
     print("nan=", pnan);
     print("wide=", 123456789012345678);
-    print("intcnv=", 3.7 as int);
-    print("fltcnv=", 9 as float);
+    print("intcnv=", 3.7 as Int);
+    print("fltcnv=", 9 as Float);
     var b = 1;
-    print("btrunc=", b as bool);
+    print("btrunc=", b as Bool);
     var neg = 0 - 5;
     print("neg=", neg);
     print("fneg=", 0.0 - 2.5);

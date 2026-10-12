@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/12_enums_exhaustive.kn
 EnumDef "Status"
   Variant Idle
-  Variant Running {pid: int}
-  Variant Failed {code: int, msg: string}
+  Variant Running {pid: Int}
+  Variant Failed {code: Int, msg: Str}
 FuncDef "render"
   Param "s" : Status
-  Ret string
+  Ret Str
   Body
     Match
       Subject Ident "s"

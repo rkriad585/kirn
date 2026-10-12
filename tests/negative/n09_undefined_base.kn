@@ -1,9 +1,9 @@
 ; # expect: base class 'Ghost' is not defined
 class Phantom extends Ghost {
-    var y: int = 2;
+    var y: Int = 2;
 }
 
-def main() -> int {
+fn main() -> Int {
     p = Phantom();
     return p.y;
 }

@@ -1,16 +1,16 @@
 # 34 — Batteries-included builtins       (WHY-1 / SP-8)
 # Python-style collection, conversion & string builtins live on the runtime
 # so scripts run with zero imports (installBuiltins, runtime.cpp).
-def main() -> none {
+fn main() -> none {
     # conversion / type introspection
-    print(str(42), str(3.14), str(true), str([1, 2]));
-    print(int("42") + 1, float("2.5") + 0.5);
-    print(bool(0), bool(1));
+    print(Str(42), Str(3.14), Str(true), Str([1, 2]));
+    print(Int("42") + 1, Float("2.5") + 0.5);
+    print(Bool(0), Bool(1));
     print(type(42), type("x"), type([1]), type({1: 2}));
 
     # collection / iteration
     nums = [3, 1, 4, 1, 5];
-    print(sum(nums), min(nums), max(nums));
+    print(sum(nums), Min(nums), Max(nums));
     print(sorted(nums), reversed(nums));
     print(any([0, 0, 1]), all([1, 1, 0]));
     print(map((x) => x * x, nums));

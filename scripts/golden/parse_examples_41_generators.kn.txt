@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/41_generators.kn
 FuncDef "counter"
   Param "n" : <inferred>
-  Ret gen[int]
+  Ret gen[Int]
   Body
     For
       PatBind i
@@ -14,7 +14,7 @@ FuncDef "counter"
           Ident "i"
 FuncDef "fib"
   Param "limit" : <inferred>
-  Ret gen[int]
+  Ret gen[Int]
   Body
     VarDecl
       Target Ident "a"
@@ -85,7 +85,7 @@ FuncDef "main"
                 Lhs Str "sum="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "s"
     Assign
@@ -109,7 +109,7 @@ FuncDef "main"
                 Lhs Str "fibs="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "fibs"
     Assign
@@ -143,7 +143,7 @@ FuncDef "main"
                 Lhs Str "even="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -182,7 +182,7 @@ FuncDef "main"
                 Lhs Str "sq="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "sq"
     ExprStmt
@@ -195,7 +195,7 @@ FuncDef "main"
                 Lhs Str "len="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -216,7 +216,7 @@ FuncDef "main"
                 Lhs Str "mixed="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -240,7 +240,7 @@ FuncDef "main"
                 Lhs Str "fresh="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call

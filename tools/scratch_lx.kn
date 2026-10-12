@@ -1,8 +1,8 @@
 var global_count = 0;
 
-def mutate_list() -> none {
+fn mutate_list() -> none {
     var st = [0, "abc"];
-    def bump() -> none {
+    fn bump() -> none {
         st[0] = st[0] + 1;
         st[1] = st[1] + "x";
     }
@@ -12,23 +12,23 @@ def mutate_list() -> none {
     return st;
 }
 
-def read_dict() -> none {
+fn read_dict() -> none {
     var d = {"k": 41};
-    def bump() -> none {
+    fn bump() -> none {
         d["k"] = d["k"] + 1;
     }
     bump();
     return d["k"];
 }
 
-def main() -> none {
+fn main() -> none {
     print(mutate_list());
     print(read_dict());
     print("xxxxx"[1..4]);
     print("xxxxx"[-3..-1]);
-    print(ord('A'), chr(67));
+    print(Ord('A'), Chr(67));
     c = "Hello"[0];
-    print(c, ord(c), c == 'H', c != 'h', c >= 'A', 'a' < 'b', '0' <= c, c <= 'Z');
+    print(c, Ord(c), c == 'H', c != 'h', c >= 'A', 'a' < 'b', '0' <= c, c <= 'Z');
     print("a" + "b" + "c");
     print(global_count);
 }

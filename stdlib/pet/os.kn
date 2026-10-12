@@ -10,16 +10,16 @@ priv_getenv = os.getenv;
 priv_exit = os.exit;
 
 # Program arguments (excluding the interpreter itself).
-pub def args() -> list {
+pub fn args() -> list {
     return priv_args();
 }
 
 # Environment variable value, or nil if unset.
-pub def getenv(name: string) -> none {
+pub fn getenv(name: Str) -> none {
     return priv_getenv(name);
 }
 
 # Exit the program with the given status code.
-pub def exit(code: int) -> none {
+pub fn exit(code: Int) -> none {
     priv_exit(code);
 }

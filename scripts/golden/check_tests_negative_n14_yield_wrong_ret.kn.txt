@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirncheck <ROOT>/tests/negative/n14_yield_wrong_ret.kn
-<ROOT>/tests/negative/n14_yield_wrong_ret.kn:2:5: error: generator function 'gen' must declare return type generator[...], got i64
- 2 | def gen() -> int {
-   |     ^^^
+<ROOT>/tests/negative/n14_yield_wrong_ret.kn:2:4: error: generator function 'gen' must declare return type generator[...], got Int64
+ 2 | fn gen() -> Int {
+   |    ^^^
 <ROOT>/tests/negative/n14_yield_wrong_ret.kn: 1 error(s)
 [exit 1]

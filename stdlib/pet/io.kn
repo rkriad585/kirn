@@ -13,13 +13,13 @@
 priv_open = io.open;
 
 # Read an entire file as text; "" if the file cannot be opened.
-pub def read_file(path: string) -> string {
+pub fn read_file(path: Str) -> Str {
     f = priv_open(path);
     return f.read();
 }
 
 # Append data to the end of a file (creating it if needed).
-pub def append_file(path: string, data: string) -> none {
+pub fn append_file(path: Str, data: Str) -> none {
     f = priv_open(path);
     f.write(data);
     f.close();

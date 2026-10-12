@@ -1,4 +1,4 @@
-def main() -> int {
+fn main() -> Int {
     total = 0;
     return total;
 }

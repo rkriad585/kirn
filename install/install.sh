@@ -169,6 +169,9 @@ tar -xzf "$tmp/$archive" -C "$PREFIX" --strip-components=1
 if [ ! -x "$PREFIX/bin/kirn" ]; then
   die "archive did not contain bin/kirn at $PREFIX"
 fi
+if [ ! -x "$PREFIX/bin/kirnc" ]; then
+  die "archive did not contain bin/kirnc at $PREFIX"
+fi
 
 # ---- PATH ------------------------------------------------------------------
 bindir="$PREFIX/bin"

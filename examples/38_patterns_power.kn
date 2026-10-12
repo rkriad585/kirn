@@ -2,27 +2,27 @@
 # slice `[a, b, ..rest]`, pure-rest `..`, tuple-rest `(x, y, ..)`, nested
 # `@` aliases, and ref `&pat` patterns — expressed with `match`-**as-expression**.
 
-class Point { var x: int = 0; var y: int = 0; }
+class Point { var x: Int = 0; var y: Int = 0; }
 
-def describe(xs) -> string {
+fn describe(xs) -> Str {
     # match used as an EXPRESSION, value flows up (not via statement result).
     return match xs {
         case []                      { "empty"; }
-        case [a, b, ..rest]          { "a=" + str(a) + " b=" + str(b) + " rest=" + str(rest); }
-        case [a, ..]                 { "front=" + str(a); }
+        case [a, b, ..rest]          { "a=" + Str(a) + " b=" + Str(b) + " rest=" + Str(rest); }
+        case [a, ..]                 { "front=" + Str(a); }
         case _                       { "other"; }
     };
 }
 
-def tup_sum(t) -> string {
+fn tup_sum(t) -> Str {
     return match t {
-        case (x, y, ..)              { "t=" + str(x) + "," + str(y); }
-        case (x,)                    { "one=" + str(x); }
+        case (x, y, ..)              { "t=" + Str(x) + "," + Str(y); }
+        case (x,)                    { "one=" + Str(x); }
         case _                       { "none"; }
     };
 }
 
-def main() -> none {
+fn main() -> none {
     print(describe([]));
     print(describe([1, 2, 3, 4]));
     print(describe([9]));
@@ -33,7 +33,7 @@ def main() -> none {
 
     n = 3;
     s = match n {
-        case v @ (1..=5) { "small " + str(v); }   # nested @ alias
+        case v @ (1..=5) { "small " + Str(v); }   # nested @ alias
         case _           { "big"; }
     };
     print("nested @ => " + s);

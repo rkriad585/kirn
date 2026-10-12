@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/01_hello.kn
-Ident	3:1	def
-Ident	3:5	main
-Punct	3:9	(
-Punct	3:10	)
-Op	3:12	->
-Ident	3:15	none
-Punct	3:20	{
+Ident	3:1	fn
+Ident	3:4	main
+Punct	3:8	(
+Punct	3:9	)
+Op	3:11	->
+Ident	3:14	none
+Punct	3:19	{
 Ident	4:5	name
 Op	4:10	=
 Str	4:12	World

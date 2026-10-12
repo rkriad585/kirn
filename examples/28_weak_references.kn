@@ -1,11 +1,11 @@
 # 28 — weak references break ARC cycles   (plan §6.1)
 struct Node {
-    name: string;
+    name: Str;
     var parent: Node?; # strong reference (owns)
     weak var child: Node?; # weak ref: does NOT keep target alive
 
 }
-def main() -> none {
+fn main() -> none {
     parent = new Node(name: "parent");
     child = new Node(name: "child");
 

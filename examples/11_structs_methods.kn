@@ -3,17 +3,17 @@ struct Point {
     x: f64;
     y: f64 = 0.0; # field default
 
-    def magnitude(self) -> f64 { # methods live inside the struct
-        return sqrt(self.x * self.x + self.y * self.y);
+    fn magnitude(self) -> f64 { # methods live inside the struct
+        return __Sqrt(self.x * self.x + self.y * self.y);
 
 }
-    def translate(self, dx: f64, dy: f64) -> none {
+    fn translate(self, dx: f64, dy: f64) -> none {
         self.x += dx; # allowed because receiver is mutable below
         self.y += dy;
 
 }
 }
-def main() -> none {
+fn main() -> none {
     origin = Point(x: 0.0); # y uses its default
     p = Point(x: 3.0, y: 4.0);
 

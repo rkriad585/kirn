@@ -1,13 +1,13 @@
-def show(s: string) -> none {
+fn show(s: Str) -> none {
     out = "";
-    for i in range(len(s)) { out += str(ord(s[i])) + " "; }
+    for i in range(len(s)) { out += Str(Ord(s[i])) + " "; }
     print(out);
 }
 
-def main() -> none {
+fn main() -> none {
     show("a\tb");
     show("x\ny");
     show("\u{41}\u{22}");
     show("a\u{5c}b");
-    print(str(67));
+    print(Str(67));
 }

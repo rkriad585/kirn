@@ -12,13 +12,13 @@ Ident	9:8	greet
 Ident	9:14	as
 Ident	9:17	again
 Punct	9:22	;
-Ident	11:1	def
-Ident	11:5	main
-Punct	11:9	(
-Punct	11:10	)
-Op	11:12	->
-Ident	11:15	none
-Punct	11:20	{
+Ident	11:1	fn
+Ident	11:4	main
+Punct	11:8	(
+Punct	11:9	)
+Op	11:11	->
+Ident	11:14	none
+Punct	11:19	{
 Ident	13:5	print
 Punct	13:10	(
 Str	13:11	load_count =

@@ -2,8 +2,8 @@
 # neither capture the caller's local of the same name nor leak its own into the
 # caller's scope. Both `tmp` tokens in the body are alpha-renamed, so the macro
 # sees its own 7 (prints 14) and the caller still sees its own 1.
-{.def WITH_LOCAL() = tmp = 7; print(tmp * 2);.}
-def main() -> none {
+{.fn WITH_LOCAL() = tmp = 7; print(tmp * 2);.}
+fn main() -> none {
   tmp = 1;
   WITH_LOCAL()
   print(tmp);

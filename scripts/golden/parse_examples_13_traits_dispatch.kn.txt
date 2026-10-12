@@ -3,7 +3,7 @@ TraitDef "Drawable"
   Sig draw(self: <inferred>)
   FuncDef "name"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "drawable"
@@ -44,7 +44,7 @@ ImplDef Drawable for Circle
                         Obj Ident "self"
   FuncDef "name"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "circle"

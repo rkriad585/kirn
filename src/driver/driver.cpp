@@ -165,10 +165,6 @@ Manifest readManifest(const fs::path& dir) {
     Manifest m;
     std::string text;
     if (!readFile((dir / "kirn.toml").string(), text)) {
-        if (fs::is_regular_file(dir / "coco.toml"))
-            std::cerr << "kirn: found 'coco.toml' but expected 'kirn.toml'\n"
-                         "  the manifest was renamed in this release; run:\n"
-                         "    mv coco.toml kirn.toml\n";
         return m;
     }
     Doc d = kirn::tomlmini::parse(text);
@@ -309,9 +305,9 @@ std::vector<LockEntry> readLock(const fs::path& dir) {
     std::vector<LockEntry> out;
     std::string text;
     if (!readFile((dir / "kirn.lock").string(), text)) {
-        if (fs::is_regular_file(dir / "coco.lock"))
-            std::cerr << "kirn: ignoring stale 'coco.lock' (renamed to "
-                         "'kirn.lock'); delete it and re-run:  rm coco.lock\n";
+        if (fs::is_regular_file(dir / "kirn.lock"))
+            std::cerr << "kirn: ignoring stale 'kirn.lock' (renamed to "
+                         "'kirn.lock'); delete it and re-run:  rm kirn.lock\n";
         return out;
     }
     Doc d = kirn::tomlmini::parse(text);
@@ -716,7 +712,7 @@ int cmdParse(const std::vector<std::string>& args, const char* toolName) {
     if (lexErrors == 0) {
         // Preprocess before parsing, exactly as frontEnd does. Without this the
         // directive tokens reached the parser and it reported
-        // "expected expression, found '.'" on the {.def.} line.
+        // "expected expression, found '.'" on the {.fn.} line.
         toks = kirn::prepro::Preprocessor(file, diags).run(std::move(toks));
         lexErrors = diags.count();
     }
@@ -1197,10 +1193,10 @@ int cmdNew(const std::string& name, bool lib) {
                   "## `kirn doc " + name + "` turns them into a browsable API\n"
                   "## reference.\n\n"
                   "## Say hello to someone.\n"
-                  "pub def hello(who: string) -> string {\n"
+                  "pub fn hello(who: string) -> string {\n"
                   "    return \"hello from " + name + ", \" + who + \"!\";\n}\n\n"
                   "## Shout it louder.\n"
-                  "pub def shout(who: string) -> string {\n"
+                  "pub fn shout(who: string) -> string {\n"
                   "    s = hello(who);\n"
                   "    out = \"\";\n"
                   "    for ch in s {\n"
@@ -1218,7 +1214,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# (import the package's pin.kn initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
                   "import \"code/pin.kn\" as " + name + ";\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    assert_eq(" + name + ".hello(\"no one\"),\n"
                   "              \"hello from " + name + ", no one!\");\n"
                   "    print(\"all tests passed\");\n}\n");
@@ -1257,12 +1253,12 @@ int cmdNew(const std::string& name, bool lib) {
 
         writeFile(root / "code" / "main.kn",
                   "# " + name + " - a Kirn application.\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    print(\"hello from " + name + "\");\n}\n");
 
         writeFile(root / "tests" / "main_test.kn",
                   "# tests live in tests/ and are named <file>_test.kn\n\n"
-                  "def main() {\n"
+                  "fn main() {\n"
                   "    assert_eq(2 + 2, 4);\n"
                   "    print(\"all tests passed\");\n}\n");
 
@@ -2052,7 +2048,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
 }
 
 // ---------------------------------------------------------------------------
-// inline docs: '##' lines above a pub def -> docs/api.md
+// inline docs: '##' lines above a pub fn -> docs/api.md
 // ---------------------------------------------------------------------------
 
 std::string extractApiDocs(const Manifest& m) {
@@ -2088,7 +2084,7 @@ std::string extractApiDocs(const Manifest& m) {
                 if (!d.empty()) pendingDoc += d + "\n";
                 continue;
             }
-            if (t.rfind("pub def ", 0) == 0) {
+            if (t.rfind("pub fn ", 0) == 0) {
                 if (!fileHeaded) {
                     o << "## " << lastSegment(f.string()) << "\n\n";
                     fileHeaded = true;
@@ -2108,7 +2104,7 @@ std::string extractApiDocs(const Manifest& m) {
         }
     }
     if (!anyFn) o << "_No public functions found yet. Mark exports with "
-                     "`pub def` and document them with `##` comments._\n";
+                     "`pub fn` and document them with `##` comments._\n";
     return o.str();
 }
 
@@ -2556,15 +2552,15 @@ std::string resolveCrossCxx(const TargetInfo* ti) {
     return "";
 }
 
-// Phase 8: the COCO_* environment variables are renamed to KIRN_* and are a
+// Phase 8: the KIRN_* environment variables are renamed to KIRN_* and are a
 // hard cut - the old names are never read. If a user/script still exports one,
 // say so once (aggregated) rather than silently discarding it: a stale var
 // losing effect quietly is exactly how module paths and toolchains silently
 // stop applying (the IOWarp "unset variable is not an error" failure mode).
 void warnLegacyEnv() {
-    const char* const legacy[] = {"COCO_LIBS", "COCO_STDLIB", "COCO_CXX",
-                                  "COCO_CL", "COCO_VERBOSE", "COCO_TARGET",
-                                  "COCO_LIB_TOOL"};
+    const char* const legacy[] = {"KIRN_LIBS", "KIRN_STDLIB", "KIRN_CXX",
+                                  "KIRN_CL", "KIRN_VERBOSE", "KIRN_TARGET",
+                                  "KIRN_LIB_TOOL"};
     const char* const now[] = {"KIRN_PETS", "KIRN_STDLIB", "KIRN_CXX",
                                "KIRN_CL", "KIRN_VERBOSE", "KIRN_TARGET",
                                "KIRN_LIB_TOOL"};
@@ -2574,9 +2570,9 @@ void warnLegacyEnv() {
             if (!found.empty()) found += ", ";
             found += std::string(legacy[i]) + " -> " + now[i];
         }
-    // per-target compiler override: COCO_CXX_<TRIPLE> (e.g. COCO_CXX_LINUX_AMD64)
+    // per-target compiler override: KIRN_CXX_<TRIPLE> (e.g. KIRN_CXX_LINUX_AMD64)
     for (const auto& ti : targetMatrix()) {
-        std::string old = "COCO_CXX_";
+        std::string old = "KIRN_CXX_";
         for (const char* p = ti.triple; *p; ++p)
             old += (*p == '-') ? '_' : (char)toupper((unsigned char)*p);
         if (std::getenv(old.c_str())) {
@@ -3234,7 +3230,7 @@ int buildProgram(const std::string& name, const std::string& version,
           // A bundle is RAW SOURCE plus a prebuilt launcher that re-lexes it, and
           // the launcher does not preprocess. So a program using macros passes
           // the check above (frontEnd expands them) and then produces a binary
-          // that dies with a parse error on the {.def.} line. Refusing here is
+          // that dies with a parse error on the {.fn.} line. Refusing here is
           // the same lesson as section 5.6 one branch up: shipping an artefact
           // that cannot run is worse than refusing to ship it. Lifted to
           // kirn_interp/the generated launcher in a later increment.

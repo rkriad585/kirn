@@ -1,8 +1,8 @@
-def square(n: int) -> int {
+fn square(n: Int) -> Int {
     return n * n;
 }
 
-def main() -> int {
+fn main() -> Int {
     total = 0;
     for i in 0..100 {
         total += square(i);

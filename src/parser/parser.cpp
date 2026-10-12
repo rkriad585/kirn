@@ -249,12 +249,11 @@ ast::StmtP Parser::parseTopOrStmt() {
         s->body.push_back(parseTopOrStmt());
         return s;
     }
-    if (atIdent("def")) return parseFuncDef(false);
-    if (atIdent("fn")) return parseFuncDef(false);          // `fn` == `def`
+    if (atIdent("fn")) return parseFuncDef(false);
 
     if (atIdent("pr")) {
         advance();
-        if (atIdent("def") || atIdent("fn")) {
+        if (atIdent("fn")) {
             auto s = parseFuncDef(false);
             s->privateDecl = true;
             return s;
@@ -267,13 +266,12 @@ ast::StmtP Parser::parseTopOrStmt() {
         if (atIdent("trait"))  { auto s = parseTraitDef(); s->privateDecl = true; return s; }
         if (atIdent("const"))  { advance(); auto s = finishConstDecl(); s->privateDecl = true; return s; }
         diags_.report(cur().line, cur().col,
-                      "'pr' must precede def/fn/struct/class/interface/record/enum/trait/const");
+                      "'pr' must precede fn/struct/class/interface/record/enum/trait/const");
         throw Abort("pr");
     }
     if (atIdent("pub")) {
         advance();
-        if (atIdent("def")) return parseFuncDef(true);
-        if (atIdent("fn")) return parseFuncDef(true);       // `pub fn` == `pub def`
+        if (atIdent("fn")) return parseFuncDef(true);       // `pub fn`
         if (atIdent("struct")) { auto s = parseStructDef(); s->pub = true; return s; }
         if (atIdent("class"))  return parseClassDef(true);
         if (atIdent("interface")) return parseInterfaceDef(true);
@@ -282,10 +280,10 @@ ast::StmtP Parser::parseTopOrStmt() {
         if (atIdent("trait"))  { auto s = parseTraitDef();  s->pub = true; return s; }
         if (atIdent("const"))  { advance(); auto s = finishConstDecl(); s->pub = true; return s; }
         diags_.report(cur().line, cur().col,
-                      "'pub' must precede def/fn/struct/class/interface/record/enum/trait/const");
+                      "'pub' must precede fn/struct/class/interface/record/enum/trait/const");
         throw Abort("pub");
     }
-    if (atIdent("extern") && atIdent("def", 1)) {
+    if (atIdent("extern") && atIdent("fn", 1)) {
         advance();
         auto s = parseFuncDef(false, false);
         s->externDef = true;
@@ -394,7 +392,7 @@ ast::StmtP Parser::parseFuncDef(bool pub, bool allowBody) {
     auto s = std::make_unique<ast::Stmt>();
     s->kind = ast::StKind::FuncDef;
     s->pub = pub;
-    advance();                                          // def
+    advance();                                          // fn
     auto nameTok = expect(Tok::Ident, "function name");
     s->name = nameTok.text;
     s->span = spanOf(nameTok);
@@ -406,7 +404,7 @@ ast::StmtP Parser::parseFuncDef(bool pub, bool allowBody) {
         diags_.report(cur().line, cur().col,
                       std::string("function '") + s->name +
                           "' is missing a return type; write '-> none' for one that returns nothing");
-        throw Abort("def");
+        throw Abort("fn");
     }
     advance();
     s->ret = parseType();
@@ -433,7 +431,7 @@ ast::StmtP Parser::parseStructDef() {
                           "unexpected end of file inside struct body");
             throw Abort("structeof");
         }
-        if (atIdent("def")) {
+        if (atIdent("fn")) {
             s->body.push_back(parseFuncDef(false));
             continue;
         }
@@ -510,7 +508,7 @@ ast::StmtP Parser::parseClassDef(bool pub) {
                           "unexpected end of file inside class body");
             throw Abort("classeof");
         }
-        if (atIdent("def") || atIdent("fn")) {
+        if (atIdent("fn")) {
             methods.push_back(parseFuncDef(false));
             continue;
         }
@@ -573,8 +571,8 @@ ast::StmtP Parser::parseInterfaceDef(bool pub) {
                           "unexpected end of file inside interface body");
             throw Abort("ifaceeof");
         }
-        if (atIdent("def") || atIdent("fn")) {
-            // signature-only (no body): consume `def`, name, params, ret, ';'
+        if (atIdent("fn")) {
+            // signature-only (no body): consume `fn`, name, params, ret, ';'
             advance();
             auto nameTok = expect(Tok::Ident, "method name");
             auto params = parseParamList();
@@ -687,7 +685,7 @@ ast::StmtP Parser::parseTraitDef() {
             throw Abort("traiteof");
         }
         size_t startIdx = idx_;
-        expect(Tok::Ident, "'def'");                    // consumes 'def'
+        expect(Tok::Ident, "'fn'");                    // consumes 'fn'
         auto nameTok = expect(Tok::Ident, "method name");
         bool hasBody = false;
         {

@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/30_capstone_wordcount.kn
 FuncDef "count_chunk"
-  Param "words" : list[string]
-  Param "out" : chan[dict[string, int]]
+  Param "words" : list[Str]
+  Param "out" : chan[dict[Str, Int]]
   Ret none
   Body
     Assign
@@ -47,8 +47,8 @@ FuncDef "count_chunk"
           Arg
             Value Ident "counts"
 FuncDef "merge"
-  Param "target" : dict[string, int]
-  Param "src" : dict[string, int]
+  Param "target" : dict[Str, Int]
+  Param "src" : dict[Str, Int]
   Ret none
   Body
     For
@@ -85,8 +85,8 @@ FuncDef "merge"
                   Obj Ident "src"
                   At Ident "k"
 FuncDef "top3"
-  Param "counts" : dict[string, int]
-  Ret list[(string, int)]
+  Param "counts" : dict[Str, Int]
+  Ret list[(Str, Int)]
   Body
     Assign
       Target Ident "pairs"
@@ -177,7 +177,7 @@ FuncDef "main"
       Value 
         Call
           Callee 
-            New type=chan[dict[string, int]]
+            New type=chan[dict[Str, Int]]
     For
       PatBind c
       Iter Ident "chunks"

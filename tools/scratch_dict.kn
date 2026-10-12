@@ -1,16 +1,16 @@
-def bump(st, q) -> none {
+fn bump(st, q) -> none {
     st["pos"] = st["pos"] + 1;
     st["line"] += 2;
     q.append("tok");
     q.append(st["pos"]);
 }
 
-def outer(st, q) -> none {
+fn outer(st, q) -> none {
     st["pos"] = 100;
     bump(st, q);
 }
 
-def main() -> none {
+fn main() -> none {
     var st = {"pos": 0, "line": 1, "spec": ""};
     var q = [];
     outer(st, q);

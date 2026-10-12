@@ -2,9 +2,9 @@
 # local. `helper` in the macro body is a free identifier, so it is alpha-renamed
 # into the macro's private namespace and must NOT bind to the caller's `helper`.
 # The correct program passes `helper` as a parameter instead.
-{.def BAD() = helper + 1.}
-{.def GOOD(h) = h + 1.}
-def main() -> none {
+{.fn BAD() = helper + 1.}
+{.fn GOOD(h) = h + 1.}
+fn main() -> none {
   helper = 100;
   print(GOOD(helper));
 }

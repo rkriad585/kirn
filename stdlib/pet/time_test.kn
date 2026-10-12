@@ -1,7 +1,7 @@
 # stdlib/pet/time_test.kn - tests for pet.time.
 import pet.time;
 
-def main() -> none {
+fn main() -> none {
     a = time.now();
     assert(a > 1.0e6);            # very roughly "is a time", non-zero epoch
     b = time.now_ms();

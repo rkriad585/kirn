@@ -844,7 +844,7 @@ struct Builder {
         return anyType();
     }
 
-    Type boolType() { return fn->internType(TypeEntry{Ty::Bool, "bool", {}, NO_VALUE}); }
+    Type boolType() { return fn->internType(TypeEntry{Ty::Bool, "Bool", {}, NO_VALUE}); }
     Type anyType() { return fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE}); }
 
     // -- statements -------------------------------------------------------

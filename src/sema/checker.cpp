@@ -26,13 +26,13 @@ std::string toString(const Ty& t) {
         case TyK::Error:   return "<error>";
         case TyK::Unknown: return "<unknown>";
         case TyK::None:    return "none";
-        case TyK::Bool:    return t.name.empty() ? "bool" : t.name;
-        case TyK::Int:     return t.name.empty() ? "int" : t.name;
-        case TyK::Float:   return t.name.empty() ? "float" : t.name;
-        case TyK::BigInt:  return t.name.empty() ? "bigint" : t.name;
-        case TyK::Rational: return t.name.empty() ? "rational" : t.name;
-        case TyK::Str:     return t.name.empty() ? "string" : t.name;
-        case TyK::Char:    return t.name.empty() ? "char" : t.name;
+        case TyK::Bool:    return t.name.empty() ? "Bool" : t.name;
+        case TyK::Int:     return t.name.empty() ? "Int" : t.name;
+        case TyK::Float:   return t.name.empty() ? "Float" : t.name;
+        case TyK::BigInt:  return t.name.empty() ? "BigInt" : t.name;
+        case TyK::Rational: return t.name.empty() ? "Rational" : t.name;
+        case TyK::Str:     return t.name.empty() ? "Str" : t.name;
+        case TyK::Char:    return t.name.empty() ? "Char" : t.name;
         case TyK::Bytes:   return "bytes";
         case TyK::List:    return t.args.empty() ? "list" : "list[" + toString(*t.args[0]) + "]";
         case TyK::Dict:
@@ -408,10 +408,10 @@ void Checker::predeclareBuiltins() {
     errSym->payloads.emplace_back("err", unkTy());
     scope_->declare(errSym);
 
-    // Free builtins: print(...) len(x) sqrt(x) range(...). User decls may shadow.
+    // Free builtins: print(...) len(x) Sqrt(x) range(...). User decls may shadow.
     makeBuiltinFunc("print", {unkTy()}, {"x"}, noneTy(), /*variadic*/ true, 0);
     makeBuiltinFunc("len", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("sqrt", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Sqrt", {floatTy()}, {"x"}, floatTy(), false, 1);
     makeBuiltinFunc("range", {intTy(), intTy(), intTy()},
                     {"start", "end", "step"}, rangeTy(intTy()),
                     /*variadic*/ true, 1);
@@ -420,74 +420,123 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("catch_panic", {unkTy()}, {"thunk"},
                     nominalWithArgs(TyK::Struct, "result", {unkTy(), unkTy()}),
                     false, 1);
-    makeBuiltinFunc("ord", {charTy()}, {"c"}, intTy(), false, 1);
-    makeBuiltinFunc("chr", {intTy()}, {"n"}, charTy(), false, 1);
-    makeBuiltinFunc("bit_length", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("bit_count", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Ord", {charTy()}, {"c"}, intTy(), false, 1);
+    makeBuiltinFunc("__Ord", {charTy()}, {"c"}, intTy(), false, 1);
+    makeBuiltinFunc("Chr", {intTy()}, {"n"}, charTy(), false, 1);
+    makeBuiltinFunc("__Chr", {intTy()}, {"n"}, charTy(), false, 1);
+    makeBuiltinFunc("BitLength", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__BitLength", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("BitCount", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__BitCount", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("assert", {boolTy()}, {"cond"}, noneTy(), false, 1);
     makeBuiltinFunc("assert_eq", {unkTy(), unkTy()}, {"a", "b"}, noneTy(),
                     false, 2);
     // Rational and float builtins (Phase 2)
-    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
-    makeBuiltinFunc("numerator", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("denominator", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("to_float", {unkTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("to_int", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("fabs", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("abs", {unkTy()}, {"x"}, unkTy(), false, 1);
+    makeBuiltinFunc("Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
+    makeBuiltinFunc("__Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
+    makeBuiltinFunc("Numerator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Numerator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Denominator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Denominator", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("ToFloat", {unkTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__ToFloat", {unkTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("ToInt", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__ToInt", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("FAbs", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__FAbs", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Abs", {unkTy()}, {"x"}, unkTy(), false, 1);
     makeBuiltinFunc("add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
     makeBuiltinFunc("mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("exp", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("log", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("log2", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("log10", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("sin", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("cos", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("tan", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("sinh", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("cosh", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("tanh", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("floor", {floatTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("ceil", {floatTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("round", {floatTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("trunc", {floatTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("fract", {floatTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("is_nan", {floatTy()}, {"x"}, boolTy(), false, 1);
-    makeBuiltinFunc("is_infinite", {floatTy()}, {"x"}, boolTy(), false, 1);
-    makeBuiltinFunc("is_finite", {floatTy()}, {"x"}, boolTy(), false, 1);
-    makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
-    makeBuiltinFunc("is_prime", {unkTy()}, {"n"}, boolTy(), false, 1);
-    makeBuiltinFunc("powmod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
-    makeBuiltinFunc("to_bytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 2);
-    makeBuiltinFunc("from_bytes", {unkTy()}, {"b"}, unkTy(), false, 1);
-    makeBuiltinFunc("hex_digits", {unkTy(), intTy()}, {"x", "n"}, strTy(), false, 2);
-    makeBuiltinFunc("to_string", {unkTy()}, {"x"}, strTy(), false, 1);
-    makeBuiltinFunc("to_rational", {unkTy()}, {"x"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_add", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_sub", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_mul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_div", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_pow", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
-    makeBuiltinFunc("rational_eq", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("rational_ne", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("rational_lt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("rational_le", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("rational_gt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("rational_ge", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    makeBuiltinFunc("copysign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
-    makeBuiltinFunc("pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
+    makeBuiltinFunc("Exp", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Exp", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Log", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Log", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Log2", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Log2", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Log10", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Log10", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Sin", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Sin", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Cos", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Cos", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Tan", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Tan", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Sinh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Sinh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Cosh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Cosh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Tanh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Tanh", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Floor", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Floor", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Ceil", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Ceil", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Round", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Round", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Trunc", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("__Trunc", {floatTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Fract", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Fract", {floatTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("IsNan", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("__IsNan", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("IsInfinite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("__IsInfinite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("IsFinite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("__IsFinite", {floatTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("BigInt", {unkTy()}, {"s"}, bigIntTy(), false, 1);
+    makeBuiltinFunc("__BigInt", {unkTy()}, {"s"}, bigIntTy(), false, 1);
+    makeBuiltinFunc("IsPrime", {unkTy()}, {"n"}, boolTy(), false, 1);
+    makeBuiltinFunc("__IsPrime", {unkTy()}, {"n"}, boolTy(), false, 1);
+    makeBuiltinFunc("PowMod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
+    makeBuiltinFunc("__PowMod", {unkTy(), unkTy(), unkTy()}, {"b", "e", "m"}, unkTy(), false, 1);
+    makeBuiltinFunc("ToBytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 2);
+    makeBuiltinFunc("__ToBytes", {unkTy(), intTy(), strTy()}, {"x", "len", "endian"}, unkTy(), false, 2);
+    makeBuiltinFunc("FromBytes", {unkTy()}, {"b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__FromBytes", {unkTy()}, {"b"}, unkTy(), false, 1);
+    makeBuiltinFunc("HexDigits", {unkTy(), intTy()}, {"x", "n"}, strTy(), false, 2);
+    makeBuiltinFunc("__HexDigits", {unkTy(), intTy()}, {"x", "n"}, strTy(), false, 2);
+    makeBuiltinFunc("ToString", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("__ToString", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("ToRational", {unkTy()}, {"x"}, unkTy(), false, 1);
+    makeBuiltinFunc("__ToRational", {unkTy()}, {"x"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalAdd", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__RationalAdd", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalSub", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__RationalSub", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalMul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__RationalMul", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalDiv", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__RationalDiv", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalPow", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("__RationalPow", {unkTy(), unkTy()}, {"a", "b"}, unkTy(), false, 1);
+    makeBuiltinFunc("RationalEq", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalEq", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("RationalNe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalNe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("RationalLt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalLt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("RationalLe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalLe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("RationalGt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalGt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("__RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    makeBuiltinFunc("CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
+    makeBuiltinFunc("__CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
+    makeBuiltinFunc("Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
+    makeBuiltinFunc("__Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     // WHY-1 / SP-8: batteries-included conversion & collection builtins.
     // Polymorphic params use Unknown (dynamic v1) matched at runtime.
-    makeBuiltinFunc("str", {unkTy(), intTy()}, {"x", "base"}, strTy(), false, 1);
-    makeBuiltinFunc("int", {unkTy()}, {"x"}, intTy(), false, 1);
-    makeBuiltinFunc("float", {unkTy()}, {"x"}, floatTy(), false, 1);
-    makeBuiltinFunc("bool", {unkTy()}, {"x"}, boolTy(), false, 1);
+    makeBuiltinFunc("Str", {unkTy(), intTy()}, {"x", "base"}, strTy(), false, 1);
+    makeBuiltinFunc("Int", {unkTy()}, {"x"}, intTy(), false, 1);
+    makeBuiltinFunc("Float", {unkTy()}, {"x"}, floatTy(), false, 1);
+    makeBuiltinFunc("Bool", {unkTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("type", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("typeof", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("repr", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("sum", {unkTy()}, {"xs"}, unkTy(), false, 1);
-    makeBuiltinFunc("min", {unkTy()}, {"xs"}, unkTy(), false, 1);
-    makeBuiltinFunc("max", {unkTy()}, {"xs"}, unkTy(), false, 1);
+    makeBuiltinFunc("Min", {unkTy()}, {"xs"}, unkTy(), false, 1);
+    makeBuiltinFunc("Max", {unkTy()}, {"xs"}, unkTy(), false, 1);
     makeBuiltinFunc("any", {unkTy()}, {"xs"}, boolTy(), false, 1);
     makeBuiltinFunc("all", {unkTy()}, {"xs"}, boolTy(), false, 1);
     makeBuiltinFunc("sorted", {unkTy()}, {"xs"}, listTy(unkTy()), false, 1);
@@ -913,44 +962,55 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             auto tvIt = typeVars_.find(n);
             if (tvIt != typeVars_.end()) return tvIt->second;
 
-            // scalar spellings
-            if (n == "bool")   return boolTy();
-            if (n == "string" || n == "str") return strTy();
-            if (n == "char")   return charTy();
+            // scalar spellings: canonical capitalized primitives plus the numeric
+            // width families in both the classic lowercase micro forms and
+            // their capitalized forms (Python/Rust/Go-style), plus a plain
+            // unsigned UInt/UFloat.
+            if (n == "Bool")   return boolTy();
+            if (n == "Str" || n == "String") return strTy();
+            if (n == "Char")   return charTy();
             if (n == "none" || n == "unit" || n == "None" || n == "void")
                 return noneTy();
-            if (n == "int" || n == "float")
-                return n == "int" ? intTy() : floatTy("f64");
+            if (n == "Int" || n == "ISize" || n == "isize") return intTy("Int64");
+            if (n == "UInt" || n == "uint" || n == "USize" || n == "usize")
+                return intTy("UInt64");
+            if (n == "Float") return floatTy("Float64");
+            if (n == "UFloat") return floatTy("UFloat64");
             // Width families are names, not separate kinds: every int width
-            // lowers to the Int kind and every float width to Float, exactly
-            // as i8/u64/f32 already do. The width is the spelling on
-            // Ty::name, carried through to diagnostics and the MIR TypeEntry.
-            // Semantics stay the trunk int64/double of the existing model;
-            // real per-width arithmetic is a later hardening step.
+            // lowers to the Int kind and every float width to Float. The
+            // width is the spelling on Ty::name, carried through to
+            // diagnostics and the MIR TypeEntry. Semantics stay the trunk
+            // int64/double of the existing model; BigInt-backed >64 / unsigned
+            // widths and per-width range checks are a later hardening step.
             static const char* kIntNames[] = {
                 "i4", "i8", "i16", "i32", "i64", "i128", "i256",
                 "u4", "u8", "u16", "u32", "u64", "u128", "u256",
-                "isize", "usize", nullptr};
+                "Int4", "Int8", "Int16", "Int32", "Int64", "Int128", "Int256",
+                "UInt4", "UInt8", "UInt16", "UInt32", "UInt64", "UInt128",
+                "UInt256", nullptr};
             for (int i = 0; kIntNames[i]; ++i)
                 if (n == kIntNames[i]) return intTy(n);
             static const char* kFloatNames[] = {
-                "f4", "f8", "f16", "f32", "f64", "f128", "f256", nullptr};
+                "f4", "f8", "f16", "f32", "f64", "f128", "f256",
+                "uf4", "uf8", "uf16", "uf32", "uf64", "uf128", "uf256",
+                "Float4", "Float8", "Float16", "Float32", "Float64", "Float128",
+                "Float256", "UFloat4", "UFloat8", "UFloat16", "UFloat32",
+                "UFloat64", "UFloat128", "UFloat256", nullptr};
             for (int i = 0; kFloatNames[i]; ++i)
                 if (n == kFloatNames[i]) return floatTy(n);
-            static const char* kUFloatNames[] = {
-                "uf4", "uf8", "uf16", "uf32", "uf64", "uf128", "uf256", nullptr};
-            for (int i = 0; kUFloatNames[i]; ++i)
-                if (n == kUFloatNames[i]) return floatTy(n);
-            static const char* kBoolNames[] = {"b8", "b16", "b32", nullptr};
+            static const char* kBoolNames[] = {
+                "b8", "b16", "b32", "Bool8", "Bool16", "Bool32", nullptr};
             for (int i = 0; kBoolNames[i]; ++i)
                 if (n == kBoolNames[i]) return boolTy(n);
-            static const char* kCharNames[] = {"char8", "char16", "char32", nullptr};
+            static const char* kCharNames[] = {
+                "char8", "char16", "char32", "Char8", "Char16", "Char32",
+                nullptr};
             for (int i = 0; kCharNames[i]; ++i)
                 if (n == kCharNames[i]) return charTy(n);
             if (n == "strings") return strTy("strings");
             if (n == "bytes")   return bytesTy();
-            if (n == "bigint")  return bigIntTy();
-            if (n == "rational") return rationalTy();
+            if (n == "BigInt" || n == "bigint") return bigIntTy();
+            if (n == "Rational" || n == "rational") return rationalTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -1314,7 +1374,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         for (int i = 0; kIntMethods[i]; ++i) {
             if (name != kIntMethods[i]) continue;
             FuncSig s;
-            s.ret = intTy(recv->name.empty() ? "i64" : recv->name);
+            s.ret = intTy(recv->name.empty() ? "Int64" : recv->name);
             if ((name.rfind("checked_", 0) == 0 ||
                  name.rfind("wrapping_", 0) == 0 ||
                  name.rfind("saturating_", 0) == 0 ||
@@ -1324,7 +1384,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                 name != "checked_neg" && name != "wrapping_neg" &&
                 name != "saturating_neg" && name != "wrapping_abs" &&
                 name != "saturating_abs") {
-                s.params.push_back(intTy(recv->name.empty() ? "i64" : recv->name));
+                s.params.push_back(intTy(recv->name.empty() ? "Int64" : recv->name));
                 s.names.push_back("rhs");
                 s.required = 1;
             }
@@ -1349,18 +1409,18 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             return s;
         }
         if (name == "bit_length" || name == "bit_count") {
-            s.ret = intTy("i64");
+            s.ret = intTy("Int64");
             s.required = 0;
             return s;
         }
         if (name == "to_int" || name == "is_prime") {
-            s.ret = name == "to_int" ? intTy("i64") : boolTy();
+            s.ret = name == "to_int" ? intTy("Int64") : boolTy();
             s.required = 0;
             return s;
         }
         if (name == "to_string") {
             s.ret = strTy();
-            s.params.push_back(intTy("i64"));
+            s.params.push_back(intTy("Int64"));
             s.names.push_back("base");
             s.required = 0;
             return s;
@@ -1382,7 +1442,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         }
         if (name == "to_bytes") {
             s.ret = unkTy();
-            s.params.push_back(intTy("i64"));
+            s.params.push_back(intTy("Int64"));
             s.names.push_back("len");
             s.params.push_back(strTy());
             s.names.push_back("endian");
@@ -1401,13 +1461,13 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
     if (recv->is(TyK::Float)) {
         FuncSig s;
         if (name == "floor" || name == "ceil" || name == "trunc") {
-            s.ret = intTy("i64");
+            s.ret = intTy("Int64");
             s.required = 0;
             return s;
         }
         if (name == "round") {
-            s.ret = intTy("i64");
-            s.params.push_back(intTy("i64"));
+            s.ret = intTy("Int64");
+            s.params.push_back(intTy("Int64"));
             s.names.push_back("n");
             s.required = 0;
             return s;
@@ -1423,7 +1483,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         if (name == "log" || name == "pow" || name == "copysign" ||
             name == "atan2" || name == "min" || name == "max" ||
             name == "total_cmp") {
-            s.ret = name == "total_cmp" ? intTy("i64") : floatTy();
+            s.ret = name == "total_cmp" ? intTy("Int64") : floatTy();
             s.params.push_back(floatTy());
             s.names.push_back("x");
             s.required = 1;
@@ -1449,7 +1509,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         FuncSig s;
         if (name == "numerator" || name == "denominator" ||
             name == "to_int") {
-            s.ret = intTy("i64");
+            s.ret = intTy("Int64");
             s.required = 0;
             return s;
         }

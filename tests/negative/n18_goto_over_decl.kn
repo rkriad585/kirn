@@ -1,5 +1,5 @@
 # expect: goto may not jump over a declaration
-def main() -> none {
+fn main() -> none {
     goto over;
     const A = 10;
 over:

@@ -1,15 +1,15 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/24_ffi_unsafe.kn
 FuncDef "printf" extern
-  Param "fmt" : *char
+  Param "fmt" : *Char
   Param "" variadic : <inferred>
   Ret i32
   Body
 FuncDef "strlen" extern
-  Param "s" : *char
+  Param "s" : *Char
   Ret usize
   Body
 FuncDef "print_message"
-  Param "msg" : string
+  Param "msg" : Str
   Ret none
   Body
     Unsafe

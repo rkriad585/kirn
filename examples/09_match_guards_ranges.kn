@@ -1,5 +1,5 @@
 # 09 — match: literals, guards, range patterns, wildcard   (plan §5.7)
-def describe(n: int) -> string {
+fn describe(n: Int) -> Str {
     match n {
         case 0 {
             return "zero";
@@ -16,7 +16,7 @@ def describe(n: int) -> string {
 }
 }
 }
-def main() -> none {
+fn main() -> none {
     print(describe(0));
     print(describe(-7));
     print(describe(5));

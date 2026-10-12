@@ -14,7 +14,7 @@ StructDef "Pair"
 TraitDef "Hashable"
   Sig hash(self: <inferred>) -> u64
 StructDef "Key"
-  Field "code" : int
+  Field "code" : Int
 ImplDef Hashable for Key
   FuncDef "hash"
     Param "self" self : <inferred>

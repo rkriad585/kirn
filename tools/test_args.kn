@@ -1,1 +1,1 @@
-def main() -> none { print(os.args()); }
+fn main() -> none { print(os.args()); }

@@ -1,4 +1,4 @@
-# Coco → Kirn rename: before/after report
+# Kirn → Kirn rename: before/after report
 
 Generated at the close of the rename migration. This is the capstone
 measurement for the project: what the old name looked like before the work, what
@@ -15,7 +15,7 @@ it looks like now, and exactly which references to the old brand survive and why
   comparable: both count occurrences, not matching lines.
 - Two exclusions are applied to the "after" column, because neither is a
   regression:
-  - `COCO_PLANS/` — the pre-rename design-plan archive, kept verbatim on purpose.
+  - `KIRN_PLANS/` — the pre-rename design-plan archive, kept verbatim on purpose.
   - `_rename/baseline/` — the Phase-1 transcripts, which *are* the "before" half
     of this report. Rewriting them would destroy the measurement.
 
@@ -38,9 +38,9 @@ excluded-archives column is the honest one.
 
 | Case-form | Before | After (all tracked) | After (excl. archives) |
 | --------- | -----: | ------------------: | ---------------------: |
-| `Coco` (prose)          |   434 |                 423 |                      20 |
-| `coco` (identifiers)    | 1,649 |               1,171 |                      81 |
-| `COCO` (env / build)    |   287 |                 125 |                       4 |
+| `Kirn` (prose)          |   434 |                 423 |                      20 |
+| `kirn` (identifiers)    | 1,649 |               1,171 |                      81 |
+| `KIRN` (env / build)    |   287 |                 125 |                       4 |
 
 The uppercase form is the cleanest signal, because the environment and CMake
 surface had no legitimate reason to keep the old prefix. It fell furthest.
@@ -52,7 +52,7 @@ bulk and are permanent by design.
 
 | Bucket                                | Refs | Why it remains |
 | ------------------------------------- | ---: | -------------- |
-| `COCO_PLANS/` archive (incl. path)    |    — | The pre-rename design record, kept verbatim. |
+| `KIRN_PLANS/` archive (incl. path)    |    — | The pre-rename design record, kept verbatim. |
 | `_rename/baseline/` transcripts        |    — | The Phase-1 "before" evidence this report is built on. |
 | Compatibility shims (code)            |    — | User-facing migration help. See below. |
 | "Formerly known as" discoverability    |    — | One visible mention per surface, on purpose. |
@@ -61,11 +61,11 @@ bulk and are permanent by design.
 The compatibility shims are the only ones that are *code*, and they are
 load-bearing: the old name is the payload of the message.
 
-- A stale `coco.toml` is detected and the tool prints `mv coco.toml kirn.toml`.
+- A stale `kirn.toml` is detected and the tool prints `mv kirn.toml kirn.toml`.
   Delete the old name from that string and the helpful message disappears.
-- A stale `coco.lock` is likewise detected and the tool prints the `rm` command.
-- `COCO_*` environment variables are detected and reported as renamed, so a
-  stale `COCO_ASAN` in someone's build command gets a message instead of silence.
+- A stale `kirn.lock` is likewise detected and the tool prints the `rm` command.
+- `KIRN_*` environment variables are detected and reported as renamed, so a
+  stale `KIRN_ASAN` in someone's build command gets a message instead of silence.
 - `scripts/gates_linux.sh` creates a stale pre-rename manifest as a *fixture* and
   asserts the rename hint fires. That test is the shim's regression guard;
   renaming the fixture would silently delete the test.
@@ -78,19 +78,19 @@ searches the old name should be able to land on this project. They are listed in
 
 | Surface                     | Before        | After                          |
 | --------------------------- | ------------- | ------------------------------ |
-| Source extension            | `.co`         | `.kn` (0 `.co` files tracked)   |
-| CLI driver                  | `coco`        | `kirn`                         |
-| Companion tools             | `cocorun` `cococheck` `cocolex` `cocoparse` | `kirnrun` `kirncheck` `kirnlex` `kirnparse` |
-| Manifest / lockfile         | `coco.toml` `coco.lock` | `kirn.toml` `kirn.lock` |
+| Source extension            | `.kn`         | `.kn` (0 `.kn` files tracked)   |
+| CLI driver                  | `kirn`        | `kirn`                         |
+| Companion tools             | `kirnrun` `kirncheck` `kirnlex` `kirnparse` | `kirnrun` `kirncheck` `kirnlex` `kirnparse` |
+| Manifest / lockfile         | `kirn.toml` `kirn.lock` | `kirn.toml` `kirn.lock` |
 | Library unit                | `lib` / `libs/` | `pet` / `pets/`               |
-| Environment / build flags   | `COCO_*`      | `KIRN_*`                       |
-| Native runtime              | `libcoco_rt`  | `libkirn_rt`                   |
-| Grammar file                | `grammar/coco.ebnf` | `grammar/kirn.ebnf`      |
-| Master design doc           | `docs/COCO_PLAN.md` | `docs/KIRN_PLAN.md`      |
-| Registry                    | `coco-lib/coco-libs` | `pets-registry/pets`     |
-| Repository / website        | `rkriad585/coco`, `coco-lib.github.io` | `rkriad585/kirn`, `kirn-lang.github.io` |
+| Environment / build flags   | `KIRN_*`      | `KIRN_*`                       |
+| Native runtime              | `libkirn_rt`  | `libkirn_rt`                   |
+| Grammar file                | `grammar/kirn.ebnf` | `grammar/kirn.ebnf`      |
+| Master design doc           | `docs/KIRN_PLAN.md` | `docs/KIRN_PLAN.md`      |
+| Registry                    | `kirn-lib/kirn-libs` | `pets-registry/pets`     |
+| Repository / website        | `rkriad585/kirn`, `kirn-lib.github.io` | `rkriad585/kirn`, `kirn-lang.github.io` |
 
-The `.cob` bundle extension and its `COCOB` magic were not renamed; they were
+The `.cob` bundle extension and its `KIRNB` magic were not renamed; they were
 removed outright, along with the old portable cross-build fallback they served.
 
 ## Enforcing it

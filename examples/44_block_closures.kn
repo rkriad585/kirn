@@ -12,33 +12,33 @@
 #   folded=160
 #   arrow=81
 
-def dmap(xs, f: fn(int) -> int) -> list {
+fn dmap(xs, f: fn(Int) -> Int) -> list {
     out = [];
     for x in xs { out.append(f(x)); }
     return out;
 }
 
-def makeScaler(factor) -> fn(int) -> int {
-    return fn (x: int) -> int { return x * factor; };   # captures `factor`
+fn makeScaler(factor) -> fn(Int) -> Int {
+    return fn (x: Int) -> Int { return x * factor; };   # captures `factor`
 }
 
-def main() -> none {
+fn main() -> none {
     # block closure with a local variable and an explicit return
     ys = dmap([1, 2, 3], fn (v) {
         doubled = v * 2;
         return doubled + 1;
     });
-    print("dmap=" + str(ys));
+    print("dmap=" + Str(ys));
 
     # fully typed closure passed straight to a higher-order function
     sum_ = dmap([1, 2], fn (a) { return a; }).fold(
         fn (acc, b) { return acc + b; });
     typed = sum_;
-    print("typed=" + str(typed));
+    print("typed=" + Str(typed));
 
     # closure returned from a function; captured state stays alive
     scale = makeScaler(100);
-    print("scale=" + str(scale(7)));
+    print("scale=" + Str(scale(7)));
 
     # mutable capture: the closure keeps its own counter
     count = 0;
@@ -46,29 +46,29 @@ def main() -> none {
         count = count + 1;
         return count;
     };
-    print("counter=" + str(bump()) + " " + str(bump()) + " " + str(bump()));
+    print("counter=" + Str(bump()) + " " + Str(bump()) + " " + Str(bump()));
 
     # `return` in the middle of the block short-circuits the rest
     probe = fn (n) {
         if n > 10 { return 6; }
         return n;
     };
-    print("early=" + str(probe(99)));
+    print("early=" + Str(probe(99)));
 
     # block closures compose: mini pipeline of transforms
-    pipe = fn (x: int) -> int {
+    pipe = fn (x: Int) -> Int {
         y = x + 1;
         z = y * 2;
         return z;
     };
     thru = dmap([3, 2], pipe);       # pipe(3)=8, pipe(2)=6
-    print("pipeline=" + str(thru.next()));   # next item (head) -> 8
+    print("pipeline=" + Str(thru.next()));   # next item (head) -> 8
 
     # fold with an explicit initial accumulator
     folded = [10, 20, 30].fold(fn (acc, v) { return acc + v; }, 100);
-    print("folded=" + str(folded));
+    print("folded=" + Str(folded));
 
     # arrow lambdas still work unchanged: (x) => e
     sq = (x) => x * x;
-    print("arrow=" + str(sq(9)));
+    print("arrow=" + Str(sq(9)));
 }

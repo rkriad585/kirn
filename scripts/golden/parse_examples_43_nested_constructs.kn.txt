@@ -62,7 +62,7 @@ FuncDef "main"
                 Lhs Str "nestedIf="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "n"
     Assign
@@ -116,7 +116,7 @@ FuncDef "main"
                 Lhs Str "doubleNest="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -169,7 +169,7 @@ FuncDef "main"
                 Lhs Str "deepFor="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "total"
     Assign
@@ -197,7 +197,7 @@ FuncDef "main"
                 Lhs Str "doGatherSum="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "sum"
     Assign

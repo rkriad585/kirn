@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/35_try_catch.kn
 FuncDef "risky"
-  Param "n" : int
-  Ret int
+  Param "n" : Int
+  Ret Int
   Body
     If
       Cond 
@@ -43,7 +43,7 @@ FuncDef "main"
                     Lhs Str "recovered: "
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value Ident "e"
     Try
@@ -68,7 +68,7 @@ FuncDef "main"
                     Lhs Str "should not print: "
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value Ident "e"
     VarDecl
@@ -104,7 +104,7 @@ FuncDef "main"
                     Lhs Str "num="
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value 
                             Binary op="+"
@@ -130,7 +130,7 @@ FuncDef "main"
                 Lhs Str "rethrown: "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "inner"
       Catch bind=outer_e
@@ -138,7 +138,7 @@ FuncDef "main"
           Target Ident "outer"
           Value 
             Call
-              Callee Ident "str"
+              Callee Ident "Str"
               Arg
                 Value Ident "outer_e"
     ExprStmt
@@ -174,7 +174,7 @@ FuncDef "main"
                     Lhs Str "boom "
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value Ident "i"
           AugAssign op="+="
@@ -191,7 +191,7 @@ FuncDef "main"
                         Lhs Str "in loop: "
                         Rhs 
                           Call
-                            Callee Ident "str"
+                            Callee Ident "Str"
                             Arg
                               Value Ident "e"
     ExprStmt
@@ -204,7 +204,7 @@ FuncDef "main"
                 Lhs Str "count="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "count"
 <ROOT>/examples/35_try_catch.kn: OK (2 top-level statements)

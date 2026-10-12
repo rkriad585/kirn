@@ -3,24 +3,24 @@
 # jumps to the catch block, binding `e` to the raised value.
 # `catch { }` (no binding) discards the value; a try without catch re-raises.
 
-def risky(n: int) -> int {
+fn risky(n: Int) -> Int {
     if n < 0 { raise("n must be >= 0"); }
     return n * n;
 }
 
-def main() -> none {
+fn main() -> none {
     # catchable error, message bound to `e`
     try {
         print(risky(-1));
     } catch e {
-        print("recovered: " + str(e));
+        print("recovered: " + Str(e));
     }
 
     # normal path: try body runs, catch is skipped
     try {
         print(risky(3));
     } catch e {
-        print("should not print: " + str(e));
+        print("should not print: " + Str(e));
     }
 
     # discard form: no binding name
@@ -36,15 +36,15 @@ def main() -> none {
     try {
         raise(42);
     } catch n {
-        print("num=" + str(n + 1));
+        print("num=" + Str(n + 1));
     }
 
     # nested try/catch with re-raise
     var outer = "none";
     try {
-        try { risky(-5); } catch inner { raise("rethrown: " + str(inner)); }
+        try { risky(-5); } catch inner { raise("rethrown: " + Str(inner)); }
     } catch outer_e {
-        outer = str(outer_e);
+        outer = Str(outer_e);
     }
     print("outer=" + outer);
 
@@ -52,11 +52,11 @@ def main() -> none {
     var count = 0;
     for i in [1, 2, 3] {
         try {
-            if i == 2 { raise("boom " + str(i)); }
+            if i == 2 { raise("boom " + Str(i)); }
             count += 1;
         } catch e {
-            print("in loop: " + str(e));
+            print("in loop: " + Str(e));
         }
     }
-    print("count=" + str(count));
+    print("count=" + Str(count));
 }

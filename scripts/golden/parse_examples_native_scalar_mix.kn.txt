@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/native_scalar_mix.kn
 FuncDef "is_even"
-  Param "n" : int
-  Ret bool
+  Param "n" : Int
+  Ret Bool
   Body
     Return
       Value 
@@ -12,8 +12,8 @@ FuncDef "is_even"
               Rhs Int "2"
           Rhs Int "0"
 FuncDef "classify"
-  Param "n" : int
-  Ret int
+  Param "n" : Int
+  Ret Int
   Body
     If
       Cond 
@@ -46,7 +46,7 @@ FuncDef "classify"
           Value Int "1"
 FuncDef "powf"
   Param "b" : f64
-  Param "n" : int
+  Param "n" : Int
   Ret f64
   Body
     VarDecl : f64

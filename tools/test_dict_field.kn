@@ -1,14 +1,14 @@
 struct Box {
     var buckets: dict;
-    def put(self, k, v) -> none {
+    fn put(self, k, v) -> none {
         self.buckets[k] = v;
     }
-    def get(self, k) -> none {
+    fn get(self, k) -> none {
         d = self.buckets;
         return d[k];
     }
 }
-def main() -> none {
+fn main() -> none {
     b = Box();
     print("initial:", repr(b.buckets));
     b.put("a", 1);

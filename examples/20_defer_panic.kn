@@ -1,23 +1,23 @@
 # 20 — defer & panic                      (plan §7, §8)
-def process(path: string) -> none {
+fn process(path: Str) -> none {
     f = io.open(path);
     defer f.close(); # runs at scope exit, LIFO order
     print(f"processing {path}");
     # ... work with f ...                # even on early return or panic unwind
 
 }
-def risky(n: int) -> int {
+fn risky(n: Int) -> Int {
     if n < 0 {
         panic("n must be >= 0"); # programmer bug → unwinds with backtrace
 }
     return n * n;
 
 }
-def try_risky() -> int { # named closure for catch_panic boundary
+fn try_risky() -> Int { # named closure for catch_panic boundary
     return risky(-1);
 
 }
-def main() -> none {
+fn main() -> none {
     process("data.txt");
 
     print(risky(9));

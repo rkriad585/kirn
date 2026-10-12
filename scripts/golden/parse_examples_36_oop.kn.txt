@@ -1,31 +1,31 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/36_oop.kn
 TraitDef "Named"
-  Sig name(self: <inferred>) -> string
+  Sig name(self: <inferred>) -> Str
 TraitDef "Loud"
-  Sig volume(self: <inferred>) -> int
+  Sig volume(self: <inferred>) -> Int
 StructDef "Animal"
-  Field "name" var : string
+  Field "name" var : Str
     Default Str "unnamed"
   FuncDef "speak"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "?"
 StructDef "Dog"
-  Field "name" var : string
+  Field "name" var : Str
     Default Str "unnamed"
-  Field "loud" var : int
+  Field "loud" var : Int
     Default Int "10"
   FuncDef "speak"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "woof"
   FuncDef "name"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value 
@@ -33,7 +33,7 @@ StructDef "Dog"
             Obj Ident "self"
   FuncDef "volume"
     Param "self" self : <inferred>
-    Ret int
+    Ret Int
     Body
       Return
         Value 
@@ -42,7 +42,7 @@ StructDef "Dog"
 ImplDef Named for Dog
   FuncDef "speak"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       ExprStmt
         Value 
@@ -52,7 +52,7 @@ ImplDef Named for Dog
                 Obj Ident "self"
   FuncDef "name"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       ExprStmt
         Value 
@@ -62,7 +62,7 @@ ImplDef Named for Dog
                 Obj Ident "self"
   FuncDef "volume"
     Param "self" self : <inferred>
-    Ret int
+    Ret Int
     Body
       ExprStmt
         Value 
@@ -73,7 +73,7 @@ ImplDef Named for Dog
 ImplDef Loud for Dog
   FuncDef "speak"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       ExprStmt
         Value 
@@ -83,7 +83,7 @@ ImplDef Loud for Dog
                 Obj Ident "self"
   FuncDef "name"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       ExprStmt
         Value 
@@ -93,7 +93,7 @@ ImplDef Loud for Dog
                 Obj Ident "self"
   FuncDef "volume"
     Param "self" self : <inferred>
-    Ret int
+    Ret Int
     Body
       ExprStmt
         Value 
@@ -102,11 +102,11 @@ ImplDef Loud for Dog
               Member name="volume"
                 Obj Ident "self"
 StructDef "Base"
-  Field "id" var : int
+  Field "id" var : Int
     Default Int "1"
   FuncDef "greet"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value 
@@ -116,7 +116,7 @@ StructDef "Base"
                 Lhs Str "base("
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Member name="id"
@@ -124,22 +124,22 @@ StructDef "Base"
             Rhs Str ")"
   FuncDef "tag"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "Base"
 StructDef "Derived"
-  Field "id" var : int
+  Field "id" var : Int
     Default Int "2"
   FuncDef "tag"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value Str "Derived"
   FuncDef "describe"
     Param "self" self : <inferred>
-    Ret string
+    Ret Str
     Body
       Return
         Value 
@@ -159,7 +159,7 @@ StructDef "Derived"
                     Obj Ident "self"
 FuncDef "render_base_tag"
   Param "b" : Base
-  Ret string
+  Ret Str
   Body
     Return
       Value 
@@ -168,12 +168,12 @@ FuncDef "render_base_tag"
             Member name="tag"
               Obj Ident "b"
 StructDef "Point"
-  Field "fx" : int
-  Field "fy" : int
+  Field "fx" : Int
+  Field "fy" : Int
 FuncDef "add"
-  Param "a" : int
-  Param "b" : int
-  Ret int
+  Param "a" : Int
+  Param "b" : Int
+  Ret Int
   Body
     Return
       Value 
@@ -199,7 +199,7 @@ FuncDef "render_name"
                         Obj Ident "n"
 FuncDef "get_volume"
   Param "l" : Loud
-  Ret int
+  Ret Int
   Body
     Return
       Value 
@@ -261,7 +261,7 @@ FuncDef "main"
                 Lhs Str "volume        = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call
@@ -396,7 +396,7 @@ FuncDef "main"
                             Lhs Str "point         = ("
                             Rhs 
                               Call
-                                Callee Ident "str"
+                                Callee Ident "Str"
                                 Arg
                                   Value 
                                     Member name="fx"
@@ -404,7 +404,7 @@ FuncDef "main"
                         Rhs Str ", "
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value 
                             Member name="fy"
@@ -424,7 +424,7 @@ FuncDef "main"
                         Lhs Str "rec eq        = "
                         Rhs 
                           Call
-                            Callee Ident "str"
+                            Callee Ident "Str"
                             Arg
                               Value 
                                 Binary op="=="
@@ -439,7 +439,7 @@ FuncDef "main"
                     Rhs Str " "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Binary op="=="
@@ -461,7 +461,7 @@ FuncDef "main"
                 Lhs Str "fn-add        = "
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value 
                         Call

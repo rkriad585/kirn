@@ -1,7 +1,7 @@
 module.exports = {
   extends: ["@commitlint/config-conventional"],
   // Mirrors the repo's observed commit vocabulary (git log census): the
-  // Coco->Kirn migration introduces repo-area types (meta, scripts, tools,
+  // Kirn->Kirn migration introduces repo-area types (meta, scripts, tools,
   // examples, rename, gitignore, stdlib) alongside the conventional set.
   rules: {
     "type-enum": [

@@ -1,6 +1,6 @@
 import pet.json;
 
-def main() -> none {
+fn main() -> none {
     print("B");
     v = json.loads("{\"a\": [1]}");
     print("A", v);

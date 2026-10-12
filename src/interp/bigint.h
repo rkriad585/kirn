@@ -5,7 +5,7 @@
 // (matching the Go math/big.Int / Rust num-big-int convention the plan
 // cites). Zero is always represented as an empty limb vector with neg=false.
 //
-// Only the operations the Coco Phase-3 example exercises are implemented
+// Only the operations the Kirn Phase-3 example exercises are implemented
 // here; the rest (GCD/ModInverse/ModSqrt, to_bytes/from_bytes, Miller-Rabin)
 // are stubbed behind the same helpers so they can be filled in without
 // touching the interpreter's switch sites again.

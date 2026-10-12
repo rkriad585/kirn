@@ -4,29 +4,29 @@
 # Reassigning to a different type is fine, and method calls follow the value.
 
 class Widget {
-    var w: int = 3;
-    def size(self) -> int { return self.w * 2; }
+    var w: Int = 3;
+    fn size(self) -> Int { return self.w * 2; }
 }
 
-def show(v: any) -> none {
+fn show(v: any) -> none {
     print("show(" + repr(v) + ")");
 }
 
-def main() -> none {
+fn main() -> none {
     var a: any = 5;
     a = "hi";
-    print("a = " + str(a));
+    print("a = " + Str(a));
 
     var d: dynamic = 3.5;          # dynamic is an alias for any
     d = 42;
-    print("d = " + str(d));
+    print("d = " + Str(d));
 
     var lst: any = [1, 2, 3];
-    print("len(lst) = " + str(len(lst)));
+    print("len(lst) = " + Str(len(lst)));
 
     w = Widget();
     var x: any = w;
-    print("widget size = " + str(x.size()));   # duck-typed method call
+    print("widget size = " + Str(x.size()));   # duck-typed method call
 
     show("text");
     show([1, 2]);

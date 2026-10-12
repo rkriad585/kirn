@@ -2,7 +2,7 @@
 # materialization, a loop with a typed induction variable, a bool-returning
 # call in print, and the float print round-trip including its ".0" appendix and
 # the %.15g/%.16g/%.17g chain.
-def scale(x: float, n: int) -> float {
+fn scale(x: Float, n: Int) -> Float {
     var r = 0.0;
     var i = 0;
     while i < n {
@@ -12,17 +12,17 @@ def scale(x: float, n: int) -> float {
     return r;
 }
 
-def positive(x: int) -> bool {
+fn positive(x: Int) -> Bool {
     return x > 0;
 }
 
-def dump(base: float, count: int) -> none {
+fn dump(base: Float, count: Int) -> none {
     var r = scale(base, count);
     var ok = positive(count);
     print("scaled=", r, " ok=", ok);
 }
 
-def main() -> int {
+fn main() -> Int {
     var z = 0.5;
     print("zero=", z);
     print("pi=", 3.141592653589793238);

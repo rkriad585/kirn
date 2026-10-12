@@ -1,11 +1,11 @@
 # 5.1 — default type param with an explicit arg constraint. The arg `7`
 # constrains T=int; the default on `first[T = int]` is not needed but resolves
 # fine. `plain[T]` (no default) stays inference-only.
-def first[T = int](xs: list[T]) -> T {
+fn first[T = Int](xs: list[T]) -> T {
     if xs.len() > 0 { return xs[0]; }
     return 0 as T;
 }
-def main() -> none {
+fn main() -> none {
     xs = [1, 2, 3];
     h = first(xs);
     print(h);

@@ -38,7 +38,7 @@ FuncDef "main"
               Call
                 Callee Ident "slugify"
                 Arg
-                  Value Str "Hello Coco World"
+                  Value Str "Hello Kirn World"
     ExprStmt
       Value 
         Call

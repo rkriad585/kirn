@@ -1,11 +1,11 @@
-def fib(n: int) -> int {
+fn fib(n: Int) -> Int {
     if n < 2 {
         return n;
     }
     return fib(n - 1) + fib(n - 2);
 }
 
-def main() -> none {
+fn main() -> none {
     total = 0;
     for i in 0..=30 {
         total += fib(i);

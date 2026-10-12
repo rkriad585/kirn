@@ -1,14 +1,14 @@
 # 02 — Variables & mutability             (plan §5.3)
 const MAX_USERS = 1000; # compile-time constant
 
-def main() -> none {
+fn main() -> none {
     x = 42; # immutable binding, inferred int
     # x += 1                             # COMPILE ERROR: immutable by default
     var y = 10; # mutable binding
     y += 1;
 
     z: f64 = 3.14; # explicit type annotation
-    flag: bool = true;
+    flag: Bool = true;
     alias = x; # plain assignment also binds immutably
 
     _ = flag; # discard convention

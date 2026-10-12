@@ -20,7 +20,7 @@ namespace {
 // was defined EARLIER. So a body can only ever refer to a macro that already
 // existed, which means recursion would have to pass through a definition and
 // the table lookup always moves strictly backwards. Mutual recursion is
-// therefore structurally impossible, and `{.def A. A.}` is caught outright at
+// therefore structurally impossible, and `{.fn A. A.}` is caught outright at
 // definition time with a better message. The limit stays because that argument
 // is about the current implementation, and a hang is a much worse failure than
 // a spurious diagnostic.
@@ -57,7 +57,7 @@ Token synth(Tok kind, const std::string& text, const Token& at) {
 
 const std::set<std::string>& directiveNames() {
     static const std::set<std::string> kDirectives = {
-        "def", "undef", "if", "ifdef", "ifndef", "else", "elif", "endif"};
+        "fn", "undef", "if", "ifdef", "ifndef", "else", "elif", "endif"};
     return kDirectives;
 }
 
@@ -188,10 +188,10 @@ std::vector<Token> Preprocessor::scanDirectives(const std::vector<Token>& in) {
         const Token at = in[i];
         i = probe;
 
-        if (name == "def") {
+        if (name == "fn") {
             if (!live()) continue;
             if (payload.empty() || payload[0].kind != Tok::Ident) {
-                err(at.line, at.col, "{.def.} expects a macro name");
+                err(at.line, at.col, "{.fn.} expects a macro name");
                 continue;
             }
             const std::string mname = payload[0].text;
@@ -217,12 +217,12 @@ std::vector<Token> Preprocessor::scanDirectives(const std::vector<Token>& in) {
                 }
                 if (!closed) {
                     err(at.line, at.col,
-                        "unterminated parameter list in {.def " + mname + "(...).}");
+                        "unterminated parameter list in {.fn " + mname + "(...).}");
                     continue;
                 }
                 if (p >= payload.size() || !isOp(payload[p], "=")) {
                     err(at.line, at.col,
-                        "{.def " + mname + "(...).} expects '=' before the body");
+                        "{.fn " + mname + "(...).} expects '=' before the body");
                     continue;
                 }
                 ++p;
@@ -230,7 +230,7 @@ std::vector<Token> Preprocessor::scanDirectives(const std::vector<Token>& in) {
                 // Object-like. Two spellings, because the dot form is what Nim
                 // uses and the `=` form is what the function-like spelling
                 // already implies -- and because the dot form is genuinely
-                // ambiguous otherwise: `{.def N. 10.}` cannot be told apart from
+                // ambiguous otherwise: `{.fn N. 10.}` cannot be told apart from
                 // a body that begins with a `.` unless the dot is a separator.
                 // `.5` is not a valid Kirn literal (a numeric literal needs a
                 // leading digit), so consuming one dot here is unambiguous.
@@ -247,7 +247,7 @@ std::vector<Token> Preprocessor::scanDirectives(const std::vector<Token>& in) {
             //  - one followed by `(`, which is a call and resolves at the call
             //    site, so a macro body can call a function the caller defines;
             //  - one that already names a defined macro, so macro bodies can
-            //    COMPOSE. Without this, `{.def OUTER. INNER + 1.}` would rename
+            //    COMPOSE. Without this, `{.fn OUTER. INNER + 1.}` would rename
             //    INNER to a private name and the inner macro could never fire.
             //
             // Composition is therefore backward-only: INNER must be defined
@@ -303,8 +303,8 @@ std::vector<Token> Preprocessor::scanDirectives(const std::vector<Token>& in) {
                 } else if (payload.empty() || payload[0].kind != Tok::Ident) {
                     err(at.line, at.col, "{." + name + "} expects a macro name");
                 } else {
-                    const bool def = macros_.count(payload[0].text) != 0;
-                    value = (name == "ifdef") ? def : !def;
+                    const bool has = macros_.count(payload[0].text) != 0;
+                    value = (name == "ifdef") ? has : !has;
                 }
             }
             stack.push_back({enclosing, enclosing && value, false});
@@ -472,7 +472,7 @@ std::vector<Token> Preprocessor::expand(const std::vector<Token>& in) {
         if (m.functionLike) {
             if (pending.empty() || !isPunct(pending.front(), "(")) {
                 // A function-like macro not followed by `(` is just a name, not
-                // an invocation. `let f = SQUARE;` must not blow up.
+                // an invocation. `var f = SQUARE;` must not blow up.
                 out.push_back(std::move(t));
                 continue;
             }

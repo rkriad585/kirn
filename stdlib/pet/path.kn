@@ -3,11 +3,11 @@
 #   import pet.path;
 
 # Join path segments with the separator, collapsing empty parts.
-pub def join(parts: list) -> string {
+pub fn join(parts: list) -> Str {
     out = "";
     first = true;
     for p in parts {
-        s = str(p);
+        s = Str(p);
         if s == "" { continue; }
         if not first { out = out + "/"; }
         out = out + s;
@@ -17,7 +17,7 @@ pub def join(parts: list) -> string {
 }
 
 # Everything up to (excluding) the last separator; "" if none.
-pub def dirname(p: string) -> string {
+pub fn dirname(p: Str) -> Str {
     parts = p.split("/");
     if parts.len() <= 1 { return ""; }
     drops = parts[0..parts.len() - 1];
@@ -28,21 +28,21 @@ pub def dirname(p: string) -> string {
 }
 
 # The final component after the last separator.
-pub def basename(p: string) -> string {
+pub fn basename(p: Str) -> Str {
     parts = p.split("/");
-    return str(parts[parts.len() - 1]);
+    return Str(parts[parts.len() - 1]);
 }
 
 # File extension including the leading dot ("" if none).
-pub def extname(p: string) -> string {
+pub fn extname(p: Str) -> Str {
     base = basename(p);
     dots = base.split(".");
     if dots.len() == 1 { return ""; }
-    return "." + str(dots[dots.len() - 1]);
+    return "." + Str(dots[dots.len() - 1]);
 }
 
 # Filename without its extension.
-pub def stem(p: string) -> string {
+pub fn stem(p: Str) -> Str {
     base = basename(p);
     e = extname(base);
     if e == "" { return base; }

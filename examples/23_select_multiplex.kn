@@ -1,11 +1,11 @@
 # 23 — select: multiplexing channel operations   (plan §7)
-def slow_producer(ch: chan[string]) -> none {
+fn slow_producer(ch: chan[Str]) -> none {
     time.sleep(ms: 1000);
     ch.send("late value");
 
 }
-def main() -> none {
-    ch = chan[string]();
+fn main() -> none {
+    ch = chan[Str]();
     spawn slow_producer(ch); # will be too late for the timeout
 
     while true {

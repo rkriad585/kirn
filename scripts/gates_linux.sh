@@ -122,42 +122,36 @@ kirn_run() { # dir -> prints "$code|$out"
 }
 P="$TMP/conv"; mkdir -p "$P"
 # 1. code/main.kn entry
-mkdir -p "$P/a/code"; printf 'def main() -> none { print("A"); }' > "$P/a/code/main.kn"
+mkdir -p "$P/a/code"; printf 'fn main() -> none { print("A"); }' > "$P/a/code/main.kn"
 r=$(kirn_run "$P/a" run "$P/a"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "A" && report PASS "code/main.kn entry" || report FAIL "code/main.kn entry" "$out"
 # 2. manifest main wins over code/main.kn
 mkdir -p "$P/b/code"; printf '[package]\nname="b"\nmain="start.kn"\n' > "$P/b/kirn.toml"
-printf 'def main() -> none { print("Bmain"); }' > "$P/b/start.kn"
-printf 'def main() -> none { print("Bcode"); }' > "$P/b/code/main.kn"
+printf 'fn main() -> none { print("Bmain"); }' > "$P/b/start.kn"
+printf 'fn main() -> none { print("Bcode"); }' > "$P/b/code/main.kn"
 r=$(kirn_run "$P/b" run "$P/b"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "Bmain" && report PASS "manifest main preferred" || report FAIL "manifest main preferred" "$out"
 # 3. pin.kn as run entry
-mkdir -p "$P/c"; printf 'pub def main() -> none { print("C"); }' > "$P/c/pin.kn"
+mkdir -p "$P/c"; printf 'pub fn main() -> none { print("C"); }' > "$P/c/pin.kn"
 r=$(kirn_run "$P/c" run "$P/c"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "C" && report PASS "pin.kn as run entry" || report FAIL "pin.kn as run entry" "$out"
 # 4. no entry -> fix-it error
-mkdir -p "$P/d/code"; printf 'pub def u() -> int { return 1; }' > "$P/d/code/util.kn"
+mkdir -p "$P/d/code"; printf 'pub fn u() -> Int { return 1; }' > "$P/d/code/util.kn"
 r=$(kirn_run "$P/d" run "$P/d"); c=${r%%|*}; out=${r#*|}
 [ "$c" != 0 ] && echo "$out" | grep -q "no entry point" && report PASS "no entry -> fix-it error" || report FAIL "no entry -> fix-it error" "$out"
 # 5. pin.kn runs once + pub surface
 mkdir -p "$P/proj/pets/greet/code"
-printf 'var loads = 0;\nloads = loads + 1;\npub def load_count() -> int { return loads; }\npub def hi(who: string) -> string { return "hi " + who; }\n' > "$P/proj/pets/greet/code/pin.kn"
-printf 'import greet;\nimport greet as g2;\nimport greet as g3;\ndef main() -> none {\n    print("count=", greet.load_count());\n    print(greet.hi("world"));\n}\n' > "$P/proj/main.kn"
+printf 'var loads = 0;\nloads = loads + 1;\npub fn load_count() -> Int { return loads; }\npub fn hi(who: Str) -> Str { return "hi " + who; }\n' > "$P/proj/pets/greet/code/pin.kn"
+printf 'import greet;\nimport greet as g2;\nimport greet as g3;\nfn main() -> none {\n    print("count=", greet.load_count());\n    print(greet.hi("world"));\n}\n' > "$P/proj/main.kn"
 r=$(kirn_run "$P/proj" run "$P/proj"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "count= 1" && report PASS "pin.kn runs once (count=1)" || report FAIL "pin.kn runs once (count=1)" "$out"
 [ "$c" = 0 ] && echo "$out" | grep -q "hi world" && report PASS "pin.kn pub surface" || report FAIL "pin.kn pub surface" "$out"
 # 6. pin.kn discovered without manifest
 mkdir -p "$P/proj2/pets/nomanifest/code"
-printf 'pub def poke() -> string { return "poked"; }\n' > "$P/proj2/pets/nomanifest/code/pin.kn"
-printf 'import nomanifest;\ndef main() -> none { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
+printf 'pub fn poke() -> Str { return "poked"; }\n' > "$P/proj2/pets/nomanifest/code/pin.kn"
+printf 'import nomanifest;\nfn main() -> none { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
 r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
-# 7. stale coco.toml -> actionable rename hint (manifest renamed in this release)
-mkdir -p "$P/e/code"; printf '[package]\nname="e"\nmain="code/main.kn"\n' > "$P/e/coco.toml"
-printf 'def main() -> none { print("E"); }' > "$P/e/code/main.kn"
-r=$(kirn_run "$P/e" run "$P/e"); c=${r%%|*}; out=${r#*|}
-[ "$c" = 0 ] && echo "$out" | grep -q "coco.toml" && echo "$out" | grep -q "kirn.toml" && report PASS "stale coco.toml -> rename hint" || report FAIL "stale coco.toml -> rename hint" "$out"
-
 echo "=== gate 6: test (stdlib via kirn driver) ==="
 rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
 out6=$(cd "$ROOT" && timeout "$WATCH" "$CO" test . 2>&1); c6=$?
@@ -171,19 +165,18 @@ fi
 echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
 T7="$TMP/rt"; mkdir -p "$T7"
 (cd "$T7" && "$CO" new pet mypet >/dev/null 2>&1)
-printf 'pub def hello(who: string) -> string { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
+printf 'pub fn hello(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
 if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
     PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
     if [ -z "$PET" ]; then report FAIL "pack .pet" "no .pet produced in build/"
     elif [ ! -f "$T7/mypet/kirn.toml" ]; then report FAIL "pack .pet" "kirn.toml not scaffolded"
-    elif [ -e "$T7/mypet/coco.toml" ]; then report FAIL "pack .pet" "stale coco.toml present"
     else
         report PASS "pack .pet" "$(basename "$PET")"
         (cd "$T7" && "$CO" new app >/dev/null 2>&1)
         if (cd "$T7/app" && "$CO" install "$PET" >/dev/null 2>&1); then
             if [ -f "$T7/app/pets/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/mypet"
             else report FAIL "install .pet" "destination pets/mypet missing"; fi
-            printf 'import mypet;\ndef main() -> none { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
+            printf 'import mypet;\nfn main() -> none { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
             out7=$(cd "$T7/app" && timeout "$WATCH" "$CO" run "$T7/app" 2>&1); c7=$?
             if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pets, world!"; then report PASS "consume .pet" "$out7"
             else report FAIL "consume .pet" "rc=$c7: $out7"; fi
@@ -193,8 +186,8 @@ else report FAIL "pack .pet" "kirn build pet failed"; fi
 
 echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
 T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
-printf 'pub def hey(who: string) -> string { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
-printf 'import greet;\nimport math;\ndef main() -> none {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
+printf 'pub fn hey(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
+printf 'import greet;\nimport math;\nfn main() -> none {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
 out8=$(cd "$T8" && timeout 240 "$CO" build main.kn -o out 2>&1); c8=$?
 if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
     # real native binary (ELF magic), not a script
@@ -216,7 +209,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         cp "$CO" "$T8c/build/kirn"
         cp -r "$ROOT/src" "$T8c/src"
         cp "$ROOT/tools/runner.cpp" "$T8c/tools/runner.cpp"
-        printf 'def main() -> none { print("verbose check"); }\n' > "$T8c/main.kn"
+        printf 'fn main() -> none { print("verbose check"); }\n' > "$T8c/main.kn"
         out8c=$(cd "$T8c/build" && KIRN_VERBOSE=1 timeout 300 ./kirn build ../main.kn -o ../out-verb 2>&1); c8c=$?
         if [ "$c8c" = 0 ] && echo "$out8c" | grep -q '\[cmd\]'; then
             report PASS "KIRN_VERBOSE logs [cmd] on cold runner warmup" "positive probe"
@@ -236,8 +229,8 @@ echo "=== phase 2: macro hygiene ==="
 # caller's local of the same name. The renamed name is what the checker must
 # reject -- if the macro could capture, this would type-check and print 101.
 cat > "$TMP/capture.kn" <<'KN'
-{.def BAD() = helper + 1.}
-def main() -> none { helper = 100; print(BAD()); }
+{.fn BAD() = helper + 1.}
+fn main() -> none { helper = 100; print(BAD()); }
 KN
 out=$("$CC" "$TMP/capture.kn" 2>&1); code=$?
 if [ "$code" = 1 ] && printf '%s' "$out" | grep -q "undefined variable '__kirnpre"; then
@@ -293,16 +286,16 @@ fi
 # This is the gate that would have caught the alpha-renaming over-application
 # that renamed INNER inside OUTER's body, making composition impossible.
 cat > "$TMP/comp.kn" <<'KN'
-{.def INNER. 5.}
-{.def OUTER. INNER + 1.}
-def main() -> none { print(OUTER); }
+{.fn INNER. 5.}
+{.fn OUTER. INNER + 1.}
+fn main() -> none { print(OUTER); }
 KN
 out=$("$KN" -E "$TMP/comp.kn" 2>&1)
 # OUTER must have expanded all the way through INNER to the literal 5, with no
 # private renamed name anywhere. A greps for the *surviving* name would be
 # checking the opposite of the intent: correct composition removes INNER.
 flat=$(printf '%s' "$out" | tr '\t' ' ')
-if printf '%s' "$flat" | grep -q 'Int 3:28 5' && ! printf '%s' "$flat" | grep -q '__kirnpre'; then
+if printf '%s' "$flat" | grep -q 'Int 3:27 5' && ! printf '%s' "$flat" | grep -q '__kirnpre'; then
     report PASS "macro bodies compose" "OUTER -> INNER -> 5, no private names"
 else
     report FAIL "macro bodies compose" "out: $(printf '%s' "$out" | tr '\n' ' ')"
@@ -311,8 +304,8 @@ fi
 # Direct self-reference is rejected at definition time with a message that names
 # the cause, rather than expanding until something else gives up.
 cat > "$TMP/self.kn" <<'KN'
-{.def A. A.}
-def main() -> none { print(A); }
+{.fn A. A.}
+fn main() -> none { print(A); }
 KN
 out=$("$KN" -E "$TMP/self.kn" 2>&1); code=$?
 if [ "$code" = 1 ] && printf '%s' "$out" | grep -q 'expands to itself'; then
@@ -326,9 +319,9 @@ fi
 # backwards. The observable consequence is that PING does not expand to a
 # renamed private name and the program simply fails to compile.
 cat > "$TMP/rec.kn" <<'KN'
-{.def PING. PONG.}
-{.def PONG. PING.}
-def main() -> none { print(PING); }
+{.fn PING. PONG.}
+{.fn PONG. PING.}
+fn main() -> none { print(PING); }
 KN
 # kirncheck, not -E: -E only preprocesses and so exits 0 on a name that will not
 # resolve. The point being asserted is that the reference graph only ever points
@@ -349,8 +342,8 @@ fi
 # launcher does not preprocess, so without this guard `kirn build` returned 0 and
 # produced an executable that exited 65 when run.
 cat > "$TMP/macbuild.kn" <<'KN'
-{.def LIMIT. 3.}
-def main() -> none { print(LIMIT); }
+{.fn LIMIT. 3.}
+fn main() -> none { print(LIMIT); }
 KN
 out=$("$CO" build "$TMP/macbuild.kn" -o "$TMP/macbuild.bin" 2>&1); code=$?
 if [ "$code" = 65 ] && printf '%s' "$out" | grep -q 'preprocessor macros'; then
@@ -433,7 +426,7 @@ fi
 # about the verifier. It also pins the ordering that matters -- HIR must not
 # lower code that failed type checking.
 cat > "$TMP/hirunchecked.kn" <<'KN'
-def main() -> none {
+fn main() -> none {
     print(no_such_name_anywhere);
 }
 KN

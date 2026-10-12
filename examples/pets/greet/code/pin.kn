@@ -8,11 +8,11 @@ var loads = 0;               # module state: preserved across imports
 loads = loads + 1;           # top-level init statement runs once
 
 ## How many times this package was initialized.
-pub def load_count() -> int {
+pub fn load_count() -> Int {
     return loads;
 }
 
 ## A friendly greeting.
-pub def hello(who: string) -> string {
+pub fn hello(who: Str) -> Str {
     return "hello, " + who + "!";
 }

@@ -1,7 +1,7 @@
 # Gate 10 negative fixture: a list local is outside the scalar subset, and the
 # backend must reject it with a diagnostic instead of lowering the any-typed
 # value. kirnc llvm must exit non-zero.
-def main() -> none {
+fn main() -> none {
     var xs = [1, 2, 3];
     print(xs);
 }

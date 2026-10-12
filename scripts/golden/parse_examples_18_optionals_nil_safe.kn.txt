@@ -1,8 +1,8 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/18_optionals_nil_safe.kn
 FuncDef "find"
-  Param "xs" : list[int]
-  Param "target" : int
-  Ret int?
+  Param "xs" : list[Int]
+  Param "target" : Int
+  Ret Int?
   Body
     For
       PatBind i

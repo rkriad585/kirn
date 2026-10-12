@@ -1,7 +1,7 @@
 # 13 — Traits: static + dynamic dispatch  (plan §5.8)
 trait Drawable {
-    def draw(self); # signature-only (no default body)
-    def name(self) -> string {
+    fn draw(self); # signature-only (no default body)
+    fn name(self) -> Str {
         return "drawable"; # default body, overridable
 
 }
@@ -9,31 +9,31 @@ trait Drawable {
 struct Circle {
     r: f64;
 
-    def draw(self) -> none { # inherent method on the struct itself
+    fn draw(self) -> none { # inherent method on the struct itself
         print(f"inherent draw r={self.r}");
 
 }
 }
 impl Drawable for Circle { # trait impl provides dispatch methods
-    def draw(self) -> none {
+    fn draw(self) -> none {
         print(f"circle r={self.r}");
 
 }
-    def name(self) -> string {
+    fn name(self) -> Str {
         return "circle";
 
 }
 }
-def render(d: Drawable) -> none { # DYNAMIC dispatch via trait object
+fn render(d: Drawable) -> none { # DYNAMIC dispatch via trait object
     d.draw();
     print(d.name());
 
 }
-def render_fast[T is Drawable](d: T) -> none { # STATIC dispatch via monomorphization
+fn render_fast[T is Drawable](d: T) -> none { # STATIC dispatch via monomorphization
     d.draw();
 
 }
-def main() -> none {
+fn main() -> none {
     c = Circle(r: 2.5);
     render(c);
     render_fast(c);

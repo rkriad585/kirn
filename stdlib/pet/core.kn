@@ -3,10 +3,10 @@
 # importers observe identical semantics.
 #
 # NOTE: struct types are NOT exported through the file-backed `import`
-# mechanism (only `pub def` functions are), so we expose helpers as functions.
+# mechanism (only `pub fn` functions are), so we expose helpers as functions.
 
 # Read an entire file as a string ("" if the file cannot be opened/read).
-pub def read_file(path: string) -> string {
+pub fn read_file(path: Str) -> Str {
     f = io.open(path);
     s = f.read();
     f.close();
@@ -14,18 +14,18 @@ pub def read_file(path: string) -> string {
 }
 
 # Write a string to a file (overwrites). Matches io.write semantics.
-pub def write_file(path: string, data: string) -> none {
+pub fn write_file(path: Str, data: Str) -> none {
     f = io.open(path);
     f.write(data);
     f.close();
 }
 
-# Integer -> string (runtime str() semantics; base 10).
-pub def i2s(n: int) -> string {
-    return str(n);
+# Integer -> string (runtime Str() semantics; base 10).
+pub fn i2s(n: Int) -> Str {
+    return Str(n);
 }
 
 # Char -> string (single Unicode code point).
-pub def c2s(c) -> string {
-    return str(c);
+pub fn c2s(c) -> Str {
+    return Str(c);
 }

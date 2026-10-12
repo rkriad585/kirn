@@ -218,7 +218,7 @@ struct Stmt {
     std::vector<StmtP> body;
     bool pub = false;
     bool privateDecl = false;         // `pr` modifier: explicit module-private
-    bool externDef = false;           // `extern def f(...) -> T` (no body)
+    bool externDef = false;           // `extern fn f(...) -> T` (no body)
     bool isGenerator = false;         // body contains a `yield` statement
 
     // Import

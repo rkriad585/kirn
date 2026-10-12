@@ -1,9 +1,9 @@
 # 17 — Tuples & multiple assignment      (plan §5.4)
-def minmax(xs: list[int]) -> (int, int) { # tuple return type
+fn minmax(xs: list[Int]) -> (Int, Int) { # tuple return type
     return (xs[0], xs[len(xs) - 1]);
 
 }
-def main() -> none {
+fn main() -> none {
     point = (3, 4); # tuple literal
     x, y = point; # destructuring assignment
     print(x, y);

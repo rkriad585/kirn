@@ -1,1 +1,1 @@
-def main() -> none { c = "a"[0]; print(c); s = str(c); print(s, len(s)); }
+fn main() -> none { c = "a"[0]; print(c); s = Str(c); print(s, len(s)); }

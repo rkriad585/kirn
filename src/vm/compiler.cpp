@@ -35,11 +35,35 @@ namespace {
 
 const std::unordered_set<std::string>& kBuiltins() {
     static const std::unordered_set<std::string> s = {
-        "print","len","sqrt","ord","chr","assert","assert_eq","range","panic",
-        "catch_panic","printf","strlen","str","int","float","bool","type","sum",
-        "min","max","any","all","sorted","reversed","enumerate","map","filter",
-        "reduce","upper","lower","trim","contains","starts_with","ends_with",
-        "replace","split","join",
+        "print","len","range","panic","catch_panic","printf","strlen",
+        "assert","assert_eq","type","sum",
+        "any","all","sorted","reversed","enumerate","map","filter","reduce",
+        "upper","lower","trim","contains","starts_with","ends_with","replace",
+        "split","join",
+        // Kirn-style CapCase free builtins (CapCase + __CapCase forms)
+        "__Sqrt","Ord","__Ord","Chr","__Chr",
+        "BitLength","__BitLength","BitCount","__BitCount",
+        "Rational","__Rational","Numerator","__Numerator",
+        "Denominator","__Denominator",
+        "ToFloat","__ToFloat","ToInt","__ToInt","ToRational","__ToRational",
+        "FAbs","__FAbs","__Abs",
+        "Exp","__Exp","Log","__Log","Log2","__Log2","Log10","__Log10",
+        "Sin","__Sin","Cos","__Cos","Tan","__Tan",
+        "Sinh","__Sinh","Cosh","__Cosh","Tanh","__Tanh",
+        "Floor","__Floor","Ceil","__Ceil","Round","__Round",
+        "Trunc","__Trunc","Fract","__Fract",
+        "IsNan","__IsNan","IsInfinite","__IsInfinite","IsFinite","__IsFinite",
+        "BigInt","__BigInt","IsPrime","__IsPrime",
+        "PowMod","__PowMod","ToBytes","__ToBytes","FromBytes","__FromBytes",
+        "HexDigits","__HexDigits","ToString","__ToString",
+        "RationalAdd","__RationalAdd","RationalSub","__RationalSub",
+        "RationalMul","__RationalMul","RationalDiv","__RationalDiv",
+        "RationalPow","__RationalPow","RationalEq","__RationalEq",
+        "RationalNe","__RationalNe","RationalLt","__RationalLt",
+        "RationalLe","__RationalLe","RationalGt","__RationalGt",
+        "RationalGe","__RationalGe",
+        "CopySign","__CopySign","Pow","__Pow",
+        "Str","Int","Float","Bool","Min","Max",
     };
     return s;
 }

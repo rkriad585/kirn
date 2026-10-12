@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnc -E <ROOT>/tests/macros/hygiene_capture.kn
-Ident	7:1	def
-Ident	7:5	main
-Punct	7:9	(
-Punct	7:10	)
-Op	7:12	->
-Ident	7:15	none
-Punct	7:20	{
+Ident	7:1	fn
+Ident	7:4	main
+Punct	7:8	(
+Punct	7:9	)
+Op	7:11	->
+Ident	7:14	none
+Punct	7:19	{
 Ident	8:3	helper
 Op	8:10	=
 Int	8:12	100

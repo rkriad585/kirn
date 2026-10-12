@@ -1,11 +1,11 @@
 # stdlib/pet/strings_test.kn - tests for pet.strings.
 import pet.strings;
 
-def main() -> none {
+fn main() -> none {
     assert(strings.contains("hello world", "world"));
     assert(not strings.contains("hello", "xyz"));
-    assert(strings.starts_with("coco", "co"));
-    assert(strings.ends_with("coco", "co"));
+    assert(strings.starts_with("kirn", "kir"));
+    assert(strings.ends_with("kirn", "irn"));
     assert_eq(strings.replace_all("a-b-c", "-", "+"), "a+b+c");
     assert_eq(strings.join(["a", "b", "c"], ","), "a,b,c");
     assert_eq(strings.repeat("ab", 3), "ababab");

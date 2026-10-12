@@ -1,11 +1,11 @@
 == run-entry resolution ==
-  PASS  code/main.co entry
+  PASS  code/main.kn entry
   PASS  manifest main preferred
-  PASS  pin.co as run entry
+  PASS  pin.kn as run entry
   PASS  no entry -> fix-it error
-== pin.co package initializer ==
-  PASS  pin.co runs once (count=1)
-  PASS  pin.co pub surface
-  PASS  pin.co discovered w/o manifest
+== pin.kn package initializer ==
+  PASS  pin.kn runs once (count=1)
+  PASS  pin.kn pub surface
+  PASS  pin.kn discovered w/o manifest
 
 7 passed, 0 failed

@@ -1,14 +1,14 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/35_try_catch.kn
-Ident	6:1	def
-Ident	6:5	risky
-Punct	6:10	(
-Ident	6:11	n
-Punct	6:12	:
-Ident	6:14	int
-Punct	6:17	)
-Op	6:19	->
-Ident	6:22	int
-Punct	6:26	{
+Ident	6:1	fn
+Ident	6:4	risky
+Punct	6:9	(
+Ident	6:10	n
+Punct	6:11	:
+Ident	6:13	Int
+Punct	6:16	)
+Op	6:18	->
+Ident	6:21	Int
+Punct	6:25	{
 Ident	7:5	if
 Ident	7:8	n
 Op	7:10	<
@@ -26,13 +26,13 @@ Op	8:14	*
 Ident	8:16	n
 Punct	8:17	;
 Punct	9:1	}
-Ident	11:1	def
-Ident	11:5	main
-Punct	11:9	(
-Punct	11:10	)
-Op	11:12	->
-Ident	11:15	none
-Punct	11:20	{
+Ident	11:1	fn
+Ident	11:4	main
+Punct	11:8	(
+Punct	11:9	)
+Op	11:11	->
+Ident	11:14	none
+Punct	11:19	{
 Ident	13:5	try
 Punct	13:9	{
 Ident	14:9	print
@@ -52,7 +52,7 @@ Ident	16:9	print
 Punct	16:14	(
 Str	16:15	recovered: 
 Op	16:29	+
-Ident	16:31	str
+Ident	16:31	Str
 Punct	16:34	(
 Ident	16:35	e
 Punct	16:36	)
@@ -77,7 +77,7 @@ Ident	23:9	print
 Punct	23:14	(
 Str	23:15	should not print: 
 Op	23:36	+
-Ident	23:38	str
+Ident	23:38	Str
 Punct	23:41	(
 Ident	23:42	e
 Punct	23:43	)
@@ -126,7 +126,7 @@ Ident	39:9	print
 Punct	39:14	(
 Str	39:15	num=
 Op	39:22	+
-Ident	39:24	str
+Ident	39:24	Str
 Punct	39:27	(
 Ident	39:28	n
 Op	39:30	+
@@ -158,7 +158,7 @@ Ident	45:42	raise
 Punct	45:47	(
 Str	45:48	rethrown: 
 Op	45:61	+
-Ident	45:63	str
+Ident	45:63	Str
 Punct	45:66	(
 Ident	45:67	inner
 Punct	45:72	)
@@ -171,7 +171,7 @@ Ident	46:13	outer_e
 Punct	46:21	{
 Ident	47:9	outer
 Op	47:15	=
-Ident	47:17	str
+Ident	47:17	Str
 Punct	47:20	(
 Ident	47:21	outer_e
 Punct	47:28	)
@@ -211,7 +211,7 @@ Ident	55:25	raise
 Punct	55:30	(
 Str	55:31	boom 
 Op	55:39	+
-Ident	55:41	str
+Ident	55:41	Str
 Punct	55:44	(
 Ident	55:45	i
 Punct	55:46	)
@@ -230,7 +230,7 @@ Ident	58:13	print
 Punct	58:18	(
 Str	58:19	in loop: 
 Op	58:31	+
-Ident	58:33	str
+Ident	58:33	Str
 Punct	58:36	(
 Ident	58:37	e
 Punct	58:38	)
@@ -242,7 +242,7 @@ Ident	61:5	print
 Punct	61:10	(
 Str	61:11	count=
 Op	61:20	+
-Ident	61:22	str
+Ident	61:22	Str
 Punct	61:25	(
 Ident	61:26	count
 Punct	61:31	)

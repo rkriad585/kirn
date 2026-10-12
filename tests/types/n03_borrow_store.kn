@@ -1,6 +1,6 @@
 # expect: escape: '&x' must not be returned or stored
 # 5.5 - storing the address of a local into a container escapes it (E-BORROW-ESCAPE).
-def main() -> none {
+fn main() -> none {
     x = 42;
     keep = [0];
     keep[0] = &x;

@@ -20,7 +20,7 @@ FuncDef "main"
     VarDecl : f64
       Target Ident "ratio"
       Value Float "1e-9"
-    VarDecl : char
+    VarDecl : Char
       Target Ident "letter"
       Value Char "A"
     Assign

@@ -2,10 +2,10 @@
 # generic's return type. `wrapv[T = int]` returns `list[T]`; calling without an
 # int-typed arg constraint does not matter because the default kicks in for the
 # unresolved TypeVar, while an explicit string arg constrains T to string.
-def wrapv[T = int](v: T) -> list[T] {
+fn wrapv[T = Int](v: T) -> list[T] {
     return [v];
 }
-def main() -> none {
+fn main() -> none {
     xs = wrapv(5);
     ys = wrapv("hi");
     print(xs, ys);

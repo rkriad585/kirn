@@ -1,11 +1,11 @@
 # 26 — Custom iterators & lazy views      (plan §13 collections/iterators)
 struct Range {
-    cur: int;
-    limit: int;
+    cur: Int;
+    limit: Int;
 
 }
 impl Iterator for Range {
-    def next(self) -> int? { # none signals end of iteration
+    fn next(self) -> Int? { # none signals end of iteration
         if self.cur >= self.limit {
             return none;
 }
@@ -15,7 +15,7 @@ impl Iterator for Range {
 
 }
 }
-def main() -> none {
+fn main() -> none {
     r = Range(cur: 0, limit: 5);
     for n in r { # any type with Iterator works in for-in
         print(n);

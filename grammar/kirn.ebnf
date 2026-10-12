@@ -6,7 +6,7 @@
 #              required by the example corpus (examples/01–44 + stdlib *_test.kn):
 #              try_stmt/catch, try-expr, match-as-expression, OOP facade
 #              (class/interface/record/extends/implements), gather_stmt,
-#              ref pattern `&pat`, `fn` alias for `def`, `do_while_stmt` spelling,
+#              ref pattern `&pat`, `do_while_stmt` spelling,
 #              removed duplicate pattern rules and the undefined `attr_of` /
 #              `call_arg_list` / `call_expr` references. ISO EBNF `{ }` is used
 #              for all repetition (no stray `*`/`+` postfix).
@@ -55,7 +55,7 @@ identifier_continue  = identifier_start | "0".."9" ;
 (* KEYWORD tokens are matched after IDENTIFIER via exact-set lookup.
    THIS LIST is canonical: it mirrors src/lex/lexer.cpp `isKeyword` exactly
    (additions are ratified through the milestone process, this edition).     *)
-KEYWORD         = "def"    | "fn"    | "var"   | "let"   | "if"    | "elif"
+KEYWORD         = "fn"    | "var"   | "if"    | "elif"
                 | "else"   | "while" | "for"   | "in"    | "return"| "break"
                 | "continue"| "match"| "case"  | "struct"| "enum"  | "trait"
                 | "impl"   | "import"| "export"| "pub"   | "defer" | "spawn"
@@ -198,11 +198,11 @@ decl_body       = func_def | struct_def | enum_def | const_decl
 
 (* ---- Functions ------------------------------------------------------------ *)
 
-func_def        = visibility , ( "def" | "fn" ) IDENTIFIER [ type_params ]
+func_def        = visibility , ( "fn" | "fn" ) IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] block
-                | visibility , "extern" , "def" IDENTIFIER [ type_params ]
+                | visibility , "extern" , "fn" IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] ";" ;
-(* `fn` is a full alias for `def` in declaration position (examples/36,44). *)
+(* `fn` is the function-declaration keyword (examples/36,44). *)
 visibility      = [ "pub" ] | [ "pr" ] ;
 (* `pr` marks a declaration module-private (see §4 note 20).               *)
 
@@ -210,7 +210,7 @@ type_params     = "[" type_param , { "," , type_param } "]" ;
 type_param      = IDENTIFIER [ "is" type_bound ] [ "=" type ] ;
 (* Phase 5.1: an optional `= <type>` gives the DECLARED DEFAULT for the type
    parameter. It is substituted for the TypeVar when a call leaves the TypeVar
-   unconstrained (e.g. `def empty[T = int]() -> list[T]` yields list[int] for
+   unconstrained (e.g. `fn empty[T = int]() -> list[T]` yields list[int] for
    an unconstrained call). An explicit call-site argument/constraint always
    wins over the default. *)
 type_bound      = type ;                       (* trait constraint *)
@@ -256,7 +256,7 @@ trait_def       = visibility , "trait" IDENTIFIER [ type_params ]
                   "{" { trait_method } "}" ;
 trait_method    = func_sig                       (* signature only, ';'      *)
                 | func_def ;                     (* default body             *)
-func_sig        = visibility , ( "def" | "fn" ) IDENTIFIER [ type_params ]
+func_sig        = visibility , ( "fn" | "fn" ) IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] , ";" ;
 
 impl_def        = "impl" [ type_params ] , type , "for" , type ,
@@ -267,7 +267,7 @@ impl_def        = "impl" [ type_params ] , type , "for" , type ,
 (* The OOP forms desugar onto the struct/trait/impl model (see §4 note 25):
      class Name implements I1, I2 { ... }  ->  struct + inherent impl + trait impls
      class Derived extends Base { ... }     ->  single inheritance, virtual dispatch
-     interface I { def m(self) -> T; }      ->  trait (Go-style structural bound)
+     interface I { fn m(self) -> T; }      ->  trait (Go-style structural bound)
      record Name(f: T, ...)                 ->  immutable field tuple (value type)  *)
 
 class_def       = visibility , "class" IDENTIFIER [ type_params ]
@@ -340,7 +340,7 @@ del_stmt        = "del" target ;
    struct field (del obj.f); the runtime panics if the target is undefined. *)
 
 yield_stmt      = "yield" [ expr ] ;
-(* Statement form of generator functions (contextual word). A `def` whose own
+(* Statement form of generator functions (contextual word). A `fn` whose own
    body contains a `yield` returns gen[T]; bare `yield` produces `none`.  *)
 
 local_stmt      = "local" IDENTIFIER [ ":" type ] [ "=" expr ] ;
@@ -584,7 +584,7 @@ type_postfix    = "?" ;               (* option sugar:  int? == option[int]  *)
 # 9. Everything not listed here is intentionally NOT in v1: no ternary `?:`,
 #    no increment/decrement ++/--, no implicit bool→int, no goto.
 # 10. Anonymous functions are single-expression lambdas ONLY (`(x) => e`).
-#     Multi-statement closures bind a nested named `def`.
+#     Multi-statement closures bind a nested named `fn`.
 # 11. `pass` keyword covers empty blocks. `del` is implemented (bindings, dict
 #     keys, list indexes, struct fields); `local`/`global` strict scoping;
 #     `temp n N: T = v` compile-time use budgets; `bucket` park/release
@@ -601,7 +601,7 @@ type_postfix    = "?" ;               (* option sugar:  int? == option[int]  *)
 #     innermost loop as before.
 # 17. `bucket` is a RESERVED WORD (ratified by decision; it is NOT usable as
 #     an identifier, hence the example-14 helper rename to `hash_bucket`).
-# 18. A `def` whose own body contains a `yield` is a GENERATOR FUNCTION: the
+# 18. A `fn` whose own body contains a `yield` is a GENERATOR FUNCTION: the
 #     call evaluates to a gen[T] (declared `-> gen[T]`, or inferred when the
 #     `->` type is omitted). `return value;` inside a generator is rejected;
 #     bare `return;` / falling off the end ends generation. Nested function
@@ -612,7 +612,7 @@ type_postfix    = "?" ;               (* option sugar:  int? == option[int]  *)
 # 20. `temp`, `local`, `global`, `pr` are reserved words, each acting ONLY in
 #     statement position; a `pr` (module-private) modifier is a prefix on
 #     declarations (visibility guard, enforced at the module-export milestone).
-# 21. Phase 5.1 — DEFAULT TYPE PARAMETERS: `def f[T = D]` declares D as the
+# 21. Phase 5.1 — DEFAULT TYPE PARAMETERS: `fn f[T = D]` declares D as the
 #     fallback type for T. It is a static error to name a non-type in D. The
 #     default substitutes ONLY where a call leaves T unconstrained (constraint
 #     unification wins). Substitution rebuilds the nominal node; it never
@@ -637,10 +637,10 @@ type_postfix    = "?" ;               (* option sugar:  int? == option[int]  *)
 #       Base's fields and non-overridden methods; redefining a method overrides
 #       it VIRTUALLY (dispatch through a Base-typed reference hits the derived
 #       version).
-#     - `interface I { def m(self) -> T; }` → trait (Go-style structural bound).
+#     - `interface I { fn m(self) -> T; }` → trait (Go-style structural bound).
 #     - `record Name(f: T, ...) { }` → immutable field tuple (value type) with
 #       structural `==` over its fields.
-#     - `fn` is a full alias for `def` in declaration position.
+#     - `fn` is the function-declaration keyword.
 # 26. TRY/RAISE/CATCH exceptions (examples/35): `try { } catch e { }` runs a
 #     block and, if `raise(v)` fires inside, jumps to the catch block binding
 #     `e` to `v`. `catch { }` (no binding) discards the value; a `try` without

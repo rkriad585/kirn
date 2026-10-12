@@ -1,7 +1,7 @@
-# scripts/rename_dryrun.ps1 - Phase 1 inventory: Coco->Kirn touch-point census (read-only).
+# scripts/rename_dryrun.ps1 - Phase 1 inventory: Kirn->Kirn touch-point census (read-only).
 #
-# COCO_PLANS/COCO_TO_KIRN_PLAN.md Phase 1 ("Baseline snapshot & safety netting",
-# step 4) requires a reproducible dry-run inventory of every 'coco/Coco/COCO'
+# KIRN_PLANS/REBRAND_PLAN.md Phase 1 ("Baseline snapshot & safety netting",
+# step 4) requires a reproducible dry-run inventory of every 'kirn/Kirn/KIRN'
 # case-form occurrence. This script produces that inventory and changes nothing.
 #
 # It counts RAW SUBSTRING occurrences (the same method as the plan's §1 table and
@@ -12,14 +12,14 @@
 #
 # Usage:
 #     powershell -File scripts/rename_dryrun.ps1            # repo root
-#     powershell -File scripts/rename_dryrun.ps1 -Root C:\path\to\coco
-#     powershell -File scripts/rename_dryrun.ps1 -Pattern Coco -Pattern coco -Pattern COCO
+#     powershell -File scripts/rename_dryrun.ps1 -Root C:\path\to\kirn
+#     powershell -File scripts/rename_dryrun.ps1 -Pattern Kirn -Pattern kirn -Pattern KIRN
 #
 # Exit code: always 0 (read-only census; a nonzero exit is reserved for IO errors).
 
 param(
     [string]$Root = (Get-Location),
-    [string[]]$Pattern = @('Coco', 'coco', 'COCO'),
+    [string[]]$Pattern = @('Kirn', 'kirn', 'KIRN'),
     [switch]$Quiet
 )
 
@@ -35,7 +35,7 @@ $files = Get-ChildItem -Path $Root -Recurse -File | Where-Object {
 }
 
 # Case-sensitive dictionary: @{} is case-insensitive in PowerShell, which would
-# collapse 'Coco'/'coco'/'COCO' into one key.
+# collapse 'Kirn'/'kirn'/'KIRN' into one key.
 $totals = New-Object 'System.Collections.Generic.Dictionary[string,int]' ([System.StringComparer]::Ordinal)
 foreach ($p in $Pattern) {
     $totals.Add($p, 0)

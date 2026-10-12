@@ -1,6 +1,6 @@
 # expect: escape: '&x' must not be returned or stored
 # 5.5 - returning the address of a local variable is an escape (E-BORROW-ESCAPE).
-def main() -> *int {
+fn main() -> *Int {
     x = 42;
     return &x;
 }

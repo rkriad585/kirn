@@ -1,6 +1,6 @@
 # expect: match over integers/chars is non-exhaustive: add a 'case _' wildcard arm
 # 5.4 - char match must end in a `case _` wildcard arm too.
-def vowel(c: char) -> bool {
+fn vowel(c: Char) -> Bool {
     match c {
         case 'a' { return true; }
         case 'e' { return true; }

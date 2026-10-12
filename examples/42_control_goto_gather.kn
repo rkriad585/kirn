@@ -18,16 +18,16 @@
 #   nan=|NaN|
 #   inf=inf
 
-def main() -> none {
+fn main() -> none {
     # --- do-while ---------------------------------------------------------
     n = 5;
     total = 0;
     do { total += n; n -= 1; } while n > 0;
-    print("doTotal=" + str(total));
+    print("doTotal=" + Str(total));
     # single-shot: body runs once even when the condition is false at entry
     z = 0;
     do { z = 1; } while false;
-    print("doOnce=" + str(z));
+    print("doOnce=" + Str(z));
 
     # --- search do-while (pattern binds the condition value each round) ----
     xs = [1, 2, 3, 4, 0];
@@ -38,7 +38,7 @@ def main() -> none {
         sum += x;
         i += 1;
     } while x = xs[i];
-    print("searchSum=" + str(sum));
+    print("searchSum=" + Str(sum));
 
     # --- safe goto: jump out of a loop to a function-level label ----------
     total2 = 0;
@@ -47,7 +47,7 @@ def main() -> none {
         total2 += k;
     }
 done:
-    print("gotoTotal=" + str(total2));
+    print("gotoTotal=" + Str(total2));
 
     # gather worklist: reach a fixed point by re-queueing
     visited = [];
@@ -56,7 +56,7 @@ done:
         visited.append(item);
         gather item + 1,
     }
-    print("gatherVisited=" + str(visited));
+    print("gatherVisited=" + Str(visited));
 
     # gather worklist: BFS-ish doubling until the budget is reached (bounded)
     out = [];
@@ -64,11 +64,11 @@ done:
         out.append(item);
         if item < 16 { gather item * 2, }
     }
-    print("gatherBfs=" + str(out));
+    print("gatherBfs=" + Str(out));
 
     # --- nil / NaN / inf ---------------------------------------------------
     v = nil;
-    print("nilv=" + str(v));
-    print("nan=|" + str(NaN) + "|");
-    print("inf=" + str(inf));
+    print("nilv=" + Str(v));
+    print("nan=|" + Str(NaN) + "|");
+    print("inf=" + Str(inf));
 }

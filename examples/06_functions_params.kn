@@ -1,13 +1,13 @@
 # 06 — Functions: defaults, variadics, fn values, named args   (plan §5.5)
-def add(a: int, b: int) -> int {
+fn add(a: Int, b: Int) -> Int {
     return a + b;
 
 }
-def greet(name: string = "world") -> none { # default parameter value
+fn greet(name: Str = "world") -> none { # default parameter value
     print(f"hello {name}");
 
 }
-def sum_all(*nums: int) -> int { # variadic parameter
+fn sum_all(*nums: Int) -> Int { # variadic parameter
     total = 0;
     for n in nums {
         total += n;
@@ -15,11 +15,11 @@ def sum_all(*nums: int) -> int { # variadic parameter
     return total;
 
 }
-def apply(op: fn(int, int) -> int, a: int, b: int) -> int {
+fn apply(op: fn(Int, Int) -> Int, a: Int, b: Int) -> Int {
     return op(a, b); # functions are first-class values
 
 }
-def main() -> none {
+fn main() -> none {
     greet();
     greet(name: "Kirn"); # named argument (colon syntax)
     print(add(2, 3), sum_all(1, 2, 3, 4));

@@ -14,7 +14,7 @@ enum class TyK {
     Unknown,    // unchecked/dynamic: lambda params, import roots, ...
     None,       // unit ()
     Bool,
-    Int,        // name = i8..u64, usize (default "int" -> i64)
+    Int,        // name = Int4..UInt256, ISize/USize (default "Int64")
     Float,      // f32 | f64
     BigInt,     // arbitrary-precision integer (VK::BigInt)
     Rational,   // exact rational num/den (VK::Rational)
@@ -81,14 +81,14 @@ struct Ty {
 inline TyP errTy()      { return Ty::make(TyK::Error); }
 inline TyP unkTy()      { return Ty::make(TyK::Unknown); }
 inline TyP noneTy()     { return Ty::make(TyK::None); }
-inline TyP boolTy(std::string n = "bool") { return Ty::named(TyK::Bool, std::move(n)); }
-inline TyP strTy(std::string n = "string") { return Ty::named(TyK::Str, std::move(n)); }
-inline TyP charTy(std::string n = "char") { return Ty::named(TyK::Char, std::move(n)); }
+inline TyP boolTy(std::string n = "Bool") { return Ty::named(TyK::Bool, std::move(n)); }
+inline TyP strTy(std::string n = "Str") { return Ty::named(TyK::Str, std::move(n)); }
+inline TyP charTy(std::string n = "Char") { return Ty::named(TyK::Char, std::move(n)); }
 inline TyP bytesTy()      { return Ty::named(TyK::Bytes, "bytes"); }
-inline TyP intTy(std::string n = "i64")  { return Ty::named(TyK::Int, std::move(n)); }
-inline TyP floatTy(std::string n = "f64") { return Ty::named(TyK::Float, std::move(n)); }
-inline TyP bigIntTy(std::string n = "bigint") { return Ty::named(TyK::BigInt, std::move(n)); }
-inline TyP rationalTy(std::string n = "rational") { return Ty::named(TyK::Rational, std::move(n)); }
+inline TyP intTy(std::string n = "Int64")  { return Ty::named(TyK::Int, std::move(n)); }
+inline TyP floatTy(std::string n = "Float64") { return Ty::named(TyK::Float, std::move(n)); }
+inline TyP bigIntTy(std::string n = "BigInt") { return Ty::named(TyK::BigInt, std::move(n)); }
+inline TyP rationalTy(std::string n = "Rational") { return Ty::named(TyK::Rational, std::move(n)); }
 inline TyP listTy(TyP e)  { return Ty::one(TyK::List, std::move(e)); }
 inline TyP setTy(TyP e)   { return Ty::one(TyK::Set, std::move(e)); }
 inline TyP chanTy(TyP e)  { return Ty::one(TyK::Chan, std::move(e)); }
@@ -96,37 +96,41 @@ inline TyP rangeTy(TyP e) { return Ty::one(TyK::Range, std::move(e)); }
 inline TyP genTy(TyP e)   { return Ty::one(TyK::Gen, std::move(e)); }
 inline TyP optTy(TyP i)   { return Ty::one(TyK::Opt, std::move(i)); }
 
-// Natural size in bytes for a *scalar primitive* type spelling. The numeric
-// widths are bit counts; a sub-byte width (i4, u4, f4, b4) rounds up to the
+// Natural size in bytes for a *scalar primitive* type spelling. Width types
+// are bit counts; a sub-byte width (Int4, UInt4, i4, u4, f4) rounds up to the
 // minimum storable unit of 1 byte. Aggregate/container spellings are not
 // scalar and return -1. Used by the `sizeof` operator (see the parser).
 inline int typeSizeBytes(const std::string& n) {
-    if (n == "int" || n == "isize" || n == "usize") return 8;
-    if (n == "float") return 8;
-    if (n == "bool") return 1;
-    if (n == "char") return 4;
-    if (n == "string" || n == "str" || n == "strings") return 8;
-    if (n == "bytes" || n == "none" || n == "unit" || n == "None") return n == "bytes" ? 1 : 0;
-    // <prefix><digits>: iN, uN, fN, ufN, bN, charN
-    int p = 0;
-    if (n.rfind("char", 0) == 0) p = 4;
-    else if (n.rfind("uf", 0) == 0) p = 2;
-    else if (n.rfind("i", 0) == 0)   p = 1;
-    else if (n.rfind("u", 0) == 0)   p = 1;
-    else if (n.rfind("f", 0) == 0)   p = 1;
-    else if (n.rfind("b", 0) == 0)   p = 1;
-    else return -1;
-    std::string digits = n.substr(p);
-    // only "char16"-style tails: for i/u/f/uf/b the whole tail is digits
-    if (n.rfind("char", 0) == 0) digits = n.substr(4);
-    if (digits.empty()) return -1;
-    int bits = 0;
-    for (char c : digits) {
-        if (c < '0' || c > '9') return -1;
-        bits = bits * 10 + (c - '0');
+    if (n == "bytes") return 1;
+    if (n == "none" || n == "unit" || n == "None") return 0;
+    if (n == "Bool" || n == "bool")
+        return 1;
+    if (n == "Char" || n == "char")
+        return 4;
+    if (n == "Str" || n == "str" || n == "String" || n == "string" ||
+        n == "strings" || n == "Int" || n == "int" || n == "UInt" ||
+        n == "uint" || n == "ISize" || n == "isize" || n == "USize" ||
+        n == "usize" || n == "Float" || n == "float" || n == "UFloat")
+        return 8;
+    // <Prefix><digits>: i/u/f/uf/b (lowercase micros) and Int/UInt/Float/
+    // UFloat/Bool/Char (capitalized), e.g. i8, u256, f64, Int128, UFloat32.
+    static const struct { const char* p; size_t l; } kPrefixes[] = {
+        {"UFloat", 6}, {"UInt", 4}, {"Float", 5}, {"Bool", 4}, {"Int", 3},
+        {"Char", 4}, {"char", 4}, {"uf", 2}, {"b", 1}, {"f", 1},
+        {"u", 1}, {"i", 1}, {nullptr, 0}};
+    for (int k = 0; kPrefixes[k].p; ++k) {
+        size_t pl = kPrefixes[k].l;
+        if (n.size() <= pl || n.compare(0, pl, kPrefixes[k].p) != 0) continue;
+        if (n.find_first_not_of("0123456789", pl) != std::string::npos) continue;
+        int bits = 0;
+        for (size_t j = pl; j < n.size(); ++j) {
+            bits = bits * 10 + (n[j] - '0');
+            if (bits > 4096) return -1;
+        }
+        if (bits == 0) return -1;
+        return (bits + 7) / 8;
     }
-    if (bits == 0 || bits > 4096) return -1;
-    return (bits + 7) / 8;
+    return -1;
 }
 inline TyP ptrTy(TyP i)   { return Ty::one(TyK::Ptr, std::move(i)); }
 inline TyP dictTy(TyP kk, TyP vv) { return Ty::two(TyK::Dict, std::move(kk), std::move(vv)); }

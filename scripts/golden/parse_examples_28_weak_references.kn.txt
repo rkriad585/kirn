@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/28_weak_references.kn
 StructDef "Node"
-  Field "name" : string
+  Field "name" : Str
   Field "parent" var : Node?
   Field "child" var weak : Node?
 FuncDef "main"

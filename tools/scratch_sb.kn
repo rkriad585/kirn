@@ -1,17 +1,17 @@
 struct SB {
     parts: list = [];
 
-    def append(self, s: string) -> none {
+    fn append(self, s: Str) -> none {
         self.parts.append(s);
     }
-    def sstr(self) -> string {
+    fn sstr(self) -> Str {
         out = "";
         for p in self.parts { out += p; }
         return out;
     }
 }
 
-def main() -> none {
+fn main() -> none {
     var b = SB();
     b.append("hello ");
     b.append("world");

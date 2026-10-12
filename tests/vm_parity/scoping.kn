@@ -15,7 +15,7 @@
 # shadowed a variable while staying on the fast path. See the OP_DEFINE and
 # compileScopedBlock comments in src/vm/bytecode.h and src/vm/compiler.cpp.
 
-def shadow_in_if() -> none {
+fn shadow_in_if() -> none {
     var x = 1;
     if true {
         var x = 2;
@@ -24,7 +24,7 @@ def shadow_in_if() -> none {
     print(x);            # 1 -- the block-local binding died with the block
 }
 
-def shadow_in_else() -> none {
+fn shadow_in_else() -> none {
     var x = 1;
     if false {
         print(99);
@@ -35,7 +35,7 @@ def shadow_in_else() -> none {
     print(x);            # 1
 }
 
-def shadow_in_elif() -> none {
+fn shadow_in_elif() -> none {
     var x = 1;
     if false {
         var x = 9;
@@ -47,7 +47,7 @@ def shadow_in_elif() -> none {
     print(x);            # 1
 }
 
-def shadow_in_while() -> none {
+fn shadow_in_while() -> none {
     var x = 1;
     while true {
         var x = 2;
@@ -57,7 +57,7 @@ def shadow_in_while() -> none {
     print(x);            # 1
 }
 
-def shadow_in_for() -> none {
+fn shadow_in_for() -> none {
     var x = 1;
     for i in 0..2 {
         var x = 2;
@@ -66,7 +66,7 @@ def shadow_in_for() -> none {
     print(x);            # 1
 }
 
-def shadow_two_levels() -> none {
+fn shadow_two_levels() -> none {
     var x = 1;
     while true {
         var x = 2;
@@ -80,7 +80,7 @@ def shadow_two_levels() -> none {
     print(x);            # 1
 }
 
-def break_out_of_if_in_loop() -> none {
+fn break_out_of_if_in_loop() -> none {
     # The `if` scope must be unwound before the branch leaves the loop frame, or
     # the break lands one frame too high.
     var hits = 0;
@@ -96,7 +96,7 @@ def break_out_of_if_in_loop() -> none {
     print(hits);         # 1
 }
 
-def continue_out_of_if_in_loop() -> none {
+fn continue_out_of_if_in_loop() -> none {
     var n = 0;
     var seen = 0;
     while n < 4 {
@@ -111,7 +111,7 @@ def continue_out_of_if_in_loop() -> none {
     print(seen);         # 3
 }
 
-def assign_writes_through() -> none {
+fn assign_writes_through() -> none {
     # The other direction: a plain `=` must still reach the outer binding. This
     # is the case OP_DEFINE must not break, and it is why OP_STORE was not simply
     # changed to always bind locally.
@@ -123,7 +123,7 @@ def assign_writes_through() -> none {
     print(x);            # 2
 }
 
-def main() -> none {
+fn main() -> none {
     shadow_in_if();
     shadow_in_else();
     shadow_in_elif();

@@ -285,20 +285,24 @@ jobs:
           # $ext carries its own leading dot: it is concatenated directly, and
           # without the dot the copies below are named "kirnexe" and
           # "kirn-windows-amd64exe".
-          if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=".exe"; else src="$bindir/kirn"; ext=""; fi
-          [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
+           if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=".exe"; else src="$bindir/kirn"; ext=""; fi
+           [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
+           csrc="$bindir/kirnc$ext"
+           [ -f "$csrc" ] || { echo "::error::no kirnc binary in $bindir"; exit 1; }
 
-          stage="dist/kirn-$TARGET"
-          mkdir -p "$stage/bin"
-          cp "$src" "$stage/bin/kirn$ext"
-          cp -R stdlib src "$stage/"
-          cp README.md "$stage/"
+           stage="dist/kirn-$TARGET"
+           mkdir -p "$stage/bin"
+           cp "$src" "$stage/bin/kirn$ext"
+           cp "$csrc" "$stage/bin/kirnc$ext"
+           cp -R stdlib src "$stage/"
+           cp README.md "$stage/"
 
-          # The raw executable as its own asset, so it can be fetched directly
-          # without unpacking an archive. Named per target because a release
-          # cannot hold two assets called `kirn`.
-          cp "$src" "dist/kirn-$TARGET$ext"
-          chmod +x "dist/kirn-$TARGET$ext" 2>/dev/null || true
+           # The raw executables as their own assets, so they can be fetched
+           # directly without unpacking an archive. Named per target because a
+           # release cannot hold two assets called `kirn`.
+           cp "$src" "dist/kirn-$TARGET$ext"
+           cp "$csrc" "dist/kirnc-$TARGET$ext"
+           chmod +x "dist/kirn-$TARGET$ext" "dist/kirnc-$TARGET$ext" 2>/dev/null || true
 
           # Print what was actually staged: a silent cp failure here used to
           # surface much later as a confusing "no such file" in the smoke test.
@@ -339,13 +343,13 @@ jobs:
           work="$(mktemp -d)"
           cp -R "$stage/stdlib" "$work/stdlib"
           mkdir -p "$work/proj"
-          cat > "$work/proj/main.kn" <<'KN'
-          import pet.math;
+           cat > "$work/proj/main.kn" <<'KN'
+           import pet.math;
 
-          def main() {
-              print(math.abs(-42));
-          }
-          KN
+           fn main() {
+               print(math.abs(-42));
+           }
+           KN
           got=$(cd "$work/proj" && env -u KIRN_PETS KIRN_STDLIB="$work/stdlib" "$exe" run main.kn)
           echo "$got"
           case "$got" in
@@ -388,8 +392,10 @@ jobs:
           path: |
             dist/kirn-${{ matrix.target }}.tar.gz
             dist/kirn-${{ matrix.target }}.zip
-            dist/kirn-${{ matrix.target }}
-            dist/kirn-${{ matrix.target }}.exe
+             dist/kirn-${{ matrix.target }}
+             dist/kirn-${{ matrix.target }}.exe
+             dist/kirnc-${{ matrix.target }}
+             dist/kirnc-${{ matrix.target }}.exe
           retention-days: 14
           if-no-files-found: error
 
@@ -477,8 +483,10 @@ jobs:
               case "$name" in
                 kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
                 kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
-                kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
-                kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
+                 kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
+                 kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
+                 kirnc-*.exe)   t="${name%.exe}";    t="${t#kirnc-}"; kind="raw checker (needs stdlib separately)" ;;
+                 kirnc-*)       t="${name#kirnc-}";  kind="raw checker (needs stdlib separately)" ;;
                 *)             t="-"; kind="installer / checksum" ;;
               esac
               echo "| [\`$name\`]($release_url/$name) | \`$t\` | $kind |"

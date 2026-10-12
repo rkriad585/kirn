@@ -1,7 +1,7 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/09_match_guards_ranges.kn
 FuncDef "describe"
-  Param "n" : int
-  Ret string
+  Param "n" : Int
+  Ret Str
   Body
     Match
       Subject Ident "n"

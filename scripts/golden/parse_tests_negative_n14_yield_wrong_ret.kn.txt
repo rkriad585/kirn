@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n14_yield_wrong_ret.kn
 FuncDef "gen"
-  Ret int
+  Ret Int
   Body
     Yield
       Int "1"

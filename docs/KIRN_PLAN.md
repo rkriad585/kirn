@@ -1,5 +1,35 @@
 # Kirn Language — Complete Design & Implementation Plan
 
+## Goal
+
+Deliver a complete, machine-checkable design and implementation plan for **Kirn** — an
+industry-standard, AI-first, memory-safe systems language with Python-like syntax that is
+**faster than Rust and Go** — by adopting the best proven patterns from
+rust/go/cpython/ruby/Nim/Odin/v/zig/llvm instead of inventing new machinery or
+over-engineering.
+
+## Must Follow
+
+- **(a) Two executables only.** The toolchain build ships exactly `kirn` (driver:
+  build/run/test/fmt/pkg) and `kirnc` (checker/compiler front-end). No other shipped binaries.
+- **(b) No over-engineering.** Always take the smallest proven design from the reference
+  languages; reject novel machinery unless nothing in the reference set fits.
+- **(c) AI-first.** The spec is machine-checkable, and tooling surfaces structured
+  diagnostics, LSP data, and IR dumps (JSON) for editors and agents.
+- **(d) Kirn-style spellings.** Lowercase width micro-types (`i4..i256`, `u4..u256`,
+  `f4..f256`, `uf4..uf256`, `isize`/`usize`) **and** capitalized primitives (`Int`, `Float`,
+  `Bool`, `Str`, `Char`, `BigInt`, `Rational`, `UInt`, `UFloat`, `Int4..UInt256`,
+  `Float4..UFloat256`); methods lowercase (`.to_int()`), free builtins/types capitalized.
+- **(e) Performance.** Beat the Rust and Go equivalents, verified against the §16
+  benchmarking targets and `kirn bench`.
+
+## Important Note
+
+Key choices are already made — keep every later section coherent with them: §6 memory model
+(value semantics + escape analysis + ARC), §10 LLVM-based AOT with an interpreter bootstrap,
+§13 ships **no built-in pets** (external registry; `kirn setup` installs the std set),
+§17 Roadmap Phases 0–8, §16 benchmarking targets, and §19 governance.
+
 > **One-line vision:** Python's syntax, Go's compilation model, Rust/C++-level performance.
 >
 > **Implementation language:** C and modern C++ (the compiler is written in C++; the runtime is mostly C).
@@ -36,17 +66,17 @@
 ## 1. Vision & Goals
 
 Kirn is a statically typed, ahead-of-time compiled, general-purpose systems-and-applications
-language that *feels like Python* to write but produces fast native binaries.
+language that _feels like Python_ to write but produces fast native binaries.
 
-| Goal | Meaning in practice |
-|---|---|
-| **Python-like syntax** | Indentation-based blocks, no braces/semicolons, `def` functions, readable one-liners, REPL-friendly |
-| **Go-like compilation** | Single static binary output, near-instant startup, fast compile times (`kirn build` < 1s for medium projects), trivial cross-compilation, no VM/JIT required at runtime |
+| Goal                     | Meaning in practice                                                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Python-like syntax**   | Indentation-based blocks, no braces/semicolons, `fn` functions, readable one-liners, REPL-friendly                                                                                |
+| **Go-like compilation**  | Single static binary output, near-instant startup, fast compile times (`kirn build` < 1s for medium projects), trivial cross-compilation, no VM/JIT required at runtime           |
 | **Rust/C++ performance** | Value semantics + stack allocation by default, zero-cost abstractions, monomorphized generics, LLVM optimization pipeline, no mandatory garbage-collection pauses on the hot path |
-| **Safe by default** | Memory-safe subset by default; raw pointers only inside explicit `unsafe:` blocks; array bounds always checked unless proven/elided |
-| **Simple toolchain** | One executable `kirn`: build, run, test, fmt, package manager — like `go`, not a zoo of tools |
+| **Safe by default**      | Memory-safe subset by default; raw pointers only inside explicit `unsafe:` blocks; array bounds always checked unless proven/elided                                               |
+| **Simple toolchain**     | One executable `kirn`: build, run, test, fmt, package manager — like `go`, not a zoo of tools                                                                                     |
 
-**Elevator pitch:** *"Write it like Python. Ship it like C."*
+**Elevator pitch:** _"Write it like Python. Ship it like C."_
 
 ---
 
@@ -72,19 +102,19 @@ Being explicit prevents scope creep:
 4. **Compile errors over runtime surprises.** Statically catch nil, wrong types, unused results of fallible calls.
 5. **Fast compiles are a feature.** Grammar kept LALR-friendly, minimal header/metadata machinery, parallel compilation from day one.
 6. **Escape hatches exist, but they're loud.** `unsafe:` blocks are greppable and reviewed.
-7. **Python familiarity where free.** Use Python spelling (`def`, `elif`, `None`-like `none`, f-strings, slicing) whenever it doesn't cost safety or speed.
+7. **Python familiarity where free.** Use Python spelling (`fn`, `elif`, `None`-like `none`, f-strings, slicing) whenever it doesn't cost safety or speed.
 
 ---
 
 ## 4. Why the Old README Plan Was Rejected
 
-| Requirement | Old plan said | Problem | This plan |
-|---|---|---|---|
-| Python-like syntax | `fn main() {}`, `let mut`, braces | Rust-flavored, contradicts goal | Indentation-based grammar (§5) |
-| Go-like compiled | "JIT compilation at runtime" | JIT = VM dependency, slow startup | Pure AOT → static binary (§10) |
-| Rust-level perf + simplicity | "Ownership model like Rust" | Borrow checker ≠ simple | ARC + value semantics, phased ownership inference (§6) |
-| Buildable roadmap | Generic compiler textbook | No decisions, no milestones | Concrete phases 0–8 with exit criteria (§17) |
-| Toolchain | Vague | No CLI spec, no host language | `kirn` CLI + C++ implementation plan (§11, §14) |
+| Requirement                  | Old plan said                     | Problem                           | This plan                                              |
+| ---------------------------- | --------------------------------- | --------------------------------- | ------------------------------------------------------ |
+| Python-like syntax           | `fn main() {}`, `let mut`, braces | Rust-flavored, contradicts goal   | Indentation-based grammar (§5)                         |
+| Go-like compiled             | "JIT compilation at runtime"      | JIT = VM dependency, slow startup | Pure AOT → static binary (§10)                         |
+| Rust-level perf + simplicity | "Ownership model like Rust"       | Borrow checker ≠ simple           | ARC + value semantics, phased ownership inference (§6) |
+| Buildable roadmap            | Generic compiler textbook         | No decisions, no milestones       | Concrete phases 0–8 with exit criteria (§17)           |
+| Toolchain                    | Vague                             | No CLI spec, no host language     | `kirn` CLI + C++ implementation plan (§11, §14)        |
 
 ---
 
@@ -94,7 +124,7 @@ Being explicit prevents scope creep:
 
 ```python
 # main.kn
-def main():
+fn main():
     name = "World"
     print(f"Hello, {name}!")
 ```
@@ -118,7 +148,7 @@ $ kirn build main.kn   # emit ./main native binary
 - **Keywords (v1):**
 
 ```
-def    var    let    if     elif   else   while  for    in
+fn    var    if     elif   else   while  for    in
 return break  continue match  case   struct enum   trait
 impl   import export pub    defer  spawn  chan   select
 try    raise  unsafe extern  new    box    self   Self
@@ -129,8 +159,7 @@ and    or     not    is     as     true   false  none
 > (`spawn` covers it). Additions require an RFC + edition bump. See
 > `grammar/kirn.ebnf` §1 and §4 for the full freeze record.
 
-(`let x = expr` = immutable alias/binding sugar; plain `x = expr` also binds immutably;
-`var x = expr` declares mutable.)
+(plain `x = expr` binds immutably; `var x = expr` declares mutable.)
 
 - **Operators:** `+ - * / % ** // & | ^ << >> ~ < > <= >= == != = += -= *= /= etc.` plus
   `?` (error propagate), `.?.`(nil-safe access), ranges `..` (exclusive) and `..=` (inclusive).
@@ -145,7 +174,7 @@ program        = { statement } ;
 statement      = func_def | struct_def | enum_def | trait_def | impl_block
                | import_decl | var_stmt | expr_stmt | if_stmt | while_stmt
                | for_stmt | match_stmt | return_stmt | block_stmt ;
-func_def       = "def" IDENT [ type_params ] "(" param_list ")" [ "->" type ] ":" block ;
+func_def       = "fn" IDENT [ type_params ] "(" param_list ")" [ "->" type ] ":" block ;
 block          = INDENT { statement } DEDENT ;
 if_stmt        = "if" expr ":" block { "elif" expr ":" block } [ "else" ":" block ] ;
 for_stmt       = "for" pattern "in" expr ":" block ;
@@ -172,9 +201,9 @@ const MAX = 1000    # compile-time constant
 Rules:
 
 - All bindings are **immutable by default**; mutation requires `var`.
-  *(This is the single biggest departure from pure-Python feel — justified because
+  _(This is the single biggest departure from pure-Python feel — justified because
   it enables thread-safety guarantees and aggressive optimization. Formatter/LSP
-  will suggest `var` automatically when you mutate.)*
+  will suggest `var` automatically when you mutate.)_
 - Types are **statically inferred** (bidirectional Hindley–Milner-flavored local inference).
 - Shadowing in inner scopes allowed; unused variables are warnings, `_` discards.
 
@@ -182,15 +211,15 @@ Rules:
 
 **Primitives:**
 
-| Type | Meaning | Default ops |
-|---|---|---|
-| `int` | 64-bit signed (i64) | full arithmetic, checked overflow in debug, wrapping in release unless `@checked` |
-| `i8 i16 i32 i64 u8 u16 u32 u64 usize isize` | fixed-width ints | explicit `as` casts only between widths |
-| `f32 f64` | IEEE floats | NaN/inf per IEEE-754 |
-| `bool` | `true`/`false` | no implicit int conversion |
-| `char` | Unicode scalar value | |
-| `string` | UTF-8 owned string | slicing, iteration by `char`/byte |
-| `bytes` | owned byte buffer | |
+| Type                                        | Meaning              | Default ops                                                                       |
+| ------------------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
+| `int`                                       | 64-bit signed (i64)  | full arithmetic, checked overflow in debug, wrapping in release unless `@checked` |
+| `i8 i16 i32 i64 u8 u16 u32 u64 usize isize` | fixed-width ints     | explicit `as` casts only between widths                                           |
+| `f32 f64`                                   | IEEE floats          | NaN/inf per IEEE-754                                                              |
+| `bool`                                      | `true`/`false`       | no implicit int conversion                                                        |
+| `char`                                      | Unicode scalar value |                                                                                   |
+| `string`                                    | UTF-8 owned string   | slicing, iteration by `char`/byte                                                 |
+| `bytes`                                     | owned byte buffer    |                                                                                   |
 
 **Compound types:**
 
@@ -214,22 +243,22 @@ fn(int, int) -> int# function type
 ### 5.5 Functions & Closures
 
 ```python
-def add(a: int, b: int) -> int:
+fn add(a: int, b: int) -> int:
     return a + b
 
-def greet(name: string = "world"):            # default args
+fn greet(name: string = "world"):            # default args
     print(f"hello {name}")
 
-def sum_all(*nums: int) -> int:               # variadic
+fn sum_all(*nums: int) -> int:               # variadic
     total = 0
     for n in nums:
         total += n
     return total
 
-square = def(x: int) -> int: return x * x     # anonymous fn expression
+square = fn(x: int) -> int: return x * x     # anonymous fn expression
 double = (x) => x * 2                          # short lambda sugar
 
-def make_counter():
+fn make_counter():
     count = 0
     return () => {                              # closure capturing `count` by ref-box
         count += 1
@@ -294,7 +323,7 @@ struct Point:
     x: f64
     y: f64 = 0.0                    # field default
 
-    def magnitude(self) -> f64:     # methods live inside the struct
+    fn magnitude(self) -> f64:     # methods live inside the struct
         return sqrt(self.x * self.x + self.y * self.y)
 
 p = Point(x: 3.0)                   # named-argument construction
@@ -305,20 +334,20 @@ enum Shape:
     Rect(w: f64, h: f64)
     Point                            # unit variant
 
-def area(s: Shape) -> f64:
+fn area(s: Shape) -> f64:
     match s:
         case Circle(r): return 3.14159 * r * r
         case Rect(w, h): return w * h
         case Point:   return 0.0
 
 trait Drawable:
-    def draw(self)
+    fn draw(self)
 
 impl Drawable for Point:
-    def draw(self):
+    fn draw(self):
         print(f"({self.x}, {self.y})")
 
-def render(d: Drawable):            # dynamic dispatch (trait object)
+fn render(d: Drawable):            # dynamic dispatch (trait object)
     d.draw()
 ```
 
@@ -339,7 +368,7 @@ Semantics:
 Subscript syntax matches modern Python typing (`list[int]`) — familiar and unambiguous:
 
 ```python
-def first[T](items: list[T]) -> T:
+fn first[T](items: list[T]) -> T:
     return items[0]
 
 struct Pair[A, B]:
@@ -347,9 +376,9 @@ struct Pair[A, B]:
     second: B
 
 trait Hashable:
-    def hash(self) -> u64
+    fn hash(self) -> u64
 
-def bucket[T is Hashable](item: T) -> u64:   # trait bounds
+fn bucket[T is Hashable](item: T) -> u64:   # trait bounds
     return item.hash() % 256
 ```
 
@@ -367,8 +396,8 @@ import json                       # stdlib
 from utils.string import slugify  # named import
 
 # utils/string.kn
-def _internal_helper(): ...       # leading underscore = module-private
-pub def slugify(s: string) -> string: ...   # pub = exported
+fn _internal_helper(): ...       # leading underscore = module-private
+pub fn slugify(s: string) -> string: ...   # pub = exported
 ```
 
 - File = module; directory = package with `__init__.kn` (or `kirn.toml` manifest).
@@ -405,9 +434,10 @@ rejected (it's the opposite of Python-simple). Full stop-the-world GC was reject
      incremental, sub-millisecond slices; opt-out per type with `weak` refs).
 
 5. **`weak` references** break cycles explicitly:
+
    ```python
    struct Node:
-       var parent: Node? 
+       var parent: Node?
        weak var child: Node?
    ```
 
@@ -423,12 +453,12 @@ rejected (it's the opposite of Python-simple). Full stop-the-world GC was reject
 
 ### 6.2 Alternatives Considered (and why rejected)
 
-| Option | Pros | Cons | Verdict |
-|---|---|---|---|
-| Tracing GC (Go-style) | Simplest user model, battle-tested | Pauses hurt p99 latency; memory bloat 2–5×; undermines "C-class perf" claim | Rejected as default |
-| Full borrow checker (Rust-style) | Zero runtime cost, maximal safety | Learning cliff contradicts core goal; slows ecosystem bootstrapping | Deferred as opt-in lint far-future |
-| Manual malloc/free (C-style) | Absolute control | Unsafe by default; contradicts safety goal | unsafe-only |
-| **Value + EA + ARC (chosen)** | Simple, deterministic, near-C, incremental path to zero-cost | RC cycles need collector; atomic RMW cost until ownership inference lands | **Chosen** |
+| Option                           | Pros                                                         | Cons                                                                        | Verdict                            |
+| -------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------- |
+| Tracing GC (Go-style)            | Simplest user model, battle-tested                           | Pauses hurt p99 latency; memory bloat 2–5×; undermines "C-class perf" claim | Rejected as default                |
+| Full borrow checker (Rust-style) | Zero runtime cost, maximal safety                            | Learning cliff contradicts core goal; slows ecosystem bootstrapping         | Deferred as opt-in lint far-future |
+| Manual malloc/free (C-style)     | Absolute control                                             | Unsafe by default; contradicts safety goal                                  | unsafe-only                        |
+| **Value + EA + ARC (chosen)**    | Simple, deterministic, near-C, incremental path to zero-cost | RC cycles need collector; atomic RMW cost until ownership inference lands   | **Chosen**                         |
 
 ### 6.3 Safety Rules (even before/without borrow checking)
 
@@ -450,11 +480,11 @@ These are cheap static checks shipping in v1 — they prevent ~90% of real bugs:
 Go's ergonomics, minus the GC tax:
 
 ```python
-def worker(id: int, jobs: chan[int], results: chan[string]):
+fn worker(id: int, jobs: chan[int], results: chan[string]):
     for j in jobs:
         results.send(f"worker {id} done {j}")
 
-def main():
+fn main():
     jobs = chan[int](cap: 100)
     results = chan[string]()
 
@@ -501,7 +531,7 @@ Exceptions were rejected (invisible control flow, terrible for optimization, unp
 perf — the anti-C++ lesson). Result types win, with Python-grade ergonomics:
 
 ```python
-def parse_port(text: string) -> result[int, ParseError]:
+fn parse_port(text: string) -> result[int, ParseError]:
     port = text.to_int()
     if port is none or port < 0 or port > 65535:
         raise ParseError(bad: text)      # constructs Err(...) early-return
@@ -514,7 +544,7 @@ Rules:
   (`@discardable` opts out for things like `write` where ignoring is common).
 - `try expr` (or trailing `?`) propagates the error upward — sugar for the match-and-return:
   ```python
-  def run() -> result[none, io.Error]:
+  fn run() -> result[none, io.Error]:
       data = try read_file("config.toml")
       cfg  = try toml.parse(data)
       return none
@@ -538,26 +568,30 @@ Calling C/C++ is a first-class requirement ("leverage 50 years of libraries"):
 
 ```python
 # Declare external symbols — linked at build time
-extern def printf(fmt: *char, ...) -> i32
+extern fn printf(fmt: *char, ...) -> i32
 
 # Wrap once, safely:
-def c_printf_safely(msg: string):
+fn c_printf_safely(msg: string):
     unsafe:
         printf(c"%s\n", msg.c_ptr())    # c"" literal is NUL-terminated
 ```
 
-- `extern def` supports variadics, custom calling conventions (`extern "system"`), structs
+- `extern fn` supports variadics, custom calling conventions (`extern "system"`), structs
   with explicit layout (`@packed`, alignment attributes).
 - **Bindgen companion tool** (`kirn bindgen header.h`) generates declarations from C headers —
   same role cargo-bindgen plays for Rust. C++ headers: name-mangled extern support in phase 6.
 - `unsafe:` blocks unlock: raw pointers (`*T`), pointer arithmetic, `unsafe_as`,
   `malloc`/`free`/custom allocators, `unsafe_get` unchecked indexing.
-- Safety invariant documented in one sentence: *"Inside `unsafe:`, YOU uphold memory rules
-  the compiler normally enforces; everything outside is guaranteed safe."*
+- Safety invariant documented in one sentence: _"Inside `unsafe:`, YOU uphold memory rules
+  the compiler normally enforces; everything outside is guaranteed safe."_
 
 ---
 
 ## 10. Compiler Architecture
+
+**Goal:** Define the lexer→parser→sema→MIR→LLVM pipeline and its stage contracts, so `kirnc` owns the front end and `kirn`'s driver orchestrates build/run.
+**Must Follow:** Language-aware MIR passes before LLVM; parallel compilation and incremental caches from day one; backend isolated behind `src/codegen` walls.
+**Important Note:** LLVM is the chosen backend (§10.3); the interpreter is a bootstrap/oracle only (§10.4), never the product.
 
 ### 10.1 Pipeline
 
@@ -587,24 +621,33 @@ def c_printf_safely(msg: string):
 
 ### 10.2 Stage Details
 
-| Stage | Responsibility | Key algorithms |
-|---|---|---|
-| **Lexer** | Bytes → tokens; INDENT/DEDENT synthesis; string interpolation desugars here | CPython indent-stack algorithm; O(n) single pass |
-| **Parser** | Tokens → AST; best error messages of the whole pipeline | Hand-written recursive descent (LL(k)), error-recovery sync sets, expected-vs-found diagnostics with fix-it hints |
-| **Resolve/Check** | Two-pass name resolution (collect then bind, Go-style — kills header problem); type inference; trait bounds; exhaustive match; sendability; iterator invalidation; capture analysis feeding escape analysis | Bidirectional HM subsets, constraint solving, union-find for type vars |
-| **Lowering** | Typed AST → MIR (mid IR, SSA form): explicit drops/retains inserted here, closures → structs+vtables, generics monomorphized, bounds-check insertion | Dominator-tree SSA construction (Braun et al.), insert-before-optimize strategy for ARC elision |
-| **MIR passes** | Cheap, language-aware opts before LLVM: ARC pair elision, bounds-check elimination, devirtualization of trait calls, closure-to-context flattening, common-subexpr, const-prop | Classic dataflow + side-effect analysis |
-| **Codegen** | MIR → LLVM IR; drives LLVM passes; emits DWARF/PDB debug info; LTO/PGO wiring | LLVM C++ API (we're in-process — no binding layer needed since compiler is C++) |
-| **Driver** | Parallel compilation units, incremental caches (AST+MIR keyed by content hash), cross-module inlining via serialized MIR, linker invocation (lld for static/fat binaries) | Work-stealing thread pool, sccache-style artifact store |
+| Stage             | Responsibility                                                                                                                                                                                              | Key algorithms                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Lexer**         | Bytes → tokens; INDENT/DEDENT synthesis; string interpolation desugars here                                                                                                                                 | CPython indent-stack algorithm; O(n) single pass                                                                  |
+| **Parser**        | Tokens → AST; best error messages of the whole pipeline                                                                                                                                                     | Hand-written recursive descent (LL(k)), error-recovery sync sets, expected-vs-found diagnostics with fix-it hints |
+| **Resolve/Check** | Two-pass name resolution (collect then bind, Go-style — kills header problem); type inference; trait bounds; exhaustive match; sendability; iterator invalidation; capture analysis feeding escape analysis | Bidirectional HM subsets, constraint solving, union-find for type vars                                            |
+| **Lowering**      | Typed AST → MIR (mid IR, SSA form): explicit drops/retains inserted here, closures → structs+vtables, generics monomorphized, bounds-check insertion                                                        | Dominator-tree SSA construction (Braun et al.), insert-before-optimize strategy for ARC elision                   |
+| **MIR passes**    | Cheap, language-aware opts before LLVM: ARC pair elision, bounds-check elimination, devirtualization of trait calls, closure-to-context flattening, common-subexpr, const-prop                              | Classic dataflow + side-effect analysis                                                                           |
+| **Codegen**       | MIR → LLVM IR; drives LLVM passes; emits DWARF/PDB debug info; LTO/PGO wiring                                                                                                                               | LLVM C++ API (we're in-process — no binding layer needed since compiler is C++)                                   |
+| **Driver**        | Parallel compilation units, incremental caches (AST+MIR keyed by content hash), cross-module inlining via serialized MIR, linker invocation (lld for static/fat binaries)                                   | Work-stealing thread pool, sccache-style artifact store                                                           |
 
 ### 10.3 Why LLVM (and alternatives)
 
-| Backend | Verdict | Reason |
-|---|---|---|
-| **LLVM (chosen)** | ✔ | C-level codegen quality today; we get Clang-grade optimizer for free; C++ API is native to our host language; proven at Rust/Swift/Zig scale |
-| Cranelift/MIR-lite | Later, optional | Fast-debug-build backend if compile-time becomes pain point (Rust does this) |
-| Custom backend | Never (v1–v3) | Multi-year distraction; revisit only if licensing/targets demand |
-| GCC backend | No | C-coupled, hostile embedding API |
+| Backend            | Verdict         | Reason                                                                                                                                       |
+| ------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLVM (chosen)**  | ✔               | C-level codegen quality today; we get Clang-grade optimizer for free; C++ API is native to our host language; proven at Rust/Swift/Zig scale |
+| Cranelift/MIR-lite | Later, optional | Fast-debug-build backend if compile-time becomes pain point (Rust does this)                                                                 |
+| Custom backend     | Never (v1–v3)   | Multi-year distraction; revisit only if licensing/targets demand                                                                             |
+| GCC backend        | No              | C-coupled, hostile embedding API                                                                                                             |
+
+**Performance mandate (why LLVM, and what "faster" means):** LLVM is chosen because it is the
+same proven backend rustc and Clang use, so Kirn inherits C++-class codegen _and then_ pushes
+past it. Kirn's explicit target is **faster than the Rust and Go equivalent**, not parity:
+with the LLVM O3 + PGO + LTO pipeline, value semantics + escape analysis + ARC elision (§6)
+are the language-level levers that let the same optimizer produce a better program than the
+Rust/Go equivalent on the §16 suites. Measurable criteria live in §16 (`kirn bench`): beat Go
+on ≥70% of suites and Rust on ≥50%, never worse than 1.05× vs the Rust build. Missing a §16
+performance bar is a release blocker (§16, §20), not a footnote.
 
 Cross-compilation: LLVM target triples + lld + sysroot packaging →
 `kirn build --target aarch64-linux-gnu` works day one on any host (same trick Zig popularized).
@@ -616,19 +659,33 @@ fine for correctness work and REPL). Phase 3 optionally upgrades to bytecode+C l
 for a faster REPL — decision deferred until profiled. The interpreter is also our
 differential-testing oracle (§15) forever.
 
+```python
+# exercises the whole pipeline: indentation, inference, capture/escape analysis, ARC elision
+fn main():
+    k = 2
+    f = (x: int) => x + k     # no escape → stack context, zero heap traffic
+    print(f(40))              # 42
+```
+
+> Reference: rust — SSA MIR lowering (`rustc_mir_transform`); llvm — optimizer pass pipeline (`llvm/lib/Transforms`).
+
 ---
 
 ## 11. Implementing the Compiler in C/C++
 
+**Goal:** Implement the compiler in modern C++20/23 (frontend + driver + codegen) and the runtime in C11, for direct LLVM-API access and total performance control.
+**Must Follow:** No exceptions/RTTI/iostreams; `Result<T,Diag>` internally; arenas for AST/MIR; sanitizers + clang-tidy in CI.
+**Important Note:** The host language is a pragmatic implementation bet, not a user-facing promise — the shipped artifacts stay `kirn` + `kirnc`.
+
 ### 11.1 Host-Language Decision
 
-| Candidate | Pros | Cons | Verdict |
-|---|---|---|---|
-| **Modern C++ (chosen)** | LLVM is a C++ API — direct, zero-binding friction; total perf control; huge talent pool; dogfoods the perf promise | Footgun-prone; needs discipline | **Chosen, with guardrails below** |
-| C | Runtime-grade simplicity, ABI king | No RAII → compiler dev velocity tanks (string/vector mgmt everywhere); LLVM embed still needs C++ | Runtime + hot utilities only |
-| Rust | Safety, great LLVM bindings | Team/toolchain learning curve; slower iteration early; ironic dependency | Rejected for v1 pragmatism |
-| Go | Fast to write | GC pauses in compiler itself; LLVM via cgo = pain | Rejected |
-| Zig | Great cross story | Pre-1.0 churn risk | Watch-list |
+| Candidate               | Pros                                                                                                               | Cons                                                                                              | Verdict                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------- |
+| **Modern C++ (chosen)** | LLVM is a C++ API — direct, zero-binding friction; total perf control; huge talent pool; dogfoods the perf promise | Footgun-prone; needs discipline                                                                   | **Chosen, with guardrails below** |
+| C                       | Runtime-grade simplicity, ABI king                                                                                 | No RAII → compiler dev velocity tanks (string/vector mgmt everywhere); LLVM embed still needs C++ | Runtime + hot utilities only      |
+| Rust                    | Safety, great LLVM bindings                                                                                        | Team/toolchain learning curve; slower iteration early; ironic dependency                          | Rejected for v1 pragmatism        |
+| Go                      | Fast to write                                                                                                      | GC pauses in compiler itself; LLVM via cgo = pain                                                 | Rejected                          |
+| Zig                     | Great cross story                                                                                                  | Pre-1.0 churn risk                                                                                | Watch-list                        |
 
 **Split:** `frontend + driver + codegen` in **C++20/23**; `libkirn_rt` runtime in **C11**
 (plus tiny asm bits) so the runtime links cleanly into every produced binary regardless
@@ -654,7 +711,7 @@ kirn/
 │   ├── ast/                    # node defs (arena-allocated), printer
 │   ├── parser/                 # recursive descent + diagnostics
 │   ├── sema/                   # resolve, infer, checks, capture/EA
-│   ├── mir/                    # MIR def, SSA builder, passes
+│   ├── mir/                    # MIR fn, SSA builder, passes
 │   ├── codegen/                # LLVM IR emission
 │   ├── driver/                 # kirn CLI entry, job graph, caching
 │   ├── interp/                 # tree-walk interpreter
@@ -675,46 +732,94 @@ kirn/
   release-pipeline CI. Keep `LLVM_*` behind `src/codegen` walls so backend swap remains possible.
 - Vendored deps minimized: fmt, utf8proc, xxHash, (optional) mimalloc for compiler itself.
 
+```python
+# the Result-style pattern the compiler itself dogfoods internally (§11.2)
+fn lex_one(src: string, pos: int) -> result[Token, Diag]:
+    if pos >= src.len():
+        raise Diag(msg: "unexpected end of input", pos: pos)
+    return Token(kind: "ident", span: (pos, pos + 1))
+```
+
+> Reference: rust — internal `Result<T, E>`-based compiler architecture (`rustc_errors`, `rustc_driver`).
+
 ---
 
 ## 12. Runtime Library Design (C)
 
+**Goal:** Deliver `libkirn_rt` (C11, ~50–150 KB) covering scheduler, channels, ARC, panics, allocators, strings, and OS shims.
+**Must Follow:** The runtime is the only dependency of produced binaries besides libc; pluggable allocator vtable; table-based unwinding.
+**Important Note:** The channels, scheduler, and ARC cycle collector here are what make §7 and §6.1 real; keep the ABI stable for FFI.
+
 Every Kirn binary embeds `libkirn_rt` (~50–150 KB):
 
-| Component | Notes |
-|---|---|
-| Scheduler | M:N green threads; 2 KB growable stacks (guard pages); work-stealing deque; IO integration epoll/kqueue/IOCP |
-| Channels | Lock-free MPSC fast path, blocking slow path; select via registered waiters |
-| ARC support | `rt_retain/rt_release` (pause-thread variant for young objects), cycle collector: incremental mark-sweep over candidate subgraphs, budgeted slices |
-| Panics | Unwinder (table-based, DWARF .eh_frame), backtrace symbolizer, abort hook |
-| Allocators | malloc wrapper default; pluggable vtable → arenas, pool, mimalloc/jemalloc drop-ins |
-| Strings/interning | SSO helper, UTF-8 validation fast path (SIMD later) |
-| Time/env/fs shims | Thin portable layer over OS APIs used by prelude |
+| Component         | Notes                                                                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scheduler         | M:N green threads; 2 KB growable stacks (guard pages); work-stealing deque; IO integration epoll/kqueue/IOCP                                       |
+| Channels          | Lock-free MPSC fast path, blocking slow path; select via registered waiters                                                                        |
+| ARC support       | `rt_retain/rt_release` (pause-thread variant for young objects), cycle collector: incremental mark-sweep over candidate subgraphs, budgeted slices |
+| Panics            | Unwinder (table-based, DWARF .eh_frame), backtrace symbolizer, abort hook                                                                          |
+| Allocators        | malloc wrapper default; pluggable vtable → arenas, pool, mimalloc/jemalloc drop-ins                                                                |
+| Strings/interning | SSO helper, UTF-8 validation fast path (SIMD later)                                                                                                |
+| Time/env/fs shims | Thin portable layer over OS APIs used by prelude                                                                                                   |
 
 Prelude (auto-imported basics: `print`, `list`, `chan`, `spawn`…) maps onto this runtime.
+
+```python
+# ARC cycle broken by a weak reference (§6.1.5) — handled entirely by libkirn_rt
+struct Node:
+    var parent: Node?
+    weak var child: Node?
+
+fn main():
+    a = box[Node](parent: none, child: none)
+    b = box[Node](parent: a, child: none)
+    a.child = b                 # a -> b strong, b -> a weak: no cycle leak
+    print(a.child is none)      # false
+```
+
+> Reference: Go — goroutines/channels on an M:N scheduler (`go/src/runtime`); CPython — refcount + cyclic GC (`Modules/gcmodule.c`).
 
 ---
 
 ## 13. Standard Library Plan
 
+**Goal:** Ship the standard library as external **pets** written in Kirn, installed globally by `kirn setup`, adding zero bundled runtime deps.
+**Must Follow:** No built-in pets in the binary (§13.1); "std" is just the curated pet set on the registry; every module follows semver.
+**Important Note:** Registry-first (Go philosophy) keeps `kirn`/`kirnc` tiny and makes the ecosystem the single source of truth.
+
 Written **in Kirn itself** wherever possible (dogfooding):
 
-| Module | Contents | Phase |
-|---|---|---|
-| `core` (prelude) | Option/result, iterators/lazy views, ranges, formatting (`f`-strings engine) | 2–3 |
-| `collections` | list, dict, set, deque, ringbuf, btree, heap, bitset | 3 |
-| `io` | Files (buffered, mmap), paths, tempdirs | 3 |
-| `os` | env, args, process spawn/pipes, signals | 3 |
-| `net` | TCP/UDP sockets, HTTP/1.1 client+server, URL parsing | 5 |
-| `concur` | sync primitives, atomics, worker pools, structured groups | 4–5 |
-| `text` | Unicode segmentation, regex (RE2-style linear engine), JSON encode/decode | 5 |
-| `math` | numeric tower helpers, statistics, PRNG (xoshiro), SIMD intrinsics wrappers | 4 |
-| `time` | monotonic/wall clocks, durations, timers, tz-lite | 4 |
-| `serialize` | derive-based JSON/TOML/CBOR via reflection-at-compile-time (trait derivation, not runtime reflection) | 6 |
-| `test` | built-in framework powering `kirn test` (assert_eq, fixtures, benches) | 3 |
+| Module           | Contents                                                                                              | Phase |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | ----- |
+| `core` (prelude) | Option/result, iterators/lazy views, ranges, formatting (`f`-strings engine)                          | 2–3   |
+| `collections`    | list, dict, set, deque, ringbuf, btree, heap, bitset                                                  | 3     |
+| `io`             | Files (buffered, mmap), paths, tempdirs                                                               | 3     |
+| `os`             | env, args, process spawn/pipes, signals                                                               | 3     |
+| `net`            | TCP/UDP sockets, HTTP/1.1 client+server, URL parsing                                                  | 5     |
+| `concur`         | sync primitives, atomics, worker pools, structured groups                                             | 4–5   |
+| `text`           | Unicode segmentation, regex (RE2-style linear engine), JSON encode/decode                             | 5     |
+| `math`           | numeric tower helpers, statistics, PRNG (xoshiro), SIMD intrinsics wrappers                           | 4     |
+| `time`           | monotonic/wall clocks, durations, timers, tz-lite                                                     | 4     |
+| `serialize`      | derive-based JSON/TOML/CBOR via reflection-at-compile-time (trait derivation, not runtime reflection) | 6     |
+| `test`           | built-in framework powering `kirn test` (assert_eq, fixtures, benches)                                | 3     |
 
 Non-negotiable rule: stdlib adds **zero runtime deps** beyond libkirn_rt/libc; networking
 may shell to nothing — pure socket APIs.
+
+```python
+# std is just curated external pets (§13.1); imported like any other pet
+import pet.collections as coll
+import pet.text as text
+
+fn main():
+    counts = coll.Dict[string, int]()
+    for w in text.words("the quick the fox"):
+        counts[w] = counts.get(w, 0) + 1
+    for w, n in counts.items():
+        print(f"{w}: {n}")
+```
+
+> Reference: Go — registry-first stdlib layout (`go/src/net/http`).
 
 ---
 
@@ -739,10 +844,10 @@ may shell to nothing — pure socket APIs.
      `~/.kirn/pets` — available on any path, any project, any directory on the machine),
   3. records a global `<std-pet>@<version>` snapshot so all std pets become resolvable
      from **anywhere** (`import pet.io*;` works in `/tmp/x.kn` as well as in a project).
-  This is the "usable anywhere, globally, std-only" guarantee: only the **std** pets are
-  auto-installed machine-wide; third-party pets stay scoped to their project's `pets/` as
-  in §14.2. Re-running `kirn setup` is idempotent — it re-fetches/updates the std set to
-  the pinned registry tags without touching project-local pets.
+     This is the "usable anywhere, globally, std-only" guarantee: only the **std** pets are
+     auto-installed machine-wide; third-party pets stay scoped to their project's `pets/` as
+     in §14.2. Re-running `kirn setup` is idempotent — it re-fetches/updates the std set to
+     the pinned registry tags without touching project-local pets.
 - **Rationale:** keeps the language binary tiny and registry-first (Go philosophy), makes
   the ecosystem the single source of truth for std, and gives new machines a one-command
   `kirn setup` bootstrap that lands the whole standard library in the global pet store.
@@ -751,27 +856,31 @@ may shell to nothing — pure socket APIs.
 
 ## 14. Tooling
 
+**Goal:** Expose every developer command through the single `kirn` driver — run/build/check/test/bench/fmt/doc, package manager, setup/self-update, REPL, bindgen, and the JSON-RPC LSP.
+**Must Follow:** Structured, machine-readable output for agents (AI-first); the LSP reuses inference (no forked analysis); one-line cross-platform installers.
+**Important Note:** `kirnc` remains the checker/compiler front end the driver calls — there is no second tool ecosystem.
+
 All subcommands ship inside the one `kirn` binary (Go philosophy):
 
-| Command | Function |
-|---|---|
-| kirn run x.kn [-- args]` | compile (cached) + exec |
-| `kirn build [-O0..O3] [--target t] [-o out]` | produce binary/static-lib |
-| `kirn check` | full front-end only — IDE-speed diagnostics |
-| `kirn test [path]` | discovers `test "name" { }` blocks, parallel runner |
-| `kirn bench` | criterion-style statistical benches (§16) |
-| `kirn fmt` | opinionated formatter (gofmt spirit: zero config) |
-| `kirn doc` | doc comment extraction → static HTML |
-| `kirn i` / `kirn install <pets>@<tag\|commit>` | package manager fetch: registry name, `user/repo`, or third-party full URL (see §14.2) |
-| `kirn update [pets name]` / `.` | update pets — `.` = default **all** (§14.2) |
-| `kirn sync` | reconciles manifest ↔ lock ↔ installed (replaces `kirn add`; npm-install / go-mod-tidy spirit). |
-| `kirn info <pets>\|<user>/<repo>\|full-url` | print a pet's config info to terminal / website (§14.2) |
-| `kirn doctor` | syntax + type check (`kirn check` + negative/types harnesses) + registry/install sanity |
-| `kirn new <project>` / `kirn new pets <name>` | init project/pets template + auto Auto Build & Release workflow (§14.2) |
-| `kirn setup` | one-time machine init: global defaults + auto-install std pets (§13.1) |
-| `kirn self-update` | fetch & install the latest `kirn` release (§14.2) |
-| `kirn repl` | interpreter-backed REPL w/ multiline, completion |
-| `kirn bindgen header.h` | C header → Kirn extern decls |
+| Command                                        | Function                                                                                        |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| kirn run x.kn [-- args]`                       | compile (cached) + exec                                                                         |
+| `kirn build [-O0..O3] [--target t] [-o out]`   | produce binary/static-lib                                                                       |
+| `kirn check`                                   | full front-end only — IDE-speed diagnostics                                                     |
+| `kirn test [path]`                             | discovers `test "name" { }` blocks, parallel runner                                             |
+| `kirn bench`                                   | criterion-style statistical benches (§16)                                                       |
+| `kirn fmt`                                     | opinionated formatter (gofmt spirit: zero config)                                               |
+| `kirn doc`                                     | doc comment extraction → static HTML                                                            |
+| `kirn i` / `kirn install <pets>@<tag\|commit>` | package manager fetch: registry name, `user/repo`, or third-party full URL (see §14.2)          |
+| `kirn update [pets name]` / `.`                | update pets — `.` = default **all** (§14.2)                                                     |
+| `kirn sync`                                    | reconciles manifest ↔ lock ↔ installed (replaces `kirn add`; npm-install / go-mod-tidy spirit). |
+| `kirn info <pets>\|<user>/<repo>\|full-url`    | print a pet's config info to terminal / website (§14.2)                                         |
+| `kirn doctor`                                  | syntax + type check (`kirn check` + negative/types harnesses) + registry/install sanity         |
+| `kirn new <project>` / `kirn new pets <name>`  | init project/pets template + auto Auto Build & Release workflow (§14.2)                         |
+| `kirn setup`                                   | one-time machine init: global defaults + auto-install std pets (§13.1)                          |
+| `kirn self-update`                             | fetch & install the latest `kirn` release (§14.2)                                               |
+| `kirn repl`                                    | interpreter-backed REPL w/ multiline, completion                                                |
+| `kirn bindgen header.h`                        | C header → Kirn extern decls                                                                    |
 
 ### 14.2 Package manager, pets registry & the ecosystem
 
@@ -779,13 +888,13 @@ All subcommands ship inside the one `kirn` binary (Go philosophy):
   `https://github.com/kirn-lang` (the compiler repo `kirn-lang/kirn` + the `kirn-lang` GitHub
   Pages landing) and the pets registry org `https://github.com/pets-registry` (the registry
   repo + every std/third-party pet repo). A dedicated **registry repo is created on the
-  `pets-registry` org** (the pets index, same role the `coco-lib` registry repo played for
+  `pets-registry` org** (the pets index, same role the `kirn-lib` registry repo played for
   the old KIRN ecosystem) — it hosts the machine-readable pet index (`registry.toml`) that
   powers name→repo resolution.
 - **Websites:** full-identity landing `https://kirn-lang.github.io`; **docs / learn-Kirn-
   syntax** site `https://rkriad585.github.io/kirn`; **pets landing** `https://pets-registry.github.io`
   where developers search pets or learn how to author/`kirn new pets <name>`. (The old
-  `coco_pets` branding is dropped — the library term is `pet`/`pets`, not `coco_pets`.)
+  `kirn_pets` branding is dropped — the library term is `pet`/`pets`, not `kirn_pets`.)
 - **`kirn setup` — global defaults, asked once, remembered.** First-time `kirn setup`
   prompts for global project defaults: **package name, version, license, author, website
   URL (optional), GitHub URL (optional)** — the GitHub URL accepts any of
@@ -826,44 +935,86 @@ All subcommands ship inside the one `kirn` binary (Go philosophy):
   GitHub release; `kirn self-update` fetches and applies the newest release on any platform.
 
 **LSP server** (`tools/lsp`, speak JSON-RPC): completions, hover types (inference reuse!),
-go-def/find-refs, rename, semantic highlight, inline errors — this is the single highest-
+go-fn/find-refs, rename, semantic highlight, inline errors — this is the single highest-
 leverage adoption tool after the compiler (scheduled in Phase 6).
 
 **k-docs — inline docs for Kirn (pydoc/godoc spirit, new syntax):** a dedicated
-`COCO_PLANS/COCO_DOCS_PLAN.md`-style plan tracks the k-doc comment syntax (`///` block + Kirn-
+`KIRN_PLANS/KIRN_DOCS_PLAN.md`-style plan tracks the k-doc comment syntax (`///` block + Kirn-
 specific directive markers), extraction into the `kirn doc` pipeline, and rendering to
-static HTML on the docs site (`https://rkriad585.github.io/kirn`) — see `COCO_PLANS/`. This
+static HTML on the docs site (`https://rkriad585.github.io/kirn`) — see `KIRN_PLANS/`. This
 is analogous to pydoc/godoc but with Kirn-native comment syntax; scheduled alongside
 Phase 6 `kirn doc`.
 
 **LSP server** (`tools/lsp`, speak JSON-RPC): completions, hover types (inference reuse!),
-go-def/find-refs, rename, semantic highlight, inline errors — this is the single highest-
+go-fn/find-refs, rename, semantic highlight, inline errors — this is the single highest-
 leverage adoption tool after the compiler (scheduled in Phase 6).
 
 Debugger story v1: emit DWARF/PDB (codegen stage) → gdb/lldb/VS work for stepping;
 custom debug console deferred.
 
+```python
+# `kirn test` discovers test blocks; `kirn bench` runs bench blocks statistically (§16)
+test "push grows list":
+    var xs = [1, 2]
+    xs.push(3)
+    assert_eq(xs.len(), 3)
+
+bench "sort 1k":
+    data = list[int](0..1000).shuffled()
+    data.sort()
+```
+
+> Reference: go — one-binary toolchain + `gopls` LSP; rust — rustup-style one-line installers.
+
 ---
 
 ## 15. Testing Strategy
 
-| Layer | Technique |
-|---|---|
-| Unit (C++) | GoogleTest-style per-stage tests; lexer/parser golden files |
-| Grammar conformance | `grammar/*.ebnf` ↔ parser round-trip corpus |
-| **Differential** | Interpreter vs compiled output on the entire test suite + fuzz corpora — outputs must match bit-for-bit |
-| End-to-end | `tests/cases/**/*.kn` each with expected stdout/stderr/exit-code; runner compares |
-| Error-message tests | Diagnostic snapshot tests (message text, span, fix-it) |
-| Fuzzing | libFuzzer on lexer/parser/sema (AST-shape-aware mutators later); OSS-Fuzz integration in Phase 6 |
-| Sanitizers | ASan/UBSan builds run full suite nightly; MSan for frontend |
-| Performance regression | Bench suite gated in CI with ±5% alert threshold |
-| Stdlib | Property-based tests (rapidcheck-style) for containers/string algorithms |
+**Goal:** Guarantee correctness with unit, grammar-conformance, differential (interpreter vs compiled), end-to-end, fuzz, sanitizer, and performance-regression layers.
+**Must Follow:** Differential outputs must match bit-for-bit; frontend ≥85% line coverage from Phase 3; ±5% performance-regression alert gate.
+**Important Note:** The interpreter is the permanent oracle; OSS-Fuzz integration lands in Phase 6.
+
+| Layer                  | Technique                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| Unit (C++)             | GoogleTest-style per-stage tests; lexer/parser golden files                                             |
+| Grammar conformance    | `grammar/*.ebnf` ↔ parser round-trip corpus                                                             |
+| **Differential**       | Interpreter vs compiled output on the entire test suite + fuzz corpora — outputs must match bit-for-bit |
+| End-to-end             | `tests/cases/**/*.kn` each with expected stdout/stderr/exit-code; runner compares                       |
+| Error-message tests    | Diagnostic snapshot tests (message text, span, fix-it)                                                  |
+| Fuzzing                | libFuzzer on lexer/parser/sema (AST-shape-aware mutators later); OSS-Fuzz integration in Phase 6        |
+| Sanitizers             | ASan/UBSan builds run full suite nightly; MSan for frontend                                             |
+| Performance regression | Bench suite gated in CI with ±5% alert threshold                                                        |
+| Stdlib                 | Property-based tests (rapidcheck-style) for containers/string algorithms                                |
 
 Coverage gates: frontend ≥ 85% line coverage enforced from Phase 3 onward.
+
+```python
+# tests/cases/closures/capture.kn — interpreter and compiled output must match bit-for-bit
+fn make_counter():
+    var n = 0
+    return () => {
+        n += 1
+        return n
+    }
+
+fn main():
+    c = make_counter()
+    print(c(), c(), c())     # 1 2 3
+# expected/stdout.txt + expected/exit_code.txt drive the differential runner
+```
+
+> Reference: CPython — differential/reference test suite; llvm — `lit` golden-file driver.
 
 ---
 
 ## 16. Benchmarking & Performance Targets
+
+**Goal:** Establish the suites, methodology, and measurable targets that define "faster than
+Rust and Go" and gate releases on them.
+**Must Follow:** Bare-metal CI hardware (never shared VMs), hyperfine + perf/VTune, publish
+every number including regressions, and block release on any missed bar.
+**Important Note:** Kirn's target is to **beat** the Rust/Go equivalent, not merely match it —
+this is the program's headline claim (§1, §10.3).
 
 Methodology: hyperfine for wall-clock, perf/VTune profiles for hotspots, fixed hardware
 matrix in CI runners (bench on bare metal, never shared CI VMs). Suites:
@@ -872,18 +1023,42 @@ matrix in CI runners (bench on bare metal, never shared CI VMs). Suites:
 2. **Macro:** HTTP server req/s (net stdlib), compiler-bootstrapping speed, raytracer frame.
 3. **Latency:** p99/p999 under sustained load (this is where no-GC-pauses pays off visibly).
 
+**Mandate: Kirn targets _faster than the Rust and Go equivalent_, not parity.** Measurable
+criteria at v1.0, all via `kirn bench` on the fixed CI hardware:
+
+- **Beat Rust:** ≥50% of micro/macro suites strictly faster than the equivalent Rust build
+  (`-O3` + LTO), and never slower than 1.05× on any suite.
+- **Beat Go:** ≥70% of suites strictly faster than the equivalent Go build, plus strictly
+  better p99 **and** p999 latency under sustained load.
+- **Beat both on allocation-heavy code:** value semantics + escape analysis + ARC elision
+  (§6.1) must beat the GC-or-`Rc` Rust/Go equivalent on the latency suites, not just tie it.
+
+A suite that does not clear its bar blocks release; the raw numbers are published either way
+(honesty policy below).
+
 Targets at v1.0 (relative to same-machine baselines):
 
-| Baseline | Target |
-|---|---|
-| C (clang -O2) | within 1.2× on compute micro-benchmarks |
-| Rust | parity ±10% typical |
-| Go | faster than Go on ≥70% of suites; better p99 tail latency |
-| C++ | parity ±10% (ARC overhead offset by EA/value semantics) |
-| Python (CPython 3.12+) | 30–100× on compute-bound code |
+| Baseline               | Target                                                    |
+| ---------------------- | --------------------------------------------------------- |
+| C (clang -O2)          | within 1.2× on compute micro-benchmarks                   |
+| Rust                   | parity ±10% typical                                       |
+| Go                     | faster than Go on ≥70% of suites; better p99 tail latency |
+| C++                    | parity ±10% (ARC overhead offset by EA/value semantics)   |
+| Python (CPython 3.12+) | 30–100× on compute-bound code                             |
 
 Honesty policy: publish every number including regressions; benchmark scripts versioned
 next to compiler (`tools/bench`).
+
+```python
+# tools/bench/fib.kn — micro-suite entry; `kirn bench` reports median + p99 vs baselines
+fn fib(n: int) -> int:
+    return n if n < 2 else fib(n - 1) + fib(n - 2)
+
+bench "fib(35)":
+    print(fib(35))
+```
+
+> Reference: rust — criterion-style statistical benchmarking (median + tail percentiles).
 
 ---
 
@@ -891,19 +1066,219 @@ next to compiler (`tools/bench`).
 
 Each phase has **exit criteria**; no phase starts before the previous exits.
 
-| Phase | Deliverables | Exit criteria | Est. effort |
-|---|---|---|---|
-| **0. Spec freeze (v0.1)** | This doc ratified; `grammar/kirn.ebnf` complete; 30 example programs that must parse someday | 3 independent people can hand-execute examples unambiguously | 2–4 wks |
-| **1. Frontend + interpreter** | Lexer, parser, resolver/inference, tree-walk interpreter, `kirn repl`, diag engine | All Phase-0 examples run correctly in interpreter; error messages have spans+fix-its | 2–3 mo |
-| **2. MIR + codegen skeleton** | SSA MIR, lowering for core subset, LLVM emission, `kirn build` produces hello-world binary linking libkirn_rt (scheduler stubbed) | fib/nbody run compiled & match interpreter bit-for-bit | 2 mo |
-| **3. Core language complete** | Generics/monomorphization, traits static+dynamic, match exhaustiveness, ARC runtime + cycle collector, bounds checks + elision, `test` framework | Suite §15 green incl. sanitizers; differential testing automated in CI | 3 mo |
-| **4. Concurrency + collections** | Full scheduler, channels/select, sendability checker, defer, collections+iterators, io/os/time/math | 10k-goroutine web crawler demo stable; ASan-clean | 2–3 mo |
-| **5. Stdlib + net + tooling** | net/text/serialize modules, `kirn fmt`, `kirn get` MVP + 20 published demo packages, bench infra online | Real project (JSON REST API server) builds & serves load with good p99 | 2–3 mo |
-| **6. Ecosystem hardening** | LSP server, bindgen, fuzzing/OSS-Fuzz, incremental compilation caches, Windows polish, packages site | Third-party contributors land features unassisted; LSP in VS Code marketplace | 3 mo |
-| **7. v1.0** | Spec v1.0 frozen, semver guarantee, installers (brew/scoop/apt/docker), website+book, governance seated (§19) | 90-day freeze with zero spec changes; 25+ real external projects | 2 mo |
+| Phase                            | Deliverables                                                                                                                                     | Exit criteria                                                                        | Est. effort       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ----------------- |
+| **0. Spec freeze (v0.1)**        | This doc ratified; `grammar/kirn.ebnf` complete; 30 example programs that must parse someday                                                     | 3 independent people can hand-execute examples unambiguously                         | 2–4 wks           |
+| **1. Frontend + interpreter**    | Lexer, parser, resolver/inference, tree-walk interpreter, `kirn repl`, diag engine                                                               | All Phase-0 examples run correctly in interpreter; error messages have spans+fix-its | 2–3 mo            |
+| **2. MIR + codegen skeleton**    | SSA MIR, lowering for core subset, LLVM emission, `kirn build` produces hello-world binary linking libkirn_rt (scheduler stubbed)                | fib/nbody run compiled & match interpreter bit-for-bit                               | 2 mo              |
+| **3. Core language complete**    | Generics/monomorphization, traits static+dynamic, match exhaustiveness, ARC runtime + cycle collector, bounds checks + elision, `test` framework | Suite §15 green incl. sanitizers; differential testing automated in CI               | 3 mo              |
+| **4. Concurrency + collections** | Full scheduler, channels/select, sendability checker, defer, collections+iterators, io/os/time/math                                              | 10k-goroutine web crawler demo stable; ASan-clean                                    | 2–3 mo            |
+| **5. Stdlib + net + tooling**    | net/text/serialize modules, `kirn fmt`, `kirn get` MVP + 20 published demo packages, bench infra online                                          | Real project (JSON REST API server) builds & serves load with good p99               | 2–3 mo            |
+| **6. Ecosystem hardening**       | LSP server, bindgen, fuzzing/OSS-Fuzz, incremental compilation caches, Windows polish, packages site                                             | Third-party contributors land features unassisted; LSP in VS Code marketplace        | 3 mo              |
+| **7. v1.0**                      | Spec v1.0 frozen, semver guarantee, installers (brew/scoop/apt/docker), website+book, governance seated (§19)                                    | 90-day freeze with zero spec changes; 25+ real external projects                     | 2 mo              |
+| **8. Beyond v1.0**               | Opt-in ownership inference (§6.1.7), Cranelift debug-backend evaluation, wasm playground target, sustained perf hardening                        | `kirn bench` beats Go on ≥80% of suites and Rust on ≥50%, with zero spec break       | 6+ mo, continuous |
 
 Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 (aggressive solo-dev: 24–36 months). Cut scope, not quality bars.
+
+### Phase 0 — Spec freeze (v0.1)
+
+**Goal:** Ratify this document and freeze `grammar/kirn.ebnf` plus the 30 canonical example programs, so spec and parser share one unambiguous source of truth.
+**Must Follow:** Grammar stays LALR/recursive-descent-friendly; no feature enters the freeze without an example program; every rule must be machine-checkable (AI-first).
+**Important Note:** Keywords and the core decisions (§6, §10, §13) are frozen here — later phases implement them, they do not re-litigate them.
+
+```python
+# examples/fib.kn — one of the 30 Phase-0 examples (must parse & be hand-executable)
+fn fib(n: int) -> int:
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fn main():
+    print(fib(10))
+```
+
+> Reference: CPython — reference grammar by example (cpython `Grammar/python.gram`).
+
+### Phase 1 — Frontend + interpreter
+
+**Goal:** Ship lexer, parser, resolver/inference, tree-walk interpreter, `kirn repl`, and the diagnostic engine every later stage reuses.
+**Must Follow:** Diagnostics carry spans + fix-its; the interpreter is the permanent differential-testing oracle (§15); this front end is `kirnc`'s core.
+**Important Note:** One AST feeds both the interpreter and (Phase 2) lowering — never fork the front end.
+
+```python
+# exercises inference + diagnostics; run it in `kirn repl`
+fn classify(n: int) -> string:
+    if n < 0:
+        return "negative"
+    elif n == 0:
+        return "zero"
+    return "positive"
+
+for x in -1..=1:
+    print(classify(x))
+```
+
+> Reference: CPython — recursive-descent front end and indent-stack tokenization (`Lib/tokenize.py`).
+
+### Phase 2 — MIR + codegen skeleton
+
+**Goal:** Typed AST → SSA MIR → LLVM IR, so `kirn build` emits a hello-world/fib binary linked against a stubbed `libkirn_rt`.
+**Must Follow:** MIR is the single lowering target; SSA built via dominator trees; compiled output must match the interpreter bit-for-bit.
+**Important Note:** Keep all `LLVM_*` behind `src/codegen` walls so the backend stays swappable (§10.4).
+
+```python
+# must compile and match interpreter output bit-for-bit
+fn nbody_step(pos: list[f64], vel: list[f64]):
+    var i = 0
+    while i < pos.len():
+        pos[i] += vel[i]
+        i += 1
+
+fn main():
+    var xs = [0.0, 1.0, 2.0]
+    nbody_step(xs, [0.1, 0.1, 0.1])
+    print(xs)
+```
+
+> Reference: rust — SSA MIR lowering (`rustc_mir_transform`); llvm — scalar/loop optimization pipeline (`llvm/lib/Transforms`).
+
+### Phase 3 — Core language complete
+
+**Goal:** Generics/monomorphization, traits (static + dynamic), exhaustive `match`, ARC runtime + cycle collector, bounds-check elision, and the `test` framework.
+**Must Follow:** ARC retain/release must be elided per §6; no suite may regress vs the interpreter; sanitizers green in CI.
+**Important Note:** The cycle collector ships here, not later — it is what protects benchmark credibility (§16, §20).
+
+```python
+struct Point:
+    x: f64
+    y: f64
+
+trait Summable:
+    fn sum(self) -> f64
+
+impl Summable for list[Point]:
+    fn sum(self) -> f64:
+        total = 0.0
+        for p in self:
+            total += p.x + p.y
+        return total
+
+fn main():
+    ps = [Point(x: 1.0, y: 2.0), Point(x: 3.0, y: 4.0)]
+    print(ps.sum())
+```
+
+> Reference: CPython — reference counting + cyclic GC (`Modules/gcmodule.c`); rust — monomorphized generics.
+
+### Phase 4 — Concurrency + collections
+
+**Goal:** Full M:N scheduler, channels/select, sendability checker, `defer`, plus collections/iterators and io/os/time/math.
+**Must Follow:** `spawn` transfers must be `sendable` (§6.3); no data races without explicit sync; ASan-clean under load.
+**Important Note:** Scheduler and channels live in the C runtime (§12); the language surface stays Go-simple.
+
+```python
+fn worker(id: int, jobs: chan[int], out: chan[int]):
+    for j in jobs:
+        out.send(j * 2)
+
+fn main():
+    jobs = chan[int](cap: 8)
+    out = chan[int]()
+    for i in 1..=4:
+        spawn worker(i, jobs, out)
+    for j in 1..=4:
+        jobs.send(j)
+    jobs.close()
+    for _ in 1..=4:
+        print(out.recv())
+```
+
+> Reference: Go — goroutines, typed channels, and `select` on an M:N scheduler (`go/src/runtime`).
+
+### Phase 5 — Stdlib + net + tooling
+
+**Goal:** net/text/serialize modules, `kirn fmt`, package-manager MVP with ≥20 published demo pets, and the bench infrastructure online.
+**Must Follow:** Stdlib adds zero runtime deps beyond libkirn_rt/libc (§13); pets are external (§13.1); pure socket APIs, no shelling out.
+**Important Note:** This is the ecosystem proof point — a real JSON REST API must build and serve under load with good p99.
+
+```python
+import pet.net.http as http
+import pet.text.json as json
+
+fn handle(req: http.Request) -> http.Response:
+    body = json.encode(dict[string, int]{"ok": 1, "n": req.query.get("n", 0)})
+    return http.Response(status: 200, body: body)
+
+fn main():
+    server = http.Server(port: 8080, handler: handle)
+    server.listen()
+```
+
+> Reference: Go — `net/http` ergonomics and registry-first stdlib layout (`go/src/net/http`).
+
+### Phase 6 — Ecosystem hardening
+
+**Goal:** LSP server, bindgen, fuzzing/OSS-Fuzz, incremental compilation caches, Windows polish, and the packages site.
+**Must Follow:** LSP reuses inference/AST (no forked analysis); diagnostics and IR dumps stay machine-readable (AI-first); OSS-Fuzz runs continuously.
+**Important Note:** Incremental caches and thin-LTO only in release protect the "fast builds" promise (§20).
+
+```python
+# `kirn bindgen` generates extern decls like this one from a C header
+extern fn strlen(s: *char) -> usize
+
+fn len_safe(s: string) -> usize:
+    unsafe:
+        return strlen(s.c_ptr())
+
+fn main():
+    print(len_safe("hello"))
+```
+
+> Reference: go — `gopls` LSP architecture; rust — rust-analyzer incremental analysis (`rustc_driver` / IDE crates).
+
+### Phase 7 — v1.0
+
+**Goal:** Freeze spec v1.0 with a semver guarantee, ship installers (brew/scoop/apt/docker), publish website + book, and seat governance.
+**Must Follow:** 90-day freeze with zero spec changes; every §16 performance bar must be cleared before tagging.
+**Important Note:** Editions (§18) begin here; no breaking changes outside a major bump.
+
+```python
+# hello.kn — end-to-end golden case; stdout/exit code asserted by the runner (§15)
+fn main():
+    names = ["ada", "grace", "linus"]
+    for n in names:
+        print(f"hello, {n}")
+
+# `kirn test` discovers this block
+test "reverses":
+    assert_eq([1, 2, 3].reversed(), [3, 2, 1])
+```
+
+> Reference: rust — editions + semver guarantees; go — single-binary cross-platform installers.
+
+### Phase 8 — Beyond v1.0 (performance hardening & scale)
+
+**Goal:** Land ownership inference as an opt-in optimization (§6.1.7), evaluate Cranelift for debug builds, add a wasm target for the playground, and widen the lead over Go/Rust.
+**Must Follow:** Ownership inference stays a warning-free optimization, never a compile error; no spec break (editions only); every change is measured by `kirn bench`.
+**Important Note:** Here §16's stretch targets (beat Rust on ≥50% of suites) become release gates rather than goals.
+
+```python
+# perf-hardening workload: arena + value vectors, no per-object RC
+import pet.mem as mem
+
+struct Particle:
+    pos: f64
+    vel: f64
+
+fn step(frame: mem.Arena):
+    ps = frame.alloc_list[Particle](1024)
+    for i in 0..1024:
+        ps[i] = Particle(pos: i.to_f64(), vel: 0.5)
+    print(ps[0].pos)
+```
+
+> Reference: zig — explicit allocators/comptime for zero-cost abstractions; llvm — PGO/LTO-driven optimization.
 
 ---
 
@@ -934,33 +1309,33 @@ Total realistic timeline for a small dedicated team: **~18–24 months to v1.0**
 
 ## 20. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Scope creep (macros, async, borrow-checker demands) | Timeline death | Non-goals list (§2) enforced via RFC gate; every addition must cite a principle (§3) |
-| ARC cycles/perf edge cases embarrass benchmarks | Credibility | Cycle collector from day 1; publish honest numbers (§16); ownership inference roadmap (§6.1.7) |
-| LLVM compile times hurt "fast builds" goal | Adoption | Incremental caches, parallel driver, thin-LTO only in release; Cranelift fallback studied in Phase 6 |
-| Solo-founder bus factor | Project death | RFC record, public roadmap, welcome-first-contributor issues tagged from Phase 1 |
-| Windows toolchain pain (paths, FS semantics, debug info) | Half-broken platform | MSVC CI from Phase 1, not bolted on later |
-| Ecosystem cold start | Nobody comes | Bindgen + C-interop means users bring their favorite C libs on day one — market THIS |
+| Risk                                                     | Impact               | Mitigation                                                                                           |
+| -------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
+| Scope creep (macros, async, borrow-checker demands)      | Timeline death       | Non-goals list (§2) enforced via RFC gate; every addition must cite a principle (§3)                 |
+| ARC cycles/perf edge cases embarrass benchmarks          | Credibility          | Cycle collector from day 1; publish honest numbers (§16); ownership inference roadmap (§6.1.7)       |
+| LLVM compile times hurt "fast builds" goal               | Adoption             | Incremental caches, parallel driver, thin-LTO only in release; Cranelift fallback studied in Phase 6 |
+| Solo-founder bus factor                                  | Project death        | RFC record, public roadmap, welcome-first-contributor issues tagged from Phase 1                     |
+| Windows toolchain pain (paths, FS semantics, debug info) | Half-broken platform | MSVC CI from Phase 1, not bolted on later                                                            |
+| Ecosystem cold start                                     | Nobody comes         | Bindgen + C-interop means users bring their favorite C libs on day one — market THIS                 |
 
 ---
 
 ## 21. Comparison With Other Languages
 
-| Dimension | Kirn | Python | Go | Rust | C++ |
-|---|---|---|---|---|---|
-| Typing | static, inferred | dynamic | static, inferred | static, inferred | static |
-| Syntax feel | indentation, Pythonic | ★★★★★ | braces | braces | braces |
-| Compilation | AOT native | interpreted (+JIT opts) | AOT native | AOT native | AOT native |
-| Startup | ~ms | ~50ms+ | ~ms | ~ms | ~ms |
-| Memory model | value + EA + ARC | tracing GC | tracing GC | ownership | manual |
-| Pause times | deterministic-ish | yes | sub-ms STW | none | none (you wish) |
-| Concurrency | goroutines+channels | GIL threads/async | goroutines | async+fearless | threads+chaos |
-| Generics | monomorphized, bounded | N/A | runtime-shaped | monomorphized | templates |
-| Errors | result + try/? | exceptions | values (if err != nil) | Result + ? | exceptions/codes |
-| Null safety | `?` types, no null derefs | None everywhere | nil panics | Option | UB |
-| Package mgr | built-in `get` | pip (external) | built-in | cargo | none canon |
-| Interop with C | extern def + bindgen | ctypes/cffi | cgo | ffi crate | native |
+| Dimension      | Kirn                      | Python                  | Go                     | Rust             | C++              |
+| -------------- | ------------------------- | ----------------------- | ---------------------- | ---------------- | ---------------- |
+| Typing         | static, inferred          | dynamic                 | static, inferred       | static, inferred | static           |
+| Syntax feel    | indentation, Pythonic     | ★★★★★                   | braces                 | braces           | braces           |
+| Compilation    | AOT native                | interpreted (+JIT opts) | AOT native             | AOT native       | AOT native       |
+| Startup        | ~ms                       | ~50ms+                  | ~ms                    | ~ms              | ~ms              |
+| Memory model   | value + EA + ARC          | tracing GC              | tracing GC             | ownership        | manual           |
+| Pause times    | deterministic-ish         | yes                     | sub-ms STW             | none             | none (you wish)  |
+| Concurrency    | goroutines+channels       | GIL threads/async       | goroutines             | async+fearless   | threads+chaos    |
+| Generics       | monomorphized, bounded    | N/A                     | runtime-shaped         | monomorphized    | templates        |
+| Errors         | result + try/?            | exceptions              | values (if err != nil) | Result + ?       | exceptions/codes |
+| Null safety    | `?` types, no null derefs | None everywhere         | nil panics             | Option           | UB               |
+| Package mgr    | built-in `get`            | pip (external)          | built-in               | cargo            | none canon       |
+| Interop with C | extern fn + bindgen       | ctypes/cffi             | cgo                    | ffi crate        | native           |
 
 Positioning sentence: **"Go's workflow, Python's face, C's speed, minus each one's famous flaw."**
 
@@ -980,5 +1355,5 @@ Tracked here until resolved by RFC (each blocked item names its decider phase):
 
 ---
 
-*Ratify by opening an RFC referencing section numbers. Changes to §§2, 5.1, 6, 8, 17 require
-super-majority consensus per §19 once governance activates.*
+_Ratify by opening an RFC referencing section numbers. Changes to §§2, 5.1, 6, 8, 17 require
+super-majority consensus per §19 once governance activates._

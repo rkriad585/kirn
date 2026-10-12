@@ -5,7 +5,7 @@ Ident	2:8	Point
 Punct	2:14	{
 Ident	3:5	x
 Punct	3:6	:
-Ident	3:8	int
+Ident	3:8	Int
 Punct	3:11	;
 Punct	4:1	}
 Ident	5:1	p

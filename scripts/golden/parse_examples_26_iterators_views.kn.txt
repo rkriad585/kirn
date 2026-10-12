@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/26_iterators_views.kn
 StructDef "Range"
-  Field "cur" : int
-  Field "limit" : int
+  Field "cur" : Int
+  Field "limit" : Int
 ImplDef Iterator for Range
   FuncDef "next"
     Param "self" self : <inferred>
-    Ret int?
+    Ret Int?
     Body
       If
         Cond 

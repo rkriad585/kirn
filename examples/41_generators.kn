@@ -3,13 +3,13 @@
 # `gen[T]` value whose elements are produced by the `yield` expressions.
 # Bare `yield` produces `none`; `return` with a value is rejected.
 
-def counter(n) -> gen[int] {          # explicit element type
+fn counter(n) -> gen[Int] {          # explicit element type
     for i in 1..=n {
         yield i;
     }
 }
 
-def fib(limit) -> gen[int] {                      # inferred -> gen[int]
+fn fib(limit) -> gen[Int] {                      # inferred -> gen[int]
     var a = 1;
     var b = 1;
     while a <= limit {
@@ -18,7 +18,7 @@ def fib(limit) -> gen[int] {                      # inferred -> gen[int]
     }
 }
 
-def combine(items) -> none {                  # mixed values + a bare yield
+fn combine(items) -> none {                  # mixed values + a bare yield
     yield "start";
     for x in items {
         yield x;
@@ -26,23 +26,23 @@ def combine(items) -> none {                  # mixed values + a bare yield
     yield;
 }
 
-def main() -> none {
+fn main() -> none {
     s = 0;
     for x in counter(5) {
         s = s + x;
     }
-    print("sum=" + str(s));
+    print("sum=" + Str(s));
 
     fibs = fib(50).collect();                    # materialize to a list
-    print("fibs=" + str(fibs));
+    print("fibs=" + Str(fibs));
 
     even = counter(10).filter((x) => x % 2 == 0);
-    print("even=" + str(even.collect()));
+    print("even=" + Str(even.collect()));
 
     sq = counter(4).map((x) => x * x).collect();
-    print("sq=" + str(sq));
+    print("sq=" + Str(sq));
 
-    print("len=" + str(counter(7).len()));
-    print("mixed=" + str(combine([9, 8]).collect()));
-    print("fresh=" + str(counter(3)));           # repr of a generator
+    print("len=" + Str(counter(7).len()));
+    print("mixed=" + Str(combine([9, 8]).collect()));
+    print("fresh=" + Str(counter(3)));           # repr of a generator
 }

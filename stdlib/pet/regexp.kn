@@ -8,36 +8,36 @@
 
 # Glob-style match: `*` matches any (possibly empty) run, `?` one char,
 # everything else literal.
-pub def match(pat: string, s: string) -> bool {
+pub fn match(pat: Str, s: Str) -> Bool {
     return glob(pat, s);
 }
 
 # First index of `sub` in s, or -1 if absent (via split on the needle).
-pub def find(s: string, sub: string) -> int {
+pub fn find(s: Str, sub: Str) -> Int {
     if sub == "" { return 0; }
     parts = s.split(sub);
     if parts.len() <= 1 { return -1; }
-    return str(parts[0]).len();
+    return Str(parts[0]).len();
 }
 
 # True if `sub` is present in s.
-pub def contains(s: string, sub: string) -> bool {
+pub fn contains(s: Str, sub: Str) -> Bool {
     return s.contains(sub);
 }
 
 # Replace every literal occurrence of `from` with `to`.
-pub def replace(s: string, from: string, to: string) -> string {
+pub fn replace(s: Str, from: Str, to: Str) -> Str {
     return s.replace(from, to);
 }
 
 # Split on a literal separator.
-pub def split(s: string, sep: string) -> list {
+pub fn split(s: Str, sep: Str) -> list {
     return s.split(sep);
 }
 
 # Internal recursive glob matcher. Uses 1-char substrings so no char vs
 # string hazards arise.
-def glob(pat: string, s: string) -> bool {
+fn glob(pat: Str, s: Str) -> Bool {
     if pat == "" { return s == ""; }
     pc = pat[0..1];
     if pc == "*" {

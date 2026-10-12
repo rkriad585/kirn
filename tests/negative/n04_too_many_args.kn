@@ -1,5 +1,5 @@
 ﻿; # expect: too many arguments
-def f(a: int) -> int {
+fn f(a: Int) -> Int {
     return a;
 }
 print(f(1, 2));

@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/03_literals_casts.kn
-Ident	2:1	def
-Ident	2:5	main
-Punct	2:9	(
-Punct	2:10	)
-Op	2:12	->
-Ident	2:15	none
-Punct	2:20	{
+Ident	2:1	fn
+Ident	2:4	main
+Punct	2:8	(
+Punct	2:9	)
+Op	2:11	->
+Ident	2:14	none
+Punct	2:19	{
 Ident	3:5	big
 Punct	3:8	:
 Ident	3:10	i64
@@ -40,7 +40,7 @@ Float	9:18	1e-9
 Punct	9:22	;
 Ident	10:5	letter
 Punct	10:11	:
-Ident	10:13	char
+Ident	10:13	Char
 Op	10:18	=
 Char	10:20	A
 Punct	10:23	;

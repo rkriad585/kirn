@@ -34,7 +34,7 @@ ImplDef Eq for Vec2
   FuncDef "eq"
     Param "self" self : <inferred>
     Param "other" : Vec2
-    Ret bool
+    Ret Bool
     Body
       Return
         Value 
@@ -56,12 +56,12 @@ ImplDef Eq for Vec2
                   Member name="y"
                     Obj Ident "other"
 StructDef "Grid"
-  Field "cells" : list[int]
+  Field "cells" : list[Int]
 ImplDef Index for Grid
   FuncDef "index"
     Param "self" self : <inferred>
-    Param "i" : int
-    Ret int
+    Param "i" : Int
+    Ret Int
     Body
       Return
         Value 

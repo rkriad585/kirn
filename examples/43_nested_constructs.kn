@@ -8,7 +8,7 @@
 #   doGatherSum=21
 #   gotoOut=3
 
-def main() -> none {
+fn main() -> none {
     # nested if / elif / else (two levels)
     n = 60;
     if n > 100 { n = 1; }
@@ -18,7 +18,7 @@ def main() -> none {
         if n > 10 { n = n + 5; }         # 60 -> 65
         else { n = n - 5; }
     }
-    print("nestedIf=" + str(n));
+    print("nestedIf=" + Str(n));
 
     # two levels of nested for loops with a guarded inner body
     pairs = [];
@@ -27,7 +27,7 @@ def main() -> none {
             if (x + y) % 2 == 0 { pairs.append(x * y); }
         }
     }
-    print("doubleNest=" + str(len(pairs)));   # (1,1)(1,3)(2,2)(3,1)(3,3)=5
+    print("doubleNest=" + Str(len(pairs)));   # (1,1)(1,3)(2,2)(3,1)(3,3)=5
 
     # doubly-nested labeled loops with break-by-outer-label
     total = 0;
@@ -38,14 +38,14 @@ def main() -> none {
         }
         total += 100;       # skipped when we break outer
     }
-    print("deepFor=" + str(total));   # i=1: 2 + 100; i=2: j=1 -> 103, break outer
+    print("deepFor=" + Str(total));   # i=1: 2 + 100; i=2: j=1 -> 103, break outer
 
     # gather computing a running sum of its seeds
     sum = 0;
     gather { 1, 2, 3, 4, 5, 6 } {
         sum += item;
     }
-    print("doGatherSum=" + str(sum));
+    print("doGatherSum=" + Str(sum));
 
     # goto out of doubly-nested loops to a trailing label
     acc = 0;
@@ -56,5 +56,5 @@ def main() -> none {
         }
     }
 done2:
-    print("gotoOut=" + str(acc));
+    print("gotoOut=" + Str(acc));
 }

@@ -6,7 +6,7 @@
 <h1 align="center">Kirn Programming Language</h1>
 
 <p align="center">
-  <em>Formerly known as <strong>Coco</strong> — see
+  <em>Formerly known as <strong>Kirn</strong> — see
   <a href="docs/MIGRATION.md">docs/MIGRATION.md</a> for the full rename table.</em>
 </p>
 
@@ -53,17 +53,17 @@ goals:
 struct Greeter {
     name: string;
 
-    def greet(self) -> string {          # methods live inside the struct
+    fn greet(self) -> string {          # methods live inside the struct
         return "Hello, " + self.name + "!";
     }
 }
 
-def fib(n: int) -> int {                 # simple recursion
+fn fib(n: int) -> int {                 # simple recursion
     if n <= 1 { return n; }
     return fib(n - 1) + fib(n - 2);
 }
 
-def main() {
+fn main() {
     for i in 0..=5 {                     # inclusive range loop
         print(fib(i));
     }
@@ -243,17 +243,17 @@ the exact source and commit SHA so builds are reproducible — **commit
 - [Design docs & roadmap](docs/)
 - [Grammar (EBNF)](grammar/kirn.ebnf)
 - [Examples](examples/)
-- [Plans](COCO_PLANS/)
+- [Plans](KIRN_PLANS/)
 - **Library registry:** [pets-registry.github.io](https://pets-registry.github.io)
 
 ---
 
 ## Roadmap
 
-Detailed, phased implementation plans live in [COCO_PLANS/](COCO_PLANS/),
+Detailed, phased implementation plans live in [KIRN_PLANS/](KIRN_PLANS/),
 covering the documentation website, language features, the standard library,
-and cross-compilation. The Coco → Kirn rebrand is recorded in
-[COCO_TO_KIRN_PLAN.md](COCO_PLANS/COCO_TO_KIRN_PLAN.md).
+and cross-compilation. The Kirn → Kirn rebrand is recorded in
+[REBRAND_PLAN.md](KIRN_PLANS/REBRAND_PLAN.md).
 
 ---
 

@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnc -E -DGONE=1 -UGONE <ROOT>/tests/macros/cmdline.kn
-Ident	5:1	def
-Ident	5:5	main
-Punct	5:9	(
-Punct	5:10	)
-Op	5:12	->
-Ident	5:15	none
-Punct	5:20	{
+Ident	5:1	fn
+Ident	5:4	main
+Punct	5:8	(
+Punct	5:9	)
+Op	5:11	->
+Ident	5:14	none
+Punct	5:19	{
 Ident	9:3	print
 Punct	9:8	(
 Str	9:9	feature off

@@ -1,1 +1,1 @@
-def main() -> none { print(os.getenv("COCO_TEST_ENV")); }
+fn main() -> none { print(os.getenv("KIRN_TEST_ENV")); }

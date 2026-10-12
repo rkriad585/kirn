@@ -9,25 +9,25 @@ FuncDef "main"
           Arg
             Value 
               Call
-                Callee Ident "str"
+                Callee Ident "Str"
                 Arg
                   Value Int "42"
           Arg
             Value 
               Call
-                Callee Ident "str"
+                Callee Ident "Str"
                 Arg
                   Value Float "3.14"
           Arg
             Value 
               Call
-                Callee Ident "str"
+                Callee Ident "Str"
                 Arg
                   Value Ident "true"
           Arg
             Value 
               Call
-                Callee Ident "str"
+                Callee Ident "Str"
                 Arg
                   Value 
                     List len=2
@@ -42,7 +42,7 @@ FuncDef "main"
               Binary op="+"
                 Lhs 
                   Call
-                    Callee Ident "int"
+                    Callee Ident "Int"
                     Arg
                       Value Str "42"
                 Rhs Int "1"
@@ -51,7 +51,7 @@ FuncDef "main"
               Binary op="+"
                 Lhs 
                   Call
-                    Callee Ident "float"
+                    Callee Ident "Float"
                     Arg
                       Value Str "2.5"
                 Rhs Float "0.5"
@@ -62,13 +62,13 @@ FuncDef "main"
           Arg
             Value 
               Call
-                Callee Ident "bool"
+                Callee Ident "Bool"
                 Arg
                   Value Int "0"
           Arg
             Value 
               Call
-                Callee Ident "bool"
+                Callee Ident "Bool"
                 Arg
                   Value Int "1"
     ExprStmt
@@ -127,13 +127,13 @@ FuncDef "main"
           Arg
             Value 
               Call
-                Callee Ident "min"
+                Callee Ident "Min"
                 Arg
                   Value Ident "nums"
           Arg
             Value 
               Call
-                Callee Ident "max"
+                Callee Ident "Max"
                 Arg
                   Value Ident "nums"
     ExprStmt

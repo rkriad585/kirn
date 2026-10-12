@@ -11,7 +11,7 @@
 namespace kirn {
 namespace vm {
 
-// Compile result: the program's functions plus, for each compiled `def`
+// Compile result: the program's functions plus, for each compiled `fn`
 // (by Stmt*), its function index, and for each compiled lambda (by Expr*)
 // its function index. These let the VM map a VK::Fn value back to bytecode.
 struct CompileResult {
@@ -21,11 +21,11 @@ struct CompileResult {
 };
 
 // Compile the whole program (top-level statements + all reachable defs).
-// `entry` is the main FuncDef Stmt. Every compiled def/lambda is registered in
+// `entry` is the main FuncDef Stmt. Every compiled fn/lambda is registered in
 // defIdx/lamIdx. Constructs outside the core slice mark the enclosing function
 // `interpreted` (caller falls back to the tree-walker).
 //
-// `userFuncs`: names of every user-defined `def` (used to recognise safe calls;
+// `userFuncs`: names of every user-defined `fn` (used to recognise safe calls;
 //               a call to any other name is treated as struct/enum construction
 //               or a module/unknown and marks the function interpreted).
 // `builtins`:  names prebound by the interpreter (safe direct calls).

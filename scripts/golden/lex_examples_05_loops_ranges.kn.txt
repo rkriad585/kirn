@@ -1,11 +1,11 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/05_loops_ranges.kn
-Ident	2:1	def
-Ident	2:5	main
-Punct	2:9	(
-Punct	2:10	)
-Op	2:12	->
-Ident	2:15	none
-Punct	2:20	{
+Ident	2:1	fn
+Ident	2:4	main
+Punct	2:8	(
+Punct	2:9	)
+Op	2:11	->
+Ident	2:14	none
+Punct	2:19	{
 Ident	3:5	total
 Op	3:11	=
 Int	3:13	0

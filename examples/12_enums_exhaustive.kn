@@ -1,11 +1,11 @@
 # 12 — Enums & exhaustive matching        (plan §5.8)
 enum Status {
     Idle,
-    Running(pid: int),
-    Failed(code: int, msg: string),
+    Running(pid: Int),
+    Failed(code: Int, msg: Str),
 
 }
-def render(s: Status) -> string { # compiler ENFORCES all variants covered
+fn render(s: Status) -> Str { # compiler ENFORCES all variants covered
     match s {
         case Idle {
             return "idle";
@@ -22,7 +22,7 @@ def render(s: Status) -> string { # compiler ENFORCES all variants covered
 }
 }
 }
-def main() -> none {
+fn main() -> none {
     states = [Status.Idle, Status.Running(pid: 42), Status.Failed(code: 404, msg: "not found")];
     for s in states {
         print(render(s));

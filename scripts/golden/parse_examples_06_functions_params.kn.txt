@@ -1,8 +1,8 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/06_functions_params.kn
 FuncDef "add"
-  Param "a" : int
-  Param "b" : int
-  Ret int
+  Param "a" : Int
+  Param "b" : Int
+  Ret Int
   Body
     Return
       Value 
@@ -10,7 +10,7 @@ FuncDef "add"
           Lhs Ident "a"
           Rhs Ident "b"
 FuncDef "greet"
-  Param "name" : string
+  Param "name" : Str
     Default Str "world"
   Ret none
   Body
@@ -25,8 +25,8 @@ FuncDef "greet"
                 Interp
                   Value Ident "name"
 FuncDef "sum_all"
-  Param "nums" variadic : int
-  Ret int
+  Param "nums" variadic : Int
+  Ret Int
   Body
     Assign
       Target Ident "total"
@@ -41,10 +41,10 @@ FuncDef "sum_all"
     Return
       Value Ident "total"
 FuncDef "apply"
-  Param "op" : fn(int, int) -> int
-  Param "a" : int
-  Param "b" : int
-  Ret int
+  Param "op" : fn(Int, Int) -> Int
+  Param "a" : Int
+  Param "b" : Int
+  Ret Int
   Body
     Return
       Value 

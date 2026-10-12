@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/23_select_multiplex.kn
 FuncDef "slow_producer"
-  Param "ch" : chan[string]
+  Param "ch" : chan[Str]
   Ret none
   Body
     ExprStmt
@@ -27,7 +27,7 @@ FuncDef "main"
       Value 
         Call
           Callee 
-            New type=chan[string]
+            New type=chan[Str]
     Spawn
       Call 
         Call

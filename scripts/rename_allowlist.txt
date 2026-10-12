@@ -25,7 +25,7 @@ docs/MIGRATION.md	the migration table. Its entire job is to name every old
 		form next to its replacement, so a rename gate cannot apply to it.
 
 # --- Frozen historical archives -------------------------------------------
-COCO_PLANS/*	the pre-rename design-plan archive, kept verbatim as the record of
+KIRN_PLANS/*	the pre-rename design-plan archive, kept verbatim as the record of
 		what the language was before the rename. Never edited again.
 
 _rename/baseline/*	phase-1 pre-rename measurement transcripts. These ARE the
@@ -54,11 +54,11 @@ scripts/rename_baseline.ps1	live (referenced by .vscode/tasks.json and SECURITY.
 # These are user-facing MIGRATION HELP, not drift. The old name is the payload:
 # delete it and the helpful message it carries disappears. Each is covered by
 # the gate suite, so they cannot rot unnoticed.
-CMakeLists.txt	the one-time COCO_ASAN -> KIRN_ASAN cache migration and its
+CMakeLists.txt	the one-time KIRN_ASAN -> KIRN_ASAN cache migration and its
 		DEPRECATION message (phase 8).
 src/interp/runtime.cpp	detects a stale pre-rename manifest and prints the `mv` command.
 tools/kirn.cpp	detects a stale pre-rename manifest/lock and prints the fix; also
-		the COCO_* legacy-environment-variable detection table (phase 8).
+		the KIRN_* legacy-environment-variable detection table (phase 8).
 tools/kirnrun.cpp	reports the pre-rename environment variables it no longer reads.
 scripts/gates_linux.sh	LOAD-BEARING: creates a stale pre-rename manifest as a fixture and
 		asserts the rename hint fires. Renaming it would silently delete the test.

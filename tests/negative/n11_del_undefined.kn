@@ -1,4 +1,4 @@
 # expect: del: undefined variable 'nope'
-def main() -> none {
+fn main() -> none {
     del nope;
 }

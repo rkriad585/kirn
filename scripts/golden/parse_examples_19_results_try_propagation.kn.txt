@@ -1,9 +1,9 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/19_results_try_propagation.kn
 StructDef "ParseError"
-  Field "bad" : string
+  Field "bad" : Str
 FuncDef "parse_port"
-  Param "text" : string
-  Ret result[int, ParseError]
+  Param "text" : Str
+  Ret result[Int, ParseError]
   Body
     Assign
       Target Ident "port"
@@ -27,7 +27,7 @@ FuncDef "parse_port"
     Return
       Value Ident "port"
 FuncDef "read_config"
-  Ret result[int, ParseError]
+  Ret result[Int, ParseError]
   Body
     Assign
       Target Ident "raw"

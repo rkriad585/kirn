@@ -1,7 +1,7 @@
 # Contributing to Kirn
 
-Kirn is a Windows-first, C++20 compiled language. It was formerly named Coco
-(see [COCO_PLANS/COCO_TO_KIRN_PLAN.md](COCO_PLANS/COCO_TO_KIRN_PLAN.md) for the
+Kirn is a Windows-first, C++20 compiled language. It was formerly named Kirn
+(see [KIRN_PLANS/REBRAND_PLAN.md](KIRN_PLANS/REBRAND_PLAN.md) for the
 rename). Anything you commit must keep the harnesses green at every phase.
 
 ## Environment
@@ -79,7 +79,7 @@ inventory`).
 
 ## Testing & the migration plan
 
-- `COCO_PLANS/COCO_TO_KIRN_PLAN.md` is the authoritative migration plan
+- `KIRN_PLANS/REBRAND_PLAN.md` is the authoritative migration plan
   (Phases 1..13, decision log D1..D8). **Phase 1 (baseline snapshot) is done.**
 - New language/compiler behavior starts from `docs/KIRN_PLAN.md` and
   `grammar/kirn.ebnf`; corpus examples live in `examples/`, negative cases in

@@ -4,10 +4,10 @@
 enum Direction { North, East; South; West; }
 enum Status {
     Idle,
-    Running(pid: int),
-    Failed(code: int),
+    Running(pid: Int),
+    Failed(code: Int),
 }
-def main() -> none {
+fn main() -> none {
     print(Direction.North.to_int());
     print(Direction.East.to_int());
     print(Direction.South.to_int());

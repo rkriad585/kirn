@@ -194,14 +194,14 @@ rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 TMP="$TMPDIR"
 
-printf 'import greet;\n\ndef main() -> none {\n  print(greet.hello());\n}\n' > "$TMP/main.kn"
-printf 'pub def hello() -> string {\n  return "SIBLING-GREET";\n}\n'          > "$TMP/greet.kn"
+printf 'import greet;\n\nfn main() -> none {\n  print(greet.hello());\n}\n' > "$TMP/main.kn"
+printf 'pub fn hello() -> Str {\n  return "SIBLING-GREET";\n}\n'          > "$TMP/greet.kn"
 check "kirnrun_sibling_module" "$BIN/kirnrun" "$TMP/main.kn"
 
-printf 'def main() -> none {\n  print(y + 1);\n}\n' > "$TMP/undef.kn"
+printf 'fn main() -> none {\n  print(y + 1);\n}\n' > "$TMP/undef.kn"
 check "kirnrun_type_error" "$BIN/kirnrun" "$TMP/undef.kn"
 
-printf 'def main() -> none {\n  panic("boom");\n}\n' > "$TMP/panic.kn"
+printf 'fn main() -> none {\n  panic("boom");\n}\n' > "$TMP/panic.kn"
 check "kirnrun_panic" "$BIN/kirnrun" "$TMP/panic.kn"
 
 # ----------------------------------------------------------------- kirn CLI

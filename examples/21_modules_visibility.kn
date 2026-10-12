@@ -3,21 +3,21 @@ import math; # stdlib module
 from text.slug import slugify; # named import
 from json import dumps as to_json; # aliased import
 
-pub def visible_everywhere() -> none { # pub = exported from this module
+pub fn visible_everywhere() -> none { # pub = exported from this module
     pass;
 
 }
-def package_local() -> none { # no pub = package-visible
+fn package_local() -> none { # no pub = package-visible
     pass;
 
 }
-def _private_helper() -> none { # leading underscore = module-private
+fn _private_helper() -> none { # leading underscore = module-private
     pass;
 
 }
-def main() -> none {
+fn main() -> none {
     print(math.sqrt(144.0)); # 12.0
-    print(slugify("Hello Coco World")); # hello-coco-world
+    print(slugify("Hello Kirn World")); # hello-kirn-world
     print(to_json({"ok": true}));
     visible_everywhere();
     package_local();

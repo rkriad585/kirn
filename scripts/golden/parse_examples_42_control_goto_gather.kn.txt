@@ -30,7 +30,7 @@ FuncDef "main"
                 Lhs Str "doTotal="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "total"
     Assign
@@ -52,7 +52,7 @@ FuncDef "main"
                 Lhs Str "doOnce="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "z"
     Assign
@@ -99,7 +99,7 @@ FuncDef "main"
                 Lhs Str "searchSum="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "sum"
     Assign
@@ -163,7 +163,7 @@ FuncDef "main"
                 Lhs Str "gatherVisited="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "visited"
     Assign
@@ -202,7 +202,7 @@ FuncDef "main"
                 Lhs Str "gatherBfs="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "out"
     Assign
@@ -218,7 +218,7 @@ FuncDef "main"
                 Lhs Str "nilv="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "v"
     ExprStmt
@@ -233,7 +233,7 @@ FuncDef "main"
                     Lhs Str "nan=|"
                     Rhs 
                       Call
-                        Callee Ident "str"
+                        Callee Ident "Str"
                         Arg
                           Value Ident "NaN"
                 Rhs Str "|"
@@ -247,7 +247,7 @@ FuncDef "main"
                 Lhs Str "inf="
                 Rhs 
                   Call
-                    Callee Ident "str"
+                    Callee Ident "Str"
                     Arg
                       Value Ident "inf"
 <ROOT>/examples/42_control_goto_gather.kn: OK (1 top-level statements)

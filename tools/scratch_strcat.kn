@@ -1,1 +1,1 @@
-def main() -> none { var s2 = ""; s2 += "x"; print(s2); var lst = []; lst.append("a"); lst.append("b"); print(lst); }
+fn main() -> none { var s2 = ""; s2 += "x"; print(s2); var lst = []; lst.append("a"); lst.append("b"); print(lst); }

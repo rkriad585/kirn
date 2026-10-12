@@ -214,7 +214,7 @@ resolution is added in front of it (Phase 3).
 
 A minimal Kirn `.kn` binding in this exact surface:
 
-```kn
+```kirn
 extern fn puts(s: *Char) -> Int;       # parsed as FuncDef, externDef=true
 extern fn strlen(s: *Char) -> UInt;    # pointer types *T already in the type system
 print(strlen(c"hello"));                # 5
@@ -357,7 +357,7 @@ the MSVC build links these `.lib`s (`tools/kirn.cpp:2585-2667`). Foreign-object 
 > stdlib; V — `v/vlib/dl` (`dl.v`) for the compact cross-platform loader; Go — `go/src/runtime/cgo`
 > for the `//export` symbol boundary (all verified on disk).
 
-```kn
+```kirn
 use import c:math_util;                    # N3: parse + register the foreign module root
 @extern("mymath", "kirn_pow2")             # N6/N2: pin library + exact C symbol
 extern fn pow2(x: Int64) -> Int64;
@@ -828,7 +828,7 @@ never outlives the call; finalizers run exactly once.
 
 The same flow in Kirn (`.kn`):
 
-```kn
+```kirn
 use import c:buffers;
 extern fn make(n: Int64) -> *Char;        # opaque handle, owned by Kirn
 extern fn fill(h: *Char, v: Int64);       # in-place mutate, no copy
@@ -988,7 +988,7 @@ them through to both compiler paths; verify `--native` scalar functions still lo
 
 The Kirn source that is linked (`.kn`):
 
-```kn
+```kirn
 use import c:math;                 # produces libmath
 use from c:math import kirn_add;
 print(kirn_add(20, 22));           # 42 in the native binary
@@ -1479,7 +1479,7 @@ never to a runtime guess.
 build-time checker that reports mismatches between KIRN `extern fn`s and the foreign truth;
 fall back to `dynamic`/`any` typing when unknown.
 
-```kn
+```kirn
 use from cpp:geometry import area_of;   # signature discovered from the real header
 print(area_of(3, 4));                    # type-checked at build, not at runtime
 ```

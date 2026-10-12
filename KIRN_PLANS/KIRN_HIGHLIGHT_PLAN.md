@@ -173,7 +173,7 @@ End, Op, Punct`.
 
 **Token-zoo sample (`token_zoo.kn`):**
 
-```kn
+```kirn
 # Kirn token zoo
 fn main(x: Int) -> Str {
     var ratio: Float = 1_000.5e10
@@ -196,7 +196,7 @@ fn main(x: Int) -> Str {
 
 **Stdlib/import sample (`norm.kn`):**
 
-```kn
+```kirn
 from math import Sqrt
 import strings
 
@@ -743,7 +743,7 @@ folding via tree-sitter; `#` comments; all string forms; f-string interpolation.
 
 **Vim/Neovim sample (`vim_demo.kn`):**
 
-```kn
+```kirn
 # comment toggles with '#'; braces drive indent
 fn classify(n: Int) -> Str {
     if n < 0 {
@@ -1339,7 +1339,7 @@ cycle, ship **display-only** debugging limits and defer to a later milestone.
 
 **Debug sample (`debug_demo.kn`):**
 
-```kn
+```kirn
 fn main() {
     var total = 0
     for i in 1..=3 { total = total + i }   # breakpoint on this line
@@ -1545,7 +1545,7 @@ monorepo ease during development and split later. The single
 
 **Continuation/block sample (`continuation.kn`):**
 
-```kn
+```kirn
 fn total() -> Int {
     return 1 + \
            2
@@ -1591,7 +1591,7 @@ fn total() -> Int {
 
 **Hello sample (`hello.kn`):**
 
-```kn
+```kirn
 fn greet(name: Str) -> Str {
     return f"Hello, {name}"
 }

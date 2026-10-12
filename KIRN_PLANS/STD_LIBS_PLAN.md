@@ -219,7 +219,7 @@ if (mod == "os" && name == "mkdir_all")
 **Exit (Phase 0):** all new pseudo-modules emit `*_test.kn` green; existing
 `collections/io/os/time/math/json` untouched behavior; `kirn test` recursive green.
 
-```kn
+```kirn
 # stdlib/pet/os_smoke_test.kn — exercise the Phase-0 substrate from Kirn
 import os;
 import io;
@@ -1271,7 +1271,7 @@ pub fn to_int(b) -> Int { ... }
 
 `generate_rsa`, `rsa_encrypt/decrypt/sign/verify`, `diffie_hellman`, `random_prime`.
 
-```kn
+```kirn
 # stdlib/pet/crypto_rsa_test.kn
 import crypto;
 
@@ -1559,7 +1559,7 @@ pub fn process_time() -> Float { ... }
 **Must Follow:** each is additive and independently shippable; reuse lower pets; no new native surface unless justified.
 **Important Note:** long-lead — split across owners; `mem` helpers wrap the Phase-0 `Arena`.
 
-```kn
+```kirn
 # stdlib/pet/mem_smoke_test.kn — Arena helpers over the Phase-0 arena
 import mem;
 

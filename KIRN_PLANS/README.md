@@ -46,7 +46,7 @@ goals, problems solved, files affected, code, testing, and limitations.
 
 > Reference: rust — exhaustive `match` with guards and inclusive range patterns.
 
-```kn
+```kirn
 fn classify(n: Int) -> Str {
     match n {
         case 0 { return "zero"; }

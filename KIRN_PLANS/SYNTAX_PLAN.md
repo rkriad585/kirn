@@ -273,7 +273,7 @@ decorator 'x'` with a `help:` listing known names (uses the Phase-1 diagnostics)
 **Exit criteria:** decorated programs parse, check, and run; `@deprecated` warns; `@allow(W0102)`
 suppresses an unused-var warning; pattern-alias `@` still works (example 31).
 
-```kn
+```kirn
 @deprecated("use ServeV2")
 @allow(W0102)
 @route("/api/users")
@@ -412,7 +412,7 @@ _without_ breaking or renaming the frozen keywords.
 `unless/until/each/when/otherwise` work; `??`+`?.` compose; corpus + `tests/syntax/english_*.kn`;
 examples `35_english_flow.kn`.
 
-```kn
+```kirn
 unless cache.Hit(key) {
     cache.Put(key, Load(key));
 }
@@ -470,7 +470,7 @@ print(x.upper());`. Static checker defers; the runtime `Value::k` tag already di
 **Exit criteria:** `any` assignments/ops run; `typeof` returns correct names; `is Str`/`is
 Point` pattern matches narrow; union `|` types parse; examples `36_dynamic_typing.kn`.
 
-```kn
+```kirn
 var x: any = 5;
 x = "hi";
 if x is Str {
@@ -515,7 +515,7 @@ semantics) on top of the reflection machinery, making `@name(...)` fully library
 **Exit criteria:** a user writes and applies their own `@cached`/`@timed` decorator; stacking
 order verified; `@inject`/`@json` stdlib decorators work; corpus green; examples `60_decorators.kn` (owned by `POWER_PLAN.md`).
 
-```kn
+```kirn
 fn logged(fn) {
     return fn (x) { print("call"); return fn(x); };
 }
@@ -554,7 +554,7 @@ fn Compute(n: Int) -> Int {
 **Exit criteria:** all sugar executes identically; lint toggles scoped to blocks; examples
 `38_with_guards.kn`; negatives for misuse.
 
-```kn
+```kirn
 with File.Open("data.txt") as f {
     print(f.ReadAll());
 }
@@ -617,7 +617,7 @@ always-in-scope**, cheap to call.
 reduce/any/all` with lambdas verified; negative tests for arity; full-call dispatch stays O(1)-ish
 (thin `biFn` table lookup, no linear name scan).
 
-```kn
+```kirn
 var xs = [3, 1, 2];
 print(Sorted(xs), Sum(xs), Max(xs), Min(xs));
 var doubled = Map(fn (x) { return x * 2; }, xs);
@@ -670,7 +670,7 @@ print(Str(doubled), BigInt(big[0]));
 index, slice-assign, stepped ranges all run in `examples/40_collections.kn`; corpus green;
 negatives for missing splat keys / bad slice targets.
 
-```kn
+```kirn
 var a = [1, 2, 3];
 var b = [*a, 4];
 var d = {k: k * k for k in 0..=3};
@@ -720,7 +720,7 @@ print(Str(b), Str(d), Str(s), Str(last), Str(piped));
 **Exit criteria:** examples `41_iteration.kn` covering dict/set/chan/string/custom; for-else;
 corpus green; negatives for non-iterable custom `for`.
 
-```kn
+```kirn
 for k, v in {"a": 1, "b": 2} {
     print(k, v);
 }
@@ -778,7 +778,7 @@ for x in 1..=3 {
 **Exit criteria:** `fn` alias, block-lambdas, generator `yield`-functions in `examples/
 42_functions_co`; corpus green; negatives for `yield` outside generator.
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int {
     return a + b;
 }
@@ -831,7 +831,7 @@ fn gen() {
 **Exit criteria:** union/record/type-alias/named-default-params/result-combinators in
 `examples/43_types.kn`; corpus green; negatives for bad alias/union uses.
 
-```kn
+```kirn
 type Id = Int;
 type Handler = fn(HttpCtx) -> Json;
 
@@ -882,7 +882,7 @@ comprehensive.
 **Exit criteria:** the full pattern matrix in `examples/44_patterns.kn`; negatives for bad struct/
 never patterns; corpus + `tests/pattern/` green.
 
-```kn
+```kirn
 match p {
     case Point { x: 0, y: y } -> print(y)
     case [first, .., last] -> print(first, last)
@@ -928,7 +928,7 @@ surface.
 **Exit criteria:** `sizeof/alignof/cast/&addr`, `@repr(C)` structs, `@inline/@pure@const`,
 bitfield structs verified in `examples/45_lowlevel_aot.kn`; FFI example `24` still green.
 
-```kn
+```kirn
 @repr(C)
 struct Header {
     magic: u4;
@@ -975,7 +975,7 @@ var q = p as *Header;
 **Exit criteria:** `@derive(repr, eq, clone)` produces working methods; `@comptime` constant-folds;
 examples `46_meta.kn`; corpus green; negatives for deriving on unsupported kinds.
 
-```kn
+```kirn
 @derive(repr, eq, clone)
 struct Point {
     x: Int;
@@ -1020,7 +1020,7 @@ print(K);
 error-propagating `?` adapters, and (stretch) `par(...)` verified in `examples/47_pipelines.kn`;
 noism materialization regression vs `for`-loops.
 
-```kn
+```kirn
 var lines = Read_Lines("access.log");
 var top = lines
     .filter(fn (l) { return Contains(l, "GET"); })
@@ -1059,7 +1059,7 @@ where, fn, step`) and new tokens (`:=`, `??`, `..`-step, struct-pattern `{..}`).
 force-`kirn check` clean on corpus + syntax suite; a versioned language-feature table in
 `docs/FEATURE_GAP_ANALYSIS.md` updated.
 
-```kn
+```kirn
 @deprecated("use ServeV2")
 fn handle(ctx: HttpCtx) -> Json {
     return match ctx.method {

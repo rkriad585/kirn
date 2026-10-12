@@ -183,7 +183,7 @@ task in a line that other languages need a library for. Kirn's builtin surface t
 
 > Reference: cpython — batteries-included free builtins (`len`/`sorted`/`enumerate`) over `cpython/Objects` and `cpython/Lib`.
 
-```kn
+```kirn
 fn main() -> none {
     var xs = [3, 1, 4, 1, 5];
     print(sum(xs), Min(xs), Max(xs));
@@ -229,7 +229,7 @@ TypeScript path.
 
 > Reference: cpython — dynamic typing with no static gate (`cpython/Python`); ruby — duck dispatch via `respond_to?` (`ruby/object.c`).
 
-```kn
+```kirn
 fn describe(v: any) -> Str {
     if type(v) == "Int" { return "Int:" + Str(v); }
     return repr(v);
@@ -276,7 +276,7 @@ with labels (have) and `_ =` blank binding (Go).
 
 > Reference: go — `for range` over slice/map/string/channel (`go/src/runtime`).
 
-```kn
+```kirn
 fn main() -> none {
     var counts = {"a": 1, "b": 2};
     for k, v in counts { print(k, Str(v)); }
@@ -317,7 +317,7 @@ vet`(alias), LSP.
 
 > Reference: go — uniform one-way toolchain (`gofmt`/`vet`/`test`) in `go/src/cmd/gofmt` and `go/src/cmd/vet`.
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { return a + b; }
 fn main() -> none { print(Str(add(2, 3))); }
 ```
@@ -354,7 +354,7 @@ browse loop with a browsable registry (has `kirn list online`).
 
 > Reference: go — module proxy semantics (`go/src/cmd/go`); cpython — PyPI as the adoption flywheel (`cpython/Lib`).
 
-```kn
+```kirn
 # pin.kn — the manifest already serves as the registry contract
 pub fn root() -> Int { return 42; }
 ```
@@ -390,7 +390,7 @@ over collections, splat/unpacking, `.items()/.keys()/.values()`.
 
 > Reference: cpython — comprehensions + `.items()`/unpacking (`cpython/Lib`); go — composite literals (`go/src`).
 
-```kn
+```kirn
 fn main() -> none {
     var d = {"a": 1, "b": 2};
     for k, v in d { print(k, Str(v + 1)); }
@@ -433,7 +433,7 @@ functools) are why people reach for it. Kirn's modules are stubs (`math,time,io,
 
 > Reference: cpython — stdlib modules `json`/`re`/`os` (`cpython/Lib/json`, `cpython/Lib/re`); go — flat `os`/`io` split (`go/src`).
 
-```kn
+```kirn
 import json
 
 fn main() -> none {
@@ -473,7 +473,7 @@ machinery.
 
 > Reference: go — goroutines + channels (`go/src/runtime`, `go/src/sync`).
 
-```kn
+```kirn
 fn worker(ch: chan Str) -> none { ch <- "done"; }
 
 fn main() -> none {
@@ -512,7 +512,7 @@ trait/method-set hardening in `PLAN.md` Phase 6.
 
 > Reference: rust — patterns + traits (`rust/compiler/rustc_ast`, `rust/library/core`).
 
-```kn
+```kirn
 struct Point { var x: Int; var y: Int; }
 
 fn main() -> none {
@@ -557,7 +557,7 @@ differentiator, already a `PLAN.md` Phase 12 roadmap.
 > Rejected: rust — borrow checking is mandatory in all code; Kirn stages it behind `@checked` for gradual migration.
 > Reference: rust — ownership/move/borrow model (`rust/compiler/rustc_borrowck`).
 
-```kn
+```kirn
 @checked
 fn take(p: &Point) -> &Point { return p; }
 
@@ -601,7 +601,7 @@ and improvable_, and publish benchmark numbers as the adoption proof.
 
 > Reference: go — `go bench`/testing benchmarks (`go/src/cmd/go`); rust — criterion (`rust/library`).
 
-```kn
+```kirn
 fn fib(n: Int) -> Int {
     if n < 2 { return n; }
     return fib(n - 1) + fib(n - 2);
@@ -639,7 +639,7 @@ available when needed.
 
 > Reference: zig — `@sizeOf`/`@alignOf`/`extern struct` (`zig/src`); llvm — C ABI/layout (`llvm/clang`).
 
-```kn
+```kirn
 @repr(C)
 struct Header { var tag: UInt; var len: UInt; }
 
@@ -676,7 +676,7 @@ interoperating with the C ecosystem.
 
 > Reference: go — cgo bindings (`go/src/cmd/cgo`); rust — `extern "C"` FFI (`rust/library/std/src/ffi`).
 
-```kn
+```kirn
 extern "C" fn puts(s: Str) -> Int;
 
 fn main() -> none { _ = puts("hello from C"); }
@@ -713,7 +713,7 @@ Phase-1/2 lint infra fully.
 
 > Reference: go — `go vet` (`go/src/cmd/vet`); rust — clippy (`rust/compiler`).
 
-```kn
+```kirn
 fn main() -> none {
     var x: Int? = none;
     print(Str(x));   # W-numbered optional-unwrap finding, suppressible with @allow
@@ -751,7 +751,7 @@ registry from WHY-5.
 
 > Reference: go — gofmt canonical formatting (`go/src/cmd/gofmt`); rust — edition mechanics (`rust/compiler`).
 
-```kn
+```kirn
 # canonical form: one true layout, verified in CI with `kirn fmt --check`
 fn main() -> none {
     print("stable");

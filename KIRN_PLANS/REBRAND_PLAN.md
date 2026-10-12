@@ -157,7 +157,7 @@ Categories and the files/strings that changed. `*` = also affects binary/format 
 - `~/.kirn/kirn-pkg` → `~/.kirn/pets` (`tools/kirn.cpp:353`, `kirnrun.cpp:52-57`); `.kirn-pkg` → `.pets-pkg`; `.kirn-registry-lib.toml`, `.kirn-sha` → `.pets-registry.toml`, `.pets-sha` (registry metadata, gitignore).
 - Registry URL + org: `https://raw.githubusercontent.com/kirn-lib/kirn-libs/main/...` → `.../pets-registry/pets/main/...` (`tools/kirn.cpp:757/762/1252/1257`, browse hints `:998`); manifest default `github.com/kirn-lib/` → `github.com/pets-registry/` (`:566-567/632`). Website: `https://pets-registry.github.io`.
 
-```kn
+```kirn
 import pet.json;
 import pet.strings;
 
@@ -380,7 +380,7 @@ Phase-gate shorthand used in every phase:
   //   kirn run [dir|file]      run a program or project
   ```
 - **Kirn example — the program the driver runs (`.kn`):**
-  ```kn
+  ```kirn
   fn add(a: Int, b: Int) -> Int {
       return a + b;
   }

@@ -84,7 +84,7 @@ Kirn already has an unusually rich expression and syntax surface for a young int
 **Must Follow:** every principle maps to a phase in §7 and keeps the zero-import guarantee; never re-plan a feature Kirn already ships (f-strings, `?`, `.?.`, `defer`, `match`, `any`).
 **Important Note:** no principle may introduce a second implementation path for an existing feature, and no feature lands without a proven reference-language precedent.
 
-```kn
+```kirn
 # zero imports, Kirn spellings
 const TAU = 2.0 * PI
 print(Str(1) + Str(2))              # "12"
@@ -112,7 +112,7 @@ Audited from `grammar/kirn.ebnf`, `src/parser/parser.cpp`, `src/sema/checker.cpp
 **Must Follow:** treat the A2 precedence ladder, literals, statements, builtins, methods, and `impls_` operator traits below as frozen contracts; extend only via the tagged `[NEEDS-ENHANCE]` phases.
 **Important Note:** the lowercase names here (`int`, `str`, `len`) are the legacy surface the Kirn spellings (`Int`, `Str`) supersede name-only; semantics are unchanged.
 
-```kn
+```kirn
 # already working today
 xs = [3, 1, 2]
 print(len(xs), sorted(xs))          # 3 [1, 2, 3]
@@ -266,7 +266,7 @@ Every new feature declares which layer(s) it touches and which existing phase it
 **Must Follow:** new operators route through the table-driven L1 dispatch; sugar (L4) lowers only to L1/L3 primitives; no feature may skip a layer.
 **Important Note:** L1 numeric dispatch is the perf spine — it must stay data-driven and allocation-free to keep Kirn faster than Rust/Go on numeric kernels.
 
-```kn
+```kirn
 # one feature per layer, composing
 v: any = BigInt(2) ** 100        # L2: dispatch on `any`
 print(v)                          # 1267650600228229401496703205376
@@ -308,7 +308,7 @@ const HALF = 0.5                  # L5: static fold
 **Must Follow:** ship only capabilities that have a real reference-language precedent; Kirn takes the best fit, never a contradictory union.
 **Important Note:** rows inspired by languages not vendored here (Kotlin/Swift/Julia/C#) are inspirations only; the shipped reference set is cpython/rust/go/ruby/Nim/Odin/v/zig/llvm.
 
-```kn
+```kirn
 # best-fit picks, one per source
 print(sin(PI / 2))                # 1.0   (cpython math)
 impl Add for Vec2 { fn add(self, o: Vec2) -> Vec2 { ... } }   # (rust trait)
@@ -367,7 +367,7 @@ Everything references existing constructs; nothing depends on a not-yet-built ty
 **Must Follow:** no phase may depend on a not-yet-built type; complex/rational/BigInt stay optional consumers, never blockers.
 **Important Note:** this order is the memoized dependency graph for AI-first planning — reordering it without re-checking edges breaks completability.
 
-```kn
+```kirn
 # Phase 1 math only needs Phase 0's dispatch; Phase 4 folds using Phase 1
 const PI2 = 2.0 * PI              # Phase 4 (needs 1)
 x: Float = log1p(1e-15)           # Phase 1
@@ -391,7 +391,7 @@ print(PI2, x, r)                  # 6.28… 1e-15 [4.0, 6.0]
 **Must Follow:** Python = protocols/dunders, Rust = trait ops + `const fn` + `let-else`, Go = `defer` + explicit errors, Ruby = safe-nav + splat + introspection; take the idiom, drop the baggage.
 **Important Note:** Kotlin/Swift/Julia/Zig/C# items here are inspirations; re-express them through the four vendored references wherever possible.
 
-```kn
+```kirn
 # Python protocol + Rust let-else + Ruby introspection, one function
 fn describe(x: any) -> Str {
     var n: Int = x as? Int else { return "not-int"; }   # rust let-else
@@ -434,7 +434,7 @@ Each phase: **Goal**, **C++/interpreter substrate**, **Kirn surface**, **code ex
 
 **Tests:** `kirn test` golden on `15_operator_overloading` and `25_operator_precedence` still pass; a unit test drives `dispatchBin` for every numeric pair.
 
-```kn
+```kirn
 fn main() {
     a = Vec2(x: 1.0, y: 2.0);
     b = Vec2(x: 3.0, y: 4.0);
@@ -485,7 +485,7 @@ Number      gcd lcm divmod mod
 String→Num  parse_int(s, [radix]) parse_float(s)
 ```
 
-```kn
+```kirn
 fn main() {
     print(sin(PI / 2));       # 1.0
     print(atan2(1, 1));       # 0.785...
@@ -534,7 +534,7 @@ fn main() {
 
 **Kirn surface / examples:**
 
-```kn
+```kirn
 struct Fraction { num: Int; den: Int; }
 impl Add for Fraction { fn add(self, o: Fraction) -> Fraction {...} }
 impl Mul for Fraction { fn mul(self, k: Int) -> Fraction { ... } }
@@ -577,7 +577,7 @@ fn main() {
 - Extend `defer` to accept arbitrary expressions (today it's Go-style call-only) and add LIFO + `defer`-with-args snapshot semantics already Go-like; add `defer { block }` form.
 - Provide `using` alias for C# familiarity (decision: `with` is canonical, `using` accepted as alias).
 
-```kn
+```kirn
 fn main() {
     with File.open("log.txt") as f {
         f.write("hello");
@@ -615,7 +615,7 @@ fn main() {
 - Add `const fn name(...) -> T { ... }` declaring a function that may be called at compile time with constant args; calls with non-constant args are a static error (or fall back to runtime — decide: error, like Rust v1; `comptime` keyword reserved for Zig-style in stretch).
 - Track _const-ness_ through the expression tree and reject non-const calls inside `const`/`const fn`.
 
-```kn
+```kirn
 const fn fact(n: Int) -> Int {
     if n <= 1 { return 1; }
     return n * fact(n - 1);
@@ -656,7 +656,7 @@ fn main() {
 - **`var-else`** — `var x = expr else { handle; }` binds `x` from a pattern-match or non-optional, else runs the else block and returns (Rust `let-else` / Swift `guard let`).
 - **Trailing lambda / trailing closure** — `xs.map { x => x * 2 }` as sugar for `xs.map((x) => x * 2)`; last-arg omission with a block.
 
-```kn
+```kirn
 fn main() {
     if (n := len("hello world")) > 5 {
         print("long: " + Str(n));   # n bound in scope
@@ -703,7 +703,7 @@ fn main() {
 - **Non-null assertion `!`** — postfix `x!` asserts non-`none` and unwraps, panicking if `none` (Swift `!`).
 - **Smart casts** — in `if x != none { …x… }` narrow the static type of `x` to the non-optional inside the branch (checker improvement; requires the checker to track narrowed types — a bounded feature).
 
-```kn
+```kirn
 fn main() {
     name: Str? = get_name();
     print(name?.len());        # none if name none, else length
@@ -745,7 +745,7 @@ fn main() {
 - **`dynamic` object** — a `Dynamic` record/protocol type (Python-ish dict-with-attributes) for scripting: `d.name = 5; d["key"] = 2;` attribute/index read-write on an `any` bag. Expose via a `Object`/`Dynamic` type from `DATA_TYPE_PLAN.md`.
 - **`hasattr`/`getattr`/`setattr`** builtins (Ruby/Python) for scripts.
 
-```kn
+```kirn
 fn main() {
     v: any = Complex(3, 4);
     print(type(v));             # "complex" (or nominal name)
@@ -788,7 +788,7 @@ fn main() {
 - **Exhaustiveness & const improvements** — carry Phase 4 const-folding into more contexts (array literals, default params), and extend match exhaustiveness (partially done).
 - **`static`/`inline`** hints — `static` local that persists across calls (like C), `inline` function body substitution (simple, when provably small).
 
-```kn
+```kirn
 fn divide(a: Int, b: Int) -> Int {
     require b != 0;            # precondition
     return a // b;
@@ -826,7 +826,7 @@ fn main() {
 - Add math builtins `dot(a,b)`, `cross(a,b)`, `matmul(A,B)`/`@` operator (Phase 13), `sum/min/max/mean/var/std` on arrays (mean/var/std to `math`/`statistics` in `STD_LIBS_PLAN.md`, but element-wise ops are the expression story here).
 - Provide `Vec2/Vec3/Vec4` convenience types + operator overload (via Phase 2 traits) for games/graphics.
 
-```kn
+```kirn
 fn main() {
     a = [1.0, 2.0, 3.0];
     b = [4.0, 5.0, 6.0];
@@ -868,7 +868,7 @@ and_then, or_else, unwrap_or, unwrap_or_else`) are ALSO specified in **Phase 14*
 - **Combinators as methods** on `result[T,E]`/`option[T]`: `map`, `map_err`, `and_then`, `or_else`, `unwrap_or`, `unwrap_or_else`, `flat_map` (Rust flavour, complements existing `?`) — these slot on the `Result`/`Option` types from `DATA_TYPE_PLAN.md`, but the _method surface_ is defined here.
 - **Lazy/`lazy` thunk** — `lazy { expr }` defers evaluation until first use.
 
-```kn
+```kirn
 fn main() {
     sum = (a, b) => a + b;        # lambda is already callable
     print(sum(2, 3));
@@ -905,7 +905,7 @@ fn main() {
 - **Robust parsing**: `parse_int(s, radix?)` → `Int?` (none on failure, no panic), `parse_float(s)` → `Float?`, `parse_bool`, radix support; handle whitespace/sign. Replace/augment the bare `Int(s)`/`Float(s)` (which currently throw on bad input) with safe variants while keeping the throw-forms for convenience.
 - **Number formatting**: `to_hex(to_fixed, to_sci, to_percent, with_separators)` methods on int/float; f32/f64 precision control.
 
-```kn
+```kirn
 fn main() {
     print(format(3.14159, ".2f"));    # "3.14"
     print(format(255, "#08x"));       # "0x0000ff"
@@ -941,7 +941,7 @@ fn main() {
 - **Comprehension generosity**: allow dict comprehension `{k: v for p in it}`, set comprehension `{x for p in it if c}` (currently list + generator only).
 - **`range` sugar** — `range(n)`, `range(a,b,step)` (exists); add `0..10` iterable directly usable in comprehensions (partially), `x.times { }` Ruby-like block enlargement for readability (toggle: provide as method, not grammar).
 
-```kn
+```kirn
 fn main() {
     squares = {k: k * k for k in 0..5};   # dict comprehension
     evens   = {x for x in 1..10 if x % 2 == 0};  # set comprehension
@@ -976,7 +976,7 @@ fn main() {
 - **`@` operator** — currently token exists (`@` is pattern-only); add binary `@` → `MatMul` trait for `A @ B` matrix multiply (Julia/Python), plus element-wise via `Vector` ops (Phase 9).
 - **`in`/`not in`** — is already membership; keep. Add `is`/`is not` refinement.
 
-```kn
+```kirn
 infix fn poww(a: Int, b: Int) -> Int { return ipow(a, b); }
 
 struct Matrix { rows: list[list[Float]]; }
@@ -1020,7 +1020,7 @@ fn main() {
 - **Error wrapping** — Go `%w`-style context chaining: `raise "read failed: " + err` or `.wrap(msg)` on a result produce a wrapped error whose `root(err)`/`cause(err)` unwinds.
 - **Multi-catch** — `try { } catch (TypeA e) {} catch (TypeB e) {}` typed catches (currently single generic catch); exception groups later.
 
-```kn
+```kirn
 fn main() {
     # try-as-expression with fallback
     v = try { parseInt("42") } catch e { 0 };
@@ -1067,7 +1067,7 @@ fn main() {
 - **Number theory** (builtins): `is_prime`, `next_prime`, `prime_factors`, `phi` (totient), `pow_mod(base, exp, mod)` (modular exponentiation), `inv_mod`, `binomial(n,k)`, `factorial`, `isqrt`. Land in `math.kn` / `number_theory` module, exposed as builtins for the out-of-the-box feel of the rare ones.
 - **Special math** (module): `gamma`, `lgamma`, `erf`, `erfc`, `beta`, `zeta` (via `STD_LIBS_PLAN.md` `math` module; defined here for naming).
 
-```kn
+```kirn
 fn main() {
     print(rand_int(1, 7));        # die roll 1-6
     xs = [1,2,3,4];
@@ -1102,7 +1102,7 @@ Stretch goals (referenced but staged by future plans):
 **Must Follow:** each stays out of v1 until it demonstrably removes more complexity than it adds and has a proven precedent.
 **Important Note:** `derive(Eq, Hash, ToString)` is the highest-value stretch because it auto-generates the Phase 2 impls.
 
-```kn
+```kirn
 # future: derive auto-generates the magic impls
 @derive(Eq, Hash, ToString)
 struct Point { x: Int; y: Int; }
@@ -1119,7 +1119,7 @@ struct Point { x: Int; y: Int; }
 **Must Follow:** default to Rust-style capitalized traits; treat `__x__` spellings as aliases for teaching/discovery only.
 **Important Note:** reflected and in-place forms are the `[NEEDS-ENHANCE]` delta over §2.7; do not add a second dispatcher.
 
-```kn
+```kirn
 struct Bag { items: list[Int]; }
 impl Len for Bag { fn len(self) -> Int { return self.items.len(); } }
 impl Iter for Bag { fn iter(self) -> gen[Int] { for x in self.items { yield x; } } }
@@ -1187,7 +1187,7 @@ Reflected ops: if left operand has no trait, try the right operand's reflected t
 **Must Follow:** every name lands as a predeclared free builtin or a documented module function; never a keyword for a builtin.
 **Important Note:** names not yet implemented are staged by phase; the inventory is the contract `predeclareBuiltins` must satisfy.
 
-```kn
+```kirn
 # out-of-the-box builtins, zero imports
 print(sqrt(2.0), gcd(12, 8))              # 1.414… 4
 print(sorted([3, 1, 2], reverse: true))   # [3, 2, 1]
@@ -1268,7 +1268,7 @@ f"{x=}"  format(x, spec)  lazy { }
 **Must Follow:** each phase ships an example + negative tests and keeps the existing corpus green.
 **Important Note:** AI-first means tests are machine-runnable and the desugar-equivalence suite is mandatory for every new sugar.
 
-```kn
+```kirn
 # tests/exp_phase1_test.kn
 fn main() {
     assert_eq(sin(PI / 2), 1.0);
@@ -1295,7 +1295,7 @@ fn main() {
 **Must Follow:** borrow Python semantics (floor `//`, Euclidean-ish `%`, reflected ops) but not its GIL/boxing cost.
 **Important Note:** cpython is a naming/semantics reference; Kirn's implementation is table-driven C++, not interpreted dispatch.
 
-```kn
+```kirn
 # what Kirn takes from cpython, re-spelled
 print(7 // 2, 7 % 2, divmod(7, 2))   # 3 1 (3, 1)
 print(2 ** 10)                        # 1024
@@ -1315,7 +1315,7 @@ print(f"{3.14159:.2f}")               # "3.14"
 **Must Follow:** borrow `defer` and `%w` error wrapping, but not Go's lack of true division or its truncated `%` as the default.
 **Important Note:** Go's truncated `%` is exposed as the `.rem()` method, not the default `%` (see §8.2).
 
-```kn
+```kirn
 # what Kirn takes from go
 defer print("cleanup")     # LIFO at scope exit (go defer)
 print(Int("ff", 16))       # strconv.ParseInt parity
@@ -1336,7 +1336,7 @@ print(isnan(0.0 / 0.0))    # math.IsNaN parity
 **Must Follow:** borrow `core::ops` + `const fn` + `?`, but not the borrow-checker surface (Kirn is value-semantics by default).
 **Important Note:** Rust's `round` is half-away-from-zero while Kirn's is documented ties-to-even — a deliberate, documented divergence.
 
-```kn
+```kirn
 # what Kirn takes from rust
 const FACT: Int = fact(10)                 # const fn, folded
 var v: Int = maybe() else { return; }      # var-else
@@ -1360,7 +1360,7 @@ fn main() {
 **Must Follow:** borrow `&.`, splat `*`/`**`, `Comparable`, and `methods`, but not Ruby's `method_missing` dispatch cost.
 **Important Note:** Ruby's unbounded `Integer` motivates `BigInt`; Kirn keeps `Int` as the fast fixed-width default.
 
-```kn
+```kirn
 # what Kirn takes from ruby
 x: Str? = none
 print(x&.len())                  # safe nav -> none
@@ -1383,7 +1383,7 @@ print(methods(1))                # introspection
 **Must Follow:** re-express each idea through the four vendored references where possible; ship only the ones with a proven precedent.
 **Important Note:** these are inspirations, not vendored source trees; `> Reference:` lines cite only cpython/rust/go/ruby/Nim/Odin/v/zig/llvm.
 
-```kn
+```kirn
 # stolen sugar, Kirn-spelled
 name: Str? = get_name()
 print(name?.upper() ?? "GUEST")   # safe-call + elvis spirit
@@ -1411,7 +1411,7 @@ A phase is **done** when:
 **Must Follow:** all examples run (`assert_eq`-verified), zero-import or documented-module, no regressions, desugaring documented, static types sound, edge paths tested.
 **Important Note:** a phase is not done until the existing `examples/` corpus and the stdlib tests stay green.
 
-```kn
+```kirn
 # DoD in one test
 assert_eq(sin(PI / 2), 1.0)            # example runs
 assert_eq((-17).rem_euclid(5), 3)      # edge path
@@ -1433,7 +1433,7 @@ assert_eq([1, 2] |> sum, sum([1, 2]))  # sugar ≡ expansion
 **Must Follow:** keep the ownership rule (syntax/builtin surface here, type internals/module packaging there) and the frozen-grammar guarantee.
 **Important Note:** ternary `?:`, `++/--`, and a full macro system stay deliberately out; everything here lands incrementally with the corpus green.
 
-```kn
+```kirn
 # the "first wins" in one line
 print(sin(PI / 2), Vec2(x: 1.0, y: 2.0) * 2.0, [1, 2, 3] |> sum)   # 1.0 Vec2(2,4) 6
 ```

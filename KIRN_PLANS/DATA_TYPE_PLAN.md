@@ -985,7 +985,7 @@ Stretch goals that round out the model but are lower priority:
 - **`cursor`/iterators** comprehensive protocol (Rust `Iterator` trait as a real type with `map/filter/flat_map/take/drop/collect`).
 - **`semver`, `uuid`** value types (popular, but belong to `STD_LIBS_PLAN` more than core).
 
-```kn
+```kirn
 fn main() {
     xs: list[Int] = [1, 2, 3, 4];
     evens = xs.iter().filter((x) => x % 2 == 0).collect();

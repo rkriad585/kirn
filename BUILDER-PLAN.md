@@ -859,7 +859,7 @@ Design as built:
 Placement: `src/prepro/` library (`kirn_prepro` in CMake), consuming a `Token`
 stream and returning an expanded `Token` stream.
 
-```kn
+```kirn
 {.fn MAX(a, b) = {.if a > b.} a {.else.} b {.endif.}.}
 
 fn main() -> none {
@@ -899,7 +899,7 @@ verified rather than assumed:
   unconditionally), so a macro body cannot contain a multi-line literal. There
   are no block comments either; `#` is the only comment form.
 
-```kn
+```kirn
 fn main() -> none {
     var x = 1;
     print(x);
@@ -917,7 +917,7 @@ parse` reuses it. Fix: `frontEnd()` runs lex+parse; the `-S` path currently
 parses twice (the `-S` branch of `kirn_driver::buildProgram`) — centralize to one parse
 and keep the AST.
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int {
     return a + b;
 }
@@ -933,7 +933,7 @@ fn add(a: Int, b: Int) -> Int {
 exactly this (like `kirncheck`). Wire the dormant `LintConfig`
 (`src/sema/checker.h:22-25`) into `-W` flags.
 
-```kn
+```kirn
 fn main() -> none {
     var x: Int = "not an int";
 }
@@ -966,7 +966,7 @@ Contains: lowered statements/expressions with explicit scopes, resolved
 
 > Reference: CPython — ASDL tagged-union node shape; Nim — variant objects; LLVM/MLIR — per-kind payload unions.
 
-```kn
+```kirn
 fn main() -> none {
     for i in 0..3 {
         print(f"i={i}");
@@ -997,7 +997,7 @@ Purpose: CFG-based, value-oriented, destructor-free IR — the plane on which
 
 > Reference: LLVM — derived successor edges; Ruby — flatten-late instruction list.
 
-```kn
+```kirn
 fn total(n: Int) -> Int {
     var sum = 0;
     var i = 0;
@@ -1034,7 +1034,7 @@ Two honest options; the plan picks a sequence:
 
 > Reference: LLVM — `mem2reg` + new pass manager; Go — data-declared pass table.
 
-```kn
+```kirn
 fn area(w: Int, h: Int) -> Int {
     return w * h + 0;
 }
@@ -1064,7 +1064,7 @@ _Target: `-O`/`--release` builds of the phase's programs must beat the Rust/Go e
 
 > Reference: LLVM — `llc` / in-process `TargetMachine` codegen.
 
-```kn
+```kirn
 fn addmul(a: Int, b: Int) -> Int {
     return a + b * 2;
 }
@@ -1090,7 +1090,7 @@ _Target: end-to-end `kirn build` and run of the phase's scalar feature must beat
 
 > Reference: LLVM — MC layer / `llc` object emission; Zig — `-femit-asm` / `-femit-bin`.
 
-```kn
+```kirn
 fn main() -> none {
     print(6 * 7);
 }
@@ -1116,7 +1116,7 @@ _Target: object emission for the phase's program must beat the Rust/Go equivalen
 
 > Reference: LLVM — LLD in-process linkers; Go — a single `cmd/link`; Zig — self-contained linking.
 
-```kn
+```kirn
 import pet.math;
 
 fn main() -> none {
@@ -1208,7 +1208,7 @@ resolver. Merge `kirnrun`'s resolver back into the shared one.
 **Must Follow:** Behavior-preserving move — one translation unit, forwarders not `using`, keep goldens byte-identical.
 **Important Note:** Substantially done; still open are §5.5 (payload sharing) and §5.4's root discovery. Modeled on Go's `cmd/go` ↔ `cmd/compile` split.
 
-```kn
+```kirn
 # behavior-preserving fixture: stdout/exit must not change
 fn main() -> none {
     print("hello, kirn");
@@ -1296,7 +1296,7 @@ bundle path; `run` executes the bundled runtime. Keep old binaries as aliases.
 **Must Follow:** Reuse the extracted stage functions (no forked copies); reject unrecognized args explicitly instead of treating them as filenames.
 **Important Note:** `run`/`rt` are deliberately unimplemented pending §9's oracle decision; the stop-at flags land in later phases.
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int {
     return a + b;
 }
@@ -1361,7 +1361,7 @@ the old tools did with any unrecognised argument), and `rt`.
 **Must Follow:** Nim-style `{. … .}` syntax, capture-free hygiene, no lexer change, byte-exact goldens.
 **Important Note:** First increment done; open are `-D/-U` beyond `-E`, per-file macro scope, and the normative grammar file is not yet updated.
 
-```kn
+```kirn
 {.fn DEBUG = 1.}
 
 fn main() -> none {
@@ -1451,7 +1451,7 @@ _Not done in this increment,_ recorded rather than left to be discovered:
 **Must Follow:** Structural verification, not execution; HIR per-kind `std::variant`; MIR derived CFG with no hand-built SSA.
 **Important Note:** Done — 53/53 corpus lower/verify/dump; the old "lower-verify vs direct run" criterion was unsatisfiable and was replaced.
 
-```kn
+```kirn
 fn classify(n: Int) -> Str {
     if n < 0 { return "neg"; }
     elif n == 0 { return "zero"; }
@@ -1743,7 +1743,7 @@ scalar subset; `--emit-llvm`; `mem2reg` for SSA; `-fbackend=llvm`.
 **Must Follow:** Keep `kirn`/driver libraries LLVM-free; `mem2reg` for SSA; emit clean IR that passes `opt -verify` and runs under `lli`.
 **Important Note:** First increment done; the scalar subset is reachable only via annotations, and `-fbackend=llvm` answers with the phase-5 pointer.
 
-```kn
+```kirn
 fn square(x: Int) -> Int {
     return x * x;
 }
@@ -1799,7 +1799,7 @@ machine headers.
 **Must Follow:** One emission path for all targets; cross targets emit correct ELF/PE/Mach-O machine headers.
 **Important Note:** Reuse the release-workflow machine-header checks for all six release targets.
 
-```kn
+```kirn
 extern fn puts(s: *Char) -> i32;
 
 fn main() -> none {
@@ -1822,7 +1822,7 @@ AOT-capable hosts (keep `--fbackend=runtime`).
 **Must Follow:** `kirn build/run/check` delegate to `kirnc`; remove the oracle tools; retire the bundle as the AOT default on capable hosts.
 **Important Note:** Must work from an installed tree with no source checkout — needs §5.4 root discovery plus installer/CI/release updates.
 
-```kn
+```kirn
 fn main() -> none {
     print("hello from an installed kirn");
 }

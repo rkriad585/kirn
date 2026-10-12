@@ -307,7 +307,7 @@ Frame Transport::read() {
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -327,7 +327,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -357,7 +357,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -388,7 +388,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -408,7 +408,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -490,7 +490,7 @@ highest-value LSP feature and directly exercises the reused compiler.
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -510,7 +510,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -540,7 +540,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -571,7 +571,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -591,7 +591,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -662,7 +662,7 @@ publishing for multiple URIs.
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -682,7 +682,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -712,7 +712,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -743,7 +743,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -763,7 +763,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -840,7 +840,7 @@ ret, required, variadic}`; emit `SignatureInformation` with parameter labels
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -860,7 +860,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -890,7 +890,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -921,7 +921,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -941,7 +941,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -1024,7 +1024,7 @@ impl/class/interface/record/const`, each with its `Span` range, plus nested
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -1044,7 +1044,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -1074,7 +1074,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -1105,7 +1105,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -1125,7 +1125,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -1196,7 +1196,7 @@ the checker's resolved types can. Inlay hints show inferred element/return types
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -1216,7 +1216,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -1246,7 +1246,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -1277,7 +1277,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -1297,7 +1297,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -1363,7 +1363,7 @@ emits `FixIt`s that can be surfaced as code actions.
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -1383,7 +1383,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -1413,7 +1413,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -1444,7 +1444,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -1464,7 +1464,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -1538,7 +1538,7 @@ scoping in `completion`, a read-only **library index** ~ the "stdlib symbol tabl
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -1558,7 +1558,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -1588,7 +1588,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -1619,7 +1619,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -1639,7 +1639,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```
@@ -1711,7 +1711,7 @@ linked workspace. We need a persistent binder/index and invalidation.
 
 **Kirn-style example (minimal `.kn` context + JSON-RPC):**
 
-```kn
+```kirn
 # minimal context for editor session
 mod lsp_demo {
   pub fn ping(x: Int) -> Int { x + 1 }
@@ -1731,7 +1731,7 @@ mod lsp_demo {
 
 **Kirn-style example (`.kn` + LSP publishDiagnostics):**
 
-```kn
+```kirn
 fn main() {
   x = 10  # inference example
   y: Str = x  # type mismatch
@@ -1761,7 +1761,7 @@ fn main() {
 
 **Kirn-style example + hover/completion:**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 ```
 
@@ -1792,7 +1792,7 @@ fn add(a: Int, b: Int) -> Int { a + b }
 
 **Kirn-style example + semantic tokens request:**
 
-```kn
+```kirn
 fn f() {
   var x: Int = 1
   var y = x + 1
@@ -1812,7 +1812,7 @@ fn f() {
 
 **Kirn-style example (`.kn` + definition):**
 
-```kn
+```kirn
 fn add(a: Int, b: Int) -> Int { a + b }
 var x = add(1,2)
 ```

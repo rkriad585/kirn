@@ -46,7 +46,7 @@ This plan is the **owner of the default-on power layer**. It subsumes the stretc
 
 **Rust attribute → Kirn decorator.** Rust spells meta-programming `#[attr]`, `#[attr(...)]`, `#[derive(...)]`. Kirn spells the same thing two ways, both lowering to an ordered `decorators: list[Decorator]` attached to a declaration:
 
-```kn
+```kirn
 # decorator form (Python-like), stacked top-to-bottom
 @logged
 @route("/users/{id}")
@@ -103,7 +103,7 @@ attr           = identifier , [ "(" , [ call_arg { "," , call_arg } ] , ")" ] ;
 
 A bare `@name` / `@name(args)` where `name` is not a built-in is a **runtime decorator**: a function `decorator(target) -> target` applied once at import time, bottom-up, using the reflection layer (`SYNTAX_PLAN` SP-6, `MISSING_PLAN` reflect). The prelude ships first-party decorators:
 
-```kn
+```kirn
 @inject(pool)                 # DI
 @route("/users/{id}")         # routing
 @json                         # auto (de)serializable handler
@@ -128,7 +128,7 @@ fn load_user(id: Str) -> User { ... }
 
 ### 2.1 Runtime and entry points
 
-```kn
+```kirn
 @[main]                          # builders a multi-thread runtime, block_on(main)
 async fn main() -> result[()] { ... }
 
@@ -156,7 +156,7 @@ fn main() {
 - `await expr` is a prefix expression that drives a future to completion. Prefix `await` (Python-flavored) is chosen over Rust's postfix `.await` to avoid the method-lookup/field ambiguity Kirn already flags (`PLAN.md`).
 - `async fn` may contain `await`, `spawn`, `select`, `join`; borrowing across `await` follows the existing borrow rules.
 
-```kn
+```kirn
 async fn fetch(url: Str) -> result[Str] {
     var (host, port) = parse_url(url)?;
     var s = await net.TcpStream.connect(host, port)?;
@@ -181,7 +181,7 @@ Rejected: postfix `.await` (collides with field/method resolution); `async` bloc
 
 Dropping a `Task` detaches; dropping the runtime cancels remaining tasks (same as tokio).
 
-```kn
+```kirn
 @[main]
 async fn main() -> result[()] {
     var mut set = async.TaskSet[Int].new();
@@ -206,7 +206,7 @@ Kirn's `chan[T]` becomes the **bounded mpsc** by default; the module adds the re
 | `async.watch[T](init)`                 | `sync::watch`             | latest-value state cell; `changed()`                      |
 | `Task`/`mpsc` cancel-safety            | documented                | `recv`/`accept` cancel-safe; `read_exact`/`write_all` not |
 
-```kn
+```kirn
 var (tx, rx) = async.mpsc[Job](cap = 32);
 spawn(async fn () { for j in jobs { await tx.send(j)?; } });
 while var Some(j) = await rx.recv() { handle(j); }
@@ -257,7 +257,7 @@ These complement `MISSING_PLAN` M9 / `DATA_TYPE_PLAN` Phase 12 (sync versions: `
 - `join(f1, f2, …) -> (T1, T2, …)` awaits all concurrently, returns the tuple.
 - `try_join(f1, f2, …) -> result[(T1, T2, …)]` short-circuits on the first `err`.
 
-```kn
+```kirn
 select {
     v = await rx.recv()      => handle(v),
     _ = await time.sleep(1s) => print("idle"),
@@ -281,7 +281,7 @@ var (x, y) = (await try_join(load(a), load(b)))?;
 
 ### 3.1 Traits
 
-```kn
+```kirn
 trait Serialize   { fn serialize[S is Encoder](self, e: S) -> result[()]; }
 trait Deserialize { static fn deserialize(dec: Decoder) -> result[Self]; }
 
@@ -303,7 +303,7 @@ A `@[derive(Serialize)]` walks fields and calls `e.write_*` / `begin_struct`; `@
 
 ### 3.2 Derive and attribute options
 
-```kn
+```kirn
 @[derive(Serialize, Deserialize)]
 @[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct User {
@@ -338,7 +338,7 @@ Attribute table: `rename`, `rename_all` (case rules: lower/upper/pascal/camel/sn
 | `yaml` | `to_string`, `from_string[T]`                             | was "optional"; promoted by this plan               |
 | `cbor` | `to_bytes`, `from_bytes[T]`                               | binary; depends on `bytes` type (`DATA_TYPE_PLAN`)  |
 
-```kn
+```kirn
 var s = json.to_string(user);
 var back = json.from_string[User](s)?;
 var bytes = cbor.to_bytes(user);
@@ -356,7 +356,7 @@ var bytes = cbor.to_bytes(user);
 
 ### 4.1 Thread pool
 
-```kn
+```kirn
 var pool = parallel.Pool(threads = 8);      # default: hardware_concurrency()
 await pool.install(fn () { heavy(); });
 parallel.join(fn () { a() }, fn () { b() });          # run two closures, return tuple
@@ -372,7 +372,7 @@ Pool API: `Pool(n)`, `.install(f)`, `.join`, `.scope`, `.spawn`, `.broadcast`, `
 
 `.par_iter()` on `list[T]`, `set`, `map`, ranges; combinators: `map`, `filter`, `filter_map`, `flat_map`, `for_each`, `for_each_init`, `fold`, `reduce`, `try_reduce`, `sum`, `product`, `min`/`max`(`_by`/`_by_key`), `count`, `collect`, `find_any`/`find_first`/`find_last`, `any`/`all`, `zip`, `enumerate`, `take`/`skip`/`step_by`. Fallible combinators return `result`.
 
-```kn
+```kirn
 var xs = 1..=1_000_000;
 var total = xs.par_iter()
               .filter(fn (x) { return x % 2 == 0; })
@@ -387,7 +387,7 @@ var best = xs.par_iter().max_by_key(fn (x) { return f(x); });
 
 `par_sort`, `par_sort_by`, `par_sort_by_key`, `par_sort_unstable`; `par_chunks`/`par_chunks_mut`, `par_windows`, `par_split`, `par_chunk_by`; `parallel.String.par_lines`/`par_split`/`par_bytes`. `ParallelDrainRange` for `list`/`Str`.
 
-```kn
+```kirn
 var mut rows = load_rows(path);
 rows.par_sort_by_key(fn (r) { return r.score; });
 rows.par_chunks(1024).for_each(fn (chunk) { ingest(chunk); });
@@ -399,7 +399,7 @@ rows.par_chunks(1024).for_each(fn (chunk) { ingest(chunk); });
 
 `@[par]` on a `for` loop or a map/fold lowers the body to the parallel iterator equivalent. `@[par]` on a pure `fn` marks it safe to run on the pool.
 
-```kn
+```kirn
 @[par]
 for row in rows { row.score = score(row); }
 
@@ -419,7 +419,7 @@ rows.par_iter_mut().for_each(fn (row) { row.score = score(row); });
 
 ### 5.1 Dynamic `Error` and `Context`
 
-```kn
+```kirn
 import pet.error;
 
 fn load(path: Str) -> error.result[Config] {       # == result[Config, error.Error]
@@ -443,7 +443,7 @@ API: `Error`, `Error.new(e)`, `Error.msg(s)`, `.context(c)` / `.with_context(f)`
 
 ### 5.2 `bail` / `ensure`
 
-```kn
+```kirn
 fn check(user: Int) -> error.result[()] {
     ensure(user == 0, "only user 0 is allowed");   # if !cond -> bail(msg)
     bail("nope");                                  # return err(error.msg("nope"))
@@ -456,7 +456,7 @@ fn check(user: Int) -> error.result[()] {
 
 ### 5.3 Typed errors via `@[derive(Error)]`
 
-```kn
+```kirn
 @[derive(Error, Debug)]
 enum DataStoreError {
     @[error("data store disconnected")]

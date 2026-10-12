@@ -724,7 +724,7 @@ kirn.ebnf` (final operator table + soft-keyword registry), `SYNTAX SP-17` (fmt/d
 
 **Example (`examples/59_native_new_surface.kn`, `kirn build --native` acceptance):**
 
-```kn
+```kirn
 const N: Int = 1 << 20;
 
 fn sum(xs: [Int]) -> Int { ... }

@@ -152,7 +152,7 @@ These are separate sidebar trees with distinct URL prefixes (`/learn/` and `/ref
 
 The doc comments are the single generated source for both basins' reference half — a `///` block on a `fn` in a pet module becomes a reference page and its JSON record:
 
-````kn
+````kirn
 # pet/math.kn — `///` doc comments generate the reference page + JSON record
 /// Square root of a non-negative number.
 /// ```
@@ -575,7 +575,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 
 The source doc comments that generate that page and its JSON record:
 
-```kn
+```kirn
 # stdlib/pet/math.kn — single source for ref/stdlib/math (markdown + JSON)
 /// Square root of a non-negative number.
 /// assert_eq(__Sqrt(16.0), 4.0)     # doc-test, run by `kirn test`
@@ -615,7 +615,7 @@ pub fn sqrt(x: Float) -> Float { __Sqrt(x) }
 - **Expected result:** an authoritative reference that stays in sync with the normative grammar.
 - **Issues/trade-offs:** EBNF is detailed but dense â€” don't dump raw EBNF without plain-language framing; mark `[PROVISIONAL]` items from the grammar as provisional on the site to match the spec.
 
-```kn
+```kirn
 # ref/language/types — Kirn spellings: CapCase primitives + width micros
 fn widen(x: Int4) -> Int32 { x as Int32 }          # Int4..UInt256 / i4..i256
 fn scale(r: Rational, f: Float) -> Float { r.to_float() * f }
@@ -732,7 +732,7 @@ fn root(n: BigInt) -> BigInt { __Sqrt(n) }
 
 > **AI-first note (single ingestible bundle).** Docs generation must emit the full pet reference as one bundle — `manifests/docs.bundle.json` — containing every page's markdown + JSON plus per-page and whole-bundle `sha256` fingerprints, so agents and VSCode hovers ingest one artifact and know exactly when docs changed. It is produced by a `kirn`/pet tool or `scripts/gen_*.ps1`, never a third shipped binary.
 
-```kn
+```kirn
 # pet/docgen.kn — one pass emits markdown + JSON + fingerprints from doc comments
 /// Parse a pet module's `///` blocks into the reference bundle.
 pub fn gen(module: Str) -> dict { parse_docs(module) }

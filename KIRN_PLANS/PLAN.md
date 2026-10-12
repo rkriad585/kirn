@@ -181,7 +181,7 @@ stacks.
 **Important Note:** Lints W0101–W0106 are **already landed** and never block builds
 (`errorCount()`); keep severity configurable via `@allow` / `kirn.toml [lint]`.
 
-```kn
+```kirn
 import "math";
 
 fn helper(): Int {
@@ -265,7 +265,7 @@ tool.
 **Important Note:** `main.kn`/`pin.kn` are **already ratified and landed**; keep resolution
 run-once and namespace-clean.
 
-```kn
+```kirn
 // main.kn — executable entry point
 import "greet";
 
@@ -274,7 +274,7 @@ fn main() {
 }
 ```
 
-```kn
+```kirn
 // pin.kn — package initializer / public-API aggregator
 pub fn hello(name: Str): Str {
     return "Hello, " + name;
@@ -331,7 +331,7 @@ the tree-walker (differential fuzz) and keep `--no-vm` for parity.
 **Important Note:** The VM is **default-on** with specialized numeric opcodes and a flat-SP stack
 landed; the perf target is to be **faster than Rust/Go** on the scalar benchmarks in `kirn bench`.
 
-```kn
+```kirn
 fn fib(n: Int): Int {
     if n < 2 { return n; }
     return fib(n - 1) + fib(n - 2);
@@ -424,7 +424,7 @@ dispatches on the runtime `Value::k` tag; reflection is a stdlib module, not new
 **Important Note:** Gradual typing stays opt-in and purely additive; `eval` remains behind
 `--enable-eval`.
 
-```kn
+```kirn
 fn main() {
     var x: any = 5;
     x = "now a string";
@@ -491,7 +491,7 @@ reuse the Phase-1 renderer for multi-span notes and fix-its.
 **Important Note:** Exhaustiveness/records/generics build on the existing nominal type system;
 the conservative borrow pass (6.5) is deliberately not full NLL.
 
-```kn
+```kirn
 record Point(x: Int, y: Int);
 
 enum Shape { Circle(Float), Square(Float) }
@@ -564,7 +564,7 @@ serialization enabled in Phase 5.
 **Important Note:** This phase is an **anchor/pointer** — the detailed spec lives in
 `STD_LIBS_PLAN.md`; adopt the **pure-Kirn** regexp engine (conflict noted below).
 
-```kn
+```kirn
 import "collections";
 import "encoding";
 
@@ -617,7 +617,7 @@ AOT path must hit the **faster than Rust/Go** target on the scalar hot suite.
 **Important Note:** `--native` is **~DONE** (hybrid dispatch native → VM → tree-walk); the
 toolchain ships **only `kirn` + `kirnc`**, so bench + build live in the `kirn` driver.
 
-```kn
+```kirn
 // bench.kn — discovered by `kirn bench`
 fn fib(n: Int): Int {
     if n < 2 { return n; }

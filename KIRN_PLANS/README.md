@@ -30,18 +30,19 @@ Phased implementation plans for the Kirn language and tooling. Each plan opens
 with a research/source-review note before offering step-by-step phases with
 goals, problems solved, files affected, code, testing, and limitations.
 
-| Plan                                                   | Owned concern                                          |
-| ------------------------------------------------------ | ------------------------------------------------------ |
-| `PLAN.md` / `DO_FIRST_PLAN.md`                         | Overall roadmap and immediate-first priorities         |
-| `REBRAND_PLAN.md`                                      | Historical rename decisions (legacy extension → `.kn`) |
-| `KIRN_DOCS_PLAN.md`                                    | Documentation website                                  |
-| `SYNTAX_PLAN.md` / `EXP_PLAN.md` / `DATA_TYPE_PLAN.md` | Syntax, expressions, data types                        |
-| `MISSING_PLAN.md`                                      | Missing features                                       |
-| `WHY_PLAN.md` / `WHY_USE_KIRN_PLAN.md`                 | Rationale and adoption messaging                       |
-| `STD_LIBS_PLAN.md`                                     | Standard library                                       |
-| `KIRN_HIGHLIGHT_PLAN.md`                               | Syntax highlighting: TextMate + tree-sitter            |
-| `KIRN_LSP_PLAN.md`                                     | Language Server Protocol server (`kirn-lsp`)           |
-| `KIRN_CROSS_PLAN.md`                                   | Cross-compilation / targets                            |
+| Plan                                                   | Owned concern                                                                            |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `PLAN.md` / `DO_FIRST_PLAN.md`                         | Overall roadmap and immediate-first priorities                                           |
+| `REBRAND_PLAN.md`                                      | Historical rename decisions (legacy extension → `.kn`)                                   |
+| `KIRN_DOCS_PLAN.md`                                    | Documentation website                                                                    |
+| `SYNTAX_PLAN.md` / `EXP_PLAN.md` / `DATA_TYPE_PLAN.md` | Syntax, expressions, data types                                                          |
+| `MISSING_PLAN.md`                                      | Missing features                                                                         |
+| `WHY_PLAN.md` / `WHY_USE_KIRN_PLAN.md`                 | Rationale and adoption messaging                                                         |
+| `STD_LIBS_PLAN.md`                                     | Standard library                                                                         |
+| `KIRN_HIGHLIGHT_PLAN.md`                               | Syntax highlighting: TextMate + tree-sitter                                              |
+| `KIRN_LSP_PLAN.md`                                     | Language Server Protocol server (`kirn-lsp`)                                             |
+| `KIRN_CROSS_PLAN.md`                                   | Cross-compilation / targets                                                              |
+| `POWER_PLAN.md`                                        | Default-on power layer: async runtime, serialization, data parallelism, ergonomic errors |
 
 > Reference: rust — exhaustive `match` with guards and inclusive range patterns.
 

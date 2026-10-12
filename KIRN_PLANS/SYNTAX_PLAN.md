@@ -64,7 +64,9 @@ core (**SP-3**), the `any`/`dynamic` type (**SP-5**), and the `fn`-alias / multi
 closures / `yield`-generator functions (**SP-11**) are implemented and verified (examples 37, 38,
 40, 41, 44). Each shipped phase is marked `[IMPLEMENTED]` at its heading below. Where a feature is
 also spec'd in another plan, a cross-reference (→) names the owning file so this doc stays the
-_syntax_ owner, not a duplicate.
+_syntax_ owner, not a duplicate. The default-on power layer that consumes the `@`
+decorator/attribute grammar (`SP-1`/`SP-6`) — async runtime, serde-style serialization, data
+parallelism, and ergonomic errors — is owned by `POWER_PLAN.md`.
 
 ---
 
@@ -511,7 +513,7 @@ semantics) on top of the reflection machinery, making `@name(...)` fully library
   import-time semantics.
 
 **Exit criteria:** a user writes and applies their own `@cached`/`@timed` decorator; stacking
-order verified; `@inject`/`@json` stdlib decorators work; corpus green; examples `37_decorators.kn`.
+order verified; `@inject`/`@json` stdlib decorators work; corpus green; examples `60_decorators.kn` (owned by `POWER_PLAN.md`).
 
 ```kn
 fn logged(fn) {

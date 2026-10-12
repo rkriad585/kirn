@@ -22,7 +22,10 @@ native substrate.
 The existing structure is kept and remains authoritative: the pet catalogue
 (baseline + native substrate), the per-module plans (Phases 0–15), and the test
 strategy. Each phase below is a **work unit**, not a rewrite; APIs stay
-`import pet.<mod>` / `mod.fn(...)`. Catalogues and per-module plans are preserved.
+`import pet.<mod>` / `mod.fn(...)`. Catalogues and per-module plans are preserved. The
+default-on serialization framework (serde-style `Serialize`/`Deserialize` traits +
+`@[derive(...)]`) that the `json`/`toml`/`yaml`/`cbor` formats plug into is owned by
+`POWER_PLAN.md`.
 
 **Status:** Living design document for building Kirn's standard library as real,
 importable Kirn source modules under `stdlib/lib/`.

@@ -14,7 +14,7 @@ Kirn's core data types are delivered as a single unified, batteries-included bui
 
 ## Important Note
 
-Existing structure to preserve: §3 unified target type model, §3.2 `bytes` unification, §4 source-language influence map, §7 Phased Implementation Plan with Phase 0..15 + "Beyond Phase 15", §8 method/operator inventory, §9 test strategy, and Appendices A-D.
+Existing structure to preserve: §3 unified target type model, §3.2 `bytes` unification, §4 source-language influence map, §7 Phased Implementation Plan with Phase 0..15 + "Beyond Phase 15", §8 method/operator inventory, §9 test strategy, and Appendices A-D. The ergonomic error layer (`anyhow`-style dynamic `Error` + `.context`, `thiserror`-style `@[derive(Error)]`) built on the error types here is owned by `POWER_PLAN.md`.
 
 **Status:** Comprehensive plan (research + phased implementation)
 **Scope:** Add / enhance builtin _data types_ for Kirn by combining the best ideas from the four reference standard libraries: **Python** (`cpython-main`), **Go** (`go-master`), **Rust** (`rust-main`), and **Ruby** (`ruby-master`).

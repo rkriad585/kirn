@@ -14,7 +14,7 @@ Kirn's expression, syntax-sugar, magic-method, and math-expression layer is deli
 
 ## Important Note
 
-Preserve all existing structure and decisions: the audited baseline (§2), the layer cake (§3), the influence map (§4), the phase order (§5), the phased plan (§7, Phases 0–15 + Beyond), the magic/operator and builtin inventories (§8–9), the test strategy (§10), the appendices (§11–15), and every cross-ref to `DATA_TYPE_PLAN.md` / `STD_LIBS_PLAN.md` / `SYNTAX_PLAN.md`. New triples annotate; they never replace a decision.
+Preserve all existing structure and decisions: the audited baseline (§2), the layer cake (§3), the influence map (§4), the phase order (§5), the phased plan (§7, Phases 0–15 + Beyond), the magic/operator and builtin inventories (§8–9), the test strategy (§10), the appendices (§11–15), and every cross-ref to `DATA_TYPE_PLAN.md` / `STD_LIBS_PLAN.md` / `SYNTAX_PLAN.md`. New triples annotate; they never replace a decision. The default-on async runtime, serde-style serialization, data parallelism, and ergonomic error layer are owned by `POWER_PLAN.md`; the async/await and `@derive` entries that were stretch goals here are composed there.
 
 **Status:** Comprehensive plan (deep research + phased implementation)
 **Scope:** Add the _magical features and functions_, _dynamic & static expressions and syntax out-of-the-box_, _more builtins_, and above all _math expressions (not just math functions)_ that developers ask for every time but most languages lack — combining the best ideas from **Python** (`cpython`), **Rust** (`rustc`), **Go** (`go`), **Ruby** (`cruby`), plus modern teachers **Kotlin**, **Swift**, **Julia**, **Zig**, and **C#**.

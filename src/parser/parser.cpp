@@ -11,7 +11,7 @@ namespace {
 bool isAugOp(std::string_view s) {
     return s == "+=" || s == "-=" || s == "*=" || s == "/=" || s == "%=" ||
            s == "**=" || s == "//=" || s == "&=" || s == "|=" || s == "^=" ||
-           s == "<<=" || s == ">>=" || s == "??=";
+           s == "<<=" || s == ">>=" || s == "@=" || s == "??=";
 }
 bool isCmpTok(std::string_view s) {
     return s == "<" || s == ">" || s == "<=" || s == ">=" || s == "==" ||
@@ -1900,7 +1900,7 @@ ast::ExprP Parser::parseArith() {
 }
 ast::ExprP Parser::parseTerm() {
     ast::ExprP l = parseUnary();
-    while (atOp("*") || atOp("/") || atOp("%") || atOp("//")) {
+    while (atOp("*") || atOp("/") || atOp("%") || atOp("//") || atOp("@")) {
         std::string op = cur().text;
         ast::Span sp = spanHere();
         advance();

@@ -1,0 +1,42 @@
+# vm_parity — matrix multiply `@` and `@=` must produce identical output on the
+# tree-walker and the VM (neither takes a specialized opcode: `@` flows through
+# the generic OP_BINARY → binop dispatch).
+struct Matrix {
+    rows: Int;
+    cols: Int;
+    data: list[list[Int]];
+    fn at(self, i: Int, j: Int) -> Int {
+        return self.data[i][j];
+    }
+}
+
+impl MatMul for Matrix {
+    fn matmul(self, o: Matrix) -> Matrix {
+        out = [];
+        for i in 0..self.rows {
+            row = [];
+            for j in 0..o.cols {
+                acc = 0;
+                for k in 0..self.cols {
+                    acc = acc + self.at(i, k) * o.at(k, j);
+                }
+                row.append(acc);
+            }
+            out.append(row);
+        }
+        return Matrix(rows: self.rows, cols: o.cols, data: out);
+    }
+}
+
+fn main() -> none {
+    a = Matrix(rows: 2, cols: 3, data: [[1, 2, 3], [4, 5, 6]]);
+    b = Matrix(rows: 3, cols: 2, data: [[7, 8], [9, 10], [11, 12]]);
+    c = a @ b;
+    print(c.at(0, 0));                      # 58
+    print(c.at(0, 1));                      # 64
+    print(c.at(1, 0));                      # 139
+    print(c.at(1, 1));                      # 154
+    var d = Matrix(rows: 3, cols: 3, data: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+    d @= d;
+    print(d.at(2, 2));                      # 1
+}

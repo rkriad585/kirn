@@ -1,0 +1,69 @@
+# 46 — Matrix multiplication `@` (M2, PEP 465)
+# `a @ b` dispatches through the well-known `MatMul` trait (`matmul`, alias
+# `__matmul__`), exactly like `+` → `Add.add`. `@` shares the precedence of `*`
+# and is left-associative; `@=` assigns in place. Scalar operands are rejected
+# with E-MATMUL-SCALAR because `@` is not element-wise (`*` is).
+#
+# Expected output:
+#   c = [58, 64; 139, 154]
+#   c@I = [58, 64; 139, 154]
+#   e = [39, 54, 69; 49, 68, 87; 59, 82, 105]
+
+struct Matrix {
+    rows: Int;
+    cols: Int;
+    data: list[list[Int]];
+
+    fn at(self, i: Int, j: Int) -> Int {
+        return self.data[i][j];
+    }
+}
+
+impl MatMul for Matrix {
+    fn matmul(self, other: Matrix) -> Matrix {
+        if self.cols != other.rows {
+            panic("matmul: shape mismatch");
+        }
+        out = [];
+        for i in 0..self.rows {
+            row = [];
+            for j in 0..other.cols {
+                acc = 0;
+                for k in 0..self.cols {
+                    acc = acc + self.at(i, k) * other.at(k, j);
+                }
+                row.append(acc);
+            }
+            out.append(row);
+        }
+        return Matrix(rows: self.rows, cols: other.cols, data: out);
+    }
+}
+
+fn show(label: Str, m: Matrix) -> none {
+    rows = [];
+    for i in 0..m.rows {
+        parts = [];
+        for j in 0..m.cols {
+            parts.append(Str(m.at(i, j)));
+        }
+        rows.append(join(", ", parts));
+    }
+    print(label + " = [" + join("; ", rows) + "]");
+}
+
+fn main() -> none {
+    a = Matrix(rows: 2, cols: 3, data: [[1, 2, 3], [4, 5, 6]]);
+    b = Matrix(rows: 3, cols: 2, data: [[7, 8], [9, 10], [11, 12]]);
+
+    c = a @ b;                               # (2x3) @ (3x2) -> (2x2)
+    show("c", c);
+
+    identity = Matrix(rows: 2, cols: 2, data: [[1, 0], [0, 1]]);
+    var d = c;
+    d @= identity;                           # in-place product
+    show("c@I", d);
+
+    e = b @ a;                               # (3x2) @ (2x3) -> (3x3)
+    show("e", e);
+}

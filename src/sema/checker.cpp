@@ -2389,6 +2389,18 @@ void Checker::checkStmt(const ast::Stmt& s) {
                 checkReassignable(tgt);
                 break;
             }
+            if (op == "@=") {
+                // In-place matrix product: dispatched through `MatMul` at
+                // runtime. Scalars are invalid, exactly as for `@`.
+                bool ln = !tt->isUnknown() && !tt->isError() && isNumeric(*tt);
+                bool rn = !vt->isUnknown() && !vt->isError() && isNumeric(*vt);
+                if (ln || rn)
+                    error(tgt.span,
+                          "E-MATMUL-SCALAR: '@=' requires matrix/vector "
+                          "operands (use '*=' for element-wise multiplication)");
+                checkReassignable(tgt);
+                break;
+            }
             bool numericOp = (op == "-" || op == "*" || op == "/" || op == "%" ||
                               op == "**" || op == "//");
             if (op == "+") {
@@ -2935,6 +2947,28 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 error(e.span,
                       "invalid operands to '" + op + "' (" + toString(*lt) +
                           " and " + toString(*rt) + ")");
+                return errTy();
+            }
+            if (op == "@") {
+                // Matrix product (PEP 465). It is dispatched through the
+                // `MatMul` trait (`matmul`, alias `__matmul__`) rather than
+                // element-wise, so scalar operands are always invalid.
+                if ((!dynish(lt) && isNumeric(*lt)) ||
+                    (!dynish(rt) && isNumeric(*rt))) {
+                    error(e.span,
+                          "E-MATMUL-SCALAR: '@' requires matrix/vector operands, "
+                          "got " + toString(*lt) + " and " + toString(*rt) +
+                              " (use '*' for element-wise multiplication)");
+                    return errTy();
+                }
+                if (dynish(lt) || dynish(rt)) return unkTy();
+                // A Matrix/vector type implements `MatMul`. The checker does
+                // not track impl-method return types, so the product type is
+                // left dynamic and resolved by the interpreter (`binop`).
+                if (lt->is(TyK::Struct) || rt->is(TyK::Struct)) return unkTy();
+                error(e.span, "invalid operands to '@' (" + toString(*lt) +
+                                  " and " + toString(*rt) +
+                                  "); '@' is matrix multiplication");
                 return errTy();
             }
             return unkTy();

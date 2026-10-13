@@ -5177,27 +5177,44 @@ bool Interpreter::evalCmpChain(const Expr& b, Env env) {
 
 Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                          int line, int col) {
+    // `@` is the matrix-product operator (PEP 465). Scalars are never valid
+    // operands, so reject them before the numeric paths with a specific code.
+    if (op == "@") {
+        auto num = [](VK k) {
+            return k == VK::Int || k == VK::Float || k == VK::BigInt ||
+                   k == VK::Rational;
+        };
+        if (num(l.k) || num(r.k))
+            panicHere("E-MATMUL-SCALAR: '@' requires matrix/vector operands "
+                      "(use '*' for element-wise multiplication)");
+    }
     if (l.k == VK::Struct || l.k == VK::Heap) {
         static const std::unordered_map<std::string, std::string> ARITH = {
             {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"},
-            {"%", "mod"}};
+            {"%", "mod"}, {"@", "matmul"}};
         auto nm = ARITH.find(op);
         if (nm != ARITH.end()) {
             const std::string& tn =
                 l.k == VK::Heap ? l.heap->typeName : l.typeName;
-            bool have = false;
-            auto si = structs_.find(tn);
-            if (si != structs_.end())
-                for (const auto& m : si->second->body)
-                    if (m->kind == ast::StKind::FuncDef && m->name == nm->second)
-                        have = true;
-            if (!have)
+            auto has = [&](const std::string& name) {
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    for (const auto& m : si->second->body)
+                        if (m->kind == ast::StKind::FuncDef &&
+                            m->name == name)
+                            return true;
                 for (const auto& imp : impls_)
-                    if (imp.typeName == tn && imp.methods.count(nm->second))
-                        have = true;
-            if (have)
-                return invokeMethod(l, nm->second, {r}, {}, globals_, line,
-                                    col, nullptr);
+                    if (imp.typeName == tn && imp.methods.count(name))
+                        return true;
+                return false;
+            };
+            std::string meth = nm->second;
+            // Also accept the Python-style `MatMul` dunder spelling.
+            if (!has(meth) && op == "@" && has("__matmul__"))
+                meth = "__matmul__";
+            if (has(meth))
+                return invokeMethod(l, meth, {r}, {}, globals_, line, col,
+                                    nullptr);
         }
     }
 

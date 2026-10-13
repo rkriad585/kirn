@@ -144,7 +144,7 @@ OPERATOR        = "**"  | "//"  | "=="  | "!="  | "<="  | ">="  | "<<"
                 | "|="  | "^="  | "<<=" | ">>=" | "..=" | ".."  | "=>"
                 | ".?." | "->"  | "+"   | "-"   | "*"   | "/"   | "%"
                 | "&"   | "|"   | "^"   | "~"   | "<"   | ">"   | "="
-                | "?"   | "@"   | ":="  | "|>"  | "??"  | "??=" ;
+                | "?"   | "@"   | "@="  | ":="  | "|>"  | "??"  | "??=" ;
 
 PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
                 | "."  | ";"  ;
@@ -160,7 +160,8 @@ PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
 #                                               nil-safe/try-propagate
 #   16    **                         right     Python rule: -2**2 == -(2**2)
 #   15    unary - + ~ not & *        prefix    &x borrow, *p deref  [PROVISIONAL]
-#   14    * / % //                   left      // floor-div (ints)
+#   14    * / % // @                 left      // floor-div (ints); @ matmul
+#                                              (PEP 465: same precedence as *)
 #   13    + -                        left
 #   12    << >>                      left
 #   11    &                          left
@@ -342,7 +343,7 @@ pass_stmt       = "pass" ;
 assignment      = target_list "=" expr_list ;
 aug_assign      = target aug_op expr ;
 aug_op          = "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//="
-                | "&=" | "|=" | "^=" | "<<=" | ">>=" | "??=" ;
+                | "&=" | "|=" | "^=" | "<<=" | ">>=" | "@=" | "??=" ;
 
 target_list     = target , { "," , target } ;
 target          = IDENTIFIER | tuple_target | index_target | member_target ;
@@ -497,7 +498,7 @@ shiftop         = "<<" | ">>" ;
 arith_expr      = term , { addop , term } ;
 addop           = "+" | "-" ;
 term            = unary , { mulop , unary } ;
-mulop           = "*" | "/" | "%" | "//" ;
+mulop           = "*" | "/" | "%" | "//" | "@" ;
 
 unary           = unary_op , unary | power ;
 unary_op        = "-" | "+" | "~" | "not" | "&" | "*" ;   (* &/* prov.  *)
@@ -631,7 +632,10 @@ type_postfix    = "?" ;               (* option sugar:  Int? == option[Int]  *)
 # 14. `<-expr` receive operator valid ONLY inside select arms (chan_op).
 # 15. Pattern features extended (Rust-style): or-patterns `p1 | p2`,
 #     bindings-as-aliases `name @ sub-pattern`, and slice/tuple rest `..rest`.
-#     `@` is parsed as a pattern-only operator (never a binary expression op).
+#     `@` is a pattern-alias operator inside a pattern (item 15) and, since M2,
+#     the binary matrix-multiply operator in expressions (`a @ b`, PEP 465);
+#     the two roles never overlap because the pattern parser only sees `@`
+#     after a binding and the expression parser only after an operand.
 # 16. Loops may be labeled: `label: while ... ` / `label: for ...`. `break l;`
 #     and `continue l;` exit/skip that labeled loop from nested bodies
 #     (Go/Rust loop-label style). Unlabeled `break`/`continue` act on the

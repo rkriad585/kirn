@@ -1,0 +1,7 @@
+# expect: E-MATMUL-SCALAR
+# PEP 465: `@` is matrix multiplication, never element-wise. Scalar operands
+# are rejected at check time (`*` is the element-wise operator).
+fn main() -> none {
+    x = 2 @ 3;
+    print(x);
+}

@@ -1,0 +1,37 @@
+# matmul_ok — `@` binary operator and `@=` (M2). Positive: warning-free,
+# tree-walker and VM must agree (gate 2b).
+struct Vec2 {
+    x: Int;
+    y: Int;
+}
+
+impl MatMul for Vec2 {
+    fn matmul(self, o: Vec2) -> Vec2 {
+        return Vec2(x: self.x * o.x, y: self.y * o.y);
+    }
+}
+
+struct Scale {
+    s: Int;
+}
+
+# The Python-style dunder spelling is accepted as an alias for `matmul`.
+impl MatMul for Scale {
+    fn __matmul__(self, o: Scale) -> Scale {
+        return Scale(s: self.s * o.s);
+    }
+}
+
+fn main() -> none {
+    a = Vec2(x: 2, y: 3);
+    b = Vec2(x: 4, y: 5);
+    c = a @ b;
+    print(c.x, c.y);                        # 8 15
+
+    var d = Scale(s: 6);
+    d @= Scale(s: 7);
+    print(d.s);                             # 42
+
+    e = Vec2(x: 1, y: 1) @ Vec2(x: 2, y: 2);
+    print(e.x, e.y);                        # 2 2
+}

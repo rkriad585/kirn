@@ -1,0 +1,6 @@
+# expect: E-WALRUS-STMT
+# PEP 572: an unparenthesized walrus cannot stand alone as a statement.
+fn main() -> none {
+    x := 1;
+    print(x);
+}

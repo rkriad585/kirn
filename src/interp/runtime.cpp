@@ -3322,12 +3322,21 @@ Value cv = eval(*e.lhs, env);
         }
 
         case ast::ExKind::Pipe: {
-            // Evaluate the input once, bind it as the topic in a child frame,
-            // then evaluate the body (which may reference `%`).
+            // Evaluate the input once and bind it as the topic for the body.
+            // The topic lives in the current frame (not a fresh child), so a
+            // pipe does not allocate an environment; the binding is saved and
+            // restored to keep nested pipes correct. `%` is not a valid
+            // identifier, so it cannot collide with a user binding.
             Value in = e.lhs ? eval(*e.lhs, env) : Value::none();
-            Env child = makeChild(env);
-            child->vars[kPipeTopic] = std::move(in);
-            return e.rhs ? eval(*e.rhs, child) : Value::none();
+            auto& vars = env->vars;
+            auto it = vars.find(kPipeTopic);
+            const bool had = it != vars.end();
+            Value saved = had ? it->second : Value();
+            vars[kPipeTopic] = std::move(in);
+            Value out = e.rhs ? eval(*e.rhs, env) : Value::none();
+            if (had) vars[kPipeTopic] = std::move(saved);
+            else vars.erase(kPipeTopic);
+            return out;
         }
 
         case ast::ExKind::Coalesce:

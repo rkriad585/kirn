@@ -1156,6 +1156,16 @@ ast::StmtP Parser::parseSimpleStmt() {
 
     ast::ExprP first = parseExpr();
 
+    // PEP 572: an unparenthesized walrus at the start of a statement is an
+    // error. Write `(x := ...)` or the assignment statement `x = ...` instead;
+    // inside a condition or a larger expression it is fine.
+    if (first && first->kind == ast::ExKind::AssignExpr && !first->paren) {
+        diags_.report(first->span.line, first->span.col,
+                      "E-WALRUS-STMT: assignment expression ':=' cannot stand "
+                      "alone at the start of a statement; parenthesize it");
+        throw Abort("walrus-stmt");
+    }
+
     // Annotated immutable binding:  name : Type = value
     if (first && first->kind == ast::ExKind::Ident && atPunct(":")) {
         s->kind = ast::StKind::VarDecl;

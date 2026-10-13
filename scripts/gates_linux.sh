@@ -87,10 +87,13 @@ for t in "$ROOT"/tests/types/n*.kn "$ROOT"/tests/negative/n*.kn; do
 done
 
 echo "=== gate 2b: syntax (tests/syntax) ==="
-for t in "$ROOT"/tests/syntax/p*.kn; do
+for t in "$ROOT"/tests/syntax/*_ok*.kn; do
     [ -e "$t" ] || continue
     name="$(basename "$t")"
     err="$("$CC" "$t" 2>&1)"; [ $? -eq 0 ] || { report FAIL "$name" "kirncheck rejected: $(echo "$err" | head -1)"; continue; }
+    if echo "$err" | grep -q 'warning'; then
+        report FAIL "$name" "clean positive file emitted a warning: $(echo "$err" | grep -m1 'warning')"; continue
+    fi
     t_out="$(mktemp "$TMP/syn.XXXX")"; v_out="$(mktemp "$TMP/syn.XXXX")"
     timeout "$WATCH" "$CR" --no-vm "$t" >"$t_out" 2>&1; tc=$?
     timeout "$WATCH" "$CR" "$t" >"$v_out" 2>&1; vc=$?
@@ -100,7 +103,7 @@ for t in "$ROOT"/tests/syntax/p*.kn; do
         report FAIL "$name" "tree rc=$tc, VM rc=$vc; tree: $(tr '\n' ' ' <"$t_out" | head -c 80)"
     fi
 done
-for t in "$ROOT"/tests/syntax/n*.kn; do
+for t in "$ROOT"/tests/syntax/*_err*.kn; do
     [ -e "$t" ] || continue
     name="$(basename "$t")"
     exp=$(sed -n 's/.*#\s*expect:\s*//p' "$t" | head -1 | sed 's/[[:space:]]*$//')

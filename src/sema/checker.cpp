@@ -1941,6 +1941,25 @@ void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
     }
 }
 
+void Checker::bindWalrus(const ast::Expr& tgt, const TyP& vt) {
+    if (tgt.kind != ExKind::Ident) {
+        checkExpr(tgt);
+        error(tgt.span, "left side of ':=' must be a name");
+        return;
+    }
+    // Kirn binds the walrus target in the enclosing lexical scope (block or
+    // comprehension), which is what the tree interpreter does too: `assignTo`
+    // writes into the current frame. This diverges from PEP 572's
+    // function-scope rule, deliberately, so the checker and interpreter agree.
+    assignTarget(tgt, vt, /*multi*/ true);
+    // The value a walrus yields is its own use, and the assignment mutates it,
+    // so it never trips W0102 (unused) or W0106 (never mutated).
+    if (Symbol* sym = scope_->find(tgt.text)) {
+        sym->used = true;
+        sym->mutated = true;
+    }
+}
+
 void Checker::checkAssignTargets(const ast::Stmt& s) {
     size_t n = s.exprs.size();
     if (n == 0) return;
@@ -3134,14 +3153,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
         case ExKind::AssignExpr: {
             // Walrus `(name := value)`: bind/assign and yield the value.
             TyP vt = e.rhs ? checkExpr(*e.rhs) : unkTy();
-            if (e.lhs && e.lhs->kind == ExKind::Ident) {
-                // multi=true makes the binding a mutable slot, matching the
-                // "declares a variable" semantics of `:=`.
-                assignTarget(*e.lhs, vt, /*multi*/ true);
-            } else {
-                if (e.lhs) checkExpr(*e.lhs);
-                error(e.span, "left side of ':=' must be a name");
-            }
+            if (e.lhs) bindWalrus(*e.lhs, vt);
             return vt;
         }
 

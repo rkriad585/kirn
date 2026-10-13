@@ -140,6 +140,9 @@ private:
     void compClause(const ast::CompClause& cl, uint32_t line);
     void checkReassignable(const ast::Expr& tgt);
     void assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi = false);
+    // Walrus `(name := value)`. Binds/assigns the target and marks it used
+    // (the value it yields is its own use), so it never trips W0102.
+    void bindWalrus(const ast::Expr& tgt, const TyP& vt);
 
     // ---- expressions ----
     // checkExpr is the public caching wrapper; the real walk lives in

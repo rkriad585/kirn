@@ -59,6 +59,7 @@ constexpr std::string_view kOps3[] = {"<<=", ">>=", "..=", ".?.", "??="};
 constexpr std::string_view kOps2[] = {
     "**", "//", "==", "!=", "<=", ">=", "<<", ">>", "+=", "-=", "*=", "/=",
     "%=", "@=", "&=", "|=", "^=", "->", "<-", "..", "=>", ":=", "|>", "??",
+    ".?",
 };
 constexpr std::string_view kPunct1 = "()[]{},:.;";
 constexpr std::string_view kOp1 = "+-*/%&|^~<>=?@";

@@ -215,9 +215,13 @@ bool Parser::looksLikeTypedBinding() const {
             if (t.text == "]") { if (depth) --depth; continue; }
             continue;
         }
-        if (t.kind == Tok::Op && depth == 0 && t.text == "=") return true;
-        if (t.kind == Tok::Op && depth == 0)
-            return false;                      // e.g. `name : x += 1` → statement
+        if (t.kind == Tok::Op) {
+            if (depth == 0 && t.text == "=") return true;
+            // Any other operator is either type syntax (`?`, `->`, `*`, `&`)
+            // or part of an expression statement after a jump label; both
+            // cases keep scanning for the top-level `=`.
+            continue;
+        }
     }
 }
 
@@ -1443,6 +1447,15 @@ ast::PatP Parser::parseCtorOrBind() {
 
 ast::TypeP Parser::parseBaseType() {
     ast::Span sp = spanHere();
+    // M3: `typeof(expr)` in type position — the type is the checker's inferred
+    // type of the expression (no runtime side effects).
+    if (atIdent("typeof") && atPunct("(", 1)) {
+        advance();
+        expectPunct("(");
+        ast::ExprP expr = parseExpr();
+        expectPunct(")");
+        return ast::Type::makeTypeOf(std::move(expr), sp);
+    }
     if (atIdent("fn")) {
         advance();
         std::vector<ast::TypeP> ps;
@@ -2034,6 +2047,40 @@ ast::ExprP Parser::parsePostfix() {
             e = std::move(m);
             continue;
         }
+        if (atOp(".?")) {
+            // M3: `x.?[i]` safe index and `x.?(args)` safe call.
+            ast::Span osp = spanHere();
+            advance();
+            if (atPunct("[")) {
+                advance();
+                auto ix = std::make_unique<ast::Expr>();
+                ix->kind = ast::ExKind::SafeIndex;
+                ix->span = osp;
+                ix->lhs = std::move(e);
+                ix->rhs = parseExpr();
+                expectPunct("]");
+                e = std::move(ix);
+                continue;
+            }
+            if (atPunct("(")) {
+                advance();
+                auto c = std::make_unique<ast::Expr>();
+                c->kind = ast::ExKind::SafeCall;
+                c->span = osp;
+                c->lhs = std::move(e);
+                while (!atPunct(")")) {
+                    if (atPunct(",")) { advance(); continue; }
+                    c->args.push_back(parseCallArg());
+                    if (atPunct(",")) advance();
+                    else break;
+                }
+                expectPunct(")");
+                e = std::move(c);
+                continue;
+            }
+            diags_.report(cur().line, cur().col, "expected '[' or '(' after '.?'");
+            throw Abort("safecall");
+        }
         if (atOp("?")) {
             advance();
             auto t = std::make_unique<ast::Expr>();
@@ -2291,8 +2338,21 @@ ast::ExprP Parser::parsePrimary() {
         auto e = std::make_unique<ast::Expr>();
         e->kind = ast::ExKind::List;
         e->span = sp;
+        // M3: `*expr` at element position is a spread (PEP 448/798).
+        auto elem = [&]() -> ast::ExprP {
+            if (atOp("*")) {
+                ast::Span es = spanHere();
+                advance();
+                auto s = std::make_unique<ast::Expr>();
+                s->kind = ast::ExKind::Spread;
+                s->span = es;
+                s->lhs = parseExpr();
+                return s;
+            }
+            return parseExpr();
+        };
         if (!atPunct("]")) {
-            ast::ExprP first = parseExpr();
+            ast::ExprP first = elem();
             if (atIdent("for")) {
                 e = parseCompExpr(std::move(first));
                 e->kind = ast::ExKind::ListComp;
@@ -2301,7 +2361,7 @@ ast::ExprP Parser::parsePrimary() {
                 while (atPunct(",")) {
                     advance();
                     if (atPunct("]")) break;
-                    e->elems.push_back(parseExpr());
+                    e->elems.push_back(elem());
                 }
             }
         }
@@ -2318,25 +2378,79 @@ ast::ExprP Parser::parsePrimary() {
             e->kind = ast::ExKind::Dict;
             return e;
         }
-        ast::ExprP firstKey = parseExpr();
-        if (atPunct(":")) {
+        // M3: `*expr` / `**expr` at entry position is a spread (PEP 448/798).
+        auto spread = [&](bool dbl) -> ast::ExprP {
+            ast::Span es = spanHere();
             advance();
-            e->kind = ast::ExKind::Dict;
-            e->pairs.emplace_back(std::move(firstKey), parseExpr());
+            auto s = std::make_unique<ast::Expr>();
+            s->kind = ast::ExKind::Spread;
+            s->span = es;
+            s->doubleStar = dbl;
+            s->lhs = parseExpr();
+            return s;
+        };
+        auto dictRest = [&]() {
             while (atPunct(",")) {
                 advance();
                 if (atPunct("}")) break;
-                auto k = parseExpr();
-                expectPunct(":");
-                e->pairs.emplace_back(std::move(k), parseExpr());
+                if (atOp("**")) {
+                    e->pairs.emplace_back(spread(true), nullptr);
+                } else {
+                    ast::ExprP k = parseExpr();
+                    expectPunct(":");
+                    e->pairs.emplace_back(std::move(k), parseExpr());
+                }
+            }
+        };
+        auto setRest = [&]() {
+            while (atPunct(",")) {
+                advance();
+                if (atPunct("}")) break;
+                if (atOp("*")) e->elems.push_back(spread(false));
+                else e->elems.push_back(parseExpr());
+            }
+        };
+        if (atOp("**")) {                               // leading `**expr`
+            ast::ExprP first = spread(true);
+            if (atIdent("for")) {
+                e = parseCompExpr(std::move(first));
+                e->kind = ast::ExKind::DictComp;
+            } else {
+                e->kind = ast::ExKind::Dict;
+                e->pairs.emplace_back(std::move(first), nullptr);
+                dictRest();
+            }
+        } else if (atOp("*")) {                         // leading `*expr`
+            ast::ExprP first = spread(false);
+            if (atIdent("for")) {
+                e = parseCompExpr(std::move(first));
+                e->kind = ast::ExKind::SetComp;
+            } else {
+                e->kind = ast::ExKind::Set;
+                e->elems.push_back(std::move(first));
+                setRest();
             }
         } else {
-            e->kind = ast::ExKind::Set;
-            e->elems.push_back(std::move(firstKey));
-            while (atPunct(",")) {
+            ast::ExprP firstKey = parseExpr();
+            if (atPunct(":")) {
                 advance();
-                if (atPunct("}")) break;
-                e->elems.push_back(parseExpr());
+                ast::ExprP firstVal = parseExpr();
+                if (atIdent("for")) {                   // {k: v for ...}
+                    e = parseCompExpr(std::move(firstKey));
+                    e->kind = ast::ExKind::DictComp;
+                    e->value = std::move(firstVal);
+                } else {
+                    e->kind = ast::ExKind::Dict;
+                    e->pairs.emplace_back(std::move(firstKey), std::move(firstVal));
+                    dictRest();
+                }
+            } else if (atIdent("for")) {                // {e for ...}
+                e = parseCompExpr(std::move(firstKey));
+                e->kind = ast::ExKind::SetComp;
+            } else {                                    // set display
+                e->kind = ast::ExKind::Set;
+                e->elems.push_back(std::move(firstKey));
+                setRest();
             }
         }
         expectPunct("}");

@@ -1,0 +1,38 @@
+# narrow_ok — M3: flow-sensitive narrowing over `is none` / `== none`, `is T`,
+# and early-exit (Kotlin KEEP-0442 P/N lattice). Positive: warning-free.
+fn maybe() -> Int? {
+    return 41;
+}
+
+fn orZero(v: Int?) -> Int {
+    if v is none {
+        return 0;
+    }
+    n: Int = v;                             # narrowed: v is Int here
+    return n;
+}
+
+fn main() -> none {
+    x: Int? = maybe();
+    if x is none {
+        print("none");
+    } else {
+        n: Int = x;                         # narrowed: Int in else
+        print(n + 1);                       # 42
+    }
+
+    y: Int? = none;
+    if y == none {
+        print("empty");
+    } else {
+        print(y);                           # never reached
+    }
+
+    print(orZero(none));                    # 0
+    print(orZero(maybe()));                 # 41
+
+    s: Str = "hi";
+    if s is Str {
+        print(s + "!");                     # hi!
+    }
+}

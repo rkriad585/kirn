@@ -54,5 +54,13 @@ TypeP Type::makeTuple(std::vector<TypeP> ts, Span s) {
     return t;
 }
 
+TypeP Type::makeTypeOf(ExprP expr, Span s) {
+    auto t = std::make_unique<Type>();
+    t->kind = TyKind::TypeOf;
+    t->span = s;
+    t->typeExpr = std::move(expr);
+    return t;
+}
+
 } // namespace ast
 } // namespace kirn

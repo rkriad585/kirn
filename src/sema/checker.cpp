@@ -7,6 +7,8 @@ namespace sema {
 
 using namespace kirn::ast;
 
+static bool dynish(const TyP& t);
+
 // ============================ type utilities ================================
 
 bool equal(const TyP& a, const TyP& b) {
@@ -280,6 +282,7 @@ if (sym->kind == SymK::Var || sym->kind == SymK::Param ||
 }
 
 Scope& Checker::push() {
+    narrowedStack_.push_back(narrowed_);
     scope_ = new Scope(scope_);
     return *scope_;
 }
@@ -289,6 +292,10 @@ void Checker::pop() {
     if (scope_ != p) reportUnused(*scope_, /*topLevel*/ false);
     delete scope_;
     scope_ = p;
+    if (!narrowedStack_.empty()) {
+        narrowed_ = std::move(narrowedStack_.back());
+        narrowedStack_.pop_back();
+    }
 }
 
 SymP Checker::declareLocal(SymK kind, const std::string& name, TyP t, bool mut,
@@ -1060,6 +1067,8 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             error(t->span.line, t->span.col, "unknown type '" + n + "'");
             return errTy();
         }
+        case TyKind::TypeOf:
+            return t->typeExpr ? checkExpr(*t->typeExpr) : unkTy();
         case TyKind::Pointer:
             return ptrTy(resolveType(t->inner));
         case TyKind::Ref:
@@ -1307,6 +1316,19 @@ TyP Checker::iterableElem(const TyP& t) const {
         default:
             return errTy();
     }
+}
+
+TyP Checker::unpackElem(const ast::Expr& spread, const char* where) {
+    TyP src = spread.lhs ? checkExpr(*spread.lhs) : unkTy();
+    if (dynish(src)) return unkTy();
+    TyP elem = iterableElem(src);
+    if (elem && elem->isError()) {
+        error(spread.span,
+              std::string(where) + " requires an iterable, got " +
+                  toString(*src));
+        return errTy();
+    }
+    return elem ? elem : unkTy();
 }
 
 std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
@@ -1882,8 +1904,96 @@ void Checker::requireBool(const TyP& t, uint32_t line, uint32_t col,
           std::string(what) + " must be a boolean, got " + toString(*t));
 }
 
-void Checker::checkReassignable(const ast::Expr& tgt) {
-    if (tgt.kind != ExKind::Ident) return;      // index/member targets: v1 lenient
+TyP Checker::collapseOpt(const TyP& t) const {
+    if (t && t->is(TyK::Opt)) return t;
+    if (!t) return unkTy();
+    return optTy(t);
+}
+
+bool Checker::alwaysExits(const std::vector<ast::StmtP>& body) const {
+    if (body.empty()) return false;
+    const ast::Stmt& last = *body.back();
+    switch (last.kind) {
+        case StKind::Return:
+        case StKind::Raise:
+        case StKind::Break:
+        case StKind::Continue:
+            return true;
+        case StKind::If:
+            return !last.elseBody.empty() && alwaysExits(last.body) &&
+                   alwaysExits(last.elseBody);
+        case StKind::Match: {
+            if (last.arms.empty()) return false;
+            for (const auto& arm : last.arms)
+                if (!alwaysExits(arm.body)) return false;
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+void Checker::narrowApply(const ast::Expr* c, bool positive,
+                          std::map<const Symbol*, TyP>& out) {
+    if (!c) return;
+    if (c->kind == ExKind::Unary && c->op == "not") {
+        narrowApply(c->rhs.get(), !positive, out);
+        return;
+    }
+    if (c->kind != ExKind::Binary) return;
+    const std::string& op = c->op;
+    if (op == "and") {
+        if (positive) {
+            narrowApply(c->lhs.get(), true, out);
+            narrowApply(c->rhs.get(), true, out);
+        }
+        return;
+    }
+    if (op == "or") {
+        if (!positive) {
+            narrowApply(c->lhs.get(), false, out);
+            narrowApply(c->rhs.get(), false, out);
+        }
+        return;
+    }
+    if (op != "is" && op != "==" && op != "!=") return;
+    const ast::Expr* subj = c->lhs.get();
+    const ast::Expr* obj = c->rhs.get();
+    if (!subj || !obj || subj->kind != ExKind::Ident) return;
+    bool pos = (op == "!=") ? !positive : positive;
+    bool noneRhs = obj->kind == ExKind::Ident && obj->text == "none";
+    if (op == "==" || op == "!=") {
+        if (!noneRhs) return;               // only none-equality narrows
+    } else if (!noneRhs && obj->kind != ExKind::Ident) {
+        return;
+    }
+    Symbol* sym = scope_->find(subj->text);
+    if (!sym) return;
+    if (sym->mut) {
+        warning(SpanRange::point(subj->span.line, subj->span.col), "W-narrow",
+                "flow narrowing skipped for mutable binding '" + subj->text +
+                    "' (bind it with const to enable narrowing)");
+        return;
+    }
+    TyP cur = sym->type ? sym->type : unkTy();
+    if (noneRhs) {
+        if (pos) out[sym] = noneTy();
+        else out[sym] = unwrapOpt(cur);
+        return;
+    }
+    auto tmp = std::make_unique<ast::Type>();
+    tmp->kind = ast::TyKind::Name;
+    tmp->name = obj->text;
+    tmp->span = obj->span;
+    ++quiet_;
+    TyP narrowedT = resolveType(ast::TypeP(std::move(tmp)));
+    --quiet_;
+    if (narrowedT && !narrowedT->isError() && !narrowedT->isUnknown()) {
+        if (pos) out[sym] = narrowedT;
+    }
+}
+
+void Checker::checkReassignable(const ast::Expr& tgt) {    if (tgt.kind != ExKind::Ident) return;      // index/member targets: v1 lenient
     Symbol* ex = scope_->find(tgt.text);
     if (!ex) return;                            // fresh binding via assignment
     ex->mutated = true;
@@ -1904,6 +2014,7 @@ void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
                 return;
             }
             checkReassignable(tgt);
+            narrowed_.erase(ex);
             typeCache_[&tgt] = ex->type ? ex->type : unkTy();
             break;
         }
@@ -2490,18 +2601,36 @@ void Checker::checkStmt(const ast::Stmt& s) {
             break;
 
         case StKind::If: {
-            if (!s.exprs.empty()) requireBool(checkExpr(*s.exprs[0]),
-                                              s.span.line, s.span.col,
-                                              "if condition");
+            const ast::Expr* cond =
+                s.exprs.empty() ? nullptr : s.exprs[0].get();
+            if (cond) requireBool(checkExpr(*cond), s.span.line, s.span.col,
+                                  "if condition");
+            std::map<const Symbol*, TyP> thenF, elseF;
+            if (cond) {
+                narrowApply(cond, true, thenF);
+                narrowApply(cond, false, elseF);
+            }
+            std::map<const Symbol*, TyP> saved = narrowed_;
+            for (const auto& kv : thenF) narrowed_[kv.first] = kv.second;
             push();
             checkBlock(s.body);
             pop();
+            bool thenExits = alwaysExits(s.body);
+            narrowed_ = saved;
+            for (const auto& kv : elseF) narrowed_[kv.first] = kv.second;
             // elif chains are nested as synthetic If statements in elseBody[0]
             if (!s.elseBody.empty()) {
                 push();
                 checkBlock(s.elseBody);
                 pop();
             }
+            bool elseExits = !s.elseBody.empty() && alwaysExits(s.elseBody);
+            narrowed_ = saved;
+            // Early exit: `if !(cond) { return } rest` leaves the then-facts
+            // (equivalently, the else facts restricted by the exit) live on the
+            // fall-through path.
+            if (thenExits && !elseExits)
+                for (const auto& kv : elseF) narrowed_[kv.first] = kv.second;
             break;
         }
 
@@ -2818,6 +2947,8 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 // bare enum name is not a value; tolerate for now
                 return unkTy();
             }
+            auto nit = narrowed_.find(sym);
+            if (nit != narrowed_.end()) return nit->second;
             return sym->type ? sym->type : unkTy();
         }
 
@@ -3024,6 +3155,63 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             return errTy();
         }
 
+        case ExKind::SafeIndex: {
+            TyP obj = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            TyP idx = e.rhs ? checkExpr(*e.rhs) : unkTy();
+            if (dynish(obj)) return optTy(unkTy());
+            if (!obj->is(TyK::Opt))
+                error(e.span,
+                      "'.?[' expects an optional, got " + toString(*obj));
+            TyP base = unwrapOpt(obj);
+            TyP elem = unkTy();
+            if (base->is(TyK::List)) {
+                if (!dynish(idx) && !idx->is(TyK::Int))
+                    error(e.span, "list index must be an integer");
+                elem = argAt(base, 0);
+            } else if (base->is(TyK::Dict)) {
+                elem = argAt(base, 1);
+            } else if (base->is(TyK::Str)) {
+                elem = charTy();
+            } else if (base->is(TyK::Tuple)) {
+                long i = -1;
+                try {
+                    if (e.rhs) i = std::stol(e.rhs->text);
+                } catch (...) {}
+                if (i >= 0 && static_cast<size_t>(i) < base->args.size())
+                    elem = base->args[static_cast<size_t>(i)];
+            } else if (!dynish(base)) {
+                error(e.span, "cannot safely index a value of type " +
+                                  toString(*obj));
+                return errTy();
+            }
+            return collapseOpt(elem);
+        }
+
+        case ExKind::SafeCall: {
+            TyP ct = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            for (const auto& a : e.args) checkExpr(*a.value);
+            if (dynish(ct)) return collapseOpt(unkTy());
+            if (!ct->is(TyK::Opt))
+                error(e.span,
+                      "'.?(' expects an optional, got " + toString(*ct));
+            TyP base = unwrapOpt(ct);
+            TyP ret = unkTy();
+            if (base && base->is(TyK::Fn)) {
+                FuncSig s;
+                s.params = base->args;
+                s.names.assign(base->args.size(), "");
+                s.ret = base->inner;
+                s.required = base->args.size();
+                matchArgs(s, e.args, e.span.line, e.span.col, "safe call");
+                ret = base->inner ? base->inner : unkTy();
+            } else if (!dynish(base)) {
+                error(e.span, "expression of type " + toString(*ct) +
+                                  " is not safely callable");
+                return errTy();
+            }
+            return collapseOpt(ret);
+        }
+
         case ExKind::Slice: {
             TyP obj = e.lhs ? checkExpr(*e.lhs) : unkTy();
             for (const auto& b : e.elems)
@@ -3101,9 +3289,55 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
         case ExKind::ListComp: {
             push();
             for (const auto& cl : e.clauses) compClause(cl, e.span.line);
-            TyP et = !e.elems.empty() ? checkExpr(*e.elems[0]) : unkTy();
+            TyP et = unkTy();
+            if (!e.elems.empty() && e.elems[0]) {
+                const ast::Expr& el = *e.elems[0];
+                et = (el.kind == ExKind::Spread)
+                         ? unpackElem(el, "list comprehension unpacking")
+                         : checkExpr(el);
+            }
             pop();
-            return listTy(et);
+            return listTy(et ? et : unkTy());
+        }
+
+        case ExKind::SetComp: {
+            push();
+            for (const auto& cl : e.clauses) compClause(cl, e.span.line);
+            TyP et = unkTy();
+            if (!e.elems.empty() && e.elems[0]) {
+                const ast::Expr& el = *e.elems[0];
+                et = el.kind == ExKind::Spread
+                         ? unpackElem(el, "set comprehension unpacking")
+                         : checkExpr(el);
+            }
+            pop();
+            return setTy(et ? et : unkTy());
+        }
+
+        case ExKind::DictComp: {
+            push();
+            for (const auto& cl : e.clauses) compClause(cl, e.span.line);
+            TyP kt, vt;
+            if (!e.elems.empty() && e.elems[0] &&
+                e.elems[0]->kind == ExKind::Spread) {
+                TyP src = checkExpr(*e.elems[0]->lhs);
+                if (!dynish(src)) {
+                    if (src->is(TyK::Dict)) {
+                        kt = argAt(src, 0);
+                        vt = argAt(src, 1);
+                    } else {
+                        error(e.elems[0]->span,
+                              "dict unpacking requires a dict, got " +
+                                  toString(*src));
+                    }
+                }
+            } else {
+                kt = (!e.elems.empty() && e.elems[0]) ? checkExpr(*e.elems[0])
+                                                       : unkTy();
+                vt = e.value ? checkExpr(*e.value) : unkTy();
+            }
+            pop();
+            return dictTy(kt ? kt : unkTy(), vt ? vt : unkTy());
         }
 
         case ExKind::Generator: {
@@ -3116,30 +3350,57 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
 
         case ExKind::List: {
             TyP elem;
-            for (const auto& el : e.elems)
-                elem = unify(elem, checkExpr(*el), el->span.line, el->span.col,
+            for (const auto& el : e.elems) {
+                TyP et = el->kind == ExKind::Spread
+                             ? unpackElem(*el, "list unpacking")
+                             : checkExpr(*el);
+                elem = unify(elem, et, el->span.line, el->span.col,
                              "list elements");
+            }
             return listTy(elem ? elem : unkTy());
         }
 
         case ExKind::Set: {
             TyP elem;
-            for (const auto& el : e.elems)
-                elem = unify(elem, checkExpr(*el), el->span.line, el->span.col,
+            for (const auto& el : e.elems) {
+                TyP et = el->kind == ExKind::Spread
+                             ? unpackElem(*el, "set unpacking")
+                             : checkExpr(*el);
+                elem = unify(elem, et, el->span.line, el->span.col,
                              "set elements");
+            }
             return setTy(elem ? elem : unkTy());
         }
 
         case ExKind::Dict: {
             TyP kt, vt;
             for (const auto& pr : e.pairs) {
+                if (pr.first && pr.first->kind == ExKind::Spread) {
+                    TyP src = checkExpr(*pr.first->lhs);
+                    if (dynish(src)) continue;
+                    if (!src->is(TyK::Dict)) {
+                        error(pr.first->span,
+                              "dict unpacking requires a dict, got " +
+                                  toString(*src));
+                        continue;
+                    }
+                    kt = unify(kt, argAt(src, 0), pr.first->span.line,
+                               pr.first->span.col, "dict keys");
+                    vt = unify(vt, argAt(src, 1), pr.first->span.line,
+                               pr.first->span.col, "dict values");
+                    continue;
+                }
                 kt = unify(kt, checkExpr(*pr.first), pr.first->span.line,
                            pr.first->span.col, "dict keys");
-                vt = unify(vt, checkExpr(*pr.second), pr.second->span.line,
-                           pr.second->span.col, "dict values");
+                if (pr.second)
+                    vt = unify(vt, checkExpr(*pr.second), pr.second->span.line,
+                               pr.second->span.col, "dict values");
             }
             return dictTy(kt ? kt : unkTy(), vt ? vt : unkTy());
         }
+
+        case ExKind::Spread:                          // only valid as an operand
+            return e.lhs ? checkExpr(*e.lhs) : unkTy();
 
         case ExKind::Tuple: {
             std::vector<TyP> items;

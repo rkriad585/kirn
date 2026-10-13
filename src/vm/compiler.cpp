@@ -650,6 +650,8 @@ public:
             }
             case ExKind::New: case ExKind::Cast: case ExKind::Lambda:
             case ExKind::FString: case ExKind::ListComp: case ExKind::Generator:
+            case ExKind::SetComp: case ExKind::DictComp: case ExKind::Spread:
+            case ExKind::SafeIndex: case ExKind::SafeCall:
                 em.f.interpreted = true;
                 em.emit(OP_NONEZ);
                 break;

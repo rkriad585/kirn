@@ -1,0 +1,18 @@
+# vm_parity — M3 comprehensions, `*`/`**` unpacking, and `.?` chaining must
+# produce identical output on the tree-walker and the VM.
+fn main() -> none {
+    a = [1, 2, 3];
+    b = [4, 5];
+
+    print([*a, *b]);                        # [1, 2, 3, 4, 5]
+    print({*a, *b});                        # {1, 2, 3, 4, 5}
+    print([x * 2 for x in a if x > 1]);     # [4, 6]
+    print({x % 2 for x in 0..6});           # {0, 1}
+    print({k: k + 1 for k in 0..3});        # {0: 1, 1: 2, 2: 3}
+    print([*inner for inner in [[1], [2, 3]]]);  # [1, 2, 3]
+
+    m: dict? = {"a": 10};
+    print(m .?["a"]);                       # 10
+    gone: dict? = none;
+    print(gone .?["a"]);                    # none
+}

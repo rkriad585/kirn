@@ -2848,6 +2848,8 @@ struct SasmEmitter {
                 return "fn[" + std::to_string(t->params.size()) + " args]";
             case kirn::ast::TyKind::Tuple:
                 return "(" + std::to_string(t->params.size()) + ")";
+            case kirn::ast::TyKind::TypeOf:
+                return "typeof(...)";
         }
         return "<type>";
     }
@@ -2951,7 +2953,23 @@ struct SasmEmitter {
                 break;
             case ET::ListComp:
             case ET::Generator:
+            case ET::DictComp:
+            case ET::SetComp:
                 out << nl("; comprehension elided");
+                break;
+            case ET::Spread:
+                expr(*e.lhs);
+                out << nl(e.doubleStar ? "SPREAD_DICT" : "SPREAD_LIST");
+                break;
+            case ET::SafeIndex:
+                expr(*e.lhs);
+                expr(*e.rhs);
+                out << nl("SAFE_INDEX_GET");
+                break;
+            case ET::SafeCall:
+                expr(*e.lhs);
+                for (const auto& a : e.args) expr(*a.value);
+                out << nl("SAFE_CALL [" + std::to_string(e.args.size()) + "]");
                 break;
             case ET::New:
                 for (const auto& a : e.args) expr(*a.value);

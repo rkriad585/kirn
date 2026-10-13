@@ -25,7 +25,7 @@ struct Span {
 
 // ---- Types ----------------------------------------------------------------
 
-enum class TyKind { Name, Pointer, Ref, Optional, Fn, Tuple };
+enum class TyKind { Name, Pointer, Ref, Optional, Fn, Tuple, TypeOf };
 
 struct Type {
     TyKind kind{};
@@ -37,12 +37,14 @@ struct Type {
     bool refMut = false;              // Ref: &mut
     std::vector<TypeP> params;        // Fn params / Tuple elems
     TypeP ret;                        // Fn return (may be null)
+    ExprP typeExpr;                   // TypeOf: `typeof(expr)` in type position
 
     static TypeP makeName(std::string n, Span s, std::vector<TypeP> gens = {});
     static TypeP makePointer(TypeP t, Span s);
     static TypeP makeRef(TypeP t, bool mut, Span s);
     static TypeP makeOptional(TypeP t, Span s);
     static TypeP makeFn(std::vector<TypeP> ps, TypeP r, Span s);
+    static TypeP makeTypeOf(ExprP expr, Span s);
     static TypeP makeTuple(std::vector<TypeP> ts, Span s);
 };
 
@@ -87,6 +89,10 @@ enum class ExKind {
     // M1 expression operators (pure sugar). AssignExpr = walrus `(x := E)`;
     // Pipe = `a |> body` with Topic `%` naming the piped value; Coalesce = `??`.
     AssignExpr, Pipe, Coalesce, Topic,
+    // M3 collections & access sugar. DictComp/SetComp extend ListComp's clause
+    // walk; Spread is `*expr`/`**expr` in displays and comp elements; SafeIndex
+    // and SafeCall are the `.?[i]` / `.?()` nil-safe forms.
+    DictComp, SetComp, Spread, SafeIndex, SafeCall,
 };
 
 enum class StrFlavor { Normal, Raw, Byte, C };
@@ -143,7 +149,9 @@ struct Expr {
     ExprP lhs, rhs;                   // Unary(rhs only) / Binary / Member(obj) /
                                       // Call(callee=lhs) / Index / Try / Cond
     std::string op;                   // Unary/Binary op spelling (".." "..=" too)
-    bool nilSafe = false;             // Member via .?.
+    bool nilSafe = false;             // Member via .?. / SafeIndex / SafeCall
+    bool doubleStar = false;          // Spread: `**expr` (true) vs `*expr`
+    ExprP value;                      // DictComp element value
     bool paren = false;               // node was explicitly parenthesized
                                       // (parser-only; used for E-COALESCE-MIX)
 

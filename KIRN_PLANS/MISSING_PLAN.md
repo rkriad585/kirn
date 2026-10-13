@@ -98,6 +98,13 @@ rational/decimal, bytes spelling+methods, deque/Counter/heap, `sync` primitives,
 `typeof`. The **explicitly rejected** work is `++/--` and `?:` ternary (ratified below so they stay
 out).
 
+**Implementation progress (2026-10-13).** M1, M2 and M3 are implemented in `src/` and green on the
+full gate (`scripts/gates_linux.sh`, 213), golden (`scripts/golden_linux.sh`, 224) and stdlib
+(`kirn test stdlib/pet`, 9) suites, so rows 1, 2, 3, 6, 7, 8, 9 and 19 above are now done. The
+audited table is kept as the historical baseline. Recorded deviations from the M3 text: safe
+navigation is spelled `.?[` / `.?(` (not `?.[` / `?.()`), and `typeof` is not on the VM builtin
+allowlist, so calls fall back to the interpreter. See the per-phase notes below.
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -423,6 +430,19 @@ differential VM ≡ tree-walker; corpus green.
 
 **Expected result:** dict/set comps (with `*/**`), `?.`/`?.[i]`/`?.()`, branch narrowing, and `typeof`
 all run; existing behavior unchanged.
+
+**Implemented (2026-10-13).** Landed with the decided semantics: dict/set comps reuse the
+`ListComp`/`CompClause` path with key-before-value for `{k: v for …}`; `*`/`**` unpacking follows
+PEP 448/798 in list/set/dict literals and comprehensions; safe navigation is spelled `.?[` (index)
+and `.?(` (call) alongside the existing `.?.` member form; narrowing is a full P/N lattice over
+`is none`/`== none`/`is T` with `&&`/`||`/`and`/`or`/`not` and early-exit, emitting `W-narrow`
+for `var` bindings (no TypeGuard yet); `typeof(expr)` works in value and type position. Sets are
+true sets and dict duplicate keys are last-wins on every construction path. Tests:
+`tests/syntax/comprehensions_ok`, `comprehension_spread_ok`, `safe_nav_ok`, `narrow_ok`,
+`typeof_type_ok` and `*_err_*` negatives; `tests/vm_parity/collections.kn`;
+`examples/47_collection_ops.kn`. HIR/MIR/LLVM do not lower the new expression kinds (they emit
+well-formed `Error` nodes); that is deferred to M11, as the interpreter and bytecode VM are the
+execution paths for this surface.
 
 ---
 

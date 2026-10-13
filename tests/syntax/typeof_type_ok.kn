@@ -1,0 +1,13 @@
+# typeof_type_ok — M3: `typeof(expr)` in type position resolves to the
+# expression's inferred type (the value form `typeof(expr)` stays a string).
+fn main() -> none {
+    a = [1, 2, 3];
+    b: typeof(a) = [4, 5];
+    print(b);                               # [4, 5]
+
+    n = 3;
+    m: typeof(n) = 8;
+    print(m + 1);                           # 9
+
+    print(typeof(a));                       # list
+}

@@ -1,0 +1,7 @@
+# expect: dict unpacking requires a dict
+# `**` in a dict/set context merges a mapping; a plain iterable is rejected.
+fn main() -> none {
+    xs = [1, 2, 3];
+    d = {**xs};
+    print(d);
+}

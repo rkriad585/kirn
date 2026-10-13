@@ -63,6 +63,9 @@ void typeInto(const Type& t, std::string& out) {
             if (t.inner) typeInto(*t.inner, out);
             out += '?';
             break;
+        case TyKind::TypeOf:
+            out += "typeof(...)";
+            break;
         case TyKind::Fn: {
             out += "fn(";
             for (size_t i = 0; i < t.params.size(); ++i) {
@@ -116,6 +119,11 @@ const char* exName(ExKind k) {
         case ExKind::Cond:      return "Cond";
         case ExKind::ListComp:  return "ListComp";
         case ExKind::Generator: return "Generator";
+        case ExKind::DictComp:  return "DictComp";
+        case ExKind::SetComp:   return "SetComp";
+        case ExKind::Spread:    return "Spread";
+        case ExKind::SafeIndex: return "SafeIndex";
+        case ExKind::SafeCall:  return "SafeCall";
         case ExKind::List:      return "List";
         case ExKind::Dict:      return "Dict";
         case ExKind::Set:       return "Set";
@@ -274,9 +282,31 @@ void dumpExpr(const Expr& e, int d) {
             return;
         case ExKind::ListComp:
         case ExKind::Generator:
+        case ExKind::SetComp:
+        case ExKind::DictComp:
             std::cout << ind(d) << exName(e.kind) << '\n';
             if (!e.elems.empty()) childExpr("Element", e.elems[0], d + 1);
+            if (e.value) childExpr("Value", e.value, d + 1);
             for (const auto& c : e.clauses) dumpClause(c, d + 1);
+            return;
+        case ExKind::Spread:
+            std::cout << ind(d) << (e.doubleStar ? "Spread **" : "Spread *")
+                      << '\n';
+            childExpr("Operand", e.lhs, d + 1);
+            return;
+        case ExKind::SafeIndex:
+            std::cout << ind(d) << "SafeIndex\n";
+            childExpr("Object", e.lhs, d + 1);
+            childExpr("Index", e.rhs, d + 1);
+            return;
+        case ExKind::SafeCall:
+            std::cout << ind(d) << "SafeCall\n";
+            childExpr("Callee", e.lhs, d + 1);
+            for (const auto& a : e.args) {
+                std::cout << ind(d + 1) << "Arg"
+                          << (a.name.empty() ? "" : " name=" + a.name) << '\n';
+                if (a.value) childExpr("Value", a.value, d + 2);
+            }
             return;
         case ExKind::List:
         case ExKind::Set:

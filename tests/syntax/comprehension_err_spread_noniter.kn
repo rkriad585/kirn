@@ -1,0 +1,6 @@
+# expect: requires an iterable
+# `*` unpacking needs an iterable operand; an Int is not.
+fn main() -> none {
+    xs = [*5];
+    print(xs);
+}

@@ -369,6 +369,16 @@ struct Lowerer {
             case ast::ExKind::Dict: {
                 payload::DictLit d;
                 for (const auto& kv : e.pairs) {
+                    // A `**spread` entry is stored with a null value (see the
+                    // `{` arm in parser.cpp: dictRest / leading `**`). It merges
+                    // a mapping, which HIR does not lower yet; emit a
+                    // well-formed Error node rather than dereferencing null.
+                    if (!kv.second) {
+                        d.keys.push_back(mk(ExprKind::Error, sp, ty,
+                            payload::Error{"dict unpacking (**) is not lowered in HIR"}));
+                        d.values.push_back(nullptr);
+                        continue;
+                    }
                     d.keys.push_back(lower(*kv.first));
                     d.values.push_back(lower(*kv.second));
                 }
@@ -423,6 +433,17 @@ struct Lowerer {
                 popScope();
                 return mk(ExprKind::Match, sp, ty, std::move(m));
             }
+            // M3 sugar runs on the interpreter and the bytecode VM; the native
+            // (HIR/MIR) path does not lower it yet. These are explicit so the
+            // dump says why, instead of falling through to the generic
+            // "unhandled expression kind". The verifier accepts Error nodes.
+            case ast::ExKind::Spread:
+            case ast::ExKind::SafeIndex:
+            case ast::ExKind::SafeCall:
+            case ast::ExKind::SetComp:
+            case ast::ExKind::DictComp:
+                return mk(ExprKind::Error, sp, ty,
+                    payload::Error{"expression kind is interpreter/VM only, not lowered in HIR"});
         }
         return mk(ExprKind::Error, sp, ty, payload::Error{"unhandled expression kind"});
     }

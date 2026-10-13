@@ -1,0 +1,25 @@
+# safe_nav_ok — M3: optional chaining `.?.` (existing) plus `.?[` safe-index
+# and `.?(` safe-call. Positive: warning-free, tree-walker and VM agree.
+fn id(x: Int) -> Int {
+    return x;
+}
+
+fn main() -> none {
+    xs: list[Int]? = [10, 20, 30];
+    print(xs .?[1]);                        # 20
+
+    d: dict? = {"x": 1};
+    print(d .?["x"]);                       # 1
+
+    empty: dict? = none;
+    print(empty .?["x"]);                   # none
+
+    missing: list[Int]? = none;
+    print(missing .?[0]);                   # none
+
+    f: (fn(Int) -> Int)? = none;
+    print(f .?(3));                         # none
+
+    g: (fn(Int) -> Int)? = id;
+    print(g .?(7));                         # 7
+}

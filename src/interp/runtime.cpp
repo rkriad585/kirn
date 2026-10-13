@@ -79,6 +79,30 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
 static bool valEq(const Value& a, const Value& b);
 static bool valLess(const Value& a, const Value& b);
 
+// M3: sets are true sets — every construction path dedupes (previously only
+// `add`/`insert` did, so literals/comprehensions kept duplicates). O(n^2) but
+// set construction is not a hot loop.
+static Value makeSet(std::vector<Value> items) {
+    std::vector<Value> out;
+    out.reserve(items.size());
+    for (auto& v : items) {
+        bool dup = false;
+        for (auto& e : out)
+            if (valEq(e, v)) { dup = true; break; }
+        if (!dup) out.push_back(std::move(v));
+    }
+    return Value::set(std::move(out));
+}
+
+// M3: dict insertion is last-wins (Python/PEP 448), preserving the first
+// insertion position. Replaces the old tree-walker panic on duplicate literal
+// keys, which also diverged from the VM (which kept both).
+static void dictPutInPlace(Value& d, Value key, Value val) {
+    for (auto& kv : *d.map)
+        if (valEq(kv.first, key)) { kv.second = std::move(val); return; }
+    d.map->emplace_back(std::move(key), std::move(val));
+}
+
 // ---------------------------------------------------------------------------
 // environments & small helpers
 // ---------------------------------------------------------------------------
@@ -3144,6 +3168,63 @@ Value cv = eval(*e.lhs, env);
             return sliceOf(obj, lo, hi, false, step);
         }
 
+        case ast::ExKind::SafeIndex: {
+            Value obj = eval(*e.lhs, env);
+            if (obj.k == VK::Weak) obj = lockHeap(obj);
+            if (obj.isNone()) return Value::none();
+            if (e.rhs->kind == ast::ExKind::Binary &&
+                (e.rhs->op == ".." || e.rhs->op == "..=")) {
+                int64_t lo = eval(*e.rhs->lhs, env).i;
+                int64_t hi = e.rhs->rhs ? eval(*e.rhs->rhs, env).i : -1;
+                return sliceOf(obj, lo, hi, e.rhs->op == "..=", 1);
+            }
+            Value idx = eval(*e.rhs, env);
+            switch (obj.k) {
+                case VK::List:
+                case VK::Tuple:
+                    return (*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)];
+                case VK::Dict:
+                    for (const auto& kv : *obj.map)
+                        if (valuesEqual(kv.first, idx)) return kv.second;
+                    panicHere("dict key not found");
+                case VK::Str:
+                case VK::Bytes: {
+                    size_t n = normIndex((int64_t)obj.s.size(), idx.i);
+                    if (obj.k == VK::Bytes)
+                        return Value::integer((unsigned char)obj.s[n]);
+                    return Value::chr(decodeCharText(obj.s.substr(n, 1)));
+                }
+                default: {
+                    if (obj.k == VK::Struct || obj.k == VK::Heap)
+                        return invokeMethod(obj, "index", {idx}, {}, env,
+                                            e.span.line, e.span.col, nullptr);
+                    panicHere("value is not indexable");
+                }
+            }
+        }
+
+        case ast::ExKind::SafeCall: {
+            Value cv = eval(*e.lhs, env);
+            if (cv.isNone()) return Value::none();
+            std::vector<Value> pos;
+            NamedArgs named;
+            for (const auto& a : e.args) {
+                if (a.name.empty()) pos.push_back(eval(*a.value, env));
+                else named.emplace_back(a.name, eval(*a.value, env));
+            }
+            if (!named.empty() && cv.k == VK::Builtin && !cv.biParams.empty()) {
+                mapNamedIntoPos(cv.biParams, pos, named);
+                named.clear();
+            }
+            if (cv.k == VK::Fn && cv.fn) {
+                CallFrameGuard guard(cv.fn->name, e.span.line, e.span.col);
+                return runFunc(cv.fn, std::move(pos), std::move(named),
+                               cv.env ? cv.env : globals_);
+            }
+            return callValue(std::move(cv), std::move(pos), e.span.line,
+                             e.span.col);
+        }
+
         case ast::ExKind::Member: {
             Value recv = eval(*e.lhs, env);
             if (recv.k == VK::Weak) recv = lockHeap(recv);
@@ -3189,12 +3270,25 @@ Value cv = eval(*e.lhs, env);
                                               : eval(*e.rhs, env);
 
         case ast::ExKind::ListComp:
+        case ast::ExKind::SetComp:
         case ast::ExKind::Generator: {
             std::vector<Value> out;
             std::function<void(size_t, Env)> walk =
                 [&](size_t ci, Env cenv) {
                     if (ci >= e.clauses.size()) {
-                        out.push_back(eval(*e.elems[0], cenv));
+                        const Expr& el = *e.elems[0];
+                        if (el.kind == ast::ExKind::Spread) {
+                            Value seq = eval(*el.lhs, cenv);
+                            iterateSeq(
+                                seq,
+                                [&](Value& item, Env&) {
+                                    out.push_back(item);
+                                    return true;
+                                },
+                                cenv);
+                        } else {
+                            out.push_back(eval(el, cenv));
+                        }
                         return;
                     }
                     const ast::CompClause& cl = e.clauses[ci];
@@ -3216,32 +3310,86 @@ Value cv = eval(*e.lhs, env);
             walk(0, makeChild(env));
             if (e.kind == ast::ExKind::Generator)
                 return Value::tuple(std::move(out));
+            if (e.kind == ast::ExKind::SetComp) return makeSet(std::move(out));
             return Value::list(std::move(out));
         }
 
-        case ast::ExKind::List:
-        case ast::ExKind::Set: {
-            std::vector<Value> items;
-            for (const auto& el : e.elems) items.push_back(eval(*el, env));
-            return e.kind == ast::ExKind::Set ? Value::set(std::move(items))
-                                              : Value::list(std::move(items));
+        case ast::ExKind::DictComp: {
+            Value d = Value::dict();
+            std::function<void(size_t, Env)> walk =
+                [&](size_t ci, Env cenv) {
+                    if (ci >= e.clauses.size()) {
+                        const Expr& el = *e.elems[0];
+                        if (el.kind == ast::ExKind::Spread) {
+                            Value src = eval(*el.lhs, cenv);
+                            if (src.k == VK::Dict && src.map)
+                                for (const auto& kv : *src.map)
+                                    dictPutInPlace(d, kv.first, kv.second);
+                        } else {
+                            Value key = eval(el, cenv);
+                            dictPutInPlace(d, std::move(key),
+                                           e.value ? eval(*e.value, cenv)
+                                                   : Value::none());
+                        }
+                        return;
+                    }
+                    const ast::CompClause& cl = e.clauses[ci];
+                    if (cl.isFor) {
+                        Value seq = eval(*cl.iter, cenv);
+                        iterateSeq(
+                            seq,
+                            [&](Value& item, Env&) {
+                                Env inner = makeChild(cenv);
+                                bindPat(*cl.pat, item, inner);
+                                walk(ci + 1, inner);
+                                return true;
+                            },
+                            cenv);
+                    } else {
+                        if (truthy(eval(*cl.cond, cenv))) walk(ci + 1, cenv);
+                    }
+                };
+            walk(0, makeChild(env));
+            return d;
         }
 
+        case ast::ExKind::Spread:
+            // A Spread is folded by its enclosing display; if one is evaluated
+            // directly, yield the operand unchanged.
+            return e.lhs ? eval(*e.lhs, env) : Value::none();
+
+        case ast::ExKind::List:
+        case ast::ExKind::Set:
         case ast::ExKind::Tuple: {
             std::vector<Value> items;
-            for (const auto& el : e.elems) items.push_back(eval(*el, env));
-            return Value::tuple(std::move(items));
+            for (const auto& el : e.elems) {
+                if (el->kind == ast::ExKind::Spread) {
+                    Value seq = eval(*el->lhs, env);
+                    iterateSeq(seq, [&](Value& item, Env&) {
+                        items.push_back(item);
+                        return true;
+                    }, env);
+                } else {
+                    items.push_back(eval(*el, env));
+                }
+            }
+            if (e.kind == ast::ExKind::Set) return makeSet(std::move(items));
+            if (e.kind == ast::ExKind::Tuple) return Value::tuple(std::move(items));
+            return Value::list(std::move(items));
         }
 
         case ast::ExKind::Dict: {
             Value d = Value::dict();
             for (const auto& pr : e.pairs) {
+                if (pr.first && pr.first->kind == ast::ExKind::Spread) {
+                    Value src = eval(*pr.first->lhs, env);
+                    if (src.k == VK::Dict && src.map)
+                        for (const auto& kv : *src.map)
+                            dictPutInPlace(d, kv.first, kv.second);
+                    continue;
+                }
                 Value key = eval(*pr.first, env);
-                for (auto& kv : *d.map)
-                    if (valuesEqual(kv.first, key)) {
-                        panicHere("duplicate dict key in literal");
-                    }
-                d.map->emplace_back(std::move(key), eval(*pr.second, env));
+                dictPutInPlace(d, std::move(key), eval(*pr.second, env));
             }
             return d;
         }
@@ -3440,7 +3588,7 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
         return r;
     }
     if (obj.k == VK::Tuple) return Value::tuple(std::move(items));
-    if (obj.k == VK::Set)   return Value::set(std::move(items));
+    if (obj.k == VK::Set)   return makeSet(std::move(items));
     return Value::list(std::move(items));
 }
 
@@ -4205,7 +4353,7 @@ return Value::none();
                                 if (valEq(o, el)) { found = true; break; }
                             if (!found) out.push_back(el);
                         }
-                    return Value::set(std::move(out));
+                    return makeSet(std::move(out));
                 });
             if (name == "len")
                 return bind({}, [](std::vector<Value>& a) -> Value {
@@ -5471,7 +5619,7 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                     if (valEq(o, el)) { found = true; break; }
                 if (!found) out.push_back(el);
             }
-            return Value::set(std::move(out));
+            return makeSet(std::move(out));
         }
     }
     if (op == "^") {
@@ -6938,18 +7086,24 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                 std::vector<Value> vs((size_t)ins.a);
                 for (int32_t i = ins.a - 1; i >= 0; --i) vs[(size_t)i] = pop().take();
                 if (ins.op == OP_MAKE_LIST) push(fromVal(Value::list(std::move(vs))));
-                else if (ins.op == OP_MAKE_SET) push(fromVal(Value::set(std::move(vs))));
+                else if (ins.op == OP_MAKE_SET) push(fromVal(makeSet(std::move(vs))));
                 else push(fromVal(Value::tuple(std::move(vs))));
                 break;
             }
 
             case OP_MAKE_DICT: {
                 Value d = Value::dict();
+                // Stack holds k1 v1 k2 v2 ... so pop reverses; replay in
+                // original order so last-wins matches the tree-walker.
+                std::vector<std::pair<Value, Value>> items;
+                items.reserve((size_t)ins.a);
                 for (int32_t i = 0; i < ins.a; ++i) {
                     Value val = pop().take();
                     Value key = pop().take();
-                    d.map->emplace_back(std::move(key), std::move(val));
+                    items.emplace_back(std::move(key), std::move(val));
                 }
+                for (auto it = items.rbegin(); it != items.rend(); ++it)
+                    dictPutInPlace(d, std::move(it->first), std::move(it->second));
                 push(fromVal(std::move(d)));
                 break;
             }

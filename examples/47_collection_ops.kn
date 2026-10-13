@@ -1,0 +1,47 @@
+# 47_collection_ops — building and combining collections (M3):
+#   * comprehensions: [e for ...], {e for ...}, {k: v for ...}
+#   * unpacking: [*xs], {*xs}, {**m}   (PEP 448/798)
+#   * optional helpers: `.?[` safe-index and `.?(` safe-call
+#
+# `print` of a set is order-stable for small ints; tuples print as (a, b).
+
+fn square(n: Int) -> Int {
+    return n * n;
+}
+
+fn maybeFirst(xs: list[Int]?) -> Int? {
+    return xs .?[0];
+}
+
+fn main() -> none {
+    # 1. comprehension pipelines
+    xs = [1, 2, 3, 4, 5];
+    squares = [square(x) for x in xs];
+    odds = [x for x in xs if x % 2 == 1];
+    byParity = {x: x % 2 for x in xs};
+    residues = {x % 3 for x in xs};
+    print(squares);                         # [1, 4, 9, 16, 25]
+    print(odds);                            # [1, 3, 5]
+    print(byParity);                        # {1: 1, 2: 0, 3: 1, 4: 0, 5: 1}
+    print(residues);                        # {1, 2, 0}
+
+    # 2. unpacking composes literals without mutation
+    head = [0];
+    tail = [6, 7];
+    combined = [*head, *xs, *tail];
+    print(combined);                        # [0, 1, 2, 3, 4, 5, 6, 7]
+
+    defaults = {"retries": 3, "timeout": 30};
+    overrides = {"timeout": 5};
+    config = {**defaults, **overrides};
+    print(config["retries"], config["timeout"]);   # 3 5
+
+    # 3. flatten nested sequences in one expression
+    matrix = [[1, 2], [3, 4], [5]];
+    flattened = [*row for row in matrix];
+    print(flattened);                       # [1, 2, 3, 4, 5]
+
+    # 4. optional chains short-circuit to none
+    print(maybeFirst([10, 20]));            # 10
+    print(maybeFirst(none));                # none
+}

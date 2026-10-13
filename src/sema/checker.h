@@ -172,6 +172,22 @@ private:
     TyP memberAccess(const TyP& obj, const std::string& name, uint32_t line,
                      uint32_t col, bool nilSafe);
 
+    // ---- M3: flow-sensitive narrowing ----
+    // Applies the facts a condition `c` establishes (when `positive` is true
+    // for the then-branch, false for the else-branch) into `out`, keyed by
+    // symbol. Only stable (non-`var`) bindings are narrowed; a `var` subject
+    // yields W-narrow instead.
+    void narrowApply(const ast::Expr* c, bool positive,
+                     std::map<const Symbol*, TyP>& out);
+    // True when a block definitely transfers control (return/raise/break/
+    // continue) on every path that reaches its end.
+    bool alwaysExits(const std::vector<ast::StmtP>& body) const;
+    // Opt[T] -> T, collapsing a nested optional; passthrough otherwise.
+    TyP collapseOpt(const TyP& t) const;
+    // M3: element type contributed by a `*expr` unpack in a list/set
+    // display or comprehension; reports when the operand is not iterable.
+    TyP unpackElem(const ast::Expr& spread, const char* where);
+
     // ---- helpers ----
     SymP declareLocal(SymK kind, const std::string& name, TyP t, bool mut,
                       uint32_t line, uint32_t col);
@@ -214,6 +230,12 @@ private:
     // M1 pipe topic: type of `%` inside each enclosing `|>` body, innermost
     // last. Empty outside a pipe (a `%` there is E-PIPE-TOPIC).
     std::vector<TyP> topicStack_;
+    // M3 flow-sensitive narrowing facts, keyed by Symbol*. Scoped with
+    // push()/pop() (narrowedStack_) so facts about a scope's bindings die with
+    // it -- otherwise a destroyed Symbol's address could be reused by a later
+    // declaration and inherit a stale narrowed type.
+    std::map<const Symbol*, TyP> narrowed_;
+    std::vector<std::map<const Symbol*, TyP>> narrowedStack_;
 };
 
 } // namespace sema

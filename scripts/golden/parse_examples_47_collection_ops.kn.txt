@@ -1,0 +1,235 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/47_collection_ops.kn
+FuncDef "square"
+  Param "n" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs Ident "n"
+FuncDef "maybeFirst"
+  Param "xs" : list[Int]?
+  Ret Int?
+  Body
+    Return
+      Value 
+        SafeIndex
+          Object Ident "xs"
+          Index Int "0"
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "xs"
+      Value 
+        List len=5
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+          Item Int "5"
+    Assign
+      Target Ident "squares"
+      Value 
+        ListComp
+          Element 
+            Call
+              Callee Ident "square"
+              Arg
+                Value Ident "x"
+          For
+            PatBind x
+          Iter Ident "xs"
+    Assign
+      Target Ident "odds"
+      Value 
+        ListComp
+          Element Ident "x"
+          For
+            PatBind x
+          Iter Ident "xs"
+          Guard
+            Cond 
+              Binary op="=="
+                Lhs 
+                  Binary op="%"
+                    Lhs Ident "x"
+                    Rhs Int "2"
+                Rhs Int "1"
+    Assign
+      Target Ident "byParity"
+      Value 
+        DictComp
+          Element Ident "x"
+          Value 
+            Binary op="%"
+              Lhs Ident "x"
+              Rhs Int "2"
+          For
+            PatBind x
+          Iter Ident "xs"
+    Assign
+      Target Ident "residues"
+      Value 
+        SetComp
+          Element 
+            Binary op="%"
+              Lhs Ident "x"
+              Rhs Int "3"
+          For
+            PatBind x
+          Iter Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "squares"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "odds"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "byParity"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "residues"
+    Assign
+      Target Ident "head"
+      Value 
+        List len=1
+          Item Int "0"
+    Assign
+      Target Ident "tail"
+      Value 
+        List len=2
+          Item Int "6"
+          Item Int "7"
+    Assign
+      Target Ident "combined"
+      Value 
+        List len=3
+          Item 
+            Spread *
+              Operand Ident "head"
+          Item 
+            Spread *
+              Operand Ident "xs"
+          Item 
+            Spread *
+              Operand Ident "tail"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "combined"
+    Assign
+      Target Ident "defaults"
+      Value 
+        Dict len=2
+          Pair
+            Key Str "retries"
+            Val Int "3"
+          Pair
+            Key Str "timeout"
+            Val Int "30"
+    Assign
+      Target Ident "overrides"
+      Value 
+        Dict len=1
+          Pair
+            Key Str "timeout"
+            Val Int "5"
+    Assign
+      Target Ident "config"
+      Value 
+        Dict len=2
+          Pair
+            Key 
+              Spread **
+                Operand Ident "defaults"
+          Pair
+            Key 
+              Spread **
+                Operand Ident "overrides"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "config"
+                At Str "retries"
+          Arg
+            Value 
+              Index
+                Obj Ident "config"
+                At Str "timeout"
+    Assign
+      Target Ident "matrix"
+      Value 
+        List len=3
+          Item 
+            List len=2
+              Item Int "1"
+              Item Int "2"
+          Item 
+            List len=2
+              Item Int "3"
+              Item Int "4"
+          Item 
+            List len=1
+              Item Int "5"
+    Assign
+      Target Ident "flattened"
+      Value 
+        ListComp
+          Element 
+            Spread *
+              Operand Ident "row"
+          For
+            PatBind row
+          Iter Ident "matrix"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "flattened"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "maybeFirst"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "10"
+                      Item Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "maybeFirst"
+                Arg
+                  Value Ident "none"
+<ROOT>/examples/47_collection_ops.kn: OK (3 top-level statements)
+[exit 0]

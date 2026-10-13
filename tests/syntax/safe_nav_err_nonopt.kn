@@ -1,0 +1,7 @@
+# expect: '.?[' expects an optional
+# `.?[` is optional chaining; a definitely-present value is a type error
+# (use plain `[` for a non-optional container).
+fn main() -> none {
+    d = {"x": 1};
+    print(d .?["x"]);
+}

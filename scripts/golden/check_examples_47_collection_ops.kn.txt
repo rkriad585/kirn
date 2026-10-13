@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/47_collection_ops.kn
+<ROOT>/examples/47_collection_ops.kn: OK
+[exit 0]

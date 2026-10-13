@@ -123,6 +123,10 @@ const char* exName(ExKind k) {
         case ExKind::New:      return "New";
         case ExKind::Cast:     return "Cast";
         case ExKind::Match:    return "Match";
+        case ExKind::AssignExpr: return "AssignExpr";
+        case ExKind::Pipe:       return "Pipe";
+        case ExKind::Coalesce:   return "Coalesce";
+        case ExKind::Topic:      return "Topic";
     }
     return "?";
 }
@@ -289,6 +293,24 @@ void dumpExpr(const Expr& e, int d) {
                 childExpr("Key", pr.first, d + 2);
                 childExpr("Val", pr.second, d + 2);
             }
+            return;
+        case ExKind::AssignExpr:
+            std::cout << ind(d) << "AssignExpr\n";
+            childExpr("Target", e.lhs, d + 1);
+            childExpr("Value", e.rhs, d + 1);
+            return;
+        case ExKind::Pipe:
+            std::cout << ind(d) << "Pipe\n";
+            childExpr("Input", e.lhs, d + 1);
+            childExpr("Body", e.rhs, d + 1);
+            return;
+        case ExKind::Coalesce:
+            std::cout << ind(d) << "Coalesce\n";
+            childExpr("Lhs", e.lhs, d + 1);
+            childExpr("Rhs", e.rhs, d + 1);
+            return;
+        case ExKind::Topic:
+            std::cout << ind(d) << "Topic\n";
             return;
     }
 }

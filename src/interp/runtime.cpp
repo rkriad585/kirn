@@ -83,6 +83,10 @@ static bool valLess(const Value& a, const Value& b);
 // environments & small helpers
 // ---------------------------------------------------------------------------
 
+// Hidden frame slot that carries a pipe body's topic value. Not a valid user
+// identifier, so it cannot collide with a real binding.
+static const char kPipeTopic[] = "%";
+
 struct EnvS {
     std::unordered_map<std::string, Value> vars;
     Env parent;
@@ -2477,6 +2481,13 @@ void Interpreter::exec(const Stmt& s, Env env) {
         }
 
         case ast::StKind::AugAssign: {
+            if (s.augOp == "??=") {
+                // `a ??= b`: assign only when `a` is none (short-circuit).
+                Value cur = eval(*s.exprs[0], env);
+                if (cur.isNone())
+                    assignTo(*s.exprs[0], eval(*s.exprs[1], env), env);
+                return;
+            }
             Value cur = eval(*s.exprs[0], env);
             Value rhs = eval(*s.exprs[1], env);
             std::string op =
@@ -3297,8 +3308,36 @@ Value cv = eval(*e.lhs, env);
             }
             return matched ? result : Value::none();
         }
-    }
 
+        case ast::ExKind::AssignExpr: {
+            // Walrus `(name := value)`: evaluate, store, and yield the value.
+            Value v = e.rhs ? eval(*e.rhs, env) : Value::none();
+            if (e.lhs) assignTo(*e.lhs, v, env);
+            return v;
+        }
+
+        case ast::ExKind::Topic: {
+            if (const Value* v = env->find(kPipeTopic)) return *v;
+            panicHere("E-PIPE-TOPIC: '%' used outside a pipe");
+        }
+
+        case ast::ExKind::Pipe: {
+            // Evaluate the input once, bind it as the topic in a child frame,
+            // then evaluate the body (which may reference `%`).
+            Value in = e.lhs ? eval(*e.lhs, env) : Value::none();
+            Env child = makeChild(env);
+            child->vars[kPipeTopic] = std::move(in);
+            return e.rhs ? eval(*e.rhs, child) : Value::none();
+        }
+
+        case ast::ExKind::Coalesce:
+            // `a ?? b`: short-circuit; only evaluate b when a is none.
+            if (e.lhs) {
+                Value l = eval(*e.lhs, env);
+                if (!l.isNone()) return l;
+            }
+            return e.rhs ? eval(*e.rhs, env) : Value::none();
+    }
     panicHere("internal: unhandled expression kind");
 }
 

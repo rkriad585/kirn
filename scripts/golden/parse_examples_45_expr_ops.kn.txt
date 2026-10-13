@@ -1,0 +1,179 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/45_expr_ops.kn
+FuncDef "maybe"
+  Param "flag" : Int
+  Ret Int?
+  Body
+    If
+      Cond 
+        Binary op="=="
+          Lhs Ident "flag"
+          Rhs Int "1"
+      Then
+        Return
+          Value Int "5"
+    Return
+      Value Ident "none"
+FuncDef "inc"
+  Param "x" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "x"
+          Rhs Int "1"
+FuncDef "sq"
+  Param "x" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "x"
+          Rhs Ident "x"
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "n"
+      Value 
+        Pipe
+          Input 
+            Pipe
+              Input Int "5"
+              Body 
+                Call
+                  Callee Ident "inc"
+                  Arg
+                    Value 
+                      Topic
+          Body 
+            Call
+              Callee Ident "sq"
+              Arg
+                Value 
+                  Topic
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "pipe="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "n"
+    Assign
+      Target Ident "m"
+      Value 
+        Pipe
+          Input Int "5"
+          Body 
+            Call
+              Callee Ident "inc"
+              Arg
+                Value 
+                  Topic
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "sugar="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "m"
+    Assign
+      Target Ident "a"
+      Value 
+        Call
+          Callee Ident "maybe"
+          Arg
+            Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "none="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value 
+                        Coalesce
+                          Lhs Ident "a"
+                          Rhs Int "7"
+    Assign
+      Target Ident "b"
+      Value 
+        Call
+          Callee Ident "maybe"
+          Arg
+            Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "some="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value 
+                        Coalesce
+                          Lhs Ident "b"
+                          Rhs Int "7"
+    VarDecl
+      Target Ident "cache"
+      Value 
+        Call
+          Callee Ident "maybe"
+          Arg
+            Value Int "0"
+    AugAssign op="??="
+      Target Ident "cache"
+      Value Int "42"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "coalesce1="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "cache"
+    AugAssign op="??="
+      Target Ident "cache"
+      Value Int "99"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "coalesce2="
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "cache"
+<ROOT>/examples/45_expr_ops.kn: OK (4 top-level statements)
+[exit 0]

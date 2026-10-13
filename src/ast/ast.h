@@ -84,6 +84,9 @@ enum class ExKind {
     Ident, Unary, Binary, Call, Index, Slice, Member, Try,
     Lambda, Cond, ListComp, Generator,
     List, Dict, Set, Tuple, New, Cast, Match,
+    // M1 expression operators (pure sugar). AssignExpr = walrus `(x := E)`;
+    // Pipe = `a |> body` with Topic `%` naming the piped value; Coalesce = `??`.
+    AssignExpr, Pipe, Coalesce, Topic,
 };
 
 enum class StrFlavor { Normal, Raw, Byte, C };
@@ -141,6 +144,8 @@ struct Expr {
                                       // Call(callee=lhs) / Index / Try / Cond
     std::string op;                   // Unary/Binary op spelling (".." "..=" too)
     bool nilSafe = false;             // Member via .?.
+    bool paren = false;               // node was explicitly parenthesized
+                                      // (parser-only; used for E-COALESCE-MIX)
 
     std::vector<CallArg> args;        // Call / New
     std::vector<std::string> lambdaParams;

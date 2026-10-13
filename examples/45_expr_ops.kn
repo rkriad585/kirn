@@ -1,0 +1,41 @@
+# 45 — Expression operators (M1): pipe `|>` with the `%` topic and unary sugar,
+#      plus elvis `??` and `??=`. Walrus `:=` is exercised in tests/syntax
+#      pending the HIR/MIR/native lowering tracked for M11.
+#
+# Expected output:
+#   pipe=36
+#   sugar=6
+#   none=7
+#   some=5
+#   coalesce1=42
+#   coalesce2=42
+
+fn maybe(flag: Int) -> Int? {
+    if flag == 1 { return 5; }
+    return none;
+}
+fn inc(x: Int) -> Int { return x + 1; }
+fn sq(x: Int) -> Int { return x * x; }
+
+fn main() -> none {
+    # pipe: left-assoc; `%` names the piped value in any argument position
+    n = 5 |> inc(%) |> sq(%);
+    print("pipe=" + Str(n));                 # 5 -> 6 -> 36
+
+    # unary sugar: `x |> f` == `x |> f(%)`
+    m = 5 |> inc;
+    print("sugar=" + Str(m));                # 6
+
+    # elvis: right side is used only when the left is none
+    a = maybe(0);
+    print("none=" + Str(a ?? 7));            # 7
+    b = maybe(1);
+    print("some=" + Str(b ?? 7));            # 5
+
+    # `??=` assigns only when the target is none
+    var cache = maybe(0);
+    cache ??= 42;
+    print("coalesce1=" + Str(cache));        # 42
+    cache ??= 99;
+    print("coalesce2=" + Str(cache));        # 42
+}

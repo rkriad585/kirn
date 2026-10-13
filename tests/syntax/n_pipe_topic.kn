@@ -1,0 +1,5 @@
+# expect: E-PIPE-TOPIC
+# M1 - the `%` pipe topic is legal only inside a `|>` body.
+fn main() -> none {
+    print(%);
+}

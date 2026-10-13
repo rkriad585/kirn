@@ -1,0 +1,7 @@
+# expect: '??=' requires an optional target
+# `??=` only makes sense on an optional; a plain Int is rejected.
+fn main() -> none {
+    var x = 1;
+    x ??= 3;
+    print(x);
+}

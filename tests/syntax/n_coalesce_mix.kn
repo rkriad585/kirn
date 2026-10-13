@@ -1,0 +1,6 @@
+# expect: E-COALESCE-MIX
+# `??` may not be mixed with `and`/`or` without parentheses (JS ES2020 rule).
+fn main() -> none {
+    x = 1 ?? 2 and 3;
+    print(Str(x));
+}

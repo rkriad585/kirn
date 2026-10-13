@@ -11,7 +11,7 @@ namespace {
 bool isAugOp(std::string_view s) {
     return s == "+=" || s == "-=" || s == "*=" || s == "/=" || s == "%=" ||
            s == "**=" || s == "//=" || s == "&=" || s == "|=" || s == "^=" ||
-           s == "<<=" || s == ">>=";
+           s == "<<=" || s == ">>=" || s == "??=";
 }
 bool isCmpTok(std::string_view s) {
     return s == "<" || s == ">" || s == "<=" || s == ">=" || s == "==" ||
@@ -1630,7 +1630,7 @@ ast::ExprP Parser::parseExpr() {
 
     ast::ExprP lam;
     if (tryParseLambda(lam)) return lam;
-    return parseOr();
+    return parsePipe();
 }
 
 ast::ExprP Parser::parseCondExpr() {
@@ -1692,6 +1692,94 @@ static ast::ExprP bin(const char* op, ast::ExprP l, ast::ExprP r, ast::Span s) {
     e->rhs = std::move(r);
     e->span = s;
     return e;
+}
+
+ast::ExprP Parser::parsePipe() {
+    // Pipe `a |> body` (M1). Lowest-precedence binary operator: the body is a
+    // full walrus expression, so `x |> f(%) + 1` parses as `x |> (f(%) + 1)`.
+    // Left-associative: `a |> f(%) |> g(%)` == `(a |> f(%)) |> g(%)`.
+    ast::ExprP l = parseWalrus();
+    while (atOp("|>")) {
+        ast::Span sp = spanHere();
+        advance();
+        topicUse_.push_back(0);
+        ast::ExprP body = parseWalrus();
+        unsigned used = topicUse_.back();
+        topicUse_.pop_back();
+        if (used == 0) {
+            // Unary sugar: `x |> f` == `x |> f(%)`. Wrap the whole body in a
+            // call taking the implicit topic as its sole argument.
+            auto call = std::make_unique<ast::Expr>();
+            call->kind = ast::ExKind::Call;
+            call->span = sp;
+            call->lhs = std::move(body);
+            auto topic = std::make_unique<ast::Expr>();
+            topic->kind = ast::ExKind::Topic;
+            topic->span = sp;
+            ast::CallArg a;
+            a.value = std::move(topic);
+            call->args.push_back(std::move(a));
+            body = std::move(call);
+        }
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Pipe;
+        e->span = sp;
+        e->lhs = std::move(l);
+        e->rhs = std::move(body);
+        l = std::move(e);
+    }
+    return l;
+}
+
+ast::ExprP Parser::parseWalrus() {
+    // `NAME := expr`. LHS is always a bare name; RHS is an elvis/or-level
+    // expression, so `x := a ?? b` works while `x := y := z` needs parens
+    // (matching PEP 572's "no unparenthesized chain").
+    if (cur().kind == Tok::Ident && atOp(":=", 1)) {
+        ast::Span sp = spanHere();
+        std::string name = advance().text;
+        advance();                                  // :=
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::AssignExpr;
+        e->span = sp;
+        auto tgt = std::make_unique<ast::Expr>();
+        tgt->kind = ast::ExKind::Ident;
+        tgt->text = name;
+        tgt->span = sp;
+        e->lhs = std::move(tgt);
+        e->rhs = parseElvis();
+        return e;
+    }
+    return parseElvis();
+}
+
+// An `or`/`and` node that is an immediate (unparenthesized) operand: mixing it
+// with `??` without parens is E-COALESCE-MIX (JS ES2020 no-mixing rule).
+static bool isBareLogical(const ast::ExprP& e) {
+    return e && e->kind == ast::ExKind::Binary &&
+           (e->op == "or" || e->op == "and") && !e->paren;
+}
+
+ast::ExprP Parser::parseElvis() {
+    ast::ExprP l = parseOr();
+    while (atOp("??")) {
+        ast::Span sp = spanHere();
+        advance();
+        ast::ExprP r = parseElvis();                // right-assoc chain
+        if (isBareLogical(l) || isBareLogical(r)) {
+            diags_.report(sp.line, sp.col,
+                          "E-COALESCE-MIX: '??' cannot mix with 'and'/'or' "
+                          "without parentheses");
+            throw Abort("coalesce-mix");
+        }
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Coalesce;
+        e->span = sp;
+        e->lhs = std::move(l);
+        e->rhs = std::move(r);
+        l = std::move(e);
+    }
+    return l;
 }
 
 ast::ExprP Parser::parseOr() {
@@ -1977,6 +2065,22 @@ ast::ExprP Parser::parsePrimary() {
         return e;
     }
 
+    // Pipe topic `%`: a primary only inside a `|>` body (E-PIPE-TOPIC else).
+    if (atOp("%")) {
+        if (topicUse_.empty()) {
+            diags_.report(t.line, t.col,
+                          "E-PIPE-TOPIC: topic '%' is only valid in the body "
+                          "of a pipe '|>'");
+            throw Abort("pipe-topic");
+        }
+        advance();
+        ++topicUse_.back();
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Topic;
+        e->span = sp;
+        return e;
+    }
+
     switch (t.kind) {
         case Tok::Int:
         case Tok::Float: {
@@ -2168,6 +2272,7 @@ ast::ExprP Parser::parsePrimary() {
             return e;
         }
         expectPunct(")");
+        if (first) first->paren = true;                 // explicit grouping
         return first;                                   // grouping
     }
 

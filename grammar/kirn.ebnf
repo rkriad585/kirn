@@ -144,7 +144,7 @@ OPERATOR        = "**"  | "//"  | "=="  | "!="  | "<="  | ">="  | "<<"
                 | "|="  | "^="  | "<<=" | ">>=" | "..=" | ".."  | "=>"
                 | ".?." | "->"  | "+"   | "-"   | "*"   | "/"   | "%"
                 | "&"   | "|"   | "^"   | "~"   | "<"   | ">"   | "="
-                | "?"   | "@" ;
+                | "?"   | "@"   | ":="  | "|>"  | "??"  | "??=" ;
 
 PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
                 | "."  | ";"  ;
@@ -175,9 +175,18 @@ PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
 #    3    =>                         right     lambda arrow
 #    2    if c { e1 } else { e2 }    n/a       conditional EXPRESSION form
 #    1    for p in e yield e         n/a       comprehension  [PROVISIONAL]
-#    (t)  try call(...) / call(...)? n/a       error propagation (try_expr,
+#   (p)  x |> body                  left      pipe (loosest binary); a `%`
+#                                              topic in body names the input  [M1]
+#   (w)  NAME := expr               none      walrus: eval, bind NAME in the
+#                                              enclosing scope, yield value   [M1]
+#   (e)  a ?? b                     right     elvis: a if non-none else b    [M1]
+#   (t)  try call(...) / call(...)? n/a       error propagation (try_expr,
 #                                              try_suffix) — not precedence-bound
-#    (m)  match e { ... }            n/a       match-as-expression (match_expr)
+#   (m)  match e { ... }            n/a       match-as-expression (match_expr)
+# -----------------------------------------------------------------------------
+#   M1 note: ordering is  |>  (loosest)  <  :=  <  ??  <  level 4 `or`.
+#   `??` may not be mixed with `and`/`or` without parentheses (E-COALESCE-MIX),
+#   and `%` is a primary only inside a `|>` body (E-PIPE-TOPIC).
 # -----------------------------------------------------------------------------
 
 
@@ -333,7 +342,7 @@ pass_stmt       = "pass" ;
 assignment      = target_list "=" expr_list ;
 aug_assign      = target aug_op expr ;
 aug_op          = "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//="
-                | "&=" | "|=" | "^=" | "<<=" | ">>=" ;
+                | "&=" | "|=" | "^=" | "<<=" | ">>=" | "??=" ;
 
 target_list     = target , { "," , target } ;
 target          = IDENTIFIER | tuple_target | index_target | member_target ;
@@ -429,7 +438,12 @@ catch_clause    = "catch" [ IDENTIFIER ] block ;
 expr_list       = expr , { "," , expr } [ "," ] ;
 
 expr            = try_expr | match_expr | closure_expr | lambda_expr
-                | conditional_expr | comprehension_expr | orexpr ;
+                | conditional_expr | comprehension_expr | pipe_expr ;
+
+(* M1 expression operators (pure sugar; loosest bind first). *)
+pipe_expr       = walrus_expr , { "|>" , walrus_expr } ;   (* left-assoc      *)
+walrus_expr     = IDENTIFIER , ":=" , elvis_expr | elvis_expr ;
+elvis_expr      = orexpr , [ "??" , elvis_expr ] ;         (* right-assoc     *)
 
 lambda_expr     = param_list_no_default , "=>" , expr ;
 param_list_no_default = "(" [ IDENTIFIER { "," IDENTIFIER } ] ")" ;
@@ -512,6 +526,9 @@ atom            = literal
                 | "unsafe" block                 (* unsafe as expr  [PROV.] *)
                 | "new" type [ call_suffix ]
                 | "self" | "Self"
+                | "%"                            (* pipe topic; only in a
+                                                    `|>` body, else
+                                                    E-PIPE-TOPIC          *)
                 ;
 
 call_arg_list   = call_arg , { "," , call_arg } [ "," ] ;

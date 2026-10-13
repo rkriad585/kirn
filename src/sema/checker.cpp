@@ -2353,6 +2353,23 @@ void Checker::checkStmt(const ast::Stmt& s) {
             TyP tt = checkExpr(tgt);
             TyP vt = checkExpr(*s.exprs[1]);
             const std::string& op = s.augOp;
+            if (op == "??=") {
+                // `a ??= b`: only assigns when `a` is none. Target must be an
+                // optional; the value must fit the unwrapped element type.
+                bool optish = tt && (tt->is(TyK::Opt) || tt->isError() ||
+                                     tt->isUnknown());
+                if (!optish)
+                    error(tgt.span, "'??=' requires an optional target, got " +
+                                        toString(*tt));
+                TyP base = unwrapOpt(tt);
+                if (!vt->isUnknown() && !vt->isError() && base &&
+                    !base->isUnknown() && !base->isError() &&
+                    !assignable(vt, base))
+                    error(tgt.span, "'??=' cannot assign " + toString(*vt) +
+                                        " to " + toString(*tt));
+                checkReassignable(tgt);
+                break;
+            }
             bool numericOp = (op == "-" || op == "*" || op == "/" || op == "%" ||
                               op == "**" || op == "//");
             if (op == "+") {
@@ -3112,6 +3129,44 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             }
             checkExhaustiveness(subj, e.matchArms, e.span.line, e.span.col);
             return result ? result : unkTy();
+        }
+
+        case ExKind::AssignExpr: {
+            // Walrus `(name := value)`: bind/assign and yield the value.
+            TyP vt = e.rhs ? checkExpr(*e.rhs) : unkTy();
+            if (e.lhs && e.lhs->kind == ExKind::Ident) {
+                // multi=true makes the binding a mutable slot, matching the
+                // "declares a variable" semantics of `:=`.
+                assignTarget(*e.lhs, vt, /*multi*/ true);
+            } else {
+                if (e.lhs) checkExpr(*e.lhs);
+                error(e.span, "left side of ':=' must be a name");
+            }
+            return vt;
+        }
+
+        case ExKind::Topic:
+            if (topicStack_.empty()) {
+                error(e.span, "E-PIPE-TOPIC: '%' used outside a pipe");
+                return unkTy();
+            }
+            return topicStack_.back() ? topicStack_.back() : unkTy();
+
+        case ExKind::Pipe: {
+            // `a |> body`: `%` in body has the type of `a`; result is body's.
+            TyP in = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            topicStack_.push_back(in ? in : unkTy());
+            TyP out = e.rhs ? checkExpr(*e.rhs) : unkTy();
+            topicStack_.pop_back();
+            return out;
+        }
+
+        case ExKind::Coalesce: {
+            // `a ?? b`: unwrap a's optional, unify with b. Result is non-opt.
+            TyP lt = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            TyP rt = e.rhs ? checkExpr(*e.rhs) : unkTy();
+            TyP base = unwrapOpt(lt);
+            return unify(base, rt, e.span.line, e.span.col, "'??' operands");
         }
     }
     return unkTy();

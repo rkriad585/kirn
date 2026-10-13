@@ -1,0 +1,35 @@
+# M1 expression operators: walrus `:=`, pipe `|>` (with `%` topic + unary
+# sugar), and elvis `??` / `??=`. Positive: must check and run clean, and the
+# tree interpreter must agree with the VM (the vm_diff half of this gate).
+fn maybe(flag: Int) -> Int? {
+    if flag == 1 { return 5; }
+    return none;
+}
+fn inc(x: Int) -> Int { return x + 1; }
+fn sq(x: Int) -> Int { return x * x; }
+
+fn main() -> none {
+    # pipe: left-assoc, `%` names the piped value in any argument position
+    n = 5 |> inc(%) |> sq(%);
+    print("pipe=" + Str(n));                 # 5 -> 6 -> 36
+
+    # unary sugar: `x |> f` == `x |> f(%)
+    m = 5 |> inc;
+    print("sugar=" + Str(m));                # 6
+
+    # elvis: `??` yields the right side only when the left is none
+    a = maybe(0);
+    print("none=" + Str(a ?? 7));            # 7
+    b = maybe(1);
+    print("some=" + Str(b ?? 7));            # 5
+
+    # `??=` assigns only when the target is none
+    var cache = maybe(0);
+    cache ??= 42;
+    print("coalesce1=" + Str(cache));        # 42
+    cache ??= 99;
+    print("coalesce2=" + Str(cache));        # 42
+
+    # walrus: binds in the enclosing scope and yields the value
+    if (k := 10) > 5 { print("k=" + Str(k)); }   # 10
+}

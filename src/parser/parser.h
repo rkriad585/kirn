@@ -74,6 +74,9 @@ private:
     ast::ExprP parseExpr();                       // lambda | cond | comp | or
     ast::ExprP parseCondExpr();
     ast::ExprP parseCompExpr(ast::ExprP first);   // generator / listcomp body
+    ast::ExprP parsePipe();                       // a |> body   (M1, loosest)
+    ast::ExprP parseWalrus();                     // (name := expr) (M1)
+    ast::ExprP parseElvis();                      // a ?? b      (M1, right-assoc)
     ast::ExprP parseOr();
     ast::ExprP parseAnd();
     ast::ExprP parseNot();
@@ -97,6 +100,13 @@ private:
     DiagEngine& diags_;
     const std::vector<Token>& toks_;
     size_t idx_ = 0;
+
+    // M1 pipe/topic state. One entry per pipe body currently being parsed:
+    // `topicUse_.back()` counts the `%` topic tokens seen in the innermost
+    // body, so a body with none can be rewritten as an explicit call with an
+    // implicit topic argument (unary sugar `x |> f` == `x |> f(%)`). `%` is
+    // only a legal primary while this stack is non-empty (else E-PIPE-TOPIC).
+    std::vector<unsigned> topicUse_;
 
     // Desugaring (class/record/interface can expand to extra top-level nodes,
     // e.g. `class X implements I {}` -> struct X + impl I for X). Drained by

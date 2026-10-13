@@ -208,6 +208,9 @@ private:
     // expr node -> resolved TyP, populated by the checkExpr wrapper. Keyed by
     // node address; safe because AST nodes are stable unique_ptrs.
     std::unordered_map<const ast::Expr*, TyP> typeCache_;
+    // M1 pipe topic: type of `%` inside each enclosing `|>` body, innermost
+    // last. Empty outside a pipe (a `%` there is E-PIPE-TOPIC).
+    std::vector<TyP> topicStack_;
 };
 
 } // namespace sema

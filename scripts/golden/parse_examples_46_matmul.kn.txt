@@ -1,13 +1,14 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/46_matmul.kn
 StructDef "Matrix"
+  Field "rank" : Int
   Field "rows" : Int
   Field "cols" : Int
-  Field "data" : list[list[Int]]
-  FuncDef "at"
+  Field "data" : list[list[f64]]
+  FuncDef "get"
     Param "self" self : <inferred>
     Param "i" : Int
     Param "j" : Int
-    Ret Int
+    Ret f64
     Body
       Return
         Value 
@@ -19,28 +20,287 @@ StructDef "Matrix"
                     Obj Ident "self"
                 At Ident "i"
             At Ident "j"
+FuncDef "mat"
+  Param "rows" : Int
+  Param "cols" : Int
+  Param "data" : list[list[f64]]
+  Ret Matrix
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "Matrix"
+          Arg name=rank
+            Value Int "2"
+          Arg name=rows
+            Value Ident "rows"
+          Arg name=cols
+            Value Ident "cols"
+          Arg name=data
+            Value Ident "data"
+FuncDef "vec"
+  Param "xs" : list[f64]
+  Ret Matrix
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "Matrix"
+          Arg name=rank
+            Value Int "1"
+          Arg name=rows
+            Value Int "1"
+          Arg name=cols
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "xs"
+          Arg name=data
+            Value 
+              List len=1
+                Item Ident "xs"
 ImplDef MatMul for Matrix
   FuncDef "matmul"
     Param "self" self : <inferred>
-    Param "other" : Matrix
-    Ret Matrix
+    Param "o" : Matrix
+    Ret any
     Body
       If
         Cond 
-          Binary op="!="
+          Binary op="and"
             Lhs 
-              Member name="cols"
-                Obj Ident "self"
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "self"
+                Rhs Int "1"
             Rhs 
-              Member name="rows"
-                Obj Ident "other"
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "o"
+                Rhs Int "1"
         Then
-          ExprStmt
+          Assign
+            Target Ident "acc"
+            Value Float "0.0"
+          For
+            PatBind i
+            Iter 
+              Binary op=".."
+                Lhs Int "0"
+                Rhs 
+                  Member name="cols"
+                    Obj Ident "self"
+            Body
+              Assign
+                Target Ident "acc"
+                Value 
+                  Binary op="+"
+                    Lhs Ident "acc"
+                    Rhs 
+                      Binary op="*"
+                        Lhs 
+                          Call
+                            Callee 
+                              Member name="get"
+                                Obj Ident "self"
+                            Arg
+                              Value Int "0"
+                            Arg
+                              Value Ident "i"
+                        Rhs 
+                          Call
+                            Callee 
+                              Member name="get"
+                                Obj Ident "o"
+                            Arg
+                              Value Int "0"
+                            Arg
+                              Value Ident "i"
+          Return
+            Value Ident "acc"
+      If
+        Cond 
+          Binary op="and"
+            Lhs 
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "self"
+                Rhs Int "2"
+            Rhs 
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "o"
+                Rhs Int "1"
+        Then
+          Assign
+            Target Ident "out"
+            Value 
+              List len=0
+          For
+            PatBind i
+            Iter 
+              Binary op=".."
+                Lhs Int "0"
+                Rhs 
+                  Member name="rows"
+                    Obj Ident "self"
+            Body
+              Assign
+                Target Ident "acc"
+                Value Float "0.0"
+              For
+                PatBind k
+                Iter 
+                  Binary op=".."
+                    Lhs Int "0"
+                    Rhs 
+                      Member name="cols"
+                        Obj Ident "self"
+                Body
+                  Assign
+                    Target Ident "acc"
+                    Value 
+                      Binary op="+"
+                        Lhs Ident "acc"
+                        Rhs 
+                          Binary op="*"
+                            Lhs 
+                              Call
+                                Callee 
+                                  Member name="get"
+                                    Obj Ident "self"
+                                Arg
+                                  Value Ident "i"
+                                Arg
+                                  Value Ident "k"
+                            Rhs 
+                              Call
+                                Callee 
+                                  Member name="get"
+                                    Obj Ident "o"
+                                Arg
+                                  Value Int "0"
+                                Arg
+                                  Value Ident "k"
+              ExprStmt
+                Value 
+                  Call
+                    Callee 
+                      Member name="append"
+                        Obj Ident "out"
+                    Arg
+                      Value Ident "acc"
+          Return
             Value 
               Call
-                Callee Ident "panic"
-                Arg
-                  Value Str "matmul: shape mismatch"
+                Callee Ident "Matrix"
+                Arg name=rank
+                  Value Int "1"
+                Arg name=rows
+                  Value Int "1"
+                Arg name=cols
+                  Value 
+                    Member name="rows"
+                      Obj Ident "self"
+                Arg name=data
+                  Value 
+                    List len=1
+                      Item Ident "out"
+      If
+        Cond 
+          Binary op="and"
+            Lhs 
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "self"
+                Rhs Int "1"
+            Rhs 
+              Binary op="=="
+                Lhs 
+                  Member name="rank"
+                    Obj Ident "o"
+                Rhs Int "2"
+        Then
+          Assign
+            Target Ident "out"
+            Value 
+              List len=0
+          For
+            PatBind j
+            Iter 
+              Binary op=".."
+                Lhs Int "0"
+                Rhs 
+                  Member name="cols"
+                    Obj Ident "o"
+            Body
+              Assign
+                Target Ident "acc"
+                Value Float "0.0"
+              For
+                PatBind k
+                Iter 
+                  Binary op=".."
+                    Lhs Int "0"
+                    Rhs 
+                      Member name="cols"
+                        Obj Ident "self"
+                Body
+                  Assign
+                    Target Ident "acc"
+                    Value 
+                      Binary op="+"
+                        Lhs Ident "acc"
+                        Rhs 
+                          Binary op="*"
+                            Lhs 
+                              Call
+                                Callee 
+                                  Member name="get"
+                                    Obj Ident "self"
+                                Arg
+                                  Value Int "0"
+                                Arg
+                                  Value Ident "k"
+                            Rhs 
+                              Call
+                                Callee 
+                                  Member name="get"
+                                    Obj Ident "o"
+                                Arg
+                                  Value Ident "k"
+                                Arg
+                                  Value Ident "j"
+              ExprStmt
+                Value 
+                  Call
+                    Callee 
+                      Member name="append"
+                        Obj Ident "out"
+                    Arg
+                      Value Ident "acc"
+          Return
+            Value 
+              Call
+                Callee Ident "Matrix"
+                Arg name=rank
+                  Value Int "1"
+                Arg name=rows
+                  Value Int "1"
+                Arg name=cols
+                  Value 
+                    Member name="cols"
+                      Obj Ident "o"
+                Arg name=data
+                  Value 
+                    List len=1
+                      Item Ident "out"
       Assign
         Target Ident "out"
         Value 
@@ -65,11 +325,11 @@ ImplDef MatMul for Matrix
                 Lhs Int "0"
                 Rhs 
                   Member name="cols"
-                    Obj Ident "other"
+                    Obj Ident "o"
             Body
               Assign
                 Target Ident "acc"
-                Value Int "0"
+                Value Float "0.0"
               For
                 PatBind k
                 Iter 
@@ -89,7 +349,7 @@ ImplDef MatMul for Matrix
                             Lhs 
                               Call
                                 Callee 
-                                  Member name="at"
+                                  Member name="get"
                                     Obj Ident "self"
                                 Arg
                                   Value Ident "i"
@@ -98,8 +358,8 @@ ImplDef MatMul for Matrix
                             Rhs 
                               Call
                                 Callee 
-                                  Member name="at"
-                                    Obj Ident "other"
+                                  Member name="get"
+                                    Obj Ident "o"
                                 Arg
                                   Value Ident "k"
                                 Arg
@@ -124,6 +384,8 @@ ImplDef MatMul for Matrix
         Value 
           Call
             Callee Ident "Matrix"
+            Arg name=rank
+              Value Int "2"
             Arg name=rows
               Value 
                 Member name="rows"
@@ -131,14 +393,77 @@ ImplDef MatMul for Matrix
             Arg name=cols
               Value 
                 Member name="cols"
-                  Obj Ident "other"
+                  Obj Ident "o"
             Arg name=data
               Value Ident "out"
 FuncDef "show"
   Param "label" : Str
-  Param "m" : Matrix
+  Param "m" : any
   Ret none
   Body
+    If
+      Cond 
+        Binary op="=="
+          Lhs 
+            Member name="rank"
+              Obj Ident "m"
+          Rhs Int "1"
+      Then
+        Assign
+          Target Ident "parts"
+          Value 
+            List len=0
+        For
+          PatBind j
+          Iter 
+            Binary op=".."
+              Lhs Int "0"
+              Rhs 
+                Member name="cols"
+                  Obj Ident "m"
+          Body
+            ExprStmt
+              Value 
+                Call
+                  Callee 
+                    Member name="append"
+                      Obj Ident "parts"
+                  Arg
+                    Value 
+                      Call
+                        Callee Ident "Str"
+                        Arg
+                          Value 
+                            Call
+                              Callee 
+                                Member name="get"
+                                  Obj Ident "m"
+                              Arg
+                                Value Int "0"
+                              Arg
+                                Value Ident "j"
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Binary op="+"
+                        Lhs 
+                          Binary op="+"
+                            Lhs Ident "label"
+                            Rhs Str " = ["
+                        Rhs 
+                          Call
+                            Callee Ident "join"
+                            Arg
+                              Value Str ", "
+                            Arg
+                              Value Ident "parts"
+                    Rhs Str "]"
+        Return
     Assign
       Target Ident "rows"
       Value 
@@ -179,7 +504,7 @@ FuncDef "show"
                           Value 
                             Call
                               Callee 
-                                Member name="at"
+                                Member name="get"
                                   Obj Ident "m"
                               Arg
                                 Value Ident "i"
@@ -227,48 +552,48 @@ FuncDef "main"
       Target Ident "a"
       Value 
         Call
-          Callee Ident "Matrix"
-          Arg name=rows
+          Callee Ident "mat"
+          Arg
             Value Int "2"
-          Arg name=cols
+          Arg
             Value Int "3"
-          Arg name=data
+          Arg
             Value 
               List len=2
                 Item 
                   List len=3
-                    Item Int "1"
-                    Item Int "2"
-                    Item Int "3"
+                    Item Float "1.0"
+                    Item Float "2.0"
+                    Item Float "3.0"
                 Item 
                   List len=3
-                    Item Int "4"
-                    Item Int "5"
-                    Item Int "6"
+                    Item Float "4.0"
+                    Item Float "5.0"
+                    Item Float "6.0"
     Assign
       Target Ident "b"
       Value 
         Call
-          Callee Ident "Matrix"
-          Arg name=rows
+          Callee Ident "mat"
+          Arg
             Value Int "3"
-          Arg name=cols
+          Arg
             Value Int "2"
-          Arg name=data
+          Arg
             Value 
               List len=3
                 Item 
                   List len=2
-                    Item Int "7"
-                    Item Int "8"
+                    Item Float "7.0"
+                    Item Float "8.0"
                 Item 
                   List len=2
-                    Item Int "9"
-                    Item Int "10"
+                    Item Float "9.0"
+                    Item Float "10.0"
                 Item 
                   List len=2
-                    Item Int "11"
-                    Item Int "12"
+                    Item Float "11.0"
+                    Item Float "12.0"
     Assign
       Target Ident "c"
       Value 
@@ -287,22 +612,22 @@ FuncDef "main"
       Target Ident "identity"
       Value 
         Call
-          Callee Ident "Matrix"
-          Arg name=rows
+          Callee Ident "mat"
+          Arg
             Value Int "2"
-          Arg name=cols
+          Arg
             Value Int "2"
-          Arg name=data
+          Arg
             Value 
               List len=2
                 Item 
                   List len=2
-                    Item Int "1"
-                    Item Int "0"
+                    Item Float "1.0"
+                    Item Float "0.0"
                 Item 
                   List len=2
-                    Item Int "0"
-                    Item Int "1"
+                    Item Float "0.0"
+                    Item Float "1.0"
     VarDecl
       Target Ident "d"
       Value Ident "c"
@@ -318,6 +643,66 @@ FuncDef "main"
           Arg
             Value Ident "d"
     Assign
+      Target Ident "x"
+      Value 
+        Call
+          Callee Ident "vec"
+          Arg
+            Value 
+              List len=3
+                Item Float "1.0"
+                Item Float "2.0"
+                Item Float "3.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show"
+          Arg
+            Value Str "a @ x"
+          Arg
+            Value 
+              Binary op="@"
+                Lhs Ident "a"
+                Rhs Ident "x"
+    Assign
+      Target Ident "y"
+      Value 
+        Call
+          Callee Ident "vec"
+          Arg
+            Value 
+              List len=3
+                Item Float "1.0"
+                Item Float "1.0"
+                Item Float "1.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show"
+          Arg
+            Value Str "y @ b"
+          Arg
+            Value 
+              Binary op="@"
+                Lhs Ident "y"
+                Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "x @ x = "
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value 
+                        Binary op="@"
+                          Lhs Ident "x"
+                          Rhs Ident "x"
+    Assign
       Target Ident "e"
       Value 
         Binary op="@"
@@ -331,5 +716,5 @@ FuncDef "main"
             Value Str "e"
           Arg
             Value Ident "e"
-<ROOT>/examples/46_matmul.kn: OK (4 top-level statements)
+<ROOT>/examples/46_matmul.kn: OK (6 top-level statements)
 [exit 0]

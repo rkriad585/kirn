@@ -1,0 +1,35 @@
+# matmul_dunder_ok — PEP 465 dunder dispatch (M2). Positive: warning-free, tree
+# and VM agree. `@=` prefers `__imatmul__`; `@` falls back to `__rmatmul__` on
+# the right operand when the left does not implement `@`.
+struct Acc {
+    v: Int;
+}
+
+impl MatMul for Acc {
+    fn __imatmul__(self, o: Acc) -> Acc {
+        return Acc(v: self.v * o.v + 1);
+    }
+}
+
+struct Left {
+    v: Int;
+}
+
+struct Right {
+    v: Int;
+}
+
+impl MatMul for Right {
+    fn __rmatmul__(self, l: Left) -> Right {
+        return Right(v: l.v + self.v);
+    }
+}
+
+fn main() -> none {
+    var a = Acc(v: 4);
+    a @= Acc(v: 5);                 # __imatmul__ -> 4*5+1
+    print(a.v);                     # 21
+
+    r = Left(v: 10) @ Right(v: 7);  # __rmatmul__ -> 10+7
+    print(r.v);                     # 17
+}

@@ -4,48 +4,102 @@
 # and is left-associative; `@=` assigns in place. Scalar operands are rejected
 # with E-MATMUL-SCALAR because `@` is not element-wise (`*` is).
 #
+# Promotion follows NumPy (PEP 465): a 1-d operand is a vector, treated as a
+# row on the left and a column on the right:
+#   (m,k)@(k,n)->(m,n)   (m,k)@(k,)->(m,)   (k,)@(k,n)->(n,)   (k,)@(k,)->scalar
+#
 # Expected output:
-#   c = [58, 64; 139, 154]
-#   c@I = [58, 64; 139, 154]
-#   e = [39, 54, 69; 49, 68, 87; 59, 82, 105]
+#   c = [58.0, 64.0; 139.0, 154.0]
+#   c@I = [58.0, 64.0; 139.0, 154.0]
+#   a @ x = [14.0, 32.0]
+#   y @ b = [27.0, 30.0]
+#   x @ x = 14.0
+#   e = [39.0, 54.0, 69.0; 49.0, 68.0, 87.0; 59.0, 82.0, 105.0]
 
 struct Matrix {
+    rank: Int;                        # 1 = vector (one row), 2 = matrix
     rows: Int;
     cols: Int;
-    data: list[list[Int]];
+    data: list[list[f64]];
 
-    fn at(self, i: Int, j: Int) -> Int {
+    fn get(self, i: Int, j: Int) -> f64 {
         return self.data[i][j];
     }
 }
 
+fn mat(rows: Int, cols: Int, data: list[list[f64]]) -> Matrix {
+    return Matrix(rank: 2, rows: rows, cols: cols, data: data);
+}
+
+fn vec(xs: list[f64]) -> Matrix {
+    return Matrix(rank: 1, rows: 1, cols: xs.len(), data: [xs]);
+}
+
 impl MatMul for Matrix {
-    fn matmul(self, other: Matrix) -> Matrix {
-        if self.cols != other.rows {
-            panic("matmul: shape mismatch");
+    fn matmul(self, o: Matrix) -> any {
+        if self.rank == 1 and o.rank == 1 {
+            # vector @ vector -> scalar (dot product)
+            acc = 0.0;
+            for i in 0..self.cols {
+                acc = acc + self.get(0, i) * o.get(0, i);
+            }
+            return acc;
         }
+        if self.rank == 2 and o.rank == 1 {
+            # (m,k) @ (k,) -> (m,) : right vector acts as a column
+            out = [];
+            for i in 0..self.rows {
+                acc = 0.0;
+                for k in 0..self.cols {
+                    acc = acc + self.get(i, k) * o.get(0, k);
+                }
+                out.append(acc);
+            }
+            return Matrix(rank: 1, rows: 1, cols: self.rows, data: [out]);
+        }
+        if self.rank == 1 and o.rank == 2 {
+            # (k,) @ (k,n) -> (n,) : left vector acts as a row
+            out = [];
+            for j in 0..o.cols {
+                acc = 0.0;
+                for k in 0..self.cols {
+                    acc = acc + self.get(0, k) * o.get(k, j);
+                }
+                out.append(acc);
+            }
+            return Matrix(rank: 1, rows: 1, cols: o.cols, data: [out]);
+        }
+        # (m,k) @ (k,n) -> (m,n)
         out = [];
         for i in 0..self.rows {
             row = [];
-            for j in 0..other.cols {
-                acc = 0;
+            for j in 0..o.cols {
+                acc = 0.0;
                 for k in 0..self.cols {
-                    acc = acc + self.at(i, k) * other.at(k, j);
+                    acc = acc + self.get(i, k) * o.get(k, j);
                 }
                 row.append(acc);
             }
             out.append(row);
         }
-        return Matrix(rows: self.rows, cols: other.cols, data: out);
+        return Matrix(rank: 2, rows: self.rows, cols: o.cols, data: out);
     }
 }
 
-fn show(label: Str, m: Matrix) -> none {
+fn show(label: Str, m: any) -> none {
+    if m.rank == 1 {
+        parts = [];
+        for j in 0..m.cols {
+            parts.append(Str(m.get(0, j)));
+        }
+        print(label + " = [" + join(", ", parts) + "]");
+        return;
+    }
     rows = [];
     for i in 0..m.rows {
         parts = [];
         for j in 0..m.cols {
-            parts.append(Str(m.at(i, j)));
+            parts.append(Str(m.get(i, j)));
         }
         rows.append(join(", ", parts));
     }
@@ -53,17 +107,23 @@ fn show(label: Str, m: Matrix) -> none {
 }
 
 fn main() -> none {
-    a = Matrix(rows: 2, cols: 3, data: [[1, 2, 3], [4, 5, 6]]);
-    b = Matrix(rows: 3, cols: 2, data: [[7, 8], [9, 10], [11, 12]]);
+    a = mat(2, 3, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    b = mat(3, 2, [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]);
 
-    c = a @ b;                               # (2x3) @ (3x2) -> (2x2)
+    c = a @ b;                        # (2x3) @ (3x2) -> (2x2)
     show("c", c);
 
-    identity = Matrix(rows: 2, cols: 2, data: [[1, 0], [0, 1]]);
+    identity = mat(2, 2, [[1.0, 0.0], [0.0, 1.0]]);
     var d = c;
-    d @= identity;                           # in-place product
+    d @= identity;                    # in-place product
     show("c@I", d);
 
-    e = b @ a;                               # (3x2) @ (2x3) -> (3x3)
+    x = vec([1.0, 2.0, 3.0]);         # length 3
+    show("a @ x", a @ x);             # (2x3) @ (3,) -> (2,)
+    y = vec([1.0, 1.0, 1.0]);         # length 3
+    show("y @ b", y @ b);             # (3,) @ (3x2) -> (2,)
+    print("x @ x = " + Str(x @ x));   # (3,) @ (3,) -> scalar
+
+    e = b @ a;                        # (3x2) @ (2x3) -> (3x3)
     show("e", e);
 }

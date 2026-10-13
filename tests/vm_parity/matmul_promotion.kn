@@ -1,0 +1,88 @@
+# vm_parity — `@` promotion (1-d <-> 2-d) and `__imatmul__` must produce
+# identical output on the tree-walker and the VM.
+struct Matrix {
+    rank: Int;
+    rows: Int;
+    cols: Int;
+    data: list[list[f64]];
+    fn get(self, i: Int, j: Int) -> f64 {
+        return self.data[i][j];
+    }
+}
+
+fn mat(rows: Int, cols: Int, data: list[list[f64]]) -> Matrix {
+    return Matrix(rank: 2, rows: rows, cols: cols, data: data);
+}
+
+fn vec(xs: list[f64]) -> Matrix {
+    return Matrix(rank: 1, rows: 1, cols: xs.len(), data: [xs]);
+}
+
+impl MatMul for Matrix {
+    fn matmul(self, o: Matrix) -> any {
+        if self.rank == 1 and o.rank == 1 {
+            acc = 0.0;
+            for i in 0..self.cols {
+                acc = acc + self.get(0, i) * o.get(0, i);
+            }
+            return acc;
+        }
+        if self.rank == 2 and o.rank == 1 {
+            out = [];
+            for i in 0..self.rows {
+                acc = 0.0;
+                for k in 0..self.cols {
+                    acc = acc + self.get(i, k) * o.get(0, k);
+                }
+                out.append(acc);
+            }
+            return Matrix(rank: 1, rows: 1, cols: self.rows, data: [out]);
+        }
+        if self.rank == 1 and o.rank == 2 {
+            out = [];
+            for j in 0..o.cols {
+                acc = 0.0;
+                for k in 0..self.cols {
+                    acc = acc + self.get(0, k) * o.get(k, j);
+                }
+                out.append(acc);
+            }
+            return Matrix(rank: 1, rows: 1, cols: o.cols, data: [out]);
+        }
+        out = [];
+        for i in 0..self.rows {
+            row = [];
+            for j in 0..o.cols {
+                acc = 0.0;
+                for k in 0..self.cols {
+                    acc = acc + self.get(i, k) * o.get(k, j);
+                }
+                row.append(acc);
+            }
+            out.append(row);
+        }
+        return Matrix(rank: 2, rows: self.rows, cols: o.cols, data: out);
+    }
+
+    fn __imatmul__(self, o: Matrix) -> Matrix {
+        return Matrix(rank: 2, rows: self.rows, cols: o.cols,
+                      data: [[self.get(0, 0) + o.get(0, 0)]]);
+    }
+}
+
+fn main() -> none {
+    a = mat(2, 3, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    b = mat(3, 2, [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]);
+    c = a @ b;
+    print(c.get(0, 0), c.get(1, 1));        # 58.0 154.0
+
+    x = vec([1.0, 2.0, 3.0]);
+    print((a @ x).get(0, 0));               # 14.0
+    y = vec([1.0, 1.0, 1.0]);
+    print((y @ b).get(0, 1));               # 30.0
+    print(x @ x);                           # 14.0
+
+    var d = a;
+    d @= b;                                 # __imatmul__ -> 1.0 + 7.0
+    print(d.get(0, 0));                     # 8.0
+}

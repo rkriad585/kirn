@@ -326,29 +326,38 @@ precedence and short-circuit verified; `native_main.kn` still green.
 **Goal:** `a @ b` matrix product via the operator-trait machinery.
 
 **Must Follow:** route through the `MatMul`/`__matmul__` trait; `@` keeps `*` precedence.
-**Important Note:** scalars raise `E-MATMUL-SCALAR`; 1-d↔2-d promotion follows NumPy semantics.
+**Important Note:** scalars raise `E-MATMUL-SCALAR`; 1-d↔2-d promotion follows NumPy semantics
+(a numeric operand is rejected even if the other side defines `__rmatmul__`, so this scalar rule
+takes precedence over PEP 465's reflected-of-scalar case).
 
 > Reference: Python — `@` matmul / `__matmul__` (PEP 465).
 
-**Files:** `src/sema/checker.cpp` (type `@` as `*`-precedence binary; route to `MatMul`/`__matmul__`),
-`src/interp/runtime.cpp` (`binop` `@` case + `@=` augmented), `src/ast/ast.h` (op enum), `DATA P9`
-(Matrix type) + `EXP P13` (trait table).
+**Files:** `src/lex/lexer.cpp` (`@=` token), `src/parser/parser.cpp` (`@` at `*`
+precedence, `@` augment), `src/sema/checker.cpp` (type `@`/`@=`; route to the trait),
+`src/interp/runtime.cpp` (`binop` `@` case, `@=` augmented), `grammar/kirn.ebnf`.
+`Matrix` is an ordinary library struct (there is no core `Matrix` type: `DATA P9` /
+`DATA_TYPE_PLAN.md` has no Matrix, so the op enum / core-type files originally listed
+here do not apply — ops are strings on the AST and structs are user-defined).
 
 **Architectural changes:** reuse the operator-trait dispatch (per `EXP P13`). `@` lowers like `*` with
-a distinct dunder. Scalar operands raise a dedicated `E-MATMUL-SCALAR`; 1-d↔2-d auto-promotion handled
-in the MatMul implementation; `@=` → `__imatmul__` then assign.
+the `matmul` dunder (alias `__matmul__`), plus PEP-465 reflected `__rmatmul__`; `@=` calls
+`__imatmul__` when defined and otherwise falls back to `a = a @ b` (so `@=` functions are marked
+interpreter-only in `src/vm/compiler.cpp`, like `??=`). Scalar operands raise a dedicated
+`E-MATMUL-SCALAR`; 1-d↔2-d auto-promotion follows NumPy semantics and is handled inside the `MatMul`
+implementation.
 
 **Syntax/example:**
 
 ```kirn
-impl MatMul for Matrix { fn __matmul__(self, o) -> Matrix { ... } }
+impl MatMul for Matrix { fn matmul(self, o: Matrix) -> any { ... } }
 c = a @ b;
-c @= scale;   # c = c @ scale
+c @= scale;   # __imatmul__ if present, else c = c @ scale
 v = m @ vec;          # matrix @ vector -> 1-d
 dot = v1 @ v2;        # vector @ vector -> scalar
 ```
 
-**Testing:** scalar-error negative; promotion cases; `@=`; a `Matrix` example `examples/52_matmul.kn`.
+**Testing:** scalar-error negative; promotion cases; `@=`; a `Matrix` example `examples/46_matmul.kn`
+(the plan's `52` slot is stale).
 
 **Expected result:** `@` runs for Matrix/vector types with PEP-465-consistent precedence/associativity.
 

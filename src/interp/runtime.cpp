@@ -2488,6 +2488,19 @@ void Interpreter::exec(const Stmt& s, Env env) {
                     assignTo(*s.exprs[0], eval(*s.exprs[1], env), env);
                 return;
             }
+            if (s.augOp == "@=") {
+                // PEP 465: `a @= b` calls `a.__imatmul__(b)` when defined, and
+                // otherwise falls back to `a = a @ b` (matmul/`__matmul__`).
+                Value cur = eval(*s.exprs[0], env);
+                Value rhs = eval(*s.exprs[1], env);
+                Value res = hasStructMethod(cur, "__imatmul__")
+                                ? invokeMethod(cur, "__imatmul__", {rhs}, {},
+                                               globals_, s.span.line,
+                                               s.span.col, nullptr)
+                                : binop("@", cur, rhs, s.span.line, s.span.col);
+                assignTo(*s.exprs[0], res, env);
+                return;
+            }
             Value cur = eval(*s.exprs[0], env);
             Value rhs = eval(*s.exprs[1], env);
             std::string op =
@@ -5175,6 +5188,18 @@ bool Interpreter::evalCmpChain(const Expr& b, Env env) {
     return true;
 }
 
+bool Interpreter::hasStructMethod(const Value& v, const std::string& name) {
+    if (v.k != VK::Struct && v.k != VK::Heap) return false;
+    const std::string& tn = v.k == VK::Heap ? v.heap->typeName : v.typeName;
+    auto si = structs_.find(tn);
+    if (si != structs_.end())
+        for (const auto& m : si->second->body)
+            if (m->kind == ast::StKind::FuncDef && m->name == name) return true;
+    for (const auto& imp : impls_)
+        if (imp.typeName == tn && imp.methods.count(name)) return true;
+    return false;
+}
+
 Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                          int line, int col) {
     // `@` is the matrix-product operator (PEP 465). Scalars are never valid
@@ -5194,29 +5219,21 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
             {"%", "mod"}, {"@", "matmul"}};
         auto nm = ARITH.find(op);
         if (nm != ARITH.end()) {
-            const std::string& tn =
-                l.k == VK::Heap ? l.heap->typeName : l.typeName;
-            auto has = [&](const std::string& name) {
-                auto si = structs_.find(tn);
-                if (si != structs_.end())
-                    for (const auto& m : si->second->body)
-                        if (m->kind == ast::StKind::FuncDef &&
-                            m->name == name)
-                            return true;
-                for (const auto& imp : impls_)
-                    if (imp.typeName == tn && imp.methods.count(name))
-                        return true;
-                return false;
-            };
+            // `@` also accepts the Python-style dunder spelling.
             std::string meth = nm->second;
-            // Also accept the Python-style `MatMul` dunder spelling.
-            if (!has(meth) && op == "@" && has("__matmul__"))
+            if (op == "@" && !hasStructMethod(l, meth) &&
+                hasStructMethod(l, "__matmul__"))
                 meth = "__matmul__";
-            if (has(meth))
+            if (hasStructMethod(l, meth))
                 return invokeMethod(l, meth, {r}, {}, globals_, line, col,
                                     nullptr);
         }
     }
+    // PEP 465 reflected fallback: `a @ b` where `a` does not implement `@`
+    // calls `b.__rmatmul__(a)`.
+    if (op == "@" && hasStructMethod(r, "__rmatmul__"))
+        return invokeMethod(r, "__rmatmul__", {l}, {}, globals_, line, col,
+                            nullptr);
 
     auto numL = [&]() { return l.k == VK::Int ? (double)l.i : l.d; };
     auto numR = [&]() { return r.k == VK::Int ? (double)r.i : r.d; };

@@ -363,6 +363,10 @@ public:
                 // `??=` is lazy (assign only when the target is none) and has no
                 // bytecode op; run the whole function in the tree interpreter.
                 if (s.augOp == "??=") { em.f.interpreted = true; break; }
+                // `@=` may dispatch to `__imatmul__`, which OP_BINARY does not
+                // model; run the function in the interpreter so tree and VM
+                // agree.
+                if (s.augOp == "@=") { em.f.interpreted = true; break; }
                 compileExpr(em, *s.exprs[0]);
                 compileExpr(em, *s.exprs[1]);
                 std::string op = s.augOp.empty() ? "+" : s.augOp.substr(0, s.augOp.size() - 1);

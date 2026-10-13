@@ -147,6 +147,7 @@ private:
 
     // operators
     Value binop(const std::string& op, const Value& l, const Value& r, int line, int col);
+    bool hasStructMethod(const Value& v, const std::string& name);
     Value compareOne(const std::string& op, const Value& l, const Value& r);
     bool evalCmpChain(const Expr& b, Env env);
     bool valuesEqual(const Value& a, const Value& b);

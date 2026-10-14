@@ -25,9 +25,9 @@ generated, machine-consumable binding tables instead of hand-maintained glue.
 
 ## Important Note
 
-The existing structure and ratified decisions below are preserved in force; `KIRN`/`kirn`/`.kn` are
-the pre-rename names for Kirn/`kirn`/`.kn`, and every existing `extern fn`, `use import`,
-marshalling, toolchain, and phase decision stands unchanged. This is the cross-language / FFI /
+The existing structure and ratified decisions below are preserved in force:
+every existing `extern fn`, `use import`, marshalling, toolchain, and phase
+decision stands unchanged. This is the cross-language / FFI /
 embedding / native-linking plan — not a source-to-source transpiler.
 
 **Status:** Proposed design (not yet implemented). Living document.
@@ -342,7 +342,7 @@ the MSVC build links these `.lib`s (`tools/kirn.cpp:2585-2667`). Foreign-object 
 | #   | Capability                                                                            | Where it lands                                      |
 | --- | ------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | N1  | Real dynamic library loading (`dlopen`/`LoadLibrary` + `dlsym`/`GetProcAddress`)      | new `src/ffi/*`                                     |
-| N2  | Typed `extern fn` → dynamic-symbol binding (replace hardcoded printf/strlen)         | `src/interp/runtime.cpp`, `src/sema/checker.cpp`    |
+| N2  | Typed `extern fn` → dynamic-symbol binding (replace hardcoded printf/strlen)          | `src/interp/runtime.cpp`, `src/sema/checker.cpp`    |
 | N3  | `use import` / `use from` / `use <lang>{}` parsing + AST                              | `src/parser/parser.cpp`, `src/lex`, `src/ast/ast.h` |
 | N4  | Value↔C marshalling (int/float/bool/char/string/array/bytes/error/pointer)            | `src/ffi/marshal.*`                                 |
 | N5  | Per-language compilers (C/C++/Rust/Go → shared lib) and drivers (Python/Ruby embed)   | `tools/kirn.cpp` + `src/ffi/lang/*`                 |

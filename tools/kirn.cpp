@@ -360,7 +360,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# " + name + "\n\n" + m.description +
                       ".\n\n## Install\n\n```bash\n"
                       "kirn install github.com/pets-registry/" + name +
-                      "\n```\n\n## Usage\n\n```co\n"
+                      "\n```\n\n## Usage\n\n```kirn\n"
                       "import \"" + name + "\"\n\n"
                       "print(" + name + ".hello(\"world\"))\n```\n");
 

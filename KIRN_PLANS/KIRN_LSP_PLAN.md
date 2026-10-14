@@ -67,7 +67,7 @@ positions) is called out explicitly.
 
 Read and confirmed from source:
 
-- **Files**: `.kn` (source), `.cob`/`.kirnlib` (binary build artifacts â€” never
+- **Files**: `.kn` (source), `.bkn`/`.kirnlib` (binary build artifacts â€” never
   opened as source).
 - **Lexer** (`src/lex/token.h`, `lexer.cpp`): tokens `Eof/Newline/Indent/Dedent/
 Ident/Int/Float/Char/StrNormal/StrRaw/StrByte/StrC/FString*/Op/Punct`;
@@ -1877,7 +1877,7 @@ future work (Section 7).
     },
   }
   -- also register the filetype:
-  vim.filetype.add({ extension = { co = 'kirn' } })
+  vim.filetype.add({ extension = { kn = 'kirn' } })
   ```
   Optionally `nvim-treesitter` for structural highlighting (from
   `KIRN_HIGHLIGHT_PLAN.md`), with `kirn-lsp` handling semantic features.
@@ -1898,7 +1898,7 @@ future work (Section 7).
   [[language]]
   name = "kirn"
   scope = "source.kirn"
-  file-types = ["co"]
+  file-types = ["kn"]
   comment-tokens = "#"
   [language-server.kirn-lsp]
   command = "kirn-lsp"

@@ -39,6 +39,6 @@ language project.
 
 ## Automated analysis
 
-ASan + harness coverage is run by the repo's `asanall`/`rename_baseline` gates;
+ASan + harness coverage is run by the repo's `asanall` gate;
 a green baseline does **not** guarantee absence of issues. Treat any ASan report
 as a bug, and please still report it.

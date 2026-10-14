@@ -1855,7 +1855,7 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
   behind makes the _next_ run's snapshot differ; the harness cleans up the way
   `gates_linux.sh` does.
 - **Pipeline cross-check tools** (heavy reuse of the "two oracles must agree"
-  - rename-gate CI trick): for each phase, a script that runs the same input
+  - cross-check CI trick): for each phase, a script that runs the same input
     through old and new paths and diffs output (token dumps, AST dumps, exit
     codes, program stdout).
 - **Golden files** for prepro (`kirnc -E`), HIR, MIR, LLVM IR dumps under

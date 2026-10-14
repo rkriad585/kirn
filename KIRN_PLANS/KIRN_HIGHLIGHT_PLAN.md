@@ -90,12 +90,12 @@ Everything below is derived from actual source; nothing is invented.
 ### 1.1 Files and extension
 
 **Goal:** pin the file extension and language id every editor registers.
-**Must Follow:** keep `.kn`/`.kn` source and never treat `.cob`/`.kirnlib` as source; register scope `source.kirn`.
+**Must Follow:** keep `.kn` source and never treat `.bkn`/`.kirnlib` as source; register scope `source.kirn`.
 **Important Note:** the extension is metadata; tokenization always comes from the shared grammar.
 
 - Source files use the **`.kn`** extension (enforced in `.gitattributes`:
   `*.kn text eol=lf`). Primary detection extension for every editor.
-- The `.gitattributes` also declares `*.cob` and `*.kirnlib` as binary
+- The `.gitattributes` also declares `*.bkn` and `*.kirnlib` as binary
   (compiled/archive output), so they must **not** be treated as Kirn source.
 - The compiler CLI and tools already exist in `tools/`:
   - `kirn` â€” main driver.
@@ -733,7 +733,7 @@ tree-sitter (Phase 3) plus an optional LSP (Phase 7).
 - `lua/kirn/plugin.lua` OR simple README instructions:
   ```lua
   -- after nvim-treesitter is installed and the grammar built:
-  vim.filetype.add({ extension = { co = "kirn" } })
+  vim.filetype.add({ extension = { kn = "kirn" } })
   vim.treesitter.language.register("kirn", "kirn")
   ```
 - Later: `nvim-lspconfig` config alias `kirn_lsp` once `kirn-lsp` exists.
@@ -910,7 +910,7 @@ editor/zed/extensions.toml
 ```toml
 name = "Kirn"
 grammar = "kirn"
-path_suffixes = ["co"]
+path_suffixes = ["kn"]
 line_comments = ["#"]
 brackets = [
   { start = "{", end = "}", close = true, newline = true },
@@ -929,7 +929,7 @@ scope_override = { "variable" = "..." }
 - `languages/highlights.scm`, `indents.scm`, `textobjects.scm`, `folds.scm`
   â€” reuse the same tree-sitter queries.
 - `languages.toml`: register `name="kirn"`, `scope="source.kirn"`,
-  `file-types=["co"]`, `comment-tokens=["#"]`, `language-server={...}` for LSP.
+  `file-types=["kn"]`, `comment-tokens=["#"]`, `language-server={...}` for LSP.
 
 **Implementation approach:** mostly config + reuse of Phase 3 queries. Zed
 extensions are zip files with a `languages/` layout; Helix reads language
@@ -1075,7 +1075,7 @@ module.exports = function (hljs) {
   ];
   return {
     name: "Kirn",
-    aliases: ["kirn", "co"],
+    aliases: ["kirn", "kn"],
     case_insensitive: false,
     keywords: {
       keyword: KEY,

@@ -252,7 +252,7 @@ that part would be `HashMap<_,_>`, `entry().or_insert()`, and lifetime-bound ite
 
 _BEHIND:_ Python wins on stdlib, Go on one-toolchain batteries, Rust on cargo. Each wins partly on
 tooling. Kirn ships the toolchain with the language: package manager with manifest/lockfile/registry,
-doc generator, test runner (`kirn test`), native + `.cob` bundles + cross-build, all from one binary.
+doc generator, test runner (`kirn test`), native + `.bkn` bundles + cross-build, all from one binary.
 What is true today: `tools/kirn.cpp` implements all of it; `stdlib/lib/*_test.kn` dogfoods the test
 runner. What must be true to keep it: Phases 1–4 (fmt/repl/check/LSP) and Phases 12–13 (registry +
 networking/crypto stdlib).

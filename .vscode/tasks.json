@@ -12,14 +12,8 @@
     {
       "label": "kirn: verify (all harness gates)",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/rename_baseline.ps1"
-      ],
+      "command": "bash",
+      "args": ["${workspaceFolder}/scripts/gates_linux.sh"],
       "group": "build",
       "problemMatcher": []
     }

@@ -20,10 +20,10 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CC="$ROOT/build/kirncheck"
 CR="$ROOT/build/kirnrun"
-CO="$ROOT/build/kirn"
+KIRN="$ROOT/build/kirn"
 KN="$ROOT/build/kirnc"
 WATCH=20
-for E in "$CC" "$CR" "$CO" "$KN"; do
+for E in "$CC" "$CR" "$KIRN" "$KN"; do
     [ -x "$E" ] || { echo "missing executable: $E" >&2; exit 1; }
 done
 # $CC is the CHECKER here, not a C++ compiler (gate 2/3 use it as kirncheck), so
@@ -146,7 +146,7 @@ kirn_run() { # dir -> prints "$code|$out"
     local d="$1"; shift
     local so se c
     so="$(mktemp "$TMP/c.XXXX")"; se="$(mktemp "$TMP/e.XXXX")"
-    (cd "$d" && timeout "$WATCH" "$CO" "$@") >"$so" 2>"$se"; c=$?
+    (cd "$d" && timeout "$WATCH" "$KIRN" "$@") >"$so" 2>"$se"; c=$?
     printf '%s|%s%s' "$c" "$(cat "$so")" "$(cat "$se")"
 }
 P="$TMP/conv"; mkdir -p "$P"
@@ -183,7 +183,7 @@ r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
 echo "=== gate 6: test (stdlib via kirn driver) ==="
 rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
-out6=$(cd "$ROOT" && timeout "$WATCH" "$CO" test . 2>&1); c6=$?
+out6=$(cd "$ROOT" && timeout "$WATCH" "$KIRN" test . 2>&1); c6=$?
 rm -f "$ROOT/.io_tmp_test.txt"
 if [ "$c6" = 0 ] && echo "$out6" | grep -q "9 passed, 0 failed"; then
     report PASS "kirn test stdlib/pet" "$(echo "$out6" | grep -c 'PASS') tests"
@@ -193,20 +193,20 @@ fi
 
 echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
 T7="$TMP/rt"; mkdir -p "$T7"
-(cd "$T7" && "$CO" new pet mypet >/dev/null 2>&1)
+(cd "$T7" && "$KIRN" new pet mypet >/dev/null 2>&1)
 printf 'pub fn hello(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
-if (cd "$T7/mypet" && "$CO" build) >/dev/null 2>&1; then
+if (cd "$T7/mypet" && "$KIRN" build) >/dev/null 2>&1; then
     PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
     if [ -z "$PET" ]; then report FAIL "pack .pet" "no .pet produced in build/"
     elif [ ! -f "$T7/mypet/kirn.toml" ]; then report FAIL "pack .pet" "kirn.toml not scaffolded"
     else
         report PASS "pack .pet" "$(basename "$PET")"
-        (cd "$T7" && "$CO" new app >/dev/null 2>&1)
-        if (cd "$T7/app" && "$CO" install "$PET" >/dev/null 2>&1); then
+        (cd "$T7" && "$KIRN" new app >/dev/null 2>&1)
+        if (cd "$T7/app" && "$KIRN" install "$PET" >/dev/null 2>&1); then
             if [ -f "$T7/app/pets/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/mypet"
             else report FAIL "install .pet" "destination pets/mypet missing"; fi
             printf 'import mypet;\nfn main() -> none { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
-            out7=$(cd "$T7/app" && timeout "$WATCH" "$CO" run "$T7/app" 2>&1); c7=$?
+            out7=$(cd "$T7/app" && timeout "$WATCH" "$KIRN" run "$T7/app" 2>&1); c7=$?
             if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pets, world!"; then report PASS "consume .pet" "$out7"
             else report FAIL "consume .pet" "rc=$c7: $out7"; fi
         else report FAIL "install .pet" "kirn install failed"; fi
@@ -217,7 +217,7 @@ echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
 T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
 printf 'pub fn hey(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
 printf 'import greet;\nimport math;\nfn main() -> none {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
-out8=$(cd "$T8" && timeout 240 "$CO" build main.kn -o out 2>&1); c8=$?
+out8=$(cd "$T8" && timeout 240 "$KIRN" build main.kn -o out 2>&1); c8=$?
 if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
     # real native binary (ELF magic), not a script
     magic=$(head -c4 "$T8/out")
@@ -227,7 +227,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pets, bundle!" && echo "$out8r" | grep -q "3.0"; then
             report PASS "bundle runs (imports+stdlib)" "$out8r"
         else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
-        out8b=$(cd "$T8" && KIRN_VERBOSE=1 timeout 240 "$CO" build main.kn -o out2 2>&1); c8b=$?
+        out8b=$(cd "$T8" && KIRN_VERBOSE=1 timeout 240 "$KIRN" build main.kn -o out2 2>&1); c8b=$?
         if [ "$c8b" = 0 ] && ! echo "$out8b" | grep -q '\[cmd\]'; then
             report PASS "rebuild needs no toolchain" "cached runner reused"
         else report FAIL "rebuild needs no toolchain" "rc=$c8b: $out8b"; fi
@@ -235,7 +235,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         # proving the renamed switch is live (not a silent no-op - Homebrew
         # HOMEBREW_NO_ENV_FILTERING-shaped gate rot guard).
         T8c="$TMP/pv"; rm -rf "$T8c"; mkdir -p "$T8c/build" "$T8c/tools"
-        cp "$CO" "$T8c/build/kirn"
+        cp "$KIRN" "$T8c/build/kirn"
         cp -r "$ROOT/src" "$T8c/src"
         cp "$ROOT/tools/runner.cpp" "$T8c/tools/runner.cpp"
         printf 'fn main() -> none { print("verbose check"); }\n' > "$T8c/main.kn"
@@ -374,7 +374,7 @@ cat > "$TMP/macbuild.kn" <<'KN'
 {.fn LIMIT. 3.}
 fn main() -> none { print(LIMIT); }
 KN
-out=$("$CO" build "$TMP/macbuild.kn" -o "$TMP/macbuild.bin" 2>&1); code=$?
+out=$("$KIRN" build "$TMP/macbuild.kn" -o "$TMP/macbuild.bin" 2>&1); code=$?
 if [ "$code" = 65 ] && printf '%s' "$out" | grep -q 'preprocessor macros'; then
     report PASS "bundled build refuses macro sources" "exit 65 with a diagnostic (no broken artefact)"
 else
@@ -382,7 +382,7 @@ else
 fi
 # ...and a macro-free program must still bundle, so the guard is not just
 # refusing everything.
-out=$("$CO" build "$ROOT/examples/01_hello.kn" -o "$TMP/hello.bin" 2>&1); code=$?
+out=$("$KIRN" build "$ROOT/examples/01_hello.kn" -o "$TMP/hello.bin" 2>&1); code=$?
 if [ "$code" = 0 ] && [ -x "$TMP/hello.bin" ] && "$TMP/hello.bin" 2>/dev/null | grep -q 'Hello, World!'; then
     report PASS "bundled build still works without macros" "01_hello.kn bundles and runs"
 else

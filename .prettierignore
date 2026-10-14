@@ -3,7 +3,6 @@
 build/
 build-asan/
 build-rel/
-_rename/
 node_modules/
 .git/
 *.kn

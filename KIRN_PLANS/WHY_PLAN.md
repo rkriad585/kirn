@@ -591,7 +591,7 @@ compiles and runs; a double-borrow error fires; non-`@checked` code is untouched
 
 **Why:** C/C++ dominate wherever performance is the deciding adoption factor (embedded, kernels,
 engines). Go built `go bench`; Rust built criterion. Kirn already has `kirn build -O` (native
-obj+exe via the prebuilt MSVC runtime, `tools/kirn.cpp:2517-2560`) and `.cob`/cross-build.
+obj+exe via the prebuilt MSVC runtime, `tools/kirn.cpp:2517-2560`) and `.bkn`/cross-build.
 
 **Goal:** adopt `PLAN.md` Phase 8 (`kirn bench` + fast-AOT) so "how fast is Kirn" is _measurable
 and improvable_, and publish benchmark numbers as the adoption proof.

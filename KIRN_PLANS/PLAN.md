@@ -373,7 +373,7 @@ OP_MAKE_LIST/DICT/SET/TUPLE, OP_BINOP, OP_RETURN, OP_NEW, OP_MATCH`, … Reuse `
 
 - The interpreter becomes "compile AST → bytecode → run VM"; the AST remains the sema/front-end
   target so `kirn check`, `kirn lint`, tooling all operate on one tree.
-- The portable bytecode bundle (`.cob`, emitted by `kirn build` for toolchain-less
+- The portable bytecode bundle (`.bkn`, emitted by `kirn build` for toolchain-less
   cross targets) already exists — the VM is its runtime.
 
 ### 4.4 Verified status (VM default-on; specialized ops + flat-SP stack landed)
@@ -737,7 +737,7 @@ and multi-archive releases.
   the GNU/PATH-probe fallback (current default) and invest in the Phase-8.2 native codegen
   (`src/backend/native.cpp`) as the primary acceleration path instead.
 - **Static linking** option (`--static`) bundling libc/libkirn → portable single binaries.
-- **`.cob` portable bytecode** already exists as the no-toolchain fallback; keep it as a
+- **`.bkn` portable bytecode** already exists as the no-toolchain fallback; keep it as a
   target equal to native.
 - **Installers**: `--install` producing per-OS artifacts — Windows `.zip`/`.exe`, macOS
   `universal2` (build both arch slices), Linux `tar.gz` — with `SHA256SUMS` (cargo-forge model).

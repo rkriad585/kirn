@@ -1226,7 +1226,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# " + name + "\n\n" + m.description +
                       ".\n\n## Install\n\n```bash\n"
                       "kirn install github.com/pets-registry/" + name +
-                      "\n```\n\n## Usage\n\n```co\n"
+                      "\n```\n\n## Usage\n\n```kirn\n"
                       "import \"" + name + "\"\n\n"
                       "print(" + name + ".hello(\"world\"))\n```\n");
 
@@ -2093,7 +2093,7 @@ std::string extractApiDocs(const Manifest& m) {
                     fileHeaded = true;
                 }
                 anyFn = true;
-                o << "### `" << t.substr(8) << "`\n\n```co\n"
+                o << "### `" << t.substr(8) << "`\n\n```kirn\n"
                   << t << "\n```\n\n";
                 o << (pendingDoc.empty() ? "_no doc comment_\n" : pendingDoc);
                 o << "\n";

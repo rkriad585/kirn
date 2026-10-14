@@ -33,7 +33,6 @@ goals, problems solved, files affected, code, testing, and limitations.
 | Plan                                                   | Owned concern                                                                            |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `PLAN.md` / `DO_FIRST_PLAN.md`                         | Overall roadmap and immediate-first priorities                                           |
-| `REBRAND_PLAN.md`                                      | Historical rename decisions (legacy extension → `.kn`)                                   |
 | `KIRN_DOCS_PLAN.md`                                    | Documentation website                                                                    |
 | `SYNTAX_PLAN.md` / `EXP_PLAN.md` / `DATA_TYPE_PLAN.md` | Syntax, expressions, data types                                                          |
 | `MISSING_PLAN.md`                                      | Missing features                                                                         |

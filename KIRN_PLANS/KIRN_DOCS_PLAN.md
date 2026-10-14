@@ -59,7 +59,7 @@ I did **not** trust the README. I built the compiler from `src/` (C++20, CMake, 
 | optionals/patterns power, generators (`yield`)                       | `examples/38,41`                              |
 | OOP: `class`/`interface`/`record`/`extends`                          | `examples/36_oop.kn`                          |
 | `any`/`dynamic` duck typing                                          | `examples/37_dynamic_any.kn`                  |
-| **Tests** (`*_test.kn`), **build** (native `.exe` + bytecode `.cob`) | `kirn test`, `kirn build --target=...`        |
+| **Tests** (`*_test.kn`), **build** (native `.exe` + bytecode `.bkn`) | `kirn test`, `kirn build --target=...`        |
 
 **The docs site must document THIS â€” the verified feature set â€” not the README's inflated promises.**
 
@@ -83,7 +83,7 @@ The current `README.md` makes **unsupported, unverifiable claims**: "outperforms
 - **Compiler:** C++20; pipeline `src/lex â†’ src/parser â†’ src/sema â†’ src/vm (compiler+bytecode) â†’ src/interp (tree-walk) / src/backend/native (C++ lowering)`.
 - **CLI driver `kirn`** (plus `kirnrun`, `kirncheck`, `kirnlex`, `kirnparse`). Real subcommands (from `kirn --help`, verified): `run`, `new`, `new lib`, `test`, `install/-g`, `add`, `update`, `remove`, `clone`, `build` (+`--release/--debug/--target/--native/--asan/-S/-O/-o`), `targets`, `build lib`, **`doc`**, `list`, `list online`.
 - **Built-in doc server exists:** `kirn doc <lib|dir> [--port N]` "serve markdown docs + API ref". The website's content should **align with** (and can pull from) this so docs don't drift.
-- **Targets:** `windows/linux/darwin Ã— amd64/arm64`; bytecode bundles `.cob`, libraries `.kirnlib`, native `.exe`.
+- **Targets:** `windows/linux/darwin Ã— amd64/arm64`; bytecode bundles `.bkn`, libraries `.kirnlib`, native `.exe`.
 - **Project scaffold** (`kirn new demo`): `kirn.toml` manifest (`[package] name/version/type/main/docs/description/license/author/repo/homepage`, `[dependencies]`), `code/main.kn`, `tests/`, `docs/`, `.gitignore`.
 - **stdlib modules** (each with a `_test.kn`): `core, io, math, strings, collections, json, os, path, regexp, time` plus `text/slug`. Public API surface verified (e.g. `read_file`, `write_file`, `sqrt/abs/clamp/min2/max2/ipow/fpow`, `contains/starts_with/ends_with/replace_all/split/join/repeat/reverse/pad_left/pad_right/strip`, `unique/shuffle/rand_float`, `dumps/loads`, `args/getenv/exit`, â€¦).
 - **Grammar:** normative EBNF in `grammar/kirn.ebnf` (557 lines) â€” the source of truth for the **Language Reference** pages. Plus the **canonical keyword list** in `src/lex/lexer.cpp` (authoritative for a syntax-highlighting grammar â€” see Â§6.3).
@@ -110,7 +110,7 @@ Operators (multi-char): `<<= >>= ..= .?.` ; `** // == != <= >= << >> += -= *= /=
 - **License:** MIT Â© 2024 RK Riad Khan (`LICENSE.txt`) â€” your docs site is free to reuse inputs; keep attribution.
 - **Version source:** `.version` file at repo root (currently **empty**) and the `kirn.toml` `version = "0.0.1-beta"` scaffold default + SemVer in `[package]`. There is **no CLI `--version`** (verified: `kirn --version` prints usage). The **website needs a version display**, so this is a required input â€” see Phase 3 (version config).
 - **Hosting:** resource list says Documentation is `https://kirn-lang.github.io`. **VitePress deploys as static output** â†’ GitHub Pages is the natural target (`gh-pages` branch or `{username}.github.io`). Deployment strategy in Â§8.
-- **Branding â†’ rebrand caution:** the repo's `kirn-logos/` directory contains **`kirn-*` branded assets** (this is the "rename project" tracked in sibling plan `REBRAND_PLAN.md`). The provided branding URLs point at the `kirn-*` logos. **The docs site's visual identity must track whichever name wins.** This plan builds with a **single source of truth for the brand** (a `theme` object in config) so the "Kirn" â‡¢ "Kirn" swap is a one-line change â€” see Phase 2 (Â§2.5) and the branding note (Â§9).
+  - **Branding:** the repo ships `kirn-*` branded assets in `kirn-logos/`. All identity lives in a single `theme` object in config so it can be changed in one line - see Phase 2 (2.5) and the branding note (9).
 
 ---
 
@@ -127,7 +127,7 @@ The brief mandates **Vite + TypeScript** and "the simplest appropriate architect
 | Requirement         | VitePress capability                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Search              | **Built-in local full-text search** (MiniSearch) â€” `search.provider: 'local'`, no API key, always current, works offline. Optional Algolia/Pagefind upgrade path. |
-| Syntax highlighting | **Shiki** built in; supports **custom language aliases** â†’ register `co`/`kirn` as a language (Â§6.3)                                                             |
+| Syntax highlighting | **Shiki** built in; supports **custom language aliases** â†’ register `kn`/`kirn` as a language (Â§6.3)                                                             |
 | Copy-code           | **Built-in copy button on code blocks**                                                                                                                             |
 | Dark/light theme    | **Built-in theme switcher, auto (respects system), light/dark** â€” satisfies both theme + a11y contrast                                                            |
 | Responsive / mobile | Built-in responsive default theme; sidebar collapses to mobile drawer                                                                                               |
@@ -199,7 +199,7 @@ Every phase's content milestones run the Claim Gate on the pages it writes.
 â”œâ”€â”€ /guide/               Tooling & ecosystem (task-oriented)
 â”‚   â”œâ”€â”€ cli/              run, new, build, test, install/add, doc â€¦
 â”‚   â”œâ”€â”€ project/          kirn.toml, directory layout, modules & imports, packaging
-â”‚   â”œâ”€â”€ toolchain/        targets, native vs bytecode, .cob/.kirnlib
+â”‚   â”œâ”€â”€ toolchain/        targets, native vs bytecode, .bkn/.kirnlib
 â”‚   â”œâ”€â”€ comparison/       Kirn vs Python / Go / Rust / C / Ruby (honest, Â§1.3)
 â”‚   â”œâ”€â”€ faq               FAQ (incl. "what's not built yet")
 â”‚   â””â”€â”€ contributing      How to contribute (mirrors README) + docs-writing guide
@@ -327,7 +327,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   - `docs/.vitepress/theme/` with CSS custom properties for brand colors, typography scale, spacing, code accent.
   - A `brand.ts` module exporting `{ name, tagline, colors, logo, repo }` used by components + config.
   - Favicon + OG image.
-- **Why:** a docs site's credibility depends on consistent visual identity; and because the "Kirn â‡¢ Kirn" rename is in flight (Â§0.5), a **single brand variable** makes the swap trivial and safe.
+- **Why:** a docs site's credibility depends on consistent visual identity; a **single brand variable** keeps the identity consistent and easy to change.
 - **Relevant files:** `.vitepress/theme/index.ts`, `.vitepress/theme/style.css`, `public/favicon.ico`, `public/og.png`.
 - **Implementation approach:** derive the palette from the **Kirn orange/white/black logo assets** (each logo is exactly one of those). Define one canonical orange as `--kirn-brand` and wire it into VitePress's `--vp-c-brand-*` variables so the accent color, buttons, and links all come from it in light and dark mode.
 - **Code example (style.css brand tokens):**
@@ -346,7 +346,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   ```ts
   // .vitepress/theme/brand.ts  â€” the single source of truth for the brand
   export const brand = {
-    name: "Kirn", // â† flip to 'Kirn' when the rename lands
+    name: "Kirn",
     tagline: "Python-like syntax, Go-style compilation, native performance.",
     repo: "https://github.com/rkriad585/kirn",
     logo: "/logo.svg",
@@ -527,7 +527,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 **Goal:** Task-oriented tooling/CLI/project guides. **Must Follow:** Commands sourced from `--help`, verified in CI. **Important Note:** Regenerate the CLI page each release.
 
 - **Goal:** task-oriented guidance for everyday usage.
-- **What to implement:** CLI reference (`kirn run/new/build/test/install/add/doc/â€¦` with real flags from `--help`), project structure (from `kirn new` scaffold), modules/imports/visibility, `kirn.toml` manifest, targets & native-vs-bytecode (`--target`, `.cob`/`.kirnlib`), and the built-in `kirn doc` server.
+- **What to implement:** CLI reference (`kirn run/new/build/test/install/add/doc/â€¦` with real flags from `--help`), project structure (from `kirn new` scaffold), modules/imports/visibility, `kirn.toml` manifest, targets & native-vs-bytecode (`--target`, `.bkn`/`.kirnlib`), and the built-in `kirn doc` server.
 - **Why:** tooling onboarding friction is a top pain point (research Â§pain points: "environment setup & onboarding friction"); documenting real commands solves it.
 - **Relevant files:** `docs/guide/{cli,project,toolchain,packaging}.md`.
 - **Implementation approach:** one page per tool/task; the CLI page is generated-friendly structured data (flags table) sourced from `kirn --help`. Include a "build a CLI binary" and "build a library (.kirnlib)" walkthrough with verified commands.
@@ -536,7 +536,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   kirn run [dir|file]          # run a program or project
   kirn build <file.kn>         # compile one file -> ./<stem>.exe
   kirn test [.|file|dir ...]   # run *_test.kn files
-  kirn build --target=linux-amd64   # cross/portable bytecode (.cob)
+  kirn build --target=linux-amd64   # cross/portable bytecode (.bkn)
   kirn build lib               # check + pack -> .kirnlib
   kirn doc <lib|dir>           # serve markdown docs + API ref
   ```
@@ -643,7 +643,7 @@ fn root(n: BigInt) -> BigInt { __Sqrt(n) }
   ```md
   | Aspect      | Python        | Kirn (verified)                                        |
   | ----------- | ------------- | ------------------------------------------------------ |
-  | Compilation | Interpreted   | AOT (native `.exe` or bytecode `.cob`)                 |
+  | Compilation | Interpreted   | AOT (native `.exe` or bytecode `.bkn`)                 |
   | Typing      | Dynamic       | Inferred static `int`,`float`,`string`,`bool`,generics |
   | Concurrency | GIL + threads | `spawn` green threads + `chan`/`select`                |
   | Errors      | Exceptions    | `try`/`raise`, optionals `?`, results                  |
@@ -945,9 +945,9 @@ The deployable artifact includes the AI-first bundle manifest:
 
 ---
 
-## 9. Branding & the "Kirn â‡¢ Kirn" rename â€” how this site stays correct
+## 9. Branding - staying name-agnostic
 
-**Goal:** Name-agnostic identity with a one-line rebrand. **Must Follow:** All identity in `brand.ts`; rerun verification after rename. **Important Note:** Coordinate with `REBRAND_PLAN.md` Phase 12.
+**Goal:** Name-agnostic identity with a one-line change. **Must Follow:** All identity in `brand.ts`; rerun verification after changes.
 
 ```json
 {
@@ -959,11 +959,11 @@ The deployable artifact includes the AI-first bundle manifest:
 }
 ```
 
-- The repo's `kirn-logos/` currently ships **`kirn-*` assets**, and the sibling plan (`REBRAND_PLAN.md`) renames the language to **Kirn** and `.kn â†’ .kn`. The provided branding URLs point at the `kirn-*` logos.
-- **This docs plan is name-agnostic by design:** all identity lives in `.vitepress/theme/brand.ts` (name, tagline, logo, accent) and the `base`/config. Swapping Kirn â‡¢ Kirn is:
+  - The repo ships `kirn-*` assets in `kirn-logos/`. All identity is name-agnostic: it lives in `.vitepress/theme/brand.ts`.
+- **This docs plan is name-agnostic by design:** all identity lives in `.vitepress/theme/brand.ts` (name, tagline, logo, accent) and the `base`/config. Swapping the name is:
   1. change `brand.ts.name` (+ tagline),
   2. swap `brand.logo` to the chosen `kirn-*.png`,
-  3. global-rename the docs prose `Kirn`â†’`Kirn` and `kirn`â†’`kirn` (command + `.kn`â†’`.kn` in examples),
+  3. update the docs prose and examples if the name ever changes,
   4. rerun `run_examples.ps1` + `banned_claims.ps1`.
-- A note in `MAINTENANCE.md` flags this as a coordinated change with the rename plan's Phase 12. Until the rename is final, the site documents the language as it is **now** (Kirn, `.kn`) and is structured so the rebrand is low-risk.
+- The site documents the language as it is **now** (Kirn, `.kn`) and is structured so any future name change is low-risk.
 - **Logo choice:** primary = `kirn-logos/kirn-logo.png` (matches accent); `kirn-logos/kirn-icon.png` for dark header, `kirn-logos/kirn-icon-on-light.png` for light paper/footer, banner `kirn-logos/kirn-1280x640.png`. All four live in `public/`.

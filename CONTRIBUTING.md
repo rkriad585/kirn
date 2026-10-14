@@ -1,8 +1,7 @@
 # Contributing to Kirn
 
-Kirn is a Windows-first, C++20 compiled language. It was formerly named Kirn
-(see [KIRN_PLANS/REBRAND_PLAN.md](KIRN_PLANS/REBRAND_PLAN.md) for the
-rename). Anything you commit must keep the harnesses green at every phase.
+Kirn is a Windows-first, C++20 compiled language. Anything you commit must keep
+the harnesses green at every phase.
 
 ## Environment
 
@@ -44,16 +43,9 @@ powershell -NoProfile -File scripts\vm_diff.ps1         # Kirn VM parity (vm_*)
 powershell -NoProfile -File tests\conventions\run.ps1
 ```
 
-Or run the whole 5-gate snapshot (Phase-1 harness) at once:
-
-```powershell
-powershell -NoProfile -File scripts\rename_baseline.ps1
-# -> "baseline OK: 5/5 gates passed" and transcripts under _rename/baseline/
-```
-
-> Note: `scripts\types.ps1 -Check/-Run`, `scripts\negative.ps1 -Runner`, and
-> `rename_baseline.ps1` accept the exe path explicitly; the defaults resolve
-> to the `build\` (then `build\Debug\`) layout above.
+> Note: `scripts\runall.ps1 -Runner`, `scripts\types.ps1 -Check/-Run`, and
+> `scripts\negative.ps1 -Runner` accept the exe path explicitly; the defaults
+> resolve to the `build\` (then `build\Debug\`) layout above.
 
 ## Line endings (repo policy — non-negotiable)
 
@@ -71,16 +63,13 @@ powershell -NoProfile -File scripts\rename_baseline.ps1
 - Conventional Commits, enforced optionally via `commitlint.config.cjs`
   (type list: `meta, scripts, rename, tools, examples, docs, tests, stdlib,
 gitignore, build, chore, fix, refactor, style, perf, CI`... scope optional,
-  e.g. `rename(phase1): baseline snapshot`).
+  e.g. `stdlib(os): add chdir`).
 - One commit per cohesive phase/change; reference the plan phase in the body
-  when the change implements a plan row (e.g. `rename(phase1): dry-run
-inventory`).
+  when the change implements a plan row (e.g. `feat(phase3): ...`).
 - Keep the tree green at every commit (run the 5 gates above).
 
-## Testing & the migration plan
+## Testing
 
-- `KIRN_PLANS/REBRAND_PLAN.md` is the authoritative migration plan
-  (Phases 1..13, decision log D1..D8). **Phase 1 (baseline snapshot) is done.**
 - New language/compiler behavior starts from `docs/KIRN_PLAN.md` and
   `grammar/kirn.ebnf`; corpus examples live in `examples/`, negative cases in
   `tests/negative/`, type cases in `tests/types/`, vm-parity cases in

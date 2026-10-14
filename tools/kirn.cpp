@@ -1102,6 +1102,14 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
         }
         if (it->is_regular_file(ec) && isTestFile(p)) out.push_back(p);
     }
+    // Sort before returning. recursive_directory_iterator yields readdir order,
+    // which is filesystem-dependent -- ext4 happens to hand back a creation
+    // order that looks alphabetical here, but ext3, APFS, NTFS and overlayfs do
+    // not. Without this, `kirn test` output (and therefore the recorded golden
+    // for it) changes when the same tree is checked out on a different machine.
+    // This is the same rule as reproducible-builds commandment 4: never let
+    // filesystem-readdir order reach an output.
+    std::sort(out.begin(), out.end());
 }
 
 int cmdTest(const std::vector<std::string>& args, size_t from) {

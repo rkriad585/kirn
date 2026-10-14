@@ -6,6 +6,7 @@
 #include "interp/runtime.h"
 #include "interp/escapes.h"
 #include "interp/bigint.h"
+#include "interp/wide.h"
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "sema/checker.h"
@@ -27,6 +28,9 @@ namespace interp {
 
 namespace vm = kirn::vm;
 using namespace kirn::vm;
+
+using kirn::i128;
+using kirn::u128;
 
 using ast::CallArg;
 using ast::Expr;
@@ -1044,15 +1048,15 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     globals_->vars["RationalPow"] = biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Rational && a[1].k == VK::Int) {
             int64_t e = a[1].i;
-            __int128 n = a[0].num, d = a[0].den;
+            i128 n = a[0].num, d = a[0].den;
             bool neg = e < 0;
             uint64_t ue = neg ? (uint64_t)(-(e + 1)) + 1 : (uint64_t)e;
-            __int128 rn = 1, rd = 1;
+            i128 rn = 1, rd = 1;
             for (uint64_t i = 0; i < ue; ++i) { rn *= n; rd *= d; }
-            if (neg) { __int128 t = rn; rn = rd; rd = t; }
+            if (neg) { i128 t = rn; rn = rd; rd = t; }
             if (rd < 0) { rn = -rn; rd = -rd; }
-            __int128 x = rn < 0 ? -rn : rn, y = rd;
-            while (y) { __int128 t = y; y = x % y; x = t; }
+            i128 x = rn < 0 ? -rn : rn, y = rd;
+            while (y) { i128 t = y; y = x % y; x = t; }
             if (x) { rn /= x; rd /= x; }
             if (rn > INT64_MAX || rn < INT64_MIN || rd > INT64_MAX)
                 panicHere("rational_pow: result out of range");
@@ -4521,33 +4525,33 @@ return Value::none();
                 return bind({"rhs"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
                     int64_t rl = a[0].i, rr = a[1].i;
                     if (!wu) {
-                        __int128 smin = wb >= 64 ? (__int128)LLONG_MIN
-                                                 : (__int128)(-(1ll << (wb - 1)));
-                        __int128 smax = wb >= 64 ? (__int128)LLONG_MAX
-                                                 : (__int128)((1ll << (wb - 1)) - 1);
-                        __int128 wide = 0;
+                        i128 smin = wb >= 64 ? (i128)LLONG_MIN
+                                                 : (i128)(-(1ll << (wb - 1)));
+                        i128 smax = wb >= 64 ? (i128)LLONG_MAX
+                                                 : (i128)((1ll << (wb - 1)) - 1);
+                        i128 wide = 0;
                         bool division = name == "checked_div" || name == "checked_rem";
                         if (division) {
                             if (rr == 0) return Value::none();
                             if (rl == (wb >= 64 ? LLONG_MIN : -(int64_t)(1ll << (wb - 1))) && rr == -1)
                                 return Value::none();
-                            wide = name == "checked_div" ? (__int128)(rl / rr)
-                                                              : (__int128)(rl % rr);
+                            wide = name == "checked_div" ? (i128)(rl / rr)
+                                                              : (i128)(rl % rr);
                         } else {
-                            wide = name == "checked_add" ? (__int128)(rl) + (__int128)rr
-                                 : name == "checked_sub" ? (__int128)(rl) - (__int128)rr
-                                                         : (__int128)(rl) * (__int128)rr;
+                            wide = name == "checked_add" ? (i128)(rl) + (i128)rr
+                                 : name == "checked_sub" ? (i128)(rl) - (i128)rr
+                                                         : (i128)(rl) * (i128)rr;
                         }
                         if (wide >= smin && wide <= smax) return Value::integer((int64_t)wide);
                         return Value::none();
                     }
-                    unsigned __int128 u0 = (unsigned __int128)((uint64_t)rl & wmask),
-                                      u1 = (unsigned __int128)((uint64_t)rr & wmask);
-                    unsigned __int128 umax = wb >= 64 ? (unsigned __int128)ULLONG_MAX
-                                                     : (unsigned __int128)((1ull << wb) - 1ull);
-                    unsigned __int128 r;
+                    u128 u0 = (u128)((uint64_t)rl & wmask),
+                                      u1 = (u128)((uint64_t)rr & wmask);
+                    u128 umax = wb >= 64 ? (u128)ULLONG_MAX
+                                                     : (u128)((1ull << wb) - 1ull);
+                    u128 r;
                     if (name == "checked_add") r = u0 + u1;
-                    else if (name == "checked_sub") r = u0 >= u1 ? u0 - u1 : (unsigned __int128)~0ull;
+                    else if (name == "checked_sub") r = u0 >= u1 ? u0 - u1 : (u128)~0ull;
                     else if (name == "checked_mul") r = u0 * u1;
                     else {
                         if (u1 == 0) return Value::none();
@@ -4570,14 +4574,14 @@ return Value::none();
                     if (rr < 0 || rr >= wb) return Value::none();
                     if (name == "checked_shr")
                         return Value::integer(rl >> rr);
-                    __int128 wide = (__int128)rl << rr;
-                    __int128 smin = wu ? 0
+                    i128 wide = (i128)rl << rr;
+                    i128 smin = wu ? 0
                                        : wb >= 64 ? LLONG_MIN
-                                                  : (__int128)(-(1ll << (wb - 1)));
-                    __int128 smax = wu ? (wb >= 64 ? (__int128)ULLONG_MAX
-                                                   : (__int128)((1ull << wb) - 1ull))
+                                                  : (i128)(-(1ll << (wb - 1)));
+                    i128 smax = wu ? (wb >= 64 ? (i128)ULLONG_MAX
+                                                   : (i128)((1ull << wb) - 1ull))
                                        : wb >= 64 ? LLONG_MAX
-                                                  : (__int128)((1ll << (wb - 1)) - 1);
+                                                  : (i128)((1ll << (wb - 1)) - 1);
                     return (wide >= smin && wide <= smax)
                                ? Value::integer((int64_t)wide)
                                : Value::none();
@@ -4587,16 +4591,16 @@ return Value::none();
                 return bind({"rhs"}, [wb, wu, &name](std::vector<Value>& a) -> Value {
                     int64_t base = a[0].i, exp = a[1].i;
                     if (exp < 0) return Value::none();
-                    __int128 wide = 1;
+                    i128 wide = 1;
                     for (int64_t i = 0; i < exp && i < 256; ++i)
-                        wide *= (__int128)base;
-                    __int128 smin = wu ? 0
+                        wide *= (i128)base;
+                    i128 smin = wu ? 0
                                        : wb >= 64 ? LLONG_MIN
-                                                  : (__int128)(-(1ll << (wb - 1)));
-                    __int128 smax = wu ? (wb >= 64 ? (__int128)ULLONG_MAX
-                                                   : (__int128)((1ull << wb) - 1ull))
+                                                  : (i128)(-(1ll << (wb - 1)));
+                    i128 smax = wu ? (wb >= 64 ? (i128)ULLONG_MAX
+                                                   : (i128)((1ull << wb) - 1ull))
                                        : wb >= 64 ? LLONG_MAX
-                                                  : (__int128)((1ll << (wb - 1)) - 1);
+                                                  : (i128)((1ll << (wb - 1)) - 1);
                     return (wide >= smin && wide <= smax)
                                ? Value::integer((int64_t)wide)
                                : Value::none();
@@ -4658,22 +4662,22 @@ return Value::none();
             if (name.rfind("saturating_", 0) == 0) {
                 return bind({"rhs"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
                     int64_t rl = a[0].i, rr = a[1].i;
-                    __int128 smin = wu ? 0 : wb >= 64 ? LLONG_MIN : (__int128)(-(1ll << (wb - 1)));
-                    __int128 smax = wu
-                                        ? (wb >= 64 ? LLONG_MAX : (__int128)((1ull << wb) - 1ull))
-                                        : (wb >= 64 ? LLONG_MAX : (__int128)((1ll << (wb - 1)) - 1));
-                    __int128 wide = 0;
-                    if (name == "saturating_add") wide = (__int128)rl + (__int128)rr;
-                    else if (name == "saturating_sub") wide = (__int128)rl - (__int128)rr;
-                    else if (name == "saturating_mul") wide = (__int128)rl * (__int128)rr;
-                    else if (name == "saturating_neg") wide = -(__int128)rl;
-                    else if (name == "saturating_abs") wide = rl < 0 ? -(__int128)rl : rl;
-                    else if (name == "saturating_div") { if (rr == 0) return Value::none(); wide = (__int128)rl / rr; }
+                    i128 smin = wu ? 0 : wb >= 64 ? LLONG_MIN : (i128)(-(1ll << (wb - 1)));
+                    i128 smax = wu
+                                        ? (wb >= 64 ? LLONG_MAX : (i128)((1ull << wb) - 1ull))
+                                        : (wb >= 64 ? LLONG_MAX : (i128)((1ll << (wb - 1)) - 1));
+                    i128 wide = 0;
+                    if (name == "saturating_add") wide = (i128)rl + (i128)rr;
+                    else if (name == "saturating_sub") wide = (i128)rl - (i128)rr;
+                    else if (name == "saturating_mul") wide = (i128)rl * (i128)rr;
+                    else if (name == "saturating_neg") wide = -(i128)rl;
+                    else if (name == "saturating_abs") wide = rl < 0 ? -(i128)rl : rl;
+                    else if (name == "saturating_div") { if (rr == 0) return Value::none(); wide = (i128)rl / rr; }
                     else if (name == "saturating_pow") {
                         if (rr < 0) return Value::none();
                         wide = 1;
                         for (int64_t i = 0; i < rr && i < 256; ++i)
-                            wide *= (__int128)rl;
+                            wide *= (i128)rl;
                     }
                     else { panicHere("no such saturating op"); }
                     if (wide < smin) return Value::integer((int64_t)smin);
@@ -4809,7 +4813,7 @@ return Value::none();
                             r = ((u & 0xffull) << 24) | ((u & 0xff00ull) << 8) |
                                 ((u >> 8) & 0xff00ull) | ((u >> 24) & 0xffull);
                         else if (wb == 64)
-                            r = __builtin_bswap64(u);
+                            r = kirn::bswap64(u);
                         if (!wu && wb < 64 && (r & (1ull << (wb - 1))))
                             r |= ~wmask;
                         return Value::integer((int64_t)r);
@@ -4844,13 +4848,13 @@ return Value::none();
                 return bind({"exp"}, [wb, wu, wmask, &name](std::vector<Value>& a) -> Value {
                     int64_t base = a[0].i, exp = a[1].i;
                     if (exp < 0) return Value::none();
-                    __int128 r = 1, b = base;
+                    i128 r = 1, b = base;
                     for (int64_t i = 0; i < exp; ++i) {
-                        r *= (__int128)b;
-                        unsigned __int128 lim = wmask;
-                        if (wu) { r &= (__int128)wmask; }
+                        r *= (i128)b;
+                        u128 lim = wmask;
+                        if (wu) { r &= (i128)wmask; }
                         else { // signed saturate-ish overflow as saturating? use wrapping to keep total sound applying mask:
-                            r &= (__int128)wmask; }
+                            r &= (i128)wmask; }
                         (void)lim;
                     }
                     int64_t v = (int64_t)r;
@@ -5153,12 +5157,12 @@ static double numToDouble2(const Value& v) {
 
 // Decompose an Int/BigInt/Rational into an exact (num,den) pair. Returns false
 // for Float (callers compare those through double instead).
-static bool ratParts(const Value& v, __int128& n, __int128& d) {
+static bool ratParts(const Value& v, i128& n, i128& d) {
     if (v.k == VK::Rational) { n = v.num; d = v.den; return true; }
     if (v.k == VK::Int)      { n = v.i;   d = 1;     return true; }
     if (v.k == VK::BigInt) {
         bignum::Big b = toBigNum(v);
-        __int128 x = b.limbs.empty() ? 0 : (__int128)(int64_t)b.limbs[0];
+        i128 x = b.limbs.empty() ? 0 : (i128)(int64_t)b.limbs[0];
         n = b.neg ? -x : x;
         d = 1;
         return true;
@@ -5170,7 +5174,7 @@ static bool valEq(const Value& a, const Value& b) {
     if (a.k == VK::Rational || b.k == VK::Rational) {
         if (a.k == VK::Float || b.k == VK::Float)
             return numToDouble2(a) == numToDouble2(b);
-        __int128 an, ad, bn, bd;
+        i128 an, ad, bn, bd;
         if (ratParts(a, an, ad) && ratParts(b, bn, bd))
             return an * bd == bn * ad;
     }
@@ -5256,7 +5260,7 @@ static bool valLess(const Value& l, const Value& r) {
     if (l.k == VK::Rational || r.k == VK::Rational) {
         if (l.k == VK::Float || r.k == VK::Float)
             return numToDouble2(l) < numToDouble2(r);
-        __int128 ln, ld, rn, rd;
+        i128 ln, ld, rn, rd;
         if (ratParts(l, ln, ld) && ratParts(r, rn, rd))
             return ln * rd < rn * ld;
     }
@@ -5398,11 +5402,11 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
     // A Float operand demotes the whole expression to float.
     if ((l.k == VK::Rational || r.k == VK::Rational) &&
         !(l.k == VK::Str || r.k == VK::Str)) {
-        auto ratNorm = [](__int128 n, __int128 d) -> Value {
+        auto ratNorm = [](i128 n, i128 d) -> Value {
             if (d == 0) panicHere("rational: zero denominator");
             if (d < 0) { n = -n; d = -d; }
-            __int128 x = n < 0 ? -n : n, y = d;
-            while (y) { __int128 t = y; y = x % y; x = t; }
+            i128 x = n < 0 ? -n : n, y = d;
+            while (y) { i128 t = y; y = x % y; x = t; }
             if (x) { n /= x; d /= x; }
             if (n > INT64_MAX || n < INT64_MIN || d > INT64_MAX)
                 panicHere("rational: result out of range");
@@ -5425,7 +5429,7 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                 return Value::floating(std::fmod(std::fmod(x, y) + y, y));
             if (op == "**") return Value::floating(std::pow(x, y));
         }
-        __int128 ln, ld, rn, rd;
+        i128 ln, ld, rn, rd;
         ratParts(l, ln, ld);
         ratParts(r, rn, rd);
         if (op == "+") return ratNorm(ln * rd + rn * ld, ld * rd);
@@ -5437,15 +5441,15 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
         if (op == "//") {
             if (rn == 0) panicHere("division by zero");
-            __int128 a = ln * rd, b = ld * rn;
-            __int128 q = a / b;
+            i128 a = ln * rd, b = ld * rn;
+            i128 q = a / b;
             if (a % b != 0 && ((a < 0) != (b < 0))) --q;
             return Value::integer((int64_t)q);
         }
         if (op == "%") {
             if (rn == 0) panicHere("modulo by zero");
-            __int128 a = ln * rd, b = ld * rn;
-            __int128 q = a / b;
+            i128 a = ln * rd, b = ld * rn;
+            i128 q = a / b;
             if (a % b != 0 && ((a < 0) != (b < 0))) --q;
             return ratNorm(a - q * b, ld * rd);
         }
@@ -5457,9 +5461,9 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
             int64_t e = r.i;
             bool neg = e < 0;
             uint64_t ue = neg ? (uint64_t)(-(e + 1)) + 1 : (uint64_t)e;
-            __int128 n = 1, d = 1;
+            i128 n = 1, d = 1;
             for (uint64_t i = 0; i < ue; ++i) { n *= ln; d *= ld; }
-            if (neg) { __int128 t = n; n = d; d = t; }
+            if (neg) { i128 t = n; n = d; d = t; }
             return ratNorm(n, d);
         }
     }

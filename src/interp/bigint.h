@@ -19,12 +19,16 @@
 #include <string>
 #include <vector>
 
+#include "interp/wide.h"
+
 namespace kirn {
 namespace interp {
 namespace bignum {
 
+using kirn::u128;
+
 using Limb = uint64_t;
-using Wdbl  = __uint128_t;
+using Wdbl  = u128;
 
 inline std::vector<Limb> fromInt(int64_t v) {
     std::vector<Limb> out;
@@ -202,7 +206,7 @@ inline int bitLength(const std::vector<Limb>& a) {
 // popcount of a positive magnitude
 inline int bitCount(const std::vector<Limb>& a) {
     int n = 0;
-    for (Limb l : a) n += __builtin_popcountll(l);
+    for (Limb l : a) n += kirn::popcount64(l);
     return n;
 }
 
@@ -230,7 +234,7 @@ inline std::vector<Limb> divSmall(const std::vector<Limb>& a, Limb d) {
     return q;
 }
 
-inline unsigned clzLimb(Limb x) { return x ? (unsigned)__builtin_clzll(x) : 64u; }
+inline unsigned clzLimb(Limb x) { return kirn::clz64(x); }
 
 // magnitude << s bits (0<=s<64) in place
 inline void shlMagInPlace(std::vector<Limb>& v, unsigned s) {

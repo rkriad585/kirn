@@ -1,0 +1,26 @@
+# M3 smart-cast: failing earlier `case` arms refine the match subject's type.
+# After `case none`, an optional subject is known non-none in later arms.
+fn unwrap_or(o: Int?, d: Int) -> Int {
+    return match o {
+        case none { d; }
+        case _ { o + 1; }
+    };
+}
+
+fn classify(o: Int?) -> Str {
+    match o {
+        case none {
+            return "none";
+        }
+        case _ {
+            return "val " + Str(o + 1);
+        }
+    }
+}
+
+fn main() -> none {
+    print(unwrap_or(none, 9));
+    print(unwrap_or(4, 9));
+    print(classify(none));
+    print(classify(41));
+}

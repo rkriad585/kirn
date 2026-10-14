@@ -1,0 +1,20 @@
+# M3: `if var Pattern = expr { ... }` pattern-condition narrowing. It desugars
+# to a `match` with a trailing wildcard arm, so it works on every backend.
+enum Shape {
+    Circle(r: Int),
+    Rect(w: Int, h: Int),
+}
+
+fn area(s: Shape) -> Int {
+    if var Circle(r) = s {
+        return 3 * r * r;
+    } else if var Rect(w, h) = s {
+        return w * h;
+    }
+    return 0;
+}
+
+fn main() -> none {
+    print(area(Shape.Circle(r: 2)));
+    print(area(Shape.Rect(w: 3, h: 4)));
+}

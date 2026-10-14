@@ -1,0 +1,7 @@
+# expect: cannot unpack a mapping ('**') in a list
+# M3/PEP 798: `**m` is meaningless in a list; only `*` unpacks there.
+fn main() -> none {
+    const d = {"a": 1};
+    const xs = [**d];
+    print(xs);
+}

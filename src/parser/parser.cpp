@@ -850,10 +850,62 @@ void Parser::endBlock() {
 }
 
 ast::StmtP Parser::parseIfChain() {
+    ast::Span sp = spanHere();
+    advance();                                          // if | elif
+
+    // M3: `if var PAT = EXPR { ... } [else { ... }]` — pattern-condition
+    // narrowing. Desugared to the equivalent `match` with a final wildcard arm,
+    // so the checker, both execution engines, the IR and the dumper reuse the
+    // existing pattern machinery with no new statement kind. (`Some(n)` in the
+    // plan example is Kotlin spelling; Kirn patterns are `ok(v)`, `none`, `_`,
+    // enum/struct patterns, etc.)
+    if (atIdent("var")) {
+        advance();                                      // var
+        ast::PatP pat = parsePattern();
+        if (!atOp("=")) {
+            diags_.report(cur().line, cur().col,
+                          "expected '=' after 'if var' pattern");
+            throw Abort("ifvar");
+        }
+        advance();                                      // =
+        auto m = std::make_unique<ast::Stmt>();
+        m->kind = ast::StKind::Match;
+        m->span = sp;
+        m->exprs.push_back(parseExpr());                // subject
+
+        ast::MatchArm thenArm;
+        thenArm.pat = std::move(pat);
+        thenArm.body = parseBlock();
+        endBlock();
+        m->arms.push_back(std::move(thenArm));
+
+        // The fall-through arm holds the `else` body (possibly a nested
+        // `else if` chain); with no else it stays empty.
+        ast::MatchArm elseArm;
+        auto wp = std::make_unique<ast::Pat>();
+        wp->kind = ast::PatKind::Wild;
+        wp->span = sp;
+        elseArm.pat = std::move(wp);
+        if (atIdent("elif") || atIdent("else")) {
+            if (atIdent("elif")) {
+                elseArm.body.push_back(parseIfChain());
+            } else {
+                advance();                              // else
+                if (atIdent("if")) {
+                    elseArm.body.push_back(parseIfChain());
+                } else {
+                    elseArm.body = parseBlock();
+                    endBlock();
+                }
+            }
+        }
+        m->arms.push_back(std::move(elseArm));
+        return m;
+    }
+
     auto s = std::make_unique<ast::Stmt>();
     s->kind = ast::StKind::If;
-    s->span = spanHere();
-    advance();                                          // if | elif
+    s->span = sp;
     s->exprs.push_back(parseExpr());                    // condition in exprs[0]
     s->body = parseBlock();
     endBlock();
@@ -2340,6 +2392,15 @@ ast::ExprP Parser::parsePrimary() {
         e->span = sp;
         // M3: `*expr` at element position is a spread (PEP 448/798).
         auto elem = [&]() -> ast::ExprP {
+            // `**m` has no meaning in a list, and PEP 798 wants a dedicated
+            // message rather than the bare "expected expression" the generic
+            // path would emit on the `**` token.
+            if (atOp("**")) {
+                diags_.report(cur().line, cur().col,
+                              "cannot unpack a mapping ('**') in a list; "
+                              "build a dict with '{**m}' instead");
+                throw Abort("listdblstar");
+            }
             if (atOp("*")) {
                 ast::Span es = spanHere();
                 advance();
@@ -2389,6 +2450,18 @@ ast::ExprP Parser::parsePrimary() {
             s->lhs = parseExpr();
             return s;
         };
+        auto dictVal = [&]() -> ast::ExprP {
+            // Unpacking is only valid at entry position (`{**m}`, `{*s}`); a
+            // leading `*`/`**` in a *value* is a dedicated syntax error rather
+            // than silently parsing as the unary deref operator.
+            if (atOp("*") || atOp("**")) {
+                diags_.report(cur().line, cur().col,
+                              "cannot unpack in a dict value; unpacking is "
+                              "only valid as a whole entry ('{k: v, **m}')");
+                throw Abort("dictvalstar");
+            }
+            return parseExpr();
+        };
         auto dictRest = [&]() {
             while (atPunct(",")) {
                 advance();
@@ -2398,7 +2471,7 @@ ast::ExprP Parser::parsePrimary() {
                 } else {
                     ast::ExprP k = parseExpr();
                     expectPunct(":");
-                    e->pairs.emplace_back(std::move(k), parseExpr());
+                    e->pairs.emplace_back(std::move(k), dictVal());
                 }
             }
         };
@@ -2434,7 +2507,7 @@ ast::ExprP Parser::parsePrimary() {
             ast::ExprP firstKey = parseExpr();
             if (atPunct(":")) {
                 advance();
-                ast::ExprP firstVal = parseExpr();
+                ast::ExprP firstVal = dictVal();
                 if (atIdent("for")) {                   // {k: v for ...}
                     e = parseCompExpr(std::move(firstKey));
                     e->kind = ast::ExKind::DictComp;

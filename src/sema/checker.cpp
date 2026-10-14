@@ -232,6 +232,14 @@ void Checker::warning(SpanRange span, const std::string& code,
     diags_.warning(span).code(code).msg(msg).emit();
 }
 
+void Checker::narrowDiag(uint32_t line, uint32_t col, const std::string& name) {
+    const std::string msg =
+        "flow narrowing skipped for mutable binding '" + name +
+        "' (bind it with const to enable narrowing)";
+    if (strict_) error(line, col, msg);
+    else warning(SpanRange::point(line, col), "W-narrow", msg);
+}
+
 void Checker::reportUnused(Scope& s, bool topLevel) {
     for (auto& [name, sym] : s.syms) {
         if (sym->used || sym->pub) continue;
@@ -1970,9 +1978,8 @@ void Checker::narrowApply(const ast::Expr* c, bool positive,
     Symbol* sym = scope_->find(subj->text);
     if (!sym) return;
     if (sym->mut) {
-        warning(SpanRange::point(subj->span.line, subj->span.col), "W-narrow",
-                "flow narrowing skipped for mutable binding '" + subj->text +
-                    "' (bind it with const to enable narrowing)");
+        if (narrowWarned_.insert(sym).second)
+            narrowDiag(subj->span.line, subj->span.col, subj->text);
         return;
     }
     TyP cur = sym->type ? sym->type : unkTy();
@@ -1991,6 +1998,69 @@ void Checker::narrowApply(const ast::Expr* c, bool positive,
     if (narrowedT && !narrowedT->isError() && !narrowedT->isUnknown()) {
         if (pos) out[sym] = narrowedT;
     }
+}
+
+// M3: type facts a pattern establishes for its subject. `positive` selects the
+// branch fact (subject matches) vs the fall-through fact (subject failed). Only
+// patterns that actually change the subject's type produce a fact; a wildcard
+// or an untyped binding says nothing.
+TyP Checker::patternFact(const ast::Pat& p, const TyP& subject, bool positive) {
+    if (p.kind == ast::PatKind::Literal && p.literal) {
+        // `none` is a literal pattern whose type is None; any other literal is
+        // a concrete non-none value.
+        TyP lt = checkExpr(*p.literal);
+        if (lt && lt->is(TyK::None)) {
+            // matches `none`; the fall-through knows the subject is non-none.
+            return positive ? noneTy() : unwrapOpt(subject);
+        }
+        // A concrete literal matching an optional subject proves it is not none.
+        if (subject && subject->is(TyK::Opt)) {
+            if (positive) return unwrapOpt(subject);
+        }
+        return nullptr;
+    }
+    if (p.kind == ast::PatKind::Bind && p.bindType) {
+        if (!positive) return nullptr;
+        TyP t = resolveType(p.bindType);
+        return (t && !t->isError()) ? t : nullptr;
+    }
+    if (p.kind == ast::PatKind::BindAlias && p.aliasSub)
+        return patternFact(*p.aliasSub, subject, positive);
+    if (p.kind == ast::PatKind::Or) {
+        // `none | none` style: only usable when every alternative agrees.
+        TyP first = nullptr;
+        for (const auto& alt : p.alts) {
+            TyP f = patternFact(*alt, subject, positive);
+            if (!f) return nullptr;
+            if (!first) first = f;
+            else if (!equal(first, f)) return nullptr;
+        }
+        return first;
+    }
+    return nullptr;
+}
+
+void Checker::narrowSubject(Symbol* sym, const TyP& cur, const ast::Pat* pat,
+                            uint32_t line, uint32_t col) {
+    if (!sym) return;
+    // The type the arm body actually sees: the cumulative fall-through fact
+    // `cur`, refined by this pattern's own positive fact when it has one.
+    TyP fact = pat ? patternFact(*pat, cur ? cur : unkTy(), /*positive*/ true)
+                   : nullptr;
+    TyP seen = fact ? fact : cur;
+    if (!seen || seen->isError()) return;
+    // Nothing narrowed (pattern implies no type change) -> no diagnostic and no
+    // entry, e.g. a tuple destructure `case (a, b)` leaves the subject alone.
+    TyP existing = sym->type;
+    auto it = narrowed_.find(sym);
+    if (it != narrowed_.end()) existing = it->second;
+    if (existing && equal(seen, existing)) return;
+    if (sym->mut) {
+        if (narrowWarned_.insert(sym).second)
+            narrowDiag(line, col, sym->name);
+        return;
+    }
+    narrowed_[sym] = seen;
 }
 
 void Checker::checkReassignable(const ast::Expr& tgt) {    if (tgt.kind != ExKind::Ident) return;      // index/member targets: v1 lenient
@@ -2607,6 +2677,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
                                   "if condition");
             std::map<const Symbol*, TyP> thenF, elseF;
             if (cond) {
+                narrowWarned_.clear();
                 narrowApply(cond, true, thenF);
                 narrowApply(cond, false, elseF);
             }
@@ -2667,15 +2738,32 @@ void Checker::checkStmt(const ast::Stmt& s) {
         case StKind::Match: {
             if (s.exprs.empty()) break;
             TyP subj = checkExpr(*s.exprs[0]);
+            // M3: narrow the subject in each arm. `cur` is the type guaranteed by
+            // having failed every preceding arm (e.g. after `case none`, an
+            // optional subject is known non-none); the arm's own pattern refines
+            // it further. Only a simple Ident subject can be narrowed.
+            const ast::Expr* subjE = s.exprs[0].get();
+            Symbol* subjSym = (subjE && subjE->kind == ExKind::Ident)
+                                  ? scope_->find(subjE->text)
+                                  : nullptr;
+            narrowWarned_.clear();
+            TyP cur = subj;
             for (const auto& arm : s.arms) {
                 push();
-                if (arm.pat) checkPatternBindings(*arm.pat, subj);
+                if (arm.pat) checkPatternBindings(*arm.pat, cur);
+                if (subjSym && arm.pat)
+                    narrowSubject(subjSym, cur, arm.pat.get(), arm.pat->span.line,
+                                  arm.pat->span.col);
                 if (arm.guard) requireBool(checkExpr(*arm.guard),
                                            arm.pat ? arm.pat->span.line
                                                    : s.span.line,
                                            s.span.col, "match guard");
                 checkBlock(arm.body);
                 pop();
+                if (arm.pat) {
+                    if (TyP nf = patternFact(*arm.pat, cur, /*positive*/ false))
+                        cur = nf;
+                }
             }
             checkExhaustiveness(subj, s.arms, s.span.line, s.span.col);
             break;
@@ -3419,11 +3507,19 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
         case ExKind::Match: {
             // `match subj { case pat [if g] { body } ... }` (expression form).
             TyP subj = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            const ast::Expr* subjE = e.lhs.get();
+            Symbol* subjSym = (subjE && subjE->kind == ExKind::Ident)
+                                  ? scope_->find(subjE->text)
+                                  : nullptr;
+            narrowWarned_.clear();
+            TyP cur = subj;
             TyP result;
             for (const auto& arm : e.matchArms) {
                 push();
-                if (arm.pat) checkPatternBindings(*arm.pat,
-                                                   unwrapOpt(subj));
+                if (arm.pat) checkPatternBindings(*arm.pat, cur);
+                if (subjSym && arm.pat)
+                    narrowSubject(subjSym, cur, arm.pat.get(), e.span.line,
+                                  e.span.col);
                 if (arm.guard) requireBool(checkExpr(*arm.guard), e.span.line,
                                            e.span.col, "match guard");
                 // type the arm body; trailing expression establishes the arm's
@@ -3440,6 +3536,10 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     }
                 }
                 pop();
+                if (arm.pat) {
+                    if (TyP nf = patternFact(*arm.pat, cur, /*positive*/ false))
+                        cur = nf;
+                }
             }
             checkExhaustiveness(subj, e.matchArms, e.span.line, e.span.col);
             return result ? result : unkTy();

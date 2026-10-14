@@ -1,0 +1,7 @@
+# expect: cannot unpack in a dict value
+# M3/PEP 798: unpacking is only valid at entry position, never as a dict value.
+fn main() -> none {
+    const xs: list[Int] = [1, 2];
+    const d = {"k": *xs};
+    print(d);
+}

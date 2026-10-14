@@ -37,6 +37,10 @@ public:
     // Runs collection (2 passes) + body checking. Reports into diags_.
     void checkModule(const std::vector<ast::StmtP>& prog);
 
+    // `--strict`: escalation policy for advisory diagnostics. Currently the
+    // W-narrow smart-cast warning, which becomes a hard error under strict.
+    void setStrict(bool on) { strict_ = on; }
+
     // Resolved type of an expression node, as recorded when that node was
     // type-checked by checkExpr (see typeCache_). Returns unkTy() if the node
     // was never reached / cached. This is the read-only query a code generation
@@ -106,6 +110,8 @@ private:
     void error(const ast::Span& s, const std::string& msg);
     void warning(SpanRange span, const std::string& code,
                  const std::string& msg);
+    // W-narrow emission that respects `--strict` (error instead of warning).
+    void narrowDiag(uint32_t line, uint32_t col, const std::string& name);
     void reportUnused(Scope& s, bool topLevel);
     Scope& push();
     void pop();
@@ -179,6 +185,17 @@ private:
     // yields W-narrow instead.
     void narrowApply(const ast::Expr* c, bool positive,
                      std::map<const Symbol*, TyP>& out);
+    // M3: the type fact a pattern establishes for its subject. `positive`
+    // selects the matching-branch fact (subject is the pattern's type) vs the
+    // fall-through fact (subject failed the pattern, e.g. an optional that was
+    // not `none` is unwrapped). Returns null when the pattern implies no change.
+    TyP patternFact(const ast::Pat& p, const TyP& subject, bool positive);
+    // Applies the facts for one `case` arm to `narrowed_` inside the arm's
+    // scope: the running type `cur` (what failing earlier arms guarantees) plus
+    // the arm pattern's own positive refinement. Warns (once) for a mutable
+    // subject, matching narrowApply's W-narrow contract.
+    void narrowSubject(Symbol* sym, const TyP& cur, const ast::Pat* pat,
+                       uint32_t line, uint32_t col);
     // True when a block definitely transfers control (return/raise/break/
     // continue) on every path that reaches its end.
     bool alwaysExits(const std::vector<ast::StmtP>& body) const;
@@ -236,6 +253,12 @@ private:
     // declaration and inherit a stale narrowed type.
     std::map<const Symbol*, TyP> narrowed_;
     std::vector<std::map<const Symbol*, TyP>> narrowedStack_;
+    // Symbols already reported by W-narrow for the condition/pattern currently
+    // being checked. Cleared per `if`/`case` so one unstable binding yields one
+    // diagnostic, not one per branch.
+    std::set<const Symbol*> narrowWarned_;
+    // Advisory diagnostics become errors when set (see setStrict).
+    bool strict_ = false;
 };
 
 } // namespace sema

@@ -742,15 +742,17 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
     std::string file;
     bool color = false;
     bool plain = false;
+    bool strict = false;
     for (const auto& a : args) {
         if (a == "-h" || a == "--help") {
             std::cout << "usage: " << toolName
-                      << " [--color|--no-color|--plain] <file.kn>\n";
+                      << " [--color|--no-color|--plain] [--strict] <file.kn>\n";
             return 0;
         }
         if (a == "--color") { color = true; continue; }
         if (a == "--no-color") { color = false; continue; }
         if (a == "--plain") { plain = true; continue; }
+        if (a == "--strict") { strict = true; continue; }
         file = a;
     }
     if (file.empty()) {
@@ -782,6 +784,7 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
         front = diags.count();
         if (front == 0) {
             kirn::sema::Checker checker(diags);
+            checker.setStrict(strict);
             checker.checkModule(prog);
         }
     }

@@ -1,0 +1,33 @@
+# 48 — Context managers (`with`) and scoped release (`using`)
+
+struct Conn {
+    name: Str;
+
+    fn enter(self) -> Bool {
+        print(f"open {self.name}");
+        return true;
+    }
+    fn exit(self) -> Bool {
+        print(f"close {self.name}");
+        return false;
+    }
+}
+
+struct File {
+    path: Str;
+
+    fn drop(self) -> none {
+        print(f"drop {self.path}");
+    }
+}
+
+fn main() -> none {
+    with Conn(name: "db") as c {
+        if c {
+            print("using connection");
+        }
+    }
+
+    using f = File(path: "a.txt");
+    print("file", f.path);
+}

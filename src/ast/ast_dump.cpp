@@ -555,6 +555,21 @@ void dump(const Stmt& s, int d) {
             for (const auto& e : s.exprs)
                 childExpr("Call", e, d + 1);
             return;
+        case StKind::With:
+            std::cout << ind(d) << "With\n";
+            for (size_t i = 0; i < s.exprs.size(); ++i) {
+                childExpr("Item", s.exprs[i], d + 1);
+                if (i < s.withNames.size() && !s.withNames[i].empty())
+                    std::cout << ind(d + 2) << "As " << s.withNames[i] << "\n";
+            }
+            std::cout << ind(d + 1) << "Body\n";
+            for (const auto& st : s.body) dump(*st, d + 2);
+            return;
+        case StKind::Using:
+            std::cout << ind(d) << "Using\n";
+            if (s.target) childExpr("Target", s.target, d + 1);
+            if (s.value) childExpr("Value", s.value, d + 1);
+            return;
         case StKind::If: {
             std::cout << ind(d) << "If\n";
             if (!s.exprs.empty()) childExpr("Cond", s.exprs[0], d + 1);

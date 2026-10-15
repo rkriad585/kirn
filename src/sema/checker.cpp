@@ -706,6 +706,13 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                         : "";
                 if (!traitN.empty() && !typeN.empty())
                     impls_.insert({traitN, typeN});
+                // Record the methods each impl block supplies, so protocol
+                // checks (`with`/`using`) can see impl-provided methods even
+                // though they are not merged into the struct's inherent table.
+                if (!typeN.empty())
+                    for (const auto& m : st->body)
+                        if (m->kind == StKind::FuncDef)
+                            implMethods_[typeN].insert(m->name);
                 break;
             }
             default:
@@ -1345,6 +1352,16 @@ TyP Checker::unpackElem(const ast::Expr& spread, const char* where) {
         return errTy();
     }
     return elem ? elem : unkTy();
+}
+
+bool Checker::typeHasMethod(const TyP& recv, const std::string& name) const {
+    if (!recv) return false;
+    if (methodLookup(recv, name)) return true;
+    if (recv->is(TyK::Struct)) {
+        auto it = implMethods_.find(recv->name);
+        if (it != implMethods_.end() && it->second.count(name)) return true;
+    }
+    return false;
 }
 
 std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
@@ -2702,10 +2719,73 @@ void Checker::checkStmt(const ast::Stmt& s) {
             }
             break;
 
+        case StKind::With: {
+            std::vector<TyP> items;
+            items.reserve(s.exprs.size());
+            for (const auto& e : s.exprs) items.push_back(checkExpr(*e));
+            for (size_t i = 0; i < items.size(); ++i) {
+                const TyP& t = items[i];
+                if (!t || t->isUnknown() || t->isError()) continue;
+                bool hasEnter = typeHasMethod(t, "enter") ||
+                                typeHasMethod(t, "__enter__");
+                bool hasExit = typeHasMethod(t, "exit") ||
+                               typeHasMethod(t, "__exit__");
+                if (!hasEnter || !hasExit)
+                    error(s.exprs[i]->span,
+                          "E-CTXMGR-NO-PROTOCOL: type " + toString(*t) +
+                              " cannot be used with 'with'; it must define "
+                              "enter()/__enter__ and exit()/__exit__");
+                if (auto sig = methodLookup(t, "exit"))
+                    if (sig->ret && !sig->ret->isUnknown() && !sig->ret->isError() &&
+                        !(sig->ret->is(TyK::Bool)))
+                        error(s.exprs[i]->span,
+                              "context manager 'exit' must return Bool, got " +
+                                  toString(*sig->ret));
+            }
+            push();
+            for (size_t i = 0; i < s.withNames.size() && i < items.size(); ++i) {
+                if (s.withNames[i].empty()) continue;
+                TyP bindTy = items[i];
+                if (auto sig = methodLookup(items[i], "enter")) bindTy = sig->ret;
+                else if (auto sig = methodLookup(items[i], "__enter__"))
+                    bindTy = sig->ret;
+                declareLocal(SymK::Var, s.withNames[i],
+                             bindTy ? bindTy : unkTy(), /*mut*/ false,
+                             s.span.line, s.span.col);
+            }
+            checkBlock(s.body);
+            pop();
+            break;
+        }
+
+        case StKind::Using: {
+            if (!s.target || s.target->kind != ExKind::Ident) {
+                if (s.value) checkExpr(*s.value);
+                break;
+            }
+            const std::string& n = s.target->text;
+            TyP ann = s.declType ? resolveType(s.declType) : nullptr;
+            TyP vt = s.value ? checkExpr(*s.value) : unkTy();
+            if (ann && !assignable(vt, ann))
+                error(s.span, "'" + n + "' declared as " + toString(*ann) +
+                                  " but initialized with " + toString(*vt));
+            TyP t = ann ? ann : vt;
+            if (t && !t->isUnknown() && !t->isError()) {
+                if (!typeHasMethod(t, "drop") && !typeHasMethod(t, "__del__") &&
+                    !typeHasMethod(t, "exit") && !typeHasMethod(t, "__exit__"))
+                    error(s.span,
+                          "E-DROP-NO-PROTOCOL: 'using' requires a type with a "
+                          "drop() method (or an exit()/__exit__ context "
+                          "manager), got " + toString(*t));
+            }
+            declareLocal(SymK::Var, n, t ? t : unkTy(), /*mut*/ true,
+                         s.span.line, s.span.col);
+            break;
+        }
+
         case StKind::If: {
             const ast::Expr* cond =
-                s.exprs.empty() ? nullptr : s.exprs[0].get();
-            if (cond) requireBool(checkExpr(*cond), s.span.line, s.span.col,
+                s.exprs.empty() ? nullptr : s.exprs[0].get();            if (cond) requireBool(checkExpr(*cond), s.span.line, s.span.col,
                                   "if condition");
             std::map<const Symbol*, TyP> thenF, elseF;
             if (cond) {

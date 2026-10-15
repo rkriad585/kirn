@@ -2308,7 +2308,59 @@ static bool isResultRet(const Stmt& fn) {
     return fn.ret && fn.ret->kind == ast::TyKind::Name && fn.ret->name == "result";
 }
 
+void Interpreter::registerUsing(const Value& v) {
+    std::thread::id tid = std::this_thread::get_id();
+    std::lock_guard<std::mutex> lk(usingsM_);
+    auto it = usings_.find(tid);
+    if (it == usings_.end() || it->second.empty()) return;
+    it->second.back().push_back(v);
+}
+
+void Interpreter::runUsingFrame(std::thread::id tid) {
+    std::vector<Value> mine;
+    {
+        std::lock_guard<std::mutex> lk(usingsM_);
+        auto it = usings_.find(tid);
+        if (it == usings_.end() || it->second.empty()) return;
+        mine = std::move(it->second.back());
+        it->second.pop_back();
+    }
+    // LIFO: the last binding declared is the first released.
+    while (!mine.empty()) {
+        Value v = std::move(mine.back());
+        mine.pop_back();
+        try {
+            if (hasStructMethod(v, "drop"))
+                invokeMethod(v, "drop", {}, {}, globals_, 0, 0, nullptr);
+            else if (hasStructMethod(v, "__del__"))
+                invokeMethod(v, "__del__", {}, {}, globals_, 0, 0, nullptr);
+            else if (hasStructMethod(v, "exit"))
+                invokeMethod(v, "exit", {}, {}, globals_, 0, 0, nullptr);
+            else if (hasStructMethod(v, "__exit__"))
+                invokeMethod(v, "__exit__", {}, {}, globals_, 0, 0, nullptr);
+        } catch (...) {
+        }
+    }
+}
+
 void Interpreter::execBlock(const std::vector<ast::StmtP>& body, Env env) {
+    // `using` bindings are released when the block exits, on normal completion
+    // or on unwind. Only blocks that actually declare one pay for a frame.
+    bool hasUsing = false;
+    for (const auto& st : body)
+        if (st && st->kind == ast::StKind::Using) { hasUsing = true; break; }
+    const std::thread::id tid = std::this_thread::get_id();
+    if (hasUsing) {
+        std::lock_guard<std::mutex> lk(usingsM_);
+        usings_[tid].emplace_back();
+    }
+    struct UsingGuard {
+        Interpreter* self;
+        std::thread::id tid;
+        bool active;
+        ~UsingGuard() { if (active) self->runUsingFrame(tid); }
+    } usingGuard{this, tid, hasUsing};
+
     // Fast path: no Label statements in this block, execute straight through.
     bool hasLabel = false;
     for (const auto& st : body)
@@ -2567,6 +2619,74 @@ void Interpreter::exec(const Stmt& s, Env env) {
                     callValue(d.callee, d.args, 0, 0);
                 } catch (...) {
                 }
+            }
+            return;
+        }
+
+        // `with e1 as n1, e2 as n2 { body }`: enter each manager left-to-right
+        // (binding its name to the enter result), run the body, then exit each in
+        // reverse order -- on normal completion and on a raised error. An exit
+        // that returns truthy suppresses the error (PEP 343).
+        case ast::StKind::With: {
+            Env child = makeChild(env);
+            std::vector<std::pair<Value, std::string>> entered;
+            auto enterOne = [&](Value cm, const std::string& name) {
+                Value enteredVal = cm;
+                if (hasStructMethod(cm, "enter"))
+                    enteredVal = invokeMethod(cm, "enter", {}, {}, env, 0, 0, nullptr);
+                else if (hasStructMethod(cm, "__enter__"))
+                    enteredVal =
+                        invokeMethod(cm, "__enter__", {}, {}, env, 0, 0, nullptr);
+                if (!name.empty()) child->vars[name] = enteredVal;
+                std::string exitName;
+                if (hasStructMethod(cm, "exit")) exitName = "exit";
+                else if (hasStructMethod(cm, "__exit__")) exitName = "__exit__";
+                entered.emplace_back(cm, exitName);
+            };
+            auto runExits = [&](bool* suppress) {
+                for (auto it = entered.rbegin(); it != entered.rend(); ++it) {
+                    if (it->second.empty()) continue;
+                    try {
+                        Value r = invokeMethod(it->first, it->second, {}, {}, env,
+                                               0, 0, nullptr);
+                        if (suppress && truthy(r)) *suppress = true;
+                    } catch (...) {
+                    }
+                }
+            };
+            try {
+                for (size_t i = 0; i < s.exprs.size(); ++i) {
+                    Value cm = eval(*s.exprs[i], env);
+                    enterOne(cm, i < s.withNames.size() ? s.withNames[i]
+                                                        : std::string());
+                }
+            } catch (...) {
+                runExits(nullptr);
+                throw;
+            }
+            try {
+                execBlock(s.body, child);
+            } catch (const SignalRaise&) {
+                bool sup = false;
+                runExits(&sup);
+                if (!sup) throw;
+                return;
+            } catch (...) {
+                runExits(nullptr);
+                throw;
+            }
+            runExits(nullptr);
+            return;
+        }
+
+        // `using name = expr;`: bind now, release via drop() when the enclosing
+        // block exits (see execBlock's using frame).
+        case ast::StKind::Using: {
+            if (s.value) {
+                Value v = eval(*s.value, env);
+                if (s.target && s.target->kind == ast::ExKind::Ident)
+                    env->vars[s.target->text] = v;
+                registerUsing(v);
             }
             return;
         }

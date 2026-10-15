@@ -210,6 +210,10 @@ private:
                       uint32_t line, uint32_t col);
     TyP iterableElem(const TyP& t) const;       // nullopt-equivalent: unkTy()
     std::optional<FuncSig> methodLookup(const TyP& recv, const std::string& name) const;
+    // True when a struct/trait-object receiver has `name` as an inherent method
+    // or as a method supplied by any `impl Trait for T` block. Used by the
+    // `with`/`using` protocol checks, which must see impl-provided methods.
+    bool typeHasMethod(const TyP& recv, const std::string& name) const;
     bool isSendable(const TyP& t, std::string* why);
     bool isSendableVisit(const TyP& t, std::string* why,
                          std::set<std::string>& seeing);
@@ -225,6 +229,7 @@ private:
     std::map<std::string, SymP> enums_;
     std::map<std::string, SymP> traits_;
     std::set<std::pair<std::string, std::string>> impls_;   // trait -> struct
+    std::map<std::string, std::set<std::string>> implMethods_;  // struct -> impl-provided method names
     std::map<std::string, SymP> funcs_;                     // top-level funcs
     std::map<std::string, TyP> typeVars_;                   // active generics
     std::set<std::string> importRoots_;

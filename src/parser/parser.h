@@ -35,6 +35,7 @@ private:
     void skipNewlines();
     void syncToStatementEnd();        // after an error: eat until Newline/Dedent
     bool looksLikeTypedBinding() const;  // `name : Type = value` vs `name : stmt`
+    bool looksLikeWithStmt() const;      // contextual `with … { }` vs expr stmt
 
     ast::Span spanHere() const;
     ast::Span spanOf(const Token& t) const;
@@ -60,6 +61,7 @@ private:
     void endBlock();                               // consume the block's '}'
     ast::StmtP finishConstDecl();
     ast::StmtP parseIfChain();                     // if / else if / elif / else
+    ast::StmtP parseWithStmt();                    // with e [as n], … { }
     std::vector<ast::Variant> parseVariants();
 
     // ---- patterns ----

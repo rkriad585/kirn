@@ -654,6 +654,47 @@ struct Lowerer {
                 }
                 return mk(StmtKind::VarDecl, sp, std::move(v));
             }
+            // `using name = expr` is a block-scoped binding whose value is
+            // released (via drop()) when the block exits. HIR models the
+            // binding; the release is a scope-exit hook the executable paths
+            // own, so there is nothing extra to lower here.
+            case ast::StKind::Using: {
+                payload::VarDecl v;
+                if (s.value) v.init = lower(*s.value);
+                if (s.target && s.target->kind == ast::ExKind::Ident) {
+                    sema::TyP ty = s.declType ? chk.resolveType(s.declType)
+                                               : (s.value ? typeOf(*s.value) : nullptr);
+                    v.decl = declare(s.target->text, Decl::Kind::Var, sp, ty, true, nullptr);
+                }
+                return mk(StmtKind::VarDecl, sp, std::move(v));
+            }
+            // `with e as n, ... { body }`: HIR lowers the item bindings and the
+            // body into one lexical block. enter()/exit() are runtime protocol
+            // calls the executable paths issue; HIR only has to keep `n` and the
+            // body resolved, which the block scope does.
+            case ast::StKind::With: {
+                payload::Block b;
+                b.scope = pushScope();
+                for (size_t i = 0; i < s.exprs.size(); ++i) {
+                    ExprP val = s.exprs[i] ? lower(*s.exprs[i]) : nullptr;
+                    if (i < s.withNames.size() && !s.withNames[i].empty()) {
+                        payload::VarDecl v;
+                        v.init = std::move(val);
+                        v.decl = declare(s.withNames[i], Decl::Kind::Var, sp,
+                                         s.exprs[i] ? typeOf(*s.exprs[i]) : nullptr,
+                                         true, nullptr);
+                        b.stmts.push_back(mk(StmtKind::VarDecl, sp, std::move(v)));
+                    } else if (val) {
+                        payload::ExprStmt es;
+                        es.value = std::move(val);
+                        b.stmts.push_back(mk(StmtKind::ExprStmt, sp, std::move(es)));
+                    }
+                }
+                for (const auto& st : s.body)
+                    if (st) b.stmts.push_back(lower(*st));
+                popScope();
+                return mk(StmtKind::Block, sp, std::move(b));
+            }
             case ast::StKind::Assign:
             case ast::StKind::AugAssign: {
                 // A bare `x = v` with no prior binding CREATES one. This is not

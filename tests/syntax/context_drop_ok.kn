@@ -1,0 +1,31 @@
+# M4 context managers (`with`) and scoped release (`using`).
+# Positive: check + run clean, no warnings, tree interpreter == VM.
+struct Conn {
+    name: Str;
+
+    fn enter(self) -> Bool {
+        print("open", self.name);
+        return true;
+    }
+    fn exit(self) -> Bool {
+        print("close", self.name);
+        return false;
+    }
+}
+
+struct File {
+    path: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.path);
+    }
+}
+
+fn main() -> none {
+    with Conn(name: "db") as c {
+        if c { print("in body"); }
+    }
+
+    using f = File(path: "a.txt");
+    print("file", f.path);
+}

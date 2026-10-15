@@ -105,6 +105,14 @@ private:
     std::mutex defersM_;
     std::map<std::thread::id, std::vector<std::vector<Deferred>>> defers_;
 
+    // `using`/RAII drop frames, per-thread and per-block (LIFO). A value is
+    // registered in the innermost frame when its `using` declaration runs and
+    // released when that block exits, on normal completion or on unwind.
+    std::mutex usingsM_;
+    std::map<std::thread::id, std::vector<std::vector<Value>>> usings_;
+    void registerUsing(const Value& v);
+    void runUsingFrame(std::thread::id tid);
+
     std::mutex threadsM_;
     std::vector<std::shared_ptr<ThreadImpl>> threads_;
 

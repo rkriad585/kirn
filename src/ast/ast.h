@@ -185,6 +185,7 @@ enum class StKind {
     DoWhile, Goto, Label, Gather, GatherStmt,
     Import, Export,
     Del, LocalDecl, GlobalDecl, TempDecl, BucketDecl, Yield,
+    With, Using,
 };
 
 struct FieldDecl {
@@ -292,6 +293,11 @@ struct Stmt {
 
     // Try: catch binding name ("" = discard the raised value)
     std::string catchParam;
+
+    // With: one entry per `with` item, parallel to the item expression in
+    // `exprs`. `withNames[i]` is the `as <name>` binding ("" when the item has
+    // no `as`). `using` reuses `target` (an Ident) + `value`.
+    std::vector<std::string> withNames;
 
     // Struct heritage (single inheritance, from `class X extends Base`):
     // "" = none. Base fields are inherited (own fields override same-named base

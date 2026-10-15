@@ -1,0 +1,96 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/48_context_drop.kn
+StructDef "Conn"
+  Field "name" : Str
+  FuncDef "enter"
+    Param "self" self : <inferred>
+    Ret Bool
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                FString
+                  Text "open "
+                  Interp
+                    Value 
+                      Member name="name"
+                        Obj Ident "self"
+      Return
+        Value Ident "true"
+  FuncDef "exit"
+    Param "self" self : <inferred>
+    Ret Bool
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                FString
+                  Text "close "
+                  Interp
+                    Value 
+                      Member name="name"
+                        Obj Ident "self"
+      Return
+        Value Ident "false"
+StructDef "File"
+  Field "path" : Str
+  FuncDef "drop"
+    Param "self" self : <inferred>
+    Ret none
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                FString
+                  Text "drop "
+                  Interp
+                    Value 
+                      Member name="path"
+                        Obj Ident "self"
+FuncDef "main"
+  Ret none
+  Body
+    With
+      Item 
+        Call
+          Callee Ident "Conn"
+          Arg name=name
+            Value Str "db"
+        As c
+      Body
+        If
+          Cond Ident "c"
+          Then
+            ExprStmt
+              Value 
+                Call
+                  Callee Ident "print"
+                  Arg
+                    Value Str "using connection"
+    Using
+      Target Ident "f"
+      Value 
+        Call
+          Callee Ident "File"
+          Arg name=path
+            Value Str "a.txt"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "file"
+          Arg
+            Value 
+              Member name="path"
+                Obj Ident "f"
+<ROOT>/examples/48_context_drop.kn: OK (3 top-level statements)
+[exit 0]

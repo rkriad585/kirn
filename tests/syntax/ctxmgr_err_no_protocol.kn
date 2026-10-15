@@ -1,0 +1,10 @@
+# expect: E-CTXMGR-NO-PROTOCOL
+# `with` requires enter()/__enter__ and exit()/__exit__ on the receiver type.
+struct Plain {
+    x: Int;
+}
+fn main() -> none {
+    with Plain(x: 1) as p {
+        print(p.x);
+    }
+}

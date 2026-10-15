@@ -81,6 +81,10 @@ KEYWORD         = "fn"    | "var"   | "if"    | "elif"
    (`gather { seeds } { body }`, see gather_stmt) and the re-queue item
    (`gather <expr>,`) only at those statement positions. "item" is a
    contextual binding for the current worklist head inside a gather body.
+   "with" and "using" are contextual too: at statement position `with` opens
+   a context-manager block (`with e [as n], … { … }`, see with_stmt) and
+   `using` opens a scoped-release binding (`using n = e;`, see using_stmt);
+   elsewhere both stay plain IDENTIFIERs.
    Container/view/error type names below are plain IDENTIFIERs bound in the
    prelude — list[Int], gen[T], result[T, E], option[Int] / Int?, any /
    dynamic all parse through base_type.                                     *)
@@ -341,7 +345,8 @@ simple_stmt     = ( import_decl | export_decl | const_decl
                   | assignment | aug_assign | var_decl | return_stmt
                   | raise_stmt | break_stmt | continue_stmt | defer_stmt
                   | del_stmt | yield_stmt | local_stmt | global_stmt
-                  | temp_stmt | bucket_stmt | goto_stmt | gather_item_stmt
+                  | temp_stmt | bucket_stmt | using_stmt | goto_stmt
+                  | gather_item_stmt
                   | pass_stmt | expr_stmt ) , ";" ;
 
 pass_stmt       = "pass" ;
@@ -393,13 +398,30 @@ bucket_stmt     = "bucket" "release" IDENTIFIER
 (* Park/release store: `bucket x = v` moves `x` into the bucket namespace
    (invisible to normal lookup); `bucket release x` moves it back.        *)
 
+using_stmt      = "using" IDENTIFIER [ ":" type ] "=" expr ;
+(* M4 scoped release: binds the name in the current block and releases its
+   value at block exit (normal, `break`/`continue`/`return`, or a raised
+   error) by calling its `drop` method (or `exit`/`__exit__`). The receiver
+   type must implement one of those (E-DROP-NO-PROTOCOL otherwise).          *)
+
+with_stmt       = "with" with_item { "," with_item } block ;
+with_item       = expr [ "as" IDENTIFIER ] ;
+(* M4 context managers: items are entered left-to-right (binding each `as`
+   name to its `enter`/`__enter__` result), the body runs, and each `exit`/
+   `__exit__` runs in reverse order on normal completion and on a raised
+   error. An `exit` returning `true` suppresses the error (PEP 343). The
+   receiver type must define both `enter`/`__enter__` and `exit`/`__exit__`
+   (E-CTXMGR-NO-PROTOCOL otherwise). `with` is contextual, not reserved.      *)
+(* Park/release store: `bucket x = v` moves `x` into the bucket namespace
+   (invisible to normal lookup); `bucket release x` moves it back.        *)
+
 expr_stmt       = expr ;
 call_expr       = postfix_expr ;
 (* A call-only expression (at least one call_suffix); used by `defer`/`spawn`. *)
 
 compound_stmt   = if_stmt | while_stmt | do_while_stmt | for_stmt
                 | match_stmt | select_stmt | unsafe_block | spawn_stmt
-                | gather_stmt | try_stmt ;
+                | with_stmt | gather_stmt | try_stmt ;
 
 if_stmt         = "if" if_head block { "elif" expr block }
                   [ "else" block ] ;

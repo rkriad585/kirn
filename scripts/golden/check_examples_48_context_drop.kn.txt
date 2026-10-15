@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/48_context_drop.kn
+<ROOT>/examples/48_context_drop.kn: OK
+[exit 0]

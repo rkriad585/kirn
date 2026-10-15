@@ -1,0 +1,32 @@
+# context_drop — M4 `with` (enter/exit) and `using` (drop) lowered to the
+# tree-walker; gate 4 compares it against the VM run, pinning enter order,
+# reverse exit order, and scope-exit drop.
+struct Conn {
+    name: Str;
+
+    fn enter(self) -> Bool {
+        print("open", self.name);
+        return true;
+    }
+    fn exit(self) -> Bool {
+        print("close", self.name);
+        return false;
+    }
+}
+
+struct File {
+    path: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.path);
+    }
+}
+
+fn main() -> none {
+    with Conn(name: "db") as c {
+        if c { print("in body"); }
+    }
+
+    using f = File(path: "a.txt");
+    print("file", f.path);
+}

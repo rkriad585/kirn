@@ -569,6 +569,14 @@ public:
                 // tree-walker (same policy as Raise/Match/Select/Defer).
                 em.f.interpreted = true;
                 break;
+            case StKind::With:
+                // context-manager enter/exit, exception-aware: tree-walker.
+                em.f.interpreted = true;
+                break;
+            case StKind::Using:
+                // block-scoped drop, a scope-exit hook: tree-walker.
+                em.f.interpreted = true;
+                break;
             default: em.f.interpreted = true; break;
         }
     }

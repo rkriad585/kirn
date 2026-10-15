@@ -1,0 +1,9 @@
+# expect: E-DROP-NO-PROTOCOL
+# `using` requires a type with a drop() method (or an exit() context manager).
+struct Plain {
+    x: Int;
+}
+fn main() -> none {
+    using p = Plain(x: 1);
+    print(p.x);
+}

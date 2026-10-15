@@ -225,6 +225,28 @@ bool Parser::looksLikeTypedBinding() const {
     }
 }
 
+// `with` is a soft/contextual keyword (never reserved): it introduces a
+// statement only when the item list is followed by a block `{` or an `as`
+// binding at the top level before the statement terminator. Otherwise `with`
+// stays an ordinary identifier usable as an expression.
+bool Parser::looksLikeWithStmt() const {
+    size_t depth = 0;
+    for (size_t off = 1;; ++off) {
+        const Token& t = cur(off);
+        if (t.kind == Tok::Eof || t.kind == Tok::Newline ||
+            t.kind == Tok::Dedent)
+            return false;
+        if (t.kind == Tok::Punct) {
+            if (t.text == ";" || t.text == "}" ) return false;
+            if (t.text == "{" && depth == 0) return true;
+            if (t.text == "(" || t.text == "[") { ++depth; continue; }
+            if (t.text == ")" || t.text == "]") { if (depth) --depth; continue; }
+            continue;
+        }
+        if (t.kind == Tok::Ident && depth == 0 && t.text == "as") return true;
+    }
+}
+
 ast::StmtP Parser::parseTopOrStmt() {
     // labeled loop:  label: while ...  |  label: for ...
     if (cur().kind == Tok::Ident && atPunct(":", 1) &&
@@ -305,6 +327,7 @@ ast::StmtP Parser::parseTopOrStmt() {
     if (atIdent("export")) return parseImport(false, true);
     if (atIdent("const")) { advance(); return finishConstDecl(); }
     if (atIdent("try") && atPunct("{", 1)) return parseCompound();
+    if (atIdent("with") && looksLikeWithStmt()) return parseWithStmt();
     if (atIdent("if") || atIdent("while") || atIdent("for") ||
         atIdent("match") || atIdent("select") || atIdent("unsafe") ||
         (atIdent("do") && atPunct("{", 1)) ||
@@ -926,12 +949,45 @@ ast::StmtP Parser::parseIfChain() {
     return s;
 }
 
+// with e1 [as n1], e2 [as n2] { body }
+//
+// Context-manager statement. Items are evaluated left to right, each `enter`
+// called in order, the body runs, and each `exit` runs in reverse order (on
+// normal completion and on a raised error; an `exit` returning `true`
+// suppresses the error). `with` is a soft keyword; the dispatcher only treats
+// it as a statement when `looksLikeWithStmt()` holds.
+ast::StmtP Parser::parseWithStmt() {
+    auto s = std::make_unique<ast::Stmt>();
+    s->kind = ast::StKind::With;
+    s->span = spanHere();
+    advance();                                          // 'with'
+    for (;;) {
+        // `as` is also the cast operator, so `with e as n` parses as a cast.
+        // At the top level of an item (not inside parens) that cast IS the
+        // binding: unwrap it back into (expr, name).
+        ast::ExprP item = parseExpr();
+        std::string name;
+        while (item && item->kind == ast::ExKind::Cast && !item->paren &&
+               item->newType && item->newType->kind == ast::TyKind::Name &&
+               item->newType->generics.empty() && item->lhs) {
+            name = item->newType->name;
+            item = std::move(item->lhs);
+        }
+        s->exprs.push_back(std::move(item));
+        s->withNames.push_back(std::move(name));
+        if (atPunct(",")) { advance(); continue; }
+        break;
+    }
+    s->body = parseBlock();
+    endBlock();
+    return s;
+}
+
 ast::StmtP Parser::parseCompound() {
     auto s = std::make_unique<ast::Stmt>();
     s->span = spanHere();
 
     if (atIdent("if")) return parseIfChain();
-
     if (atIdent("while")) {
         advance();
         s->kind = ast::StKind::While;
@@ -1197,6 +1253,18 @@ ast::StmtP Parser::parseSimpleStmt() {
             advance();
             s->kind = ast::StKind::Spawn;
             s->exprs.push_back(parseExpr());
+            return s;
+        }
+        if (w == "using" && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+            // `using name = expr;` — a block-scoped binding whose value is
+            // released (via its `drop` method) when the enclosing block exits.
+            advance();
+            s->kind = ast::StKind::Using;
+            s->target = parseExpr();
+            if (atPunct(":")) { advance(); s->declType = parseType(); }
+            if (atOp("=")) { advance(); s->value = parseExpr(); }
+            else diags_.report(cur().line, cur().col,
+                               "expected '=' in 'using' declaration");
             return s;
         }
         if (w == "var" && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {

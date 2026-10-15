@@ -120,6 +120,14 @@ represent, and `*`/`**` display unpacking (`ExKind::Spread`) needs collection-un
 the MIR/LLVM lowering does not have. Native keeps these on the interpreter/VM, so behaviour is
 unchanged. See the per-phase notes below.
 
+**Implementation progress (2026-10-15).** M4 (`with`/context managers, `using`/scoped `Drop`,
+`Enter`/`Exit` protocol) is implemented in `src/` (parser → AST → checker → tree-walker, with HIR
+lowering and a bytecode-VM interpreted fallback) and green on the full gate (`scripts/gates_linux.sh`,
+225), golden (`scripts/golden_linux.sh`, 227), crosscheck (`scripts/crosscheck_linux.sh`, 543) and
+stdlib (`kirn test stdlib/pet`, 9) suites. See the M4 phase note for the recorded scope deviations
+(no implicit declaration-based RAII, no `drop(value)` builtin, no `contextlib.kn`, no `Copy`/`Drop`
+conflict check).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -469,6 +477,27 @@ execution paths for this surface.
 
 **Must Follow:** `Drop` = type-scoped RAII, `with` = block-scoped CM, `defer` = function-scoped.
 **Important Note:** `Exit` suppression and reversed exit order match PEP 343; cleanup runs on exception.
+
+**Implemented (2026-10-15).** `with`/`using` plus the `Drop`/`Enter`/`Exit` protocol landed with the
+decided semantics. `with e1 as a, e2 as b { }` evaluates items left-to-right, calls
+`enter`/`__enter__` in order (the `as` name binds to the result), runs the body, then calls
+`exit`/`__exit__` in reverse order on normal completion _and_ on a raised error; an `exit` returning
+truthy suppresses the error (PEP 343 — and only `SignalRaise` is suppressed, not
+`return`/`break`/`continue`). `using n = e;` declares `n` in the enclosing block and registers its
+value for release at block exit (normal or unwind, LIFO) via `drop`, falling back to
+`__del__`/`exit`/`__exit__` when `drop` is absent. The checker rejects a `with` receiver without the
+protocol (`E-CTXMGR-NO-PROTOCOL`), a `using` value without a drop/exit method
+(`E-DROP-NO-PROTOCOL`), and an `exit` whose return type is not `Bool`. `with` and `using` are
+contextual keywords, not reserved. Recorded deviations from the M4 text: implicit
+declaration-based RAII (a bare `{ h = FileHandle(...) }` dropping at block end) is **not**
+implemented — release is driven by `using` (and `with`); the early-drop `drop(value)` builtin and the
+`stdlib/lib/contextlib.kn` helpers (`ExitStack`, `suppress`, `closing`, `nullcontext`) are not
+included yet; `Copy`/`Drop` mutual exclusion is not enforced. Parser/AST/checker/tree-walker are done;
+`with`/`using` are marked interpreted in the bytecode VM and HIR lowers the bindings (`With` → a
+scoped `Block`, `Using` → a `VarDecl`) so gates 8/9 stay green. Tests
+`tests/syntax/context_drop_ok.kn`, `tests/syntax/ctxmgr_err_no_protocol.kn`,
+`tests/syntax/drop_err_no_protocol.kn`, `tests/vm_parity/context_drop.kn` and
+`examples/48_context_drop.kn`.
 
 > Reference: Python — context managers `with` (`cpython/Lib/contextlib.py`); Rust — `Drop` (`rust/library/core/src/ops/drop.rs`).
 

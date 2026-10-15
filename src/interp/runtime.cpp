@@ -7112,6 +7112,35 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                 break;
             }
 
+            case OP_APPEND: {
+                // Comprehensions grow a collection inside a loop. a selects the
+                // target kind: 0=list, 1=set, 2=dict. Stack is [cont, item] for
+                // list/set or [cont, key, val] for dict; pop the item(s) and the
+                // container, mutate in place, push the container back.
+                if (ins.a == 2) {
+                    Value val = pop().take();
+                    Value key = pop().take();
+                    Value cont = pop().take();
+                    if (cont.k == VK::Dict) dictPutInPlace(cont, std::move(key), std::move(val));
+                    push(fromVal(std::move(cont)));
+                } else {
+                    Value item = pop().take();
+                    Value cont = pop().take();
+                    if (ins.a == 1) {
+                        if (cont.k == VK::Set) {
+                            bool dup = false;
+                            for (auto& e : *cont.vec)
+                                if (valEq(e, item)) { dup = true; break; }
+                            if (!dup) cont.vec->push_back(std::move(item));
+                        }
+                    } else if (cont.k == VK::List) {
+                        cont.vec->push_back(std::move(item));
+                    }
+                    push(fromVal(std::move(cont)));
+                }
+                break;
+            }
+
             case OP_INDEX: {
                 Value idx = pop().take();
                 Value obj = pop().take();

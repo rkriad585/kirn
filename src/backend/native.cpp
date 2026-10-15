@@ -1,6 +1,7 @@
 // Implementation of the Phase 8.2 scalar-native backend. See native.h.
 #include "backend/native.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -203,6 +204,21 @@ private:
                 return binopLowerable(e, t);
             case ExKind::Call:
                 return callLowerable(e, cur);
+            // Walrus `(x := E)`: eval-once into the named scalar local. The
+            // target is declared by the emitter (see Emitter::collectWalrus).
+            case ExKind::AssignExpr:
+                return e.lhs && e.lhs->kind == ExKind::Ident && e.rhs &&
+                       exprLowerable(*e.rhs, cur) && isScalarTy(t);
+            // Pipe `a |> body` with `%` (Topic) naming the piped scalar.
+            case ExKind::Topic:
+                return isScalarTy(t);
+            case ExKind::Pipe:
+                return e.lhs && e.rhs && exprLowerable(*e.lhs, cur) &&
+                       exprLowerable(*e.rhs, cur) && isScalarTy(t);
+            // Elvis `??` operates on an optional; the scalar subset has no
+            // optional representation, so it stays on the interpreter/VM.
+            case ExKind::Coalesce:
+                return false;
             default:
                 return false;
         }
@@ -357,12 +373,59 @@ private:
     const NativeFunc* cur_ = nullptr;
     std::unordered_map<std::string, std::string> localTypes_;  // name -> cpp type
     std::unordered_map<std::string, const NativeFunc*> calleeFunc_;
+    int tmpSeq_ = 0;              // unique C++ temp names for sugar lowering
+    std::string pipeTmp_;         // current `%` binding while emitting a pipe
+    std::vector<std::string> predeclared_;  // walrus targets hoisted to top
 
     TyP typeOf(const ast::Expr& e) const { return chk_->typeOf(e); }
+
+    // Collect `(x := ...)` binding names reachable from an expression so the
+    // emitter can hoist their scalar declarations to the function top. Walrus
+    // is an expression in this language, so the binding site may be a condition
+    // or an argument; a top-level declaration keeps the emitted assignment in
+    // scope without a statement slot.
+    void collectWalrusExpr(const ast::Expr& e) {
+        if (e.kind == ExKind::AssignExpr && e.lhs &&
+            e.lhs->kind == ExKind::Ident) {
+            const std::string& n = e.lhs->text;
+            if (!localTypes_.count(n)) {
+                std::string ty = cppTy(typeOf(*e.rhs));
+                if (!ty.empty()) {
+                    localTypes_[n] = ty;
+                    predeclared_.push_back(n);
+                }
+            }
+        }
+        if (e.lhs) collectWalrusExpr(*e.lhs);
+        if (e.rhs) collectWalrusExpr(*e.rhs);
+        if (e.value) collectWalrusExpr(*e.value);
+        if (e.cond) collectWalrusExpr(*e.cond);
+        for (const auto& x : e.elems) if (x) collectWalrusExpr(*x);
+        for (const auto& p : e.pairs) {
+            if (p.first) collectWalrusExpr(*p.first);
+            if (p.second) collectWalrusExpr(*p.second);
+        }
+        for (const auto& a : e.args) if (a.value) collectWalrusExpr(*a.value);
+        for (const auto& c : e.clauses) {
+            if (c.iter) collectWalrusExpr(*c.iter);
+            if (c.cond) collectWalrusExpr(*c.cond);
+        }
+    }
+
+    void collectWalrusStmt(const ast::Stmt& s) {
+        for (const auto& x : s.exprs) if (x) collectWalrusExpr(*x);
+        if (s.value) collectWalrusExpr(*s.value);
+        if (s.cond) collectWalrusExpr(*s.cond);
+        for (const auto& st : s.body) collectWalrusStmt(*st);
+        for (const auto& st : s.elseBody) collectWalrusStmt(*st);
+    }
 
     void emitFunction(const ast::Stmt& s, const NativeFunc& nf) {
         cur_ = &nf;
         localTypes_.clear();
+        tmpSeq_ = 0;
+        pipeTmp_.clear();
+        predeclared_.clear();
         for (size_t i = 0; i < nf.params.size(); ++i)
             localTypes_[nf.params[i]] = nf.pTypes[i];
         for (auto& [name, fn] : *lowered_) calleeFunc_[fn.name] = &fn;
@@ -375,6 +438,12 @@ private:
                    cIdent(nf.params[i], "v_");
         out_ << "static " << (nf.retCpp.empty() ? "void" : nf.retCpp) << " "
              << nf.cName << "(" << sig << ") {\n";
+        // Hoist scalar declarations for walrus `(x := E)` bindings so the
+        // expression-level assignment in the body has a declared target.
+        for (const auto& st : s.body) collectWalrusStmt(*st);
+        for (const auto& n : predeclared_)
+            out_ << "    " << localTypes_[n] << " " << cIdent(n, "v_")
+                 << "{};\n";
         for (const auto& st : s.body) emitStmt(*st, 1);
         // implicit fallthrough return
         if (nf.retCpp.empty())
@@ -413,8 +482,17 @@ private:
                 TyP vt = typeOf(*s.value);
                 std::string ty = cppTy(vt);
                 std::string name = cIdent(s.target->text, "v_");
-                out_ << pad << ty << " " << name << " = " << emitExpr(*s.value)
-                     << ";\n";
+                // A walrus binding of the same name was hoisted to the top of
+                // the function; reuse it instead of redeclaring.
+                bool hoisted = localTypes_.count(s.target->text) &&
+                    std::find(predeclared_.begin(), predeclared_.end(),
+                              s.target->text) != predeclared_.end();
+                if (hoisted)
+                    out_ << pad << name << " = " << emitExpr(*s.value)
+                         << ";\n";
+                else
+                    out_ << pad << ty << " " << name << " = "
+                         << emitExpr(*s.value) << ";\n";
                 localTypes_[s.target->text] = ty;
                 return;
             }
@@ -548,6 +626,28 @@ private:
                     s += emitExpr(*e.args[i].value);
                 }
                 return s + ")";
+            }
+            case ExKind::AssignExpr: {
+                // `(x := E)` — eval-once into a temp, assign the (hoisted)
+                // scalar local, yield the temp. IIFE keeps it expression-shaped.
+                std::string tmp = "__w" + std::to_string(tmpSeq_++);
+                std::string nm = cIdent(e.lhs->text, "v_");
+                return "[&]{ auto " + tmp + " = (" + emitExpr(*e.rhs) +
+                       "); " + nm + " = " + tmp + "; return " + tmp + "; }()";
+            }
+            case ExKind::Topic:
+                // `%` — names the piped value bound by the enclosing Pipe IIFE.
+                return pipeTmp_.empty() ? "0" : pipeTmp_;
+            case ExKind::Pipe: {
+                // `a |> body` — bind `%` to a temp, then emit the body with it.
+                std::string tmp = "__pipe" + std::to_string(tmpSeq_++);
+                std::string in = emitExpr(*e.lhs);
+                std::string saved = pipeTmp_;
+                pipeTmp_ = tmp;
+                std::string body = emitExpr(*e.rhs);
+                pipeTmp_ = saved;
+                return "[&]{ " + std::string(cppTy(t)) + " " + tmp + " = (" +
+                       in + "); return (" + body + "); }()";
             }
             default:
                 return "0";

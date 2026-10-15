@@ -71,6 +71,9 @@ enum Op : uint16_t {
     OP_MAKE_SET,   // pop b values -> set
     OP_MAKE_TUPLE, // pop b values -> tuple
     OP_MAKE_DICT,  // pop 2*b (k,v) -> dict
+    OP_APPEND,     // comps: a=0 list / 1 set / 2 dict. Pops item (or k,v for
+                   // dict) then the container, appends (deduping sets, last-wins
+                   // for dicts to match the tree-walker), pushes the container.
     OP_INDEX,      // pop obj,idx -> obj[idx]
     OP_SLICE,      // pop obj,lo,hi,step -> slice
     OP_SLICE3,     // pop obj,lo,hi,step (three optional) -> slice

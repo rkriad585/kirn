@@ -1,0 +1,21 @@
+# typeguard_ok — M3: `fn f(x: any) -> TypeGuard[T]` reads as `Bool` to callers,
+# and narrows its first argument to `T` in the positive branch of an `if`.
+fn is_int(x: any) -> TypeGuard[Int] {
+    return typeof(x) == "int";
+}
+
+fn main() -> none {
+    v = 5;
+    if is_int(v) {
+        print(v + 1);                       # 6  (v narrowed to Int here)
+    } else {
+        print("not int");
+    }
+
+    w = "hi";
+    if is_int(w) {
+        print("int");
+    } else {
+        print(w);                           # hi
+    }
+}

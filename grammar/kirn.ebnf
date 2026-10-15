@@ -142,7 +142,7 @@ INTERP_STRING   = fstring_open , { fstring_part } , fstring_close ;
 OPERATOR        = "**"  | "//"  | "=="  | "!="  | "<="  | ">="  | "<<"
                 | ">>"  | "+="  | "-="  | "*="  | "/="  | "%="  | "&="
                 | "|="  | "^="  | "<<=" | ">>=" | "..=" | ".."  | "=>"
-                | ".?." | "->"  | "+"   | "-"   | "*"   | "/"   | "%"
+                | ".?." | ".?"  | "->"  | "+"   | "-"   | "*"   | "/"   | "%"
                 | "&"   | "|"   | "^"   | "~"   | "<"   | ">"   | "="
                 | "?"   | "@"   | "@="  | ":="  | "|>"  | "??"  | "??=" ;
 
@@ -156,8 +156,9 @@ PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
 #
 #  Level  Operator(s)                Assoc     Notes
 #  -----  -------------------------- --------  -----------------------------
-#   17    () [] . .?. ?              left      postfix: call/index/member/
-#                                               nil-safe/try-propagate
+#   17    () [] . .?. .?[ .?( ?   left      postfix: call/index/member/
+#                                               nil-safe index/call [M3]/
+#                                               try-propagate
 #   16    **                         right     Python rule: -2**2 == -(2**2)
 #   15    unary - + ~ not & *        prefix    &x borrow, *p deref  [PROVISIONAL]
 #   14    * / % // @                 left      // floor-div (ints); @ matmul
@@ -188,6 +189,11 @@ PUNCTUATION     = "("  | ")"  | "["  | "]"  | "{"  | "}"  | ","  | ":"
 #   M1 note: ordering is  |>  (loosest)  <  :=  <  ??  <  level 4 `or`.
 #   `??` may not be mixed with `and`/`or` without parentheses (E-COALESCE-MIX),
 #   and `%` is a primary only inside a `|>` body (E-PIPE-TOPIC).
+#   M2 note: `@`/`@=` (matmul) sit at level 14 with `*` (PEP 465).
+#   M3 note: `.?[` and `.?(` are the nil-safe index/call forms (level 17); the
+#   `*`/`**` spread forms extend list/map/set displays and comprehensions (see
+#   display and comprehension_expr productions); `typeof(expr)` is legal both as
+#   an atom (value position) and as a `type` (type position).
 # -----------------------------------------------------------------------------
 
 
@@ -395,8 +401,11 @@ compound_stmt   = if_stmt | while_stmt | do_while_stmt | for_stmt
                 | match_stmt | select_stmt | unsafe_block | spawn_stmt
                 | gather_stmt | try_stmt ;
 
-if_stmt         = "if" expr block { "elif" expr block }
+if_stmt         = "if" if_head block { "elif" expr block }
                   [ "else" block ] ;
+(* M3: `if var PAT = EXPR { ... }` narrows the binding in the then-branch; it
+   desugars to a `match EXPR { case PAT { ... } case _ { else } }`. *)
+if_head         = expr | "var" pattern "=" expr ;
 (* `elif` is accepted as a legacy alias for `else if` (see §4 note 2).     *)
 
 while_stmt      = "while" expr block ;
@@ -506,13 +515,17 @@ unary_op        = "-" | "+" | "~" | "not" | "&" | "*" ;   (* &/* prov.  *)
 power           = postfix_expr , [ "**" , unary ] ;       (* right-assoc *)
 
 postfix_expr    = primary_expr , { postfix_op } ;
-postfix_op      = call_suffix | index_suffix | member_suffix | try_suffix ;
+postfix_op      = call_suffix | index_suffix | member_suffix | safe_suffix
+                | try_suffix ;
 call_suffix     = "(" [ call_arg , { "," , call_arg } ] [ "," ] ")" ;
 call_arg        = expr | IDENTIFIER ":" expr ;   (* named args: Point(x: 3) *)
 index_suffix    = "[" index_body "]" ;
 index_body      = expr
                 | [ expr ] ":" [ expr ] [ ":" [ expr ] ] ;   (* slicing *)
 member_suffix   = ( "." | ".?." ) , IDENTIFIER ;
+(* M3 nil-safe chaining: `x.?[i]` and `x.?(args)` test the receiver for none
+   and, if so, yield none without evaluating the rest. *)
+safe_suffix     = ".?" , ( "[" index_body "]" | call_suffix ) ;
 try_suffix      = "?" ;                          (* error propagation      *)
 
 primary_expr    = atom ;
@@ -526,6 +539,7 @@ atom            = literal
                 | lambda_expr
                 | "unsafe" block                 (* unsafe as expr  [PROV.] *)
                 | "new" type [ call_suffix ]
+                | "typeof" "(" expr ")"          (* M3: type descriptor     *)
                 | "self" | "Self"
                 | "%"                            (* pipe topic; only in a
                                                     `|>` body, else
@@ -534,11 +548,21 @@ atom            = literal
 
 call_arg_list   = call_arg , { "," , call_arg } [ "," ] ;
 
-list_display    = "[" [ expr_list ] "]"
-                | "[" expr "for" pattern "in" expr { comp_clause } "]"  (* listcomp [PROVISIONAL] *)
-map_display     = "{" [ map_entry , { "," , map_entry } ] "}" ;
+(* M3: `*expr` (list/set) and `**expr` (dict) spread an iterable/dict into a
+   display or comprehension element (PEP 448/798). *)
+display_elem    = [ "*" ] expr ;
+map_elem        = [ "**" ] expr | expr ":" expr ;
+
+list_display    = "[" [ display_elem , { "," , display_elem } ] "]"
+                | "[" display_elem "for" pattern "in" expr { comp_clause } "]"  (* listcomp [PROVISIONAL] *)
+map_display     = "{" [ map_elem , { "," , map_elem } ] "}" ;
 map_entry       = expr ":" expr ;
-set_display     = "{" expr_list "}" ;
+set_display     = "{" display_elem , { "," , display_elem } "}" ;
+
+(* M3 dict/set comprehensions extend the listcomp form; key-before-value for
+   `{k: v for ...}`, and a bare element for `{e for ...}` (a set). *)
+dictcomp        = "{" expr ":" expr "for" pattern "in" expr { comp_clause } "}" ;
+setcomp         = "{" expr "for" pattern "in" expr { comp_clause } "}" ;
 
 
 (* ---- Patterns (match / case / for-targets) ---------------------------------------- *)
@@ -592,6 +616,7 @@ base_type       = PRIMITIVE_TYPE_NAME
                 | IDENTIFIER [ "[" type_list "]" ]     (* list[Int], Pair[A,B], box[T] *)
                 | "(" type , "," , type , ")"          (* tuple type *)
                 | "(" ")"                              (* unit/none-as-type *)
+                | "typeof" "(" expr ")"                (* M3: inferred type  *)
                 ;
 type_postfix    = "?" ;               (* option sugar:  Int? == option[Int]  *)
 

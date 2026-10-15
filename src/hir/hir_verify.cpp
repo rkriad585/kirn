@@ -89,11 +89,12 @@ struct Verifier {
             case ExprKind::Slice: return "slice";     case ExprKind::Member: return "member";
             case ExprKind::Try: return "try";         case ExprKind::Lambda: return "lambda";
             case ExprKind::Cond: return "cond";       case ExprKind::ListComp: return "listcomp";
+            case ExprKind::SetComp: return "setcomp"; case ExprKind::DictComp: return "dictcomp";
             case ExprKind::Generator: return "generator"; case ExprKind::List: return "list";
             case ExprKind::Dict: return "dict";       case ExprKind::Set: return "set";
             case ExprKind::Tuple: return "tuple";     case ExprKind::New: return "new";
             case ExprKind::Cast: return "cast";       case ExprKind::Match: return "match";
-            case ExprKind::Error: return "error";
+            case ExprKind::Let: return "let";         case ExprKind::Error: return "error";
         }
         return "?";
     }
@@ -231,7 +232,8 @@ struct Verifier {
             if (p.then) expr(*p.then);
             if (p.otherwise) expr(*p.otherwise);
         } else if constexpr (std::is_same_v<T, payload::Comp>) {
-            if (e.kind != ExprKind::ListComp && e.kind != ExprKind::Generator)
+            if (e.kind != ExprKind::ListComp && e.kind != ExprKind::Generator &&
+                e.kind != ExprKind::SetComp && e.kind != ExprKind::DictComp)
                 bad(e.span, "comprehension payload on a non-comprehension node");
             for (const auto& c : p.clauses) {
                 pat(c.pat, e.span);
@@ -239,8 +241,11 @@ struct Verifier {
                 if (c.cond) expr(*c.cond);
             }
             if (p.element) expr(*p.element);
+            if (p.value) expr(*p.value);
+            if (e.kind == ExprKind::DictComp && !p.value)
+                bad(e.span, "dict comprehension has no value expression");
             if (!p.isGenerator && !p.element)
-                bad(e.span, "list comprehension has no element expression");
+                bad(e.span, "comprehension has no element expression");
         } else if constexpr (std::is_same_v<T, payload::MatchExpr>) {
             wantKind(e.span, e.kind, ExprKind::Match, "Match");
             if (p.subject) expr(*p.subject);
@@ -264,6 +269,11 @@ struct Verifier {
         } else if constexpr (std::is_same_v<T, payload::TryExpr>) {
             wantKind(e.span, e.kind, ExprKind::Try, "Try");
             if (p.operand) expr(*p.operand);
+        } else if constexpr (std::is_same_v<T, payload::Let>) {
+            wantKind(e.span, e.kind, ExprKind::Let, "Let");
+            if (p.decl != NO_DECL) declOk(p.decl, e.span, "let binding");
+            if (p.init) expr(*p.init);
+            if (p.body) expr(*p.body);
         } else if constexpr (std::is_same_v<T, payload::Slice>) {
             wantKind(e.span, e.kind, ExprKind::Slice, "Slice");
             if (p.obj) expr(*p.obj);
@@ -576,11 +586,12 @@ struct Dumper {
             case ExprKind::Slice: return "slice";  case ExprKind::Member: return "member";
             case ExprKind::Try: return "try";      case ExprKind::Lambda: return "lambda";
             case ExprKind::Cond: return "cond";    case ExprKind::ListComp: return "listcomp";
+            case ExprKind::SetComp: return "setcomp"; case ExprKind::DictComp: return "dictcomp";
             case ExprKind::Generator: return "generator"; case ExprKind::List: return "list";
             case ExprKind::Dict: return "dict";    case ExprKind::Set: return "set";
             case ExprKind::Tuple: return "tuple";  case ExprKind::New: return "new";
             case ExprKind::Cast: return "cast";    case ExprKind::Match: return "match";
-            case ExprKind::Error: return "error";
+            case ExprKind::Let: return "let";    case ExprKind::Error: return "error";
         }
         return "?";
     }
@@ -673,6 +684,8 @@ struct Dumper {
                 o << " " << p.typeName;
             } else if constexpr (std::is_same_v<T, payload::CastExpr>) {
                 o << " as " << p.typeName;
+            } else if constexpr (std::is_same_v<T, payload::Let>) {
+                o << " #" << p.decl;
             } else if constexpr (std::is_same_v<T, payload::Error>) {
                 o << " " << p.message;
             }
@@ -722,6 +735,7 @@ struct Dumper {
                     if (c.cond) expr(*c.cond, n + 2);
                 }
                 if (p.element) expr(*p.element, n + 1);
+                if (p.value) expr(*p.value, n + 1);
             } else if constexpr (std::is_same_v<T, payload::MatchExpr>) {
                 if (p.subject) expr(*p.subject, n + 1);
                 for (const auto& a : p.arms) { pat(a.pat, n + 1); stmtList(a.body, n + 2); }
@@ -734,6 +748,10 @@ struct Dumper {
                 if (p.value) expr(*p.value, n + 1);
             } else if constexpr (std::is_same_v<T, payload::TryExpr>) {
                 if (p.operand) expr(*p.operand, n + 1);
+            } else if constexpr (std::is_same_v<T, payload::Let>) {
+                if (p.decl != NO_DECL) { ind(n + 1); o << "decl #" << p.decl << "\n"; }
+                if (p.init) expr(*p.init, n + 1);
+                if (p.body) expr(*p.body, n + 1);
             }
         }, e.p);
     }

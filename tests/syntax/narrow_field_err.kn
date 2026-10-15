@@ -1,0 +1,18 @@
+# expect: has no field 'missing'
+# narrow_field_err — M3: once `a is Point` narrows `a` to the concrete struct
+# `Point`, a field that `Point` does not declare is a hard error (this is what
+# makes field access after narrowing "safe"; `unsafe` is required to bypass it).
+struct Point {
+    x: Int;
+    y: Int;
+}
+
+fn f(a: any) -> none {
+    if a is Point {
+        print(a.missing);
+    }
+}
+
+fn main() -> none {
+    f(Point(x: 1, y: 2));
+}

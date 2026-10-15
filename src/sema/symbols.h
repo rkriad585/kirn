@@ -33,6 +33,12 @@ struct FuncSig {
     bool variadic = false;
     size_t required = static_cast<size_t>(-1);  // min arg count (params beyond are optional)
 
+    // M3 TypeGuard: non-null when the function's declared return type is
+    // `TypeGuard[T]`. The guard's effect is `ret` (Bool) to callers, but the
+    // first-parameter type is narrowed to `guardType` at a call site used as a
+    // condition (see Checker::narrowApply). Read by the checker only.
+    TyP guardType;
+
     size_t arity() const { return params.size(); }
 };
 

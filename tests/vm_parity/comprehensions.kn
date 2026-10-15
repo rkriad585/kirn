@@ -1,0 +1,30 @@
+# comprehensions — M4: the tree interpreter and the bytecode VM must produce
+# identical output. Comprehensions lower to OP_APPEND loops over the clause
+# chain (see src/vm/compiler.cpp compileComp); this file pins list/set/dict
+# comprehensions, `if` filters, nested `for` clauses, a nested comprehension,
+# and the eager generator form.
+fn main() -> none {
+    lc = [x * x for x in 0..5];
+    print("list=" + Str(lc));                       # [0, 1, 4, 9, 16]
+
+    ev = [x for x in 0..10 if x % 2 == 0];
+    print("filter=" + Str(ev));                     # [0, 2, 4, 6, 8]
+
+    pairs = [a * 10 + b for a in 0..3 for b in 0..2];
+    print("nested=" + Str(pairs));                  # [0, 1, 10, 11, 20, 21]
+
+    grid = [[y for y in 0..x] for x in 0..4];
+    print("nestedcomp=" + Str(grid));               # [[], [0], [0, 1], [0, 1, 2]]
+
+    sc = {x * 2 for x in 0..4};
+    print("setcomp=" + Str(sc));                    # {0, 2, 4, 6}
+
+    sd = {x % 2 for x in 0..6};
+    print("dedupe=" + Str(sd));                     # {0, 1}
+
+    dc = {x: x * x for x in 0..4 if x != 1};
+    print("dictcomp=" + Str(dc));                   # {0: 0, 2: 4, 3: 9}
+
+    g = [x for x in 0..5];
+    print("gen=" + Str(g));                         # [0, 1, 2, 3, 4]
+}

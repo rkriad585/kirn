@@ -578,8 +578,15 @@ struct Builder {
                 Value v = lower(*p.element);
                 if (v != NO_VALUE) a.push_back(v);
             }
+            if (p.value) {
+                Value v = lower(*p.value);
+                if (v != NO_VALUE) a.push_back(v);
+            }
             return emitValue(Op::CallIndirect, a, t, s,
-                             p.isGenerator ? "generator" : "listcomp");
+                             p.isGenerator            ? "generator"
+                             : e.kind == hir::ExprKind::DictComp ? "dictcomp"
+                             : e.kind == hir::ExprKind::SetComp  ? "setcomp"
+                                                                 : "listcomp");
         } else if constexpr (std::is_same_v<T, hir::payload::MatchExpr>) {
             // Same shape as the statement form, plus a phi for the result: every
             // arm produces a value and the join has to choose between them.
@@ -668,6 +675,23 @@ struct Builder {
             Value v = p.operand ? lower(*p.operand) : NO_VALUE;
             if (v == NO_VALUE) return NO_VALUE;
             return emitValue(Op::CallIndirect, {v}, t, s, "try");
+        } else if constexpr (std::is_same_v<T, hir::payload::Let>) {
+            if (p.decl != hir::NO_DECL && !binds.count(p.decl)) {
+                const hir::Decl* d = hctx.get(p.decl);
+                Type lt = p.init ? tyOf(p.init->type) : t;
+                if (!lt && d && d->type) lt = tyOf(d->type);
+                Binding b;
+                b.decl = p.decl;
+                if (d) b.name = d->name;
+                b.local = allocLocal(b.name, lt, s);
+                binds[p.decl] = b;
+            }
+            if (p.init) {
+                Value v = lower(*p.init);
+                if (v != NO_VALUE && p.decl != hir::NO_DECL) write(p.decl, v, s);
+            }
+            if (p.body) return lower(*p.body);
+            return NO_VALUE;
         } else {
             return NO_VALUE;
         }

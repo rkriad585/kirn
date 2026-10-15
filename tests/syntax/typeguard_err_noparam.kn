@@ -1,0 +1,10 @@
+# expect: must take at least one parameter
+# typeguard_err_noparam — a TypeGuard function with no parameter has nothing to
+# narrow, so the checker rejects it.
+fn bad() -> TypeGuard[Int] {
+    return true;
+}
+
+fn main() -> none {
+    print("never");
+}

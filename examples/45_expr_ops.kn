@@ -1,6 +1,6 @@
 # 45 — Expression operators (M1): pipe `|>` with the `%` topic and unary sugar,
-#      plus elvis `??` and `??=`. Walrus `:=` is exercised in tests/syntax
-#      pending the HIR/MIR/native lowering tracked for M11.
+#      plus elvis `??` and `??=`. Walrus `:=` now lowers through HIR/MIR too and
+#      is exercised in tests/vm_parity/expr_ops.kn.
 #
 # Expected output:
 #   pipe=36

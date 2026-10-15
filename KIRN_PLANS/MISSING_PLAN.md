@@ -99,11 +99,26 @@ rational/decimal, bytes spelling+methods, deque/Counter/heap, `sync` primitives,
 out).
 
 **Implementation progress (2026-10-13).** M1, M2 and M3 are implemented in `src/` and green on the
-full gate (`scripts/gates_linux.sh`, 213), golden (`scripts/golden_linux.sh`, 224) and stdlib
+full gate (`scripts/gates_linux.sh`, 217), golden (`scripts/golden_linux.sh`, 224) and stdlib
 (`kirn test stdlib/pet`, 9) suites, so rows 1, 2, 3, 6, 7, 8, 9 and 19 above are now done. The
 audited table is kept as the historical baseline. Recorded deviations from the M3 text: safe
-navigation is spelled `.?[` / `.?(` (not `?.[` / `?.()`), and `typeof` is not on the VM builtin
-allowlist, so calls fall back to the interpreter. See the per-phase notes below.
+navigation is spelled `.?[` / `.?(` (not `?.[` / `?.()`), and `TypeGuard` is spelled as a
+generic return type `fn f(x: any) -> TypeGuard[T]` (the plan only said "TypeGuard-like
+annotation"). `typeof` is now on the VM builtin allowlist (`src/vm/compiler.cpp`), so the value
+form runs on the bytecode VM instead of falling back to the interpreter. The M1 walrus operator,
+`?.` safe navigation, and set/dict comprehensions now lower through HIR/MIR via an eval-once
+`Let` expression (`payload::Let`, `ExprKind::Let`) plus an extended comprehension payload
+(`payload::Comp::value`, `ExprKind::SetComp`/`DictComp`); the scalar-native backend also lowers
+walrus and pipe. The bytecode VM now fully desugars the sugar — walrus, pipe (with `%`), elvis
+`??`/`??=`, and `.?[`/`.?(` — using hidden frame locals for eval-once, and lowers all
+comprehensions (`list`/`set`/`dict`/generator, with `if` filters and nested `for`) to a loop that
+builds the collection with a new `OP_APPEND` opcode (a=0 list / 1 set / 2 dict; sets dedupe and
+dicts are last-wins to match the tree-walker). A function containing a comprehension runs on the
+env path rather than frame slots, since clause bindings are comprehension-scoped. Still unlowered
+in HIR/MIR: elvis `??`/`??=` operands are optionals, which the scalar-native subset cannot
+represent, and `*`/`**` display unpacking (`ExKind::Spread`) needs collection-unpack runtime ops
+the MIR/LLVM lowering does not have. Native keeps these on the interpreter/VM, so behaviour is
+unchanged. See the per-phase notes below.
 
 ---
 

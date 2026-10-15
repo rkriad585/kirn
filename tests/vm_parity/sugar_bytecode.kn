@@ -1,0 +1,51 @@
+# sugar_bytecode — M1/M3 sugar lowered to bytecode (not the interpreter
+# fallback). These helpers avoid comprehensions, so every containing function
+# stays in the VM core slice; gate 4 then compares the bytecode run against the
+# tree-walker, pinning eval-once and short-circuit for:
+#   walrus `:=`, pipe `|>`/`%`, elvis `??` / `??=`, safe-index `.?[`, safe-call `.?(`.
+fn inc(x: Int) -> Int { return x + 1; }
+fn sq(x: Int) -> Int { return x * x; }
+fn maybe(flag: Int) -> Int? {
+    if flag == 1 { return 5; }
+    return none;
+}
+fn iv(x: Int) -> Int { return x; }
+
+fn sugar(x: Int) -> Int {
+    n = x |> inc(%) |> sq(%);
+    var cache = maybe(0);
+    cache ??= 42;
+    if (k := n) > 5 { return k + (cache ?? 0); }
+    return n;
+}
+
+fn safe_index(flag: Int) -> Int? {
+    xs: list[Int]? = [10, 20, 30];
+    if flag == 0 { xs = none; }
+    return xs .?[1];
+}
+
+fn safe_call(flag: Int) -> Int? {
+    g: (fn(Int) -> Int)? = none;
+    if flag == 1 { g = iv; }
+    return g .?(7);
+}
+
+fn main() -> none {
+    print(sugar(3));        # 58
+    print(maybe(0) ?? 7);   # 7
+    print(maybe(1) ?? 7);   # 5
+    print(safe_index(1));   # 20
+    print(safe_index(0));   # none
+    print(safe_call(1));    # 7
+    print(safe_call(0));    # none
+    print(coalesce_assign());  # 42
+}
+
+fn coalesce_assign() -> Int {
+    var c = maybe(0);
+    c ??= 42;
+    c ??= 99;               # stays 42 (lazy)
+    return c ?? 0;
+}
+

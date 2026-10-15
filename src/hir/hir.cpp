@@ -103,6 +103,63 @@ struct Lowerer {
         return static_cast<uint32_t>(f.paramNames.size() - 1);
     }
 
+    // --- M1/M3 eval-once sugar ------------------------------------------
+    // Walrus, pipe, elvis and `?.` all need their operand evaluated exactly
+    // once, then read back. HIR has no let-expression in the source language,
+    // so the lowering introduces one: bind a fresh temp (or the walrus target),
+    // then evaluate a body that reads it. Duplicating the subexpression instead
+    // would re-run side effects; this is why `payload::Let` exists.
+    uint32_t tempCounter = 0;
+    // The `%` topic of the enclosing pipe, innermost last. A stack because
+    // pipes nest, and an inner pipe's topic must shadow an outer one.
+    std::vector<std::pair<DeclId, sema::TyP>> topicStack;
+
+    DeclId declareTemp(sema::TyP ty, const ast::Span& sp) {
+        std::string name = "__tmp" + std::to_string(tempCounter++);
+        return declare(name, Decl::Kind::Var, sp, std::move(ty), true, nullptr);
+    }
+
+    ExprP nameRef(DeclId id, const std::string& spelling, sema::TyP ty,
+                  const ast::Span& sp) {
+        payload::Name n;
+        n.decl = id;
+        n.spelling = spelling;
+        return mk(ExprKind::Name, sp, std::move(ty), std::move(n));
+    }
+
+    // `none`, resolved through the checker-seeded builtins like any other name.
+    ExprP noneRef(const ast::Span& sp) {
+        DeclId id = resolve("none");
+        return nameRef(id, "none", sema::unkTy(), sp);
+    }
+
+    ExprP letOf(DeclId id, ExprP init, ExprP body, sema::TyP ty,
+                const ast::Span& sp) {
+        payload::Let l;
+        l.decl = id;
+        l.init = std::move(init);
+        l.body = std::move(body);
+        return mk(ExprKind::Let, sp, std::move(ty), std::move(l));
+    }
+
+    // `subject is none` as a Bool-typed binary, for the elvis/`?.` desugaring.
+    ExprP isNone(ExprP subject, const ast::Span& sp) {
+        payload::Binary b;
+        b.op = "is";
+        b.lhs = std::move(subject);
+        b.rhs = noneRef(sp);
+        return mk(ExprKind::Binary, sp, sema::boolTy(), std::move(b));
+    }
+
+    ExprP condOf(ExprP cond, ExprP then, ExprP otherwise, sema::TyP ty,
+                 const ast::Span& sp) {
+        payload::Cond c;
+        c.cond = std::move(cond);
+        c.then = std::move(then);
+        c.otherwise = std::move(otherwise);
+        return mk(ExprKind::Cond, sp, std::move(ty), std::move(c));
+    }
+
     // --- shared -------------------------------------------------------
     ast::Span spanOf(const ast::Expr& e) const {
         return opts.keepSpans ? e.span : ast::Span{};
@@ -241,6 +298,14 @@ struct Lowerer {
     ExprP lowerInner(const ast::Expr& e) {
         const ast::Span sp = spanOf(e);
         const sema::TyP ty = typeOf(e);
+        // `%` inside a pipe names the piped value; the pipe arm below pushes it
+        // and an inner pipe shadows an outer one. Outside any pipe it has no
+        // meaning (the checker already reported E-PIPE-TOPIC), so it falls
+        // through to the unhandled return and becomes a verifier-visible Error.
+        if (e.kind == ast::ExKind::Topic && !topicStack.empty()) {
+            const auto& top = topicStack.back();
+            return nameRef(top.first, "%", top.second ? top.second : ty, sp);
+        }
         switch (e.kind) {
             case ast::ExKind::Int:
                 return mk(ExprKind::Int, sp, ty, payload::Lit{parseIntLiteral(e.text), 0, "", ast::StrFlavor::Normal, false, false, false});
@@ -385,7 +450,9 @@ struct Lowerer {
                 return mk(ExprKind::Dict, sp, ty, std::move(d));
             }
             case ast::ExKind::ListComp:
-            case ast::ExKind::Generator: {
+            case ast::ExKind::Generator:
+            case ast::ExKind::SetComp:
+            case ast::ExKind::DictComp: {
                 payload::Comp c;
                 c.isGenerator = e.kind == ast::ExKind::Generator;
                 pushScope();
@@ -399,10 +466,14 @@ struct Lowerer {
                 }
                 // The element expression is elems[0], not lhs: the parser pushes
                 // it into `elems` (see the ListComp arm in parser.cpp) and leaves
-                // lhs unused for this kind.
+                // lhs unused for this kind. DictComp carries its value in `value`.
                 if (!e.elems.empty()) c.element = lower(*e.elems[0]);
+                if (e.value) c.value = lower(*e.value);
                 popScope();
-                ExprKind k = c.isGenerator ? ExprKind::Generator : ExprKind::ListComp;
+                ExprKind k = c.isGenerator          ? ExprKind::Generator
+                           : e.kind == ast::ExKind::SetComp  ? ExprKind::SetComp
+                           : e.kind == ast::ExKind::DictComp ? ExprKind::DictComp
+                                                             : ExprKind::ListComp;
                 return mk(k, sp, ty, std::move(c));
             }
             case ast::ExKind::New: {
@@ -433,15 +504,105 @@ struct Lowerer {
                 popScope();
                 return mk(ExprKind::Match, sp, ty, std::move(m));
             }
-            // M3 sugar runs on the interpreter and the bytecode VM; the native
-            // (HIR/MIR) path does not lower it yet. These are explicit so the
-            // dump says why, instead of falling through to the generic
-            // "unhandled expression kind". The verifier accepts Error nodes.
+            // M1 walrus `(name := value)`. Bind the target in the enclosing
+            // scope (creating it if this is the binding site), then yield the
+            // value. The checker has already validated the target is a name.
+            case ast::ExKind::AssignExpr: {
+                sema::TyP vt = e.rhs ? typeOf(*e.rhs) : ty;
+                DeclId id = NO_DECL;
+                std::string nm;
+                if (e.lhs && e.lhs->kind == ast::ExKind::Ident) {
+                    nm = e.lhs->text;
+                    id = resolve(nm);
+                    if (id == NO_DECL)
+                        id = declare(nm, Decl::Kind::Var, sp, vt, true, nullptr);
+                }
+                ExprP init = e.rhs ? lower(*e.rhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"walrus has no value"});
+                ExprP body = id != NO_DECL ? nameRef(id, nm, vt, sp)
+                                           : mk(ExprKind::Error, sp, ty,
+                                                payload::Error{"walrus target is not a name"});
+                return letOf(id, std::move(init), std::move(body), vt, sp);
+            }
+
+            // M1 pipe `a |> body`: evaluate `a` once into a temp, then lower the
+            // body with `%` bound to that temp.
+            case ast::ExKind::Pipe: {
+                sema::TyP inT = e.lhs ? typeOf(*e.lhs) : sema::unkTy();
+                DeclId id = declareTemp(inT, sp);
+                ExprP init = e.lhs ? lower(*e.lhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"pipe has no input"});
+                topicStack.push_back({id, inT});
+                ExprP body = e.rhs ? lower(*e.rhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"pipe has no body"});
+                topicStack.pop_back();
+                return letOf(id, std::move(init), std::move(body), ty, sp);
+            }
+
+            // M1 elvis `a ?? b`: `let t = a in (t is none) ? b : t`.
+            case ast::ExKind::Coalesce: {
+                sema::TyP inT = e.lhs ? typeOf(*e.lhs) : sema::unkTy();
+                DeclId id = declareTemp(inT, sp);
+                ExprP init = e.lhs ? lower(*e.lhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"coalesce has no left operand"});
+                ExprP test = isNone(nameRef(id, "", inT, sp), sp);
+                ExprP rhs = e.rhs ? lower(*e.rhs)
+                                  : mk(ExprKind::Error, sp, ty,
+                                       payload::Error{"coalesce has no right operand"});
+                ExprP else_ = nameRef(id, "", inT, sp);
+                return letOf(id, std::move(init),
+                             condOf(std::move(test), std::move(rhs), std::move(else_), ty, sp),
+                             ty, sp);
+            }
+
+            // M3 `a.?[i]`: `let t = a in (t is none) ? none : t[i]`.
+            case ast::ExKind::SafeIndex: {
+                sema::TyP objT = e.lhs ? typeOf(*e.lhs) : sema::unkTy();
+                DeclId id = declareTemp(objT, sp);
+                ExprP init = e.lhs ? lower(*e.lhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"safe index has no receiver"});
+                payload::Index ix;
+                ix.obj = nameRef(id, "", objT, sp);
+                ix.idx = e.rhs ? lower(*e.rhs)
+                               : mk(ExprKind::Error, sp, ty,
+                                    payload::Error{"safe index has no index"});
+                ExprP access = mk(ExprKind::Index, sp, ty, std::move(ix));
+                ExprP test = isNone(nameRef(id, "", objT, sp), sp);
+                return letOf(id, std::move(init),
+                             condOf(std::move(test), noneRef(sp), std::move(access), ty, sp),
+                             ty, sp);
+            }
+
+            // M3 `a.?(args)`: `let t = a in (t is none) ? none : t(args)`.
+            case ast::ExKind::SafeCall: {
+                sema::TyP calleeT = e.lhs ? typeOf(*e.lhs) : sema::unkTy();
+                DeclId id = declareTemp(calleeT, sp);
+                ExprP init = e.lhs ? lower(*e.lhs)
+                                   : mk(ExprKind::Error, sp, ty,
+                                        payload::Error{"safe call has no callee"});
+                payload::Call c;
+                c.callee = nameRef(id, "", calleeT, sp);
+                for (const auto& a : e.args)
+                    c.args.push_back(a.value ? lower(*a.value)
+                        : mk(ExprKind::Error, sp, ty,
+                             payload::Error{"call argument has no value"}));
+                ExprP call = mk(ExprKind::Call, sp, ty, std::move(c));
+                ExprP test = isNone(nameRef(id, "", calleeT, sp), sp);
+                return letOf(id, std::move(init),
+                             condOf(std::move(test), noneRef(sp), std::move(call), ty, sp),
+                             ty, sp);
+            }
+
+            // M3 display unpacking (`*expr` / `**expr`) is not lowered yet.
+            // It is explicit so the dump says why, instead of falling through
+            // to the generic "unhandled expression kind". The verifier accepts
+            // Error nodes.
             case ast::ExKind::Spread:
-            case ast::ExKind::SafeIndex:
-            case ast::ExKind::SafeCall:
-            case ast::ExKind::SetComp:
-            case ast::ExKind::DictComp:
                 return mk(ExprKind::Error, sp, ty,
                     payload::Error{"expression kind is interpreter/VM only, not lowered in HIR"});
         }

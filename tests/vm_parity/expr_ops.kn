@@ -1,0 +1,39 @@
+# expr_ops — M1/M3: the tree interpreter and the bytecode VM must produce
+# identical output for walrus `:=`, pipe `|>` (with `%` topic), elvis `??` /
+# `??=`, and `typeof` (value form). This file is in the HIR-verified corpus
+# (gate 8/9), so it also pins that these kinds lower through HIR/MIR.
+fn maybe(flag: Int) -> Int? {
+    if flag == 1 { return 5; }
+    return none;
+}
+fn inc(x: Int) -> Int { return x + 1; }
+fn sq(x: Int) -> Int { return x * x; }
+
+fn main() -> none {
+    n = 5 |> inc(%) |> sq(%);
+    print("pipe=" + Str(n));                 # 36
+
+    m = 5 |> inc;
+    print("sugar=" + Str(m));                # 6
+
+    a = maybe(0);
+    print("none=" + Str(a ?? 7));            # 7
+    b = maybe(1);
+    print("some=" + Str(b ?? 7));            # 5
+
+    var cache = maybe(0);
+    cache ??= 42;
+    print("coalesce1=" + Str(cache));        # 42
+    cache ??= 99;
+    print("coalesce2=" + Str(cache));        # 42
+
+    if (k := 10) > 5 { print("k=" + Str(k)); } # k=10
+
+    print("typeof=" + typeof(n));            # int
+    print("typeof2=" + typeof(cache));       # int
+
+    sc = {x * 2 for x in 0..4};
+    print("setcomp=" + Str(sc));             # {0, 2, 4, 6}
+    dc = {x: x + 1 for x in 0..3};
+    print("dictcomp=" + Str(dc));            # {0: 1, 1: 2, 2: 3}
+}

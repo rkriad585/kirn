@@ -260,6 +260,7 @@ struct Comp {
     struct Clause { std::string kind; Pattern pat; ExprP iterable, cond; };
     std::vector<Clause> clauses;
     ExprP element;                 // null for a Generator
+    ExprP value;                   // DictComp element value (null otherwise)
     bool isGenerator = false;
 };
 struct MatchExpr {
@@ -270,6 +271,7 @@ struct MatchExpr {
 struct NewExpr { std::string typeName; sema::TyP type; std::vector<ExprP> args; };
 struct CastExpr { ExprP value; std::string typeName; sema::TyP type; };
 struct TryExpr { ExprP operand; };              // postfix `?`
+struct Let { DeclId decl = NO_DECL; ExprP init, body; };
 struct Error { std::string message; };          // a lowering that could not proceed
 
 }  // namespace payload
@@ -282,12 +284,12 @@ using ExprPayload = std::variant<
     payload::Index, payload::Slice, payload::Member, payload::Composite,
     payload::DictLit, payload::FString, payload::Lambda, payload::Cond,
     payload::Comp, payload::MatchExpr, payload::NewExpr, payload::CastExpr,
-    payload::TryExpr, payload::Error>;
+    payload::TryExpr, payload::Let, payload::Error>;
 
 enum class ExprKind : uint8_t {
     Int, Float, CharLit, Str, FString, Name, Unary, Binary, Call, Index, Slice,
-    Member, Try, Lambda, Cond, ListComp, Generator, List, Dict, Set, Tuple, New,
-    Cast, Match, Error
+    Member, Try, Lambda, Cond, ListComp, Generator, SetComp, DictComp, List,
+    Dict, Set, Tuple, New, Cast, Match, Let, Error
 };
 
 struct Expr {

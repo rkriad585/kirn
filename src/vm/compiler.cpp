@@ -36,7 +36,7 @@ namespace {
 const std::unordered_set<std::string>& kBuiltins() {
     static const std::unordered_set<std::string> s = {
         "print","len","range","panic","catch_panic","printf","strlen",
-        "assert","assert_eq","type","sum",
+        "assert","assert_eq","type","typeof","sum",
         "any","all","sorted","reversed","enumerate","map","filter","reduce",
         "upper","lower","trim","contains","starts_with","ends_with","replace",
         "split","join",
@@ -201,6 +201,14 @@ public:
     std::unordered_map<std::string, int32_t> slotPlan_;
     bool slotUse_ = false;
 
+    // M1/M3 sugar desugaring: each `|>` / `??` / `.?[` / `.?(` node needs one
+    // hidden frame local to bind its input (so eval-once holds). The names use
+    // a leading control byte so they can never collide with a user identifier;
+    // they are allocated during planSlots and looked up by node address.
+    std::unordered_map<const Expr*, std::string> tmpOf_;
+    int32_t tmpSeq_ = 0;
+    std::string curTopic_;   // hidden name bound to the enclosing pipe's `%`
+
     void planSlots(const std::vector<ast::Param>& params,
                    const std::vector<StmtP>& body, Emitter& em) {
         std::unordered_map<std::string, int32_t> slotOf;
@@ -263,6 +271,58 @@ public:
             };
         for (const auto& p : params) bindDecl(p.name, 0);
         for (const auto& st : body) scan(*st, 0);
+
+        // Allocate one hidden frame local per pipe/coalesce/safe-access node so
+        // the bytecode can evaluate the receiver exactly once. These names are
+        // never referenced by user code, so they are always frame-level.
+        tmpOf_.clear();
+        tmpSeq_ = 0;
+        std::function<void(const Expr&)> escan = [&](const Expr& e) {
+            switch (e.kind) {
+                case ExKind::Pipe:
+                case ExKind::Coalesce:
+                case ExKind::SafeIndex:
+                case ExKind::SafeCall:
+                    if (!tmpOf_.count(&e))
+                        tmpOf_[&e] = std::string("\x01t") + std::to_string(tmpSeq_++);
+                    break;                // Comprehension clause bindings are scoped to the comprehension
+                // (a child Env in the tree-walker) and are not part of the
+                // function's slot plan. A clause name could shadow an outer
+                // slot, so force the verified env path for the whole function.
+                case ExKind::ListComp:
+                case ExKind::Generator:
+                case ExKind::SetComp:
+                case ExKind::DictComp:
+                    unsafe = true;
+                    break;
+                default: break;
+            }
+            if (e.lhs) escan(*e.lhs);
+            if (e.rhs) escan(*e.rhs);
+            if (e.value) escan(*e.value);
+            if (e.cond) escan(*e.cond);
+            for (const auto& x : e.elems) if (x) escan(*x);
+            for (const auto& pr : e.pairs) {
+                if (pr.first) escan(*pr.first);
+                if (pr.second) escan(*pr.second);
+            }
+            for (const auto& a : e.args) if (a.value) escan(*a.value);
+            for (const auto& cl : e.clauses) {
+                if (cl.iter) escan(*cl.iter);
+                if (cl.cond) escan(*cl.cond);
+            }
+        };
+        std::function<void(const Stmt&)> es = [&](const Stmt& s) {
+            for (const auto& x : s.exprs) if (x) escan(*x);
+            if (s.value) escan(*s.value);
+            if (s.cond) escan(*s.cond);
+            for (const auto& st : s.body) es(*st);
+            for (const auto& st : s.elseBody) es(*st);
+            for (const auto& e : s.elifConds) if (e) escan(*e);
+            for (const auto& st : s.elifBodies) es(*st);
+        };
+        for (const auto& st : body) es(*st);
+
         em.f.useSlots = !unsafe && !order.empty();
         em.f.slotNames = std::move(order);
         slotUse_ = em.f.useSlots;
@@ -292,6 +352,7 @@ public:
         em.f.varIdx = varIdx;
         em.f.isResult = isResult;
         loops.clear();
+        curTopic_.clear();
         for (const auto& sp : body) ls.scanStmt(*sp);
         planSlots(params, body, em);
         for (const auto& sp : body) {
@@ -360,9 +421,21 @@ public:
             }
 
             case StKind::AugAssign: {
-                // `??=` is lazy (assign only when the target is none) and has no
-                // bytecode op; run the whole function in the tree interpreter.
-                if (s.augOp == "??=") { em.f.interpreted = true; break; }
+                // `??=` is lazy: assign only when the target is none. Desugar to
+                // `if a is none { a = b }` with the existing IS/JUMP ops.
+                if (s.augOp == "??=") {
+                    if (s.exprs.size() != 2 || s.exprs[0]->kind != ExKind::Ident) {
+                        em.f.interpreted = true;
+                        break;
+                    }
+                    loadName(em, s.exprs[0]->text);
+                    em.emit(OP_IS, -1);
+                    int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+                    compileExpr(em, *s.exprs[1]);
+                    storeName(em, s.exprs[0]->text);
+                    em.at(jF).a = em.here() - jF;
+                    break;
+                }
                 // `@=` may dispatch to `__imatmul__`, which OP_BINARY does not
                 // model; run the function in the interpreter so tree and VM
                 // agree.
@@ -499,6 +572,79 @@ public:
             default: em.f.interpreted = true; break;
         }
     }
+
+      // Compile the clause chain of a comprehension/generator. `mode` selects
+      // the accumulator kind (0=list, 1=set, 2=dict) and is what OP_APPEND uses.
+      // The accumulator is pushed before the first clause and is the sole value
+      // left when the chain finishes, so no hidden frame local is needed.
+      void compileCompClauses(Emitter& em, const Expr& e, size_t idx, int mode) {
+          if (em.f.interpreted) return;
+          if (idx == e.clauses.size()) {
+              if (mode == 2) {
+                  if (e.elems.empty() || !e.value) { em.f.interpreted = true; em.emit(OP_NONEZ); return; }
+                  compileExpr(em, *e.elems[0]);   // key
+                  compileExpr(em, *e.value);      // value
+              } else {
+                  if (e.elems.empty()) { em.f.interpreted = true; em.emit(OP_NONEZ); return; }
+                  compileExpr(em, *e.elems[0]);
+              }
+              em.emit(OP_APPEND, mode);
+              return;
+          }
+          const ast::CompClause& cl = e.clauses[idx];
+          if (cl.isFor) {
+              if (!cl.iter) { em.f.interpreted = true; em.emit(OP_NONEZ); return; }
+              compileExpr(em, *cl.iter);
+              em.emit(OP_ITER_BEGIN);
+              int32_t top = em.here();
+              em.emit(OP_SCOPE_ENTER); em.scopeDepth++;
+              em.emit(OP_ITER_NEXT);
+              int32_t jDone = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+              if (!cl.pat || cl.pat->kind != ast::PatKind::Bind || cl.pat->bindName.empty()) {
+                  em.f.interpreted = true; em.emit(OP_NONEZ); return;   // destructuring
+              }
+              int32_t s = slotUse_ ? slotOf(cl.pat->bindName) : -1;
+              if (s >= 0) em.emit(OP_ITER_VALUE_LOCAL, s);
+              else em.emit(OP_ITER_VALUE_VAR, em.strId(cl.pat->bindName));
+              compileCompClauses(em, e, idx + 1, mode);
+              if (em.f.interpreted) return;
+              em.emit(OP_SCOPE_LEAVE); em.scopeDepth--;
+              em.emit(OP_JUMP, top - em.here());
+              em.at(jDone).a = em.here() - jDone;
+              em.emit(OP_SCOPE_LEAVE); em.scopeDepth--;
+              em.emit(OP_ITER_END);
+          } else {
+              if (!cl.cond) { em.f.interpreted = true; em.emit(OP_NONEZ); return; }
+              compileExpr(em, *cl.cond);
+              int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+              compileCompClauses(em, e, idx + 1, mode);
+              if (em.f.interpreted) return;
+              em.at(jF).a = em.here() - jF;
+          }
+      }
+
+      void compileComp(Emitter& em, const Expr& e) {
+          if (e.clauses.empty()) { em.f.interpreted = true; em.emit(OP_NONEZ); return; }
+          int mode = e.kind == ExKind::SetComp ? 1 : e.kind == ExKind::DictComp ? 2 : 0;
+          if (mode == 1) em.emit(OP_MAKE_SET, 0);
+          else if (mode == 2) em.emit(OP_MAKE_DICT, 0);
+          else em.emit(OP_MAKE_LIST, 0);
+          compileCompClauses(em, e, 0, mode);
+      }
+
+      // Load/store a plain name, choosing the slot path when the name owns a
+      // frame slot and the env path otherwise. Used by the M1/M3 sugar lowering
+      // so hidden temps and walrus targets read back consistently.
+      void loadName(Emitter& em, const std::string& n) {
+          int32_t s = slotUse_ ? slotOf(n) : -1;
+          if (s >= 0) em.emit(OP_LOAD_LOCAL, s);
+          else em.emit(OP_LOAD, em.strId(n));
+      }
+      void storeName(Emitter& em, const std::string& n) {
+          int32_t s = slotUse_ ? slotOf(n) : -1;
+          if (s >= 0) em.emit(OP_STORE_LOCAL, s);
+          else em.emit(OP_STORE, em.strId(n));
+      }
 
       void emitStore(Emitter& em, const Expr& t) {
           if (t.kind != ExKind::Ident) { em.f.interpreted = true; return; }
@@ -648,13 +794,109 @@ public:
                 em.emit(OP_MAKE_DICT, (int32_t)e.pairs.size());
                 break;
             }
+            case ExKind::ListComp: case ExKind::Generator:
+            case ExKind::SetComp: case ExKind::DictComp:
+                compileComp(em, e);
+                break;
             case ExKind::New: case ExKind::Cast: case ExKind::Lambda:
-            case ExKind::FString: case ExKind::ListComp: case ExKind::Generator:
-            case ExKind::SetComp: case ExKind::DictComp: case ExKind::Spread:
-            case ExKind::SafeIndex: case ExKind::SafeCall:
+            case ExKind::FString: case ExKind::Spread:
                 em.f.interpreted = true;
                 em.emit(OP_NONEZ);
                 break;
+            // M1 walrus `(x := E)`: eval once, write the name, leave the value.
+            case ExKind::AssignExpr: {
+                if (!e.lhs || e.lhs->kind != ExKind::Ident || !e.rhs) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                compileExpr(em, *e.rhs);
+                storeName(em, e.lhs->text);
+                loadName(em, e.lhs->text);
+                break;
+            }
+            // `%` inside a pipe body: load the enclosing pipe's hidden temp.
+            case ExKind::Topic: {
+                if (curTopic_.empty()) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                loadName(em, curTopic_);
+                break;
+            }
+            // M1 pipe `a |> body`: bind `%` to a temp, then eval the body.
+            case ExKind::Pipe: {
+                auto it = tmpOf_.find(&e);
+                if (it == tmpOf_.end() || !e.lhs || !e.rhs) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                const std::string& t = it->second;
+                compileExpr(em, *e.lhs);
+                storeName(em, t);
+                std::string saved = curTopic_;
+                curTopic_ = t;
+                compileExpr(em, *e.rhs);
+                curTopic_ = saved;
+                break;
+            }
+            // M1 elvis `a ?? b`: `(t is none) ? b : t`, short-circuiting.
+            case ExKind::Coalesce: {
+                auto it = tmpOf_.find(&e);
+                if (it == tmpOf_.end() || !e.lhs || !e.rhs) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                const std::string& t = it->second;
+                compileExpr(em, *e.lhs);
+                storeName(em, t);
+                loadName(em, t);
+                em.emit(OP_IS, -1);
+                int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+                compileExpr(em, *e.rhs);
+                int32_t jE = em.here(); em.emit(OP_JUMP, 0);
+                em.at(jF).a = em.here() - jF;
+                loadName(em, t);
+                em.at(jE).a = em.here() - jE;
+                break;
+            }
+            // M3 `a.?[i]`: `(t is none) ? none : t[i]`.
+            case ExKind::SafeIndex: {
+                auto it = tmpOf_.find(&e);
+                if (it == tmpOf_.end() || !e.lhs || !e.rhs) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                const std::string& t = it->second;
+                compileExpr(em, *e.lhs);
+                storeName(em, t);
+                loadName(em, t);
+                em.emit(OP_IS, -1);
+                int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+                em.emit(OP_NONEZ);
+                int32_t jE = em.here(); em.emit(OP_JUMP, 0);
+                em.at(jF).a = em.here() - jF;
+                loadName(em, t);
+                compileExpr(em, *e.rhs);
+                em.emit(OP_INDEX);
+                em.at(jE).a = em.here() - jE;
+                break;
+            }
+            // M3 `a.?(args)`: `(t is none) ? none : t(args)`.
+            case ExKind::SafeCall: {
+                auto it = tmpOf_.find(&e);
+                if (it == tmpOf_.end() || !e.lhs) {
+                    em.f.interpreted = true; em.emit(OP_NONEZ); break;
+                }
+                const std::string& t = it->second;
+                compileExpr(em, *e.lhs);
+                storeName(em, t);
+                loadName(em, t);
+                em.emit(OP_IS, -1);
+                int32_t jF = em.here(); em.emit(OP_JUMP_IF_FALSE, 0);
+                em.emit(OP_NONEZ);
+                int32_t jE = em.here(); em.emit(OP_JUMP, 0);
+                em.at(jF).a = em.here() - jF;
+                loadName(em, t);
+                for (const auto& a : e.args) compileExpr(em, *a.value);
+                em.emit(OP_CALL, (int32_t)e.args.size());
+                em.at(jE).a = em.here() - jE;
+                break;
+            }
             default:
                 em.f.interpreted = true;
                 em.emit(OP_NONEZ);

@@ -1115,7 +1115,15 @@ FuncSig Checker::resolveSig(const std::vector<ast::Param>& params,
         }
     }
     // variadic tail is optional; everything before the first default is required
-    out.ret = ret ? resolveType(ret) : unkTy();
+    if (ret && ret->kind == ast::TyKind::Name && ret->name == "TypeGuard" &&
+        ret->generics.size() == 1) {
+        // M3 TypeGuard: `fn is_int(x: any) -> TypeGuard[Int]`. Callers see a
+        // Bool; the guard narrows its first argument to the guarded type.
+        out.guardType = resolveType(ret->generics[0]);
+        out.ret = boolTy();
+    } else {
+        out.ret = ret ? resolveType(ret) : unkTy();
+    }
     if (out.variadic)
         required = required > 0 ? required - 1 : 0;
     out.required = required;
@@ -1948,6 +1956,26 @@ void Checker::narrowApply(const ast::Expr* c, bool positive,
         narrowApply(c->rhs.get(), !positive, out);
         return;
     }
+    // M3 TypeGuard: `if is_int(v)` narrows `v` (a stable identifier) to the
+    // guard's declared `TypeGuard[T]` in the true branch. The negative branch
+    // adds no fact (no "not T" lattice for dynamic values yet).
+    if (c->kind == ExKind::Call) {
+        const ast::Expr* callee = c->lhs.get();
+        if (!callee || callee->kind != ExKind::Ident || c->args.empty()) return;
+        Symbol* fn = scope_->find(callee->text);
+        if (!fn || fn->kind != SymK::Func || !fn->sig.guardType) return;
+        const ast::Expr* arg0 = c->args[0].value.get();
+        if (!arg0 || arg0->kind != ExKind::Ident) return;
+        Symbol* sym = scope_->find(arg0->text);
+        if (!sym) return;
+        if (sym->mut) {
+            if (narrowWarned_.insert(sym).second)
+                narrowDiag(arg0->span.line, arg0->span.col, arg0->text);
+            return;
+        }
+        if (positive) out[sym] = fn->sig.guardType;
+        return;
+    }
     if (c->kind != ExKind::Binary) return;
     const std::string& op = c->op;
     if (op == "and") {
@@ -2211,6 +2239,10 @@ void Checker::checkFuncLike(const ast::Stmt& s, TyP selfTy, SymP funcSym) {
     }
     currentRet_ = funcSym ? funcSym->sig.ret : nullptr;
     loopDepth_ = 0;
+
+    if (funcSym && funcSym->sig.guardType && s.params.empty())
+        error(s.span, "TypeGuard function '" + s.name +
+                          "' must take at least one parameter to guard");
 
     push();
     TvGuard tv(typeVars_, s.typeParams);

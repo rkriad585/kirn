@@ -194,6 +194,51 @@ rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 TMP="$TMPDIR"
 
+# ---------------------------------------------------------- native codegen
+# M11. The `--native` scalar backend either lowers a function to C++ or leaves
+# it to the interpreter. KIRN_DUMP_NATIVE makes `kirn build --native` print the
+# emitted translation unit and stop before the toolchain, so this pins exactly
+# which functions lowered, how optionals/elvis were spelled, and -- crucially --
+# whether a non-scalar function silently fell back (KIRN_HAS_NATIVE 0).
+check_codegen() {
+  local name="$1" src="$2"
+  local dump="$TMP/codegen_${name}.dump"
+  local log="$TMP/codegen_${name}.log"
+  local file="$GOLD/codegen_${name}.txt"
+  local body rc
+  KIRN_DUMP_NATIVE="$dump" "$BIN/kirn" build --native "$src" \
+      -o "$TMP/codegen_${name}.out" >"$log" 2>&1
+  rc=$?
+  body=$({
+    printf '$ KIRN_DUMP_NATIVE kirn build --native %s\n' "${src#"$ROOT"/}"
+    if [ -f "$dump" ]; then cat "$dump"; else cat "$log"; fi
+    printf '[exit %s]\n' "$rc"
+  } | normalize)
+  if [ "$RECORD" = 1 ]; then
+    mkdir -p "$GOLD"
+    printf '%s\n' "$body" > "$file"
+    return
+  fi
+  if [ ! -f "$file" ]; then
+    printf 'MISSING %s (no golden file; run with --record)\n' "$name"
+    fail=$((fail + 1))
+    return
+  fi
+  if printf '%s\n' "$body" | diff -u "$file" - > /tmp/golden.diff 2>&1; then
+    printf 'PASS    %s\n' "$name"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL    %s\n' "$name"
+    sed 's/^/        /' /tmp/golden.diff | head -40
+    fail=$((fail + 1))
+  fi
+}
+
+for f in "$ROOT"/tests/codegen/*.kn; do
+  [ -e "$f" ] || continue
+  check_codegen "$(basename "$f" .kn)" "$f"
+done
+
 printf 'import greet;\n\nfn main() -> none {\n  print(greet.hello());\n}\n' > "$TMP/main.kn"
 printf 'pub fn hello() -> Str {\n  return "SIBLING-GREET";\n}\n'          > "$TMP/greet.kn"
 check "kirnrun_sibling_module" "$BIN/kirnrun" "$TMP/main.kn"

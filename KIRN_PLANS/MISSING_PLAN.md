@@ -186,6 +186,17 @@ in `src/interp/runtime.cpp` (runtime metadata over `VK`/the struct/impl tables).
 gates 255, golden 245, crosscheck 579, stdlib 9, all 0 fail. See the M10 phase note for recorded
 scope deviations (no `stdlib/lib` module; `reflect.new` builds structs with type-based zero defaults).
 
+**Implementation progress (2026-10-16).** M11 (native AOT & polish for the new surface) is implemented
+for the tractable scalar core. `src/backend/native.cpp` now lowers scalar optionals (`T?` →
+`std::optional<scalar>`) and elvis `??` alongside the existing scalar/walrus/pipe surface; a codegen
+dump hook in `src/driver/driver.cpp` (`KIRN_DUMP_NATIVE=<path>`) writes the emitted C++ and returns
+before the toolchain, and a new `check_codegen` stage in `scripts/golden_linux.sh` (plus gate 11 in
+`scripts/gates_linux.sh`) snapshots and differentially tests it. Tests added:
+`tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` and `examples/61_native_new_surface.kn`.
+Verified: gates 261, golden 251, crosscheck 579, stdlib 9, all 0 fail. See the M11 phase note for the
+recorded deviations (optional params, `@` matmul, safe-chain, comprehensions, and `const fn` folding
+remain deferred).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -1001,6 +1012,34 @@ fn main() {
 ```
 
 **Expected result:** every new feature builds natively with no VM fallback on scalar paths.
+
+**M11 phase note (implemented).** Delivered in `src/backend/native.cpp`: optional-scalar (`T?`) and
+elvis `??` lowering on the scalar native path. `cppTy` emits `std::optional<scalar>` for a scalar
+optional (the checker stores the element in `args[0]` — see `sema::optTy`/`unwrapOpt` — so new
+helpers `optInner`/`isOptScalarTy`/`isNativeTy`/`assignCompatible` read it there, not via `Ty::inner`);
+`declTy` maps `TyKind::Optional` through `sema::optTy`; `tryLower` accepts optional returns;
+`exprLowerable` accepts a bare optional local and a `Coalesce` (elvis) whose result is a native
+scalar; `Return` and `VarDecl`/`ConstDecl` gate on `assignCompatible` (scalars widen into optionals,
+`none` stores into any optional); `emitPreamble` adds `#include <optional>`; the emitter renders
+`none` as `std::nullopt`, lowers `a ?? b` to `[&]{ auto __co = (a); return __co ? *__co : (b); }()`
+(a non-optional lhs drops the fallback), and `out_registerAll` boxes `std::optional<...>` returns.
+A codegen dump hook in `src/driver/driver.cpp` (`KIRN_DUMP_NATIVE=<path>`) writes the emitted
+translation unit and returns before the toolchain; `scripts/golden_linux.sh` gained a `check_codegen`
+stage that records/verifies `scripts/golden/codegen_*.txt`, and gate 11 in `scripts/gates_linux.sh`
+asserts lowerability (`KIRN_HAS_NATIVE`) plus native-binary == interpreter. Tests added:
+`tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` (3 goldens) and
+`examples/61_native_new_surface.kn` (+3 front-end goldens). Suites: gates 261, golden 251, crosscheck
+579, stdlib 9, all 0 fail.
+**Deviations/reality vs the plan's sketch:** (1) the backend stays **scalar-only**: optional
+_parameters_, aggregate/container locals, and comprehension bodies do not lower — the plan's
+`[i * i for i in 0..N]` example falls back to the interpreter. (2) `@` matmul (P2) and safe-chain
+`?.`/`?[]`/`?!` are non-scalar / optional-aggregate and remain interpreter-only. (3) `const fn`
+folding (R9) is not wired into the native backend; `const` bindings lower as ordinary locals. (4)
+`kirn fmt`/`doc` and edition-gated soft keywords (SYNTAX SP-17) were not touched — no `fmt`/`doc`
+surface exists to extend in this tree. (5) The plan's example path `examples/59_native_new_surface.kn`
+is already taken by M9 (`sync`), so the example ships as `examples/61_native_new_surface.kn`. (6) The
+codegen golden harness (`scripts/golden_linux.sh` `check_codegen` + gate 11) is newly added, since no
+codegen-snapshot infrastructure existed before.
 
 ---
 

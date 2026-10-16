@@ -1,0 +1,3 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/reject_non_scalar.kn
+#define KIRN_HAS_NATIVE 0
+[exit 0]

@@ -1,0 +1,29 @@
+# M11 codegen: new surface lowered natively -- walrus, pipe, elvis, optionals.
+fn inc(n: Int) -> Int {
+    return n + 1;
+}
+
+fn maybe(n: Int) -> Int? {
+    if n > 0 {
+        return n * 2;
+    }
+    return none;
+}
+
+fn score(n: Int) -> Int {
+    m = maybe(n);
+    return m ?? -1;
+}
+
+fn piped(n: Int) -> Int {
+    return n |> inc(%);
+}
+
+fn walrus(n: Int) -> Int {
+    return (t := n + 1) |> inc(%);
+}
+
+fn main() -> none {
+    print(score(3), score(-2));
+    print(piped(4), walrus(2));
+}

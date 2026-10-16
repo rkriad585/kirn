@@ -3371,6 +3371,17 @@ int buildProgram(const std::string& name, const std::string& version,
             o << nativeOut.str();
             o << "\n";
         }
+        // M11 codegen golden hook: dump only the lowered native C++ to the
+        // path named by KIRN_DUMP_NATIVE and stop before the toolchain runs.
+        // Keeps codegen snapshots fast and independent of the C++ compiler.
+        if (const char* dumpPath = std::getenv("KIRN_DUMP_NATIVE")) {
+            std::ofstream df(dumpPath);
+            if (df) {
+                df << "#define KIRN_HAS_NATIVE " << (prog.any ? 1 : 0) << "\n";
+                df << nativeOut.str();
+            }
+            return 0;
+        }
     }
     o << "int main(int argc, char** argv) {\n"
       << "    if (argc > 1 && (std::strcmp(argv[1], \"--version\") == 0 ||\n"

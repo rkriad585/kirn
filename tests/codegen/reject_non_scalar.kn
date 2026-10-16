@@ -1,0 +1,8 @@
+# M11 codegen: non-scalar signatures must NOT lower -- the interpreter runs them.
+fn greet(name: Str) -> Str {
+    return "hi " + name;
+}
+
+fn main() -> none {
+    print(greet("kirn"));
+}

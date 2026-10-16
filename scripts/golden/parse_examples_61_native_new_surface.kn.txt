@@ -1,0 +1,140 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/61_native_new_surface.kn
+FuncDef "inc"
+  Param "n" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "n"
+          Rhs Int "1"
+FuncDef "maybe"
+  Param "n" : Int
+  Ret Int?
+  Body
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        Return
+          Value 
+            Binary op="*"
+              Lhs Ident "n"
+              Rhs Int "2"
+    Return
+      Value Ident "none"
+FuncDef "score"
+  Param "n" : Int
+  Ret Int
+  Body
+    Assign
+      Target Ident "m"
+      Value 
+        Call
+          Callee Ident "maybe"
+          Arg
+            Value Ident "n"
+    Return
+      Value 
+        Coalesce
+          Lhs Ident "m"
+          Rhs 
+            Unary op="-"
+              Operand Int "1"
+FuncDef "piped"
+  Param "n" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Pipe
+          Input Ident "n"
+          Body 
+            Call
+              Callee Ident "inc"
+              Arg
+                Value 
+                  Topic
+FuncDef "walrus"
+  Param "n" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Pipe
+          Input 
+            AssignExpr
+              Target Ident "t"
+              Value 
+                Binary op="+"
+                  Lhs Ident "n"
+                  Rhs Int "1"
+          Body 
+            Call
+              Callee Ident "inc"
+              Arg
+                Value 
+                  Topic
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "score"
+                Arg
+                  Value Int "3"
+          Arg
+            Value 
+              Call
+                Callee Ident "score"
+                Arg
+                  Value 
+                    Unary op="-"
+                      Operand Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "piped"
+                Arg
+                  Value Int "4"
+          Arg
+            Value 
+              Call
+                Callee Ident "walrus"
+                Arg
+                  Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Coalesce
+                Lhs 
+                  Call
+                    Callee Ident "maybe"
+                    Arg
+                      Value Int "5"
+                Rhs Int "0"
+          Arg
+            Value 
+              Coalesce
+                Lhs 
+                  Call
+                    Callee Ident "maybe"
+                    Arg
+                      Value Int "0"
+                Rhs Int "0"
+<ROOT>/examples/61_native_new_surface.kn: OK (6 top-level statements)
+[exit 0]

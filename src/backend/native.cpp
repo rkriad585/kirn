@@ -29,22 +29,56 @@ bool isScalarTy(const TyP& t) {
 
 static bool isNoneTy(const TyP& t) { return !t || t->k == TyK::None; }
 
-// C++ scalar type name for a scalar TyP; "" for non-scalar.
-static const char* cppTy(const TyP& t) {
+// M11: an optional of a scalar lowers to `std::optional<scalar>`. The checker
+// stores an optional's element in `args[0]` (see `optTy`/`unwrapOpt`).
+static const TyP& optInner(const TyP& t) {
+    static const TyP kNull;
+    return (t && t->k == TyK::Opt && !t->args.empty()) ? t->args[0] : kNull;
+}
+static bool isOptScalarTy(const TyP& t) {
+    return t && t->k == TyK::Opt && optInner(t) && isScalarTy(optInner(t));
+}
+
+// The set of types the native scalar backend can lower: plain scalars plus
+// optionals of scalars (elvis `??` short-circuits to the inner scalar).
+static bool isNativeTy(const TyP& t) { return isScalarTy(t) || isOptScalarTy(t); }
+
+// M11: value type `v` is storable into target type `t`. Scalars-to-optional
+// widen (and `none` stores into any optional); otherwise kinds must match.
+static bool assignCompatible(const TyP& v, const TyP& t) {
+    if (!v || !t) return false;
+    if (v->k == t->k) return true;
+    if (t->k == TyK::Opt) {
+        if (v->k == TyK::None) return true;
+        const TyP& in = optInner(t);
+        return in && v->k == in->k;
+    }
+    return false;
+}
+
+// C++ scalar type name for a scalar/optional-scalar TyP; "" for anything else.
+static std::string cppTy(const TyP& t) {
     if (!t) return "";
     switch (t->k) {
         case TyK::Int:   return "int64_t";
         case TyK::Float: return "double";
         case TyK::Bool:  return "bool";
         case TyK::Char:  return "char32_t";
+        case TyK::Opt: {
+            std::string in = cppTy(optInner(t));
+            if (in.empty()) return "";
+            return "std::optional<" + in + ">";
+        }
         default:         return "";
     }
 }
 
-// Resolve a declaration Type node to a scalar TyP (without the checker, whose
-// resolveType is private). Only plain scalar names are mapped.
+// Resolve a declaration Type node to a scalar (or optional-scalar) TyP (without
+// the checker, whose resolveType is private). Only plain names and `T?` map.
 static TyP declTy(const ast::TypeP& t) {
-    if (!t || t->kind != ast::TyKind::Name) return sema::unkTy();
+    if (!t) return sema::unkTy();
+    if (t->kind == ast::TyKind::Optional) return sema::optTy(declTy(t->inner));
+    if (t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
     static const char* kInts[] = {"i4", "i8", "i16", "i32", "i64", "i128",
                                   "i256", "u4", "u8", "u16", "u32", "u64",
@@ -134,7 +168,7 @@ private:
         if (s.ret && s.ret->kind == ast::TyKind::Name && s.ret->name == "result")
             return false;
         TyP rt = s.ret ? declTy(s.ret) : sema::noneTy();
-        if (!isNoneTy(rt) && !isScalarTy(rt)) return false;
+        if (!isNoneTy(rt) && !isNativeTy(rt)) return false;
         for (const auto& p : s.params) {
             if (p.variadic || p.selfParam || p.defaultValue || !p.type)
                 return false;
@@ -151,7 +185,7 @@ private:
         nf.fn = &s;
         nf.name = s.name;
         nf.cName = uniqueCName(s.name);
-        nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : "";
+        nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : std::string();
         for (const auto& p : s.params) {
             nf.params.push_back(p.name);
             nf.pTypes.push_back(cppTy(declTy(p.type)));
@@ -193,7 +227,11 @@ private:
             case ExKind::Float:
                 return true;
             case ExKind::Ident:
-                return isScalarTy(t) || e.text == "true" || e.text == "false";
+                // `none` is only lowerable in an optional-scalar slot; the
+                // surrounding statement/return checks the target type.
+                if (e.text == "none") return isNoneTy(t);
+                if (e.text == "true" || e.text == "false") return true;
+                return isNativeTy(t);
             case ExKind::Unary:
                 if (e.rhs && !exprLowerable(*e.rhs, cur)) return false;
                 return (e.op == "-" || e.op == "+" || e.op == "not") &&
@@ -215,10 +253,17 @@ private:
             case ExKind::Pipe:
                 return e.lhs && e.rhs && exprLowerable(*e.lhs, cur) &&
                        exprLowerable(*e.rhs, cur) && isScalarTy(t);
-            // Elvis `??` operates on an optional; the scalar subset has no
-            // optional representation, so it stays on the interpreter/VM.
+            // Elvis `??`: a scalar (or an optional of a scalar) short-circuits
+            // to the inner scalar; `b` is only evaluated when `a` is none.
             case ExKind::Coalesce:
-                return false;
+                if (!e.lhs || !e.rhs) return false;
+                if (!isScalarTy(t)) return false;
+                if (!exprLowerable(*e.lhs, cur)) return false;
+                if (typeOf(*e.lhs) && typeOf(*e.lhs)->k == TyK::Opt) {
+                    if (!exprLowerable(*e.rhs, cur)) return false;
+                    if (!assignCompatible(typeOf(*e.rhs), t)) return false;
+                }
+                return true;
             default:
                 return false;
         }
@@ -243,9 +288,15 @@ private:
             case StKind::Continue:
                 return true;
             case StKind::VarDecl:
-            case StKind::ConstDecl:
+            case StKind::ConstDecl: {
                 if (!s.value || !exprLowerable(*s.value, cur)) return false;
-                return isScalarTy(typeOf(*s.value));
+                TyP vt = typeOf(*s.value);
+                if (s.declType) {
+                    TyP dt = declTy(s.declType);
+                    if (dt && dt->k != TyK::Unknown) vt = dt;
+                }
+                return isNativeTy(vt) && assignCompatible(typeOf(*s.value), vt);
+            }
             case StKind::Assign:
             case StKind::AugAssign:
                 return assignLowerable(s, cur);
@@ -255,7 +306,7 @@ private:
                 TyP vt = typeOf(*s.exprs[0]);
                 bool ok = exprLowerable(*s.exprs[0], cur);
                 if (cur.ret && cur.ret->k != TyK::None)
-                    ok = ok && vt && vt->k == cur.ret->k;
+                    ok = ok && assignCompatible(vt, cur.ret);
                 return ok;
             }
             case StKind::ExprStmt:
@@ -300,11 +351,13 @@ private:
         const ast::ExprP& tgt = s.exprs[0];
         if (!tgt || tgt->kind != ExKind::Ident) return false;
         TyP tt = typeOf(*tgt);
-        if (!isScalarTy(tt)) return false;
+        if (!isNativeTy(tt)) return false;
+        // Compound assignment (`+=`) only makes sense on a plain scalar.
+        if (s.kind == StKind::AugAssign && !isScalarTy(tt)) return false;
         const ast::ExprP& val = s.exprs[1];
         if (!val || !exprLowerable(*val, cur)) return false;
-        TyP vt = typeOf(*val);
-        return vt && vt->k == tt->k;  // same scalar type keeps C++ semantics
+        // Same kind keeps C++ semantics; scalars may widen into an optional.
+        return assignCompatible(typeOf(*val), tt);
     }
 
     bool bodyLowerable(const std::vector<ast::StmtP>& body,
@@ -333,6 +386,7 @@ public:
 
     void emitPreamble() {
         out_ << "#include <cmath>\n"
+             << "#include <optional>\n"
              << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
                 "kirn::interp::panicHere(m); }\n"
@@ -462,6 +516,7 @@ private:
         return ty == "int64_t" ? "i" : ty == "double" ? "d" : "b";
     }
     static const char* zeroOf(const std::string& ty) {
+        if (ty.rfind("std::optional<", 0) == 0) return "std::nullopt";
         return ty == "int64_t" ? "0" : ty == "double" ? "0.0" : "false";
     }
 
@@ -480,6 +535,10 @@ private:
             case StKind::VarDecl:
             case StKind::ConstDecl: {
                 TyP vt = typeOf(*s.value);
+                if (s.declType) {
+                    TyP dt = declTy(s.declType);
+                    if (dt && dt->k != TyK::Unknown) vt = dt;
+                }
                 std::string ty = cppTy(vt);
                 std::string name = cIdent(s.target->text, "v_");
                 // A walrus binding of the same name was hoisted to the top of
@@ -607,6 +666,7 @@ private:
             case ExKind::Ident:
                 if (e.text == "true") return "true";
                 if (e.text == "false") return "false";
+                if (e.text == "none") return "std::nullopt";
                 return cIdent(e.text, "v_");
             case ExKind::Unary: {
                 std::string r = emitExpr(*e.rhs);
@@ -646,8 +706,19 @@ private:
                 pipeTmp_ = tmp;
                 std::string body = emitExpr(*e.rhs);
                 pipeTmp_ = saved;
-                return "[&]{ " + std::string(cppTy(t)) + " " + tmp + " = (" +
+                return "[&]{ " + cppTy(t) + " " + tmp + " = (" +
                        in + "); return (" + body + "); }()";
+            }
+            case ExKind::Coalesce: {
+                // `a ?? b` — short-circuit: only evaluate `b` when `a` is
+                // none. Non-optional `a` can never be none, so `b` is dropped.
+                TyP lt = typeOf(*e.lhs);
+                std::string l = emitExpr(*e.lhs);
+                if (!lt || lt->k != TyK::Opt) return "(" + l + ")";
+                std::string r = emitExpr(*e.rhs);
+                std::string tmp = "__co" + std::to_string(tmpSeq_++);
+                return "[&]{ auto " + tmp + " = (" + l + "); return (" + tmp +
+                       ") ? (*" + tmp + ") : (" + r + "); }()";
             }
             default:
                 return "0";
@@ -781,7 +852,15 @@ void out_registerAll(
         call += ")";
         if (nf.retCpp.empty())
             out << "        " << call << "; return kirn::interp::Value::none();\n";
-        else
+        else if (nf.retCpp.rfind("std::optional<", 0) == 0) {
+            // Optional scalar return: box none or the inner scalar.
+            std::string inner =
+                nf.retCpp.substr(14, nf.retCpp.size() - 14 - 1);
+            out << "        { auto __r = " << call
+                << "; if (!__r) return kirn::interp::Value::none();"
+                   " return kirn::interp::Value::"
+                << valueCtor(inner) << "(*__r); }\n";
+        } else
             out << "        return kirn::interp::Value::" << valueCtor(nf.retCpp)
                 << "(" << call << ");\n";
         out << "    }); }\n";

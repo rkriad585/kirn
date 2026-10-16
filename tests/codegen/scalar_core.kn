@@ -1,0 +1,30 @@
+# M11 codegen: the scalar core the native backend has always lowered.
+fn is_even(n: Int) -> Bool {
+    return n % 2 == 0;
+}
+
+fn powf(b: f64, n: Int) -> f64 {
+    r: f64 = 1.0;
+    while n > 0 {
+        r = r * b;
+        n -= 1;
+    }
+    return r;
+}
+
+fn classify(n: Int) -> Int {
+    if n < 0 {
+        return -1;
+    } elif n == 0 {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+fn main() -> none {
+    print(is_even(4), powf(2.0, 10));
+    for i in -3..=3 {
+        print(i, classify(i));
+    }
+}

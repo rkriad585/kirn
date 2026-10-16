@@ -676,5 +676,37 @@ else
     report FAIL "gate 10: LLVM backend" "LLVM build enabled but opt/lli not on PATH"
 fi
 
+echo "=== gate 11: native scalar lowering (differential vs interpreter) ==="
+# M11. Two properties a snapshot alone cannot assert: (a) the --native backend
+# still lowers the new surface rather than silently falling back, and (b) the
+# compiled binary agrees with the interpreter byte-for-byte.
+G11="$TMP/g11"; mkdir -p "$G11"
+for spec in "scalar_core:1" "new_surface:1" "reject_non_scalar:0"; do
+    nm=${spec%%:*}; want=${spec##*:}
+    src="$ROOT/tests/codegen/$nm.kn"
+    KIRN_DUMP_NATIVE="$G11/$nm.cpp" "$KIRN" build --native "$src" -o "$G11/$nm.out" \
+        >"$G11/$nm.log" 2>&1
+    got=$(sed -n 's/^#define KIRN_HAS_NATIVE //p' "$G11/$nm.cpp" | head -1)
+    if [ "$got" = "$want" ]; then
+        report PASS "codegen $nm" "KIRN_HAS_NATIVE $got"
+    else
+        report FAIL "codegen $nm" "KIRN_HAS_NATIVE $got, wanted $want"
+    fi
+done
+nat="$G11/new_surface.bin"
+if timeout 300 "$KIRN" build --native "$ROOT/examples/61_native_new_surface.kn" -o "$nat" \
+        >"$G11/build.log" 2>&1; then
+    native_out=$(timeout "$WATCH" "$nat" 2>&1); nr=$?
+    interp_out=$(timeout "$WATCH" "$CR" "$ROOT/examples/61_native_new_surface.kn" 2>&1); ir=$?
+    if [ "$nr" = "$ir" ] && [ "$native_out" = "$interp_out" ]; then
+        report PASS "native new-surface == interpreter" "$(echo "$native_out" | tr '\n' ' ')"
+    else
+        report FAIL "native new-surface == interpreter" \
+            "native rc=$nr: $native_out | interp rc=$ir: $interp_out"
+    fi
+else
+    report FAIL "native example build" "$(tail -1 "$G11/build.log")"
+fi
+
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
 [ "$fail" -eq 0 ]

@@ -1,0 +1,62 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/new_surface.kn
+#define KIRN_HAS_NATIVE 1
+#include <cmath>
+#include <optional>
+namespace kirn_native {
+static inline void co_panic(const char* m){ kirn::interp::panicHere(m); }
+static inline int64_t co_floordiv(int64_t a,int64_t b){ if(b==0)co_panic("division by zero"); int64_t q=a/b; if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }
+static inline int64_t co_mod(int64_t a,int64_t b){ if(b==0)co_panic("modulo by zero"); int64_t m=a%b; if(m!=0&&((m<0)!=(b<0)))m+=b; return m; }
+static inline double co_fdiv(double a,double b){ if(b==0.0)co_panic("division by zero"); return a/b; }
+static inline double co_fmodm(double a,double b){ return std::fmod(std::fmod(a,b)+b,b); }
+static inline int64_t co_ipow(int64_t b,int64_t e){ int64_t o=1; while(e>0){ if(e&1)o*=b; e>>=1; if(e)b*=b;} return o; }
+static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return (int64_t)((uint64_t)a<<b); }
+static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return a>>b; }
+static int64_t co_native_1_inc(int64_t v_n) {
+    return (v_n + 1);
+    return 0;
+}
+static std::optional<int64_t> co_native_2_maybe(int64_t v_n) {
+    if ((v_n > 0)) {
+        return (v_n * 2);
+    }
+    return std::nullopt;
+    return std::nullopt;
+}
+static int64_t co_native_3_score(int64_t v_n) {
+    std::optional<int64_t> v_m = co_native_2_maybe(v_n);
+    return [&]{ auto __co0 = (v_m); return (__co0) ? (*__co0) : ((-(1))); }();
+    return 0;
+}
+static int64_t co_native_4_piped(int64_t v_n) {
+    return [&]{ int64_t __pipe0 = (v_n); return (co_native_1_inc(__pipe0)); }();
+    return 0;
+}
+static int64_t co_native_5_walrus(int64_t v_n) {
+    int64_t v_t{};
+    return [&]{ int64_t __pipe0 = ([&]{ auto __w1 = ((v_n + 1)); v_t = __w1; return __w1; }()); return (co_native_1_inc(__pipe0)); }();
+    return 0;
+}
+}
+inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::vector<kirn::ast::StmtP>& prog) {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "walrus") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::integer(kirn_native::co_native_5_walrus(v_n));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "piped") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::integer(kirn_native::co_native_4_piped(v_n));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "score") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::integer(kirn_native::co_native_3_score(v_n));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "maybe") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        { auto __r = kirn_native::co_native_2_maybe(v_n); if (!__r) return kirn::interp::Value::none(); return kirn::interp::Value::integer(*__r); }
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "inc") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::integer(kirn_native::co_native_1_inc(v_n));
+    }); }
+}
+[exit 0]

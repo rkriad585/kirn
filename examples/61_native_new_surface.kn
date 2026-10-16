@@ -1,0 +1,36 @@
+# 61 — Native scalar lowering: optionals, elvis, pipe, walrus              (M11)
+# These functions all lower to C++ in `kirn build --native` (see
+# tests/codegen/new_surface.kn); here they run on the interpreter.
+
+fn inc(n: Int) -> Int {
+    return n + 1;
+}
+
+fn maybe(n: Int) -> Int? {
+    if n > 0 {
+        return n * 2;
+    }
+    return none;
+}
+
+fn score(n: Int) -> Int {
+    m = maybe(n);
+    return m ?? -1;
+}
+
+fn piped(n: Int) -> Int {
+    return n |> inc(%);
+}
+
+fn walrus(n: Int) -> Int {
+    return (t := n + 1) |> inc(%);
+}
+
+fn main() -> none {
+    # 6 -1
+    print(score(3), score(-2));
+    # 5 4
+    print(piped(4), walrus(2));
+    # elvis only evaluates its fallback when the optional is empty
+    print(maybe(5) ?? 0, maybe(0) ?? 0);
+}

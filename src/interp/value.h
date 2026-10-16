@@ -30,7 +30,7 @@ struct ThreadImpl;
 
 enum class VK {
     None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, ByteArray, View, Char,
-    List, Dict, Set, Tuple, Range,
+    List, Dict, Set, Tuple, Range, Deque, Counter,
     Struct,                                   // by-value instance
     Heap, Weak,                               // `new` handles
     EnumV,                                    // enum variant w/ payload
@@ -172,6 +172,17 @@ struct Value {
     }
     static Value dict() {
         Value x; x.k = VK::Dict;
+        x.map = std::make_shared<std::vector<std::pair<Value, Value>>>();
+        return x;
+    }
+    static Value deque(std::vector<Value> vs = {}, int64_t maxlen = -1) {
+        Value x; x.k = VK::Deque;
+        x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
+        x.i = maxlen;
+        return x;
+    }
+    static Value counter() {
+        Value x; x.k = VK::Counter;
         x.map = std::make_shared<std::vector<std::pair<Value, Value>>>();
         return x;
     }

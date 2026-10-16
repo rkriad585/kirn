@@ -28,6 +28,8 @@ enum class TyK {
     List,       // args[0] elem
     Dict,       // args[0]=K args[1]=V
     Set,        // args[0]
+    Deque,      // args[0] elem (double-ended queue)
+    Counter,    // args[0]=K (multiset)
     Chan,       // args[0]
     Range,      // args[0] elem
     Gen,        // generator/view: args[0] elem
@@ -99,6 +101,12 @@ inline TyP complexTy(std::string n = "Complex") { return Ty::named(TyK::Complex,
 inline TyP decimalTy(std::string n = "Decimal") { return Ty::named(TyK::Decimal, std::move(n)); }
 inline TyP listTy(TyP e)  { return Ty::one(TyK::List, std::move(e)); }
 inline TyP setTy(TyP e)   { return Ty::one(TyK::Set, std::move(e)); }
+inline TyP dequeTy(TyP e = nullptr) {
+    return e ? Ty::one(TyK::Deque, std::move(e)) : Ty::named(TyK::Deque, "");
+}
+inline TyP counterTy(TyP e = nullptr) {
+    return e ? Ty::one(TyK::Counter, std::move(e)) : Ty::named(TyK::Counter, "");
+}
 inline TyP chanTy(TyP e)  { return Ty::one(TyK::Chan, std::move(e)); }
 inline TyP rangeTy(TyP e) { return Ty::one(TyK::Range, std::move(e)); }
 inline TyP genTy(TyP e)   { return Ty::one(TyK::Gen, std::move(e)); }

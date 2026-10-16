@@ -1,0 +1,53 @@
+# vm_parity — M8 deque/Counter/heap/collection free-functions must produce
+# identical output on the tree-walker and the VM.
+fn main() -> none {
+    d = deque([1, 2, 3]);
+    d.append(4);
+    d.append_left(0);
+    print(Str(d), len(d));
+    print(d.pop(), d.popleft());
+    d.rotate(1);
+    print(Str(d));
+
+    bounded = Deque([1, 2, 3, 4, 5], maxlen: 3);
+    print(Str(bounded), len(bounded));
+
+    c = Counter("aabbbc");
+    print(c['a'], c['b'], c['c']);
+    print(c.total(), c.len());
+    print(Str(c.most_common(2)));
+    print(Str(c.elements()));
+    c.update("bc");
+    print(c['b'], c['c']);
+    print((c + Counter("abcz"))['z']);
+    print((c - Counter("abcz"))['a']);
+
+    h = [3, 1, 2];
+    heapify(h);
+    heappush(h, 0);
+    print(heappop(h), heappop(h));
+    print(Str(nsmallest(2, [5, 4, 3, 2, 1])));
+    print(Str(nlargest(2, [5, 4, 3, 2, 1])));
+
+    mx = [];
+    heappush_max(mx, 2);
+    heappush_max(mx, 7);
+    heappush_max(mx, 5);
+    print(heappop_max(mx));
+
+    print(Str(group_by(fn (x) { return x % 2; }, [1, 2, 3, 4, 5])));
+    print(Str(chunk([1, 2, 3, 4, 5], 2)));
+    print(Str(flatten([[1, 2], [3], [4, 5]])));
+    print(count([1, 2, 2, 3, 2], 2));
+    print(find([10, 20, 30], 20));
+    print(binary_search([1, 3, 5, 7, 9], 7));
+    yes, no = partition(fn (x) { return x > 3; }, [1, 2, 3, 4, 5]);
+    print(Str(yes), Str(no));
+
+    for x in deque([7, 8, 9]) {
+        print(x);
+    }
+    for k in Counter("aba") {
+        print(k);
+    }
+}

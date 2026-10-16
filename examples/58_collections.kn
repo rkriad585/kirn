@@ -1,0 +1,54 @@
+# 58 — Deque, Counter, heaps, and collection free-functions (M8)
+# Double-ended queues, multisets, min/max binary heaps, and the free
+# functions group_by/chunk/flatten/count/find/binary_search/partition.
+
+fn main() -> none {
+    # --- deque: O(1) ops at both ends, optional maxlen window
+    d = deque([1, 2, 3]);
+    d.append(4);
+    d.append_left(0);
+    print(Str(d));                       # deque([0, 1, 2, 3, 4])
+    print(len(d));
+    print(d.pop(), d.popleft());
+    d.rotate(1);
+    print(Str(d));
+
+    window = Deque([1, 2, 3, 4, 5], maxlen: 3);
+    print(Str(window), len(window));
+
+    # --- Counter: multiset with canonical methods
+    c = Counter("aabbbc");
+    print(c['a'], c['b'], c['c']);
+    print(c.total(), c.len());
+    print(Str(c.most_common(2)));
+    print(Str(c.elements()));
+    c.update("bc");
+    print(c['b'], c['c']);
+    other = Counter("abcz");
+    print((c + other)['z']);
+    print((c - other)['a']);
+
+    # --- heaps: min-heap and max-heap variants
+    h = [3, 1, 4, 1, 5, 9, 2, 6];
+    heapify(h);
+    heappush(h, 0);
+    print(heappop(h), heappop(h));       # 0 1
+    print(Str(nsmallest(3, [5, 4, 3, 2, 1])));
+    print(Str(nlargest(3, [5, 4, 3, 2, 1])));
+
+    mx = [];
+    heappush_max(mx, 2);
+    heappush_max(mx, 7);
+    heappush_max(mx, 5);
+    print(heappop_max(mx));              # 7
+
+    # --- free functions
+    print(Str(group_by(fn (x) { return x % 2; }, [1, 2, 3, 4, 5])));
+    print(Str(chunk([1, 2, 3, 4, 5], 2)));
+    print(Str(flatten([[1, 2], [3], [4, 5]])));
+    print(count([1, 2, 2, 3, 2], 2));
+    print(find([10, 20, 30], 20));
+    print(binary_search([1, 3, 5, 7, 9], 7));
+    yes, no = partition(fn (x) { return x > 3; }, [1, 2, 3, 4, 5]);
+    print(Str(yes), Str(no));
+}

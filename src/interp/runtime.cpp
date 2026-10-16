@@ -751,6 +751,25 @@ std::string repr(const Value& v) {
         case VK::Range:
             return std::to_string(v.lo) + (v.inclusive ? "..=" : "..") +
                    std::to_string(v.hi);
+        case VK::Deque: {
+            std::string o = "deque([";
+            for (size_t i = 0; i < v.vec->size(); ++i)
+                o += (i ? ", " : "") + repr((*v.vec)[i]);
+            o += "]";
+            if (v.i >= 0) o += ", maxlen=" + std::to_string(v.i);
+            return o + ")";
+        }
+        case VK::Counter: {
+            std::string o = "Counter({";
+            bool first = true;
+            for (auto& kv : *v.map) {
+                if (kv.second.k == VK::Int && kv.second.i == 0) continue;
+                if (!first) o += ", ";
+                first = false;
+                o += repr(kv.first) + ": " + repr(kv.second);
+            }
+            return o + "})";
+        }
         case VK::Struct: {
             std::string o = v.typeName + "(";
             for (size_t i = 0; i < v.fields.size(); ++i)
@@ -800,6 +819,13 @@ bool truthy(const Value& v) {
         case VK::Bytes:  return !v.s.empty();
         case VK::ByteArray: return v.bstr && !v.bstr->empty();
         case VK::View:   return v.vlen != 0;
+        case VK::Deque:  return v.vec && !v.vec->empty();
+        case VK::Counter: {
+            if (!v.map) return false;
+            for (auto& kv : *v.map)
+                if (kv.second.k == VK::Int && kv.second.i != 0) return true;
+            return false;
+        }
         default:        panicHere("condition is not a bool");
     }
 }
@@ -823,6 +849,8 @@ static std::string typeName(const Value& v) {
         case VK::Set:    return "set";
         case VK::Tuple:  return "tuple";
         case VK::Dict:   return "dict";
+        case VK::Deque:  return "deque";
+        case VK::Counter: return "counter";
         case VK::Range:  return "range";
         case VK::Struct: return v.typeName;
         case VK::Heap:   return v.heap ? v.heap->typeName : "heap";
@@ -923,7 +951,12 @@ void Interpreter::collectProgram(const Stmt& program) {
         const Stmt& s = *sp;
         switch (s.kind) {
             case ast::StKind::FuncDef:
-                if (!s.externDef) funcs_[s.name] = &s;
+                if (!s.externDef) {
+                    funcs_[s.name] = &s;
+                    // A user function shadows a prelude builtin of the same
+                    // name (checker already allows the override).
+                    globals_->vars.erase(s.name);
+                }
                 break;
             case ast::StKind::StructDef: structs_[s.name] = &s; break;
             case ast::StKind::EnumDef:   enums_[s.name] = &s;   break;
@@ -1066,6 +1099,30 @@ static Value biFn(std::vector<std::string> params, BuiltinFn fn) {
     return v;
 }
 
+// ---- M8: heap helpers (a heap is just a list kept in heap order) ----------
+static bool heapLt(const Value& x, const Value& y, bool max) {
+    return max ? valLess(y, x) : valLess(x, y);
+}
+static void heapSiftUp(std::vector<Value>& h, size_t i, bool max) {
+    while (i > 0) {
+        size_t p = (i - 1) / 2;
+        if (!heapLt(h[i], h[p], max)) break;
+        std::swap(h[i], h[p]);
+        i = p;
+    }
+}
+static void heapSiftDown(std::vector<Value>& h, size_t i, bool max) {
+    size_t n = h.size();
+    for (;;) {
+        size_t l = 2 * i + 1, r = 2 * i + 2, best = i;
+        if (l < n && heapLt(h[l], h[best], max)) best = l;
+        if (r < n && heapLt(h[r], h[best], max)) best = r;
+        if (best == i) break;
+        std::swap(h[i], h[best]);
+        i = best;
+    }
+}
+
 void Interpreter::installBuiltins() {
     globals_->vars["print"] = biFn({}, [](std::vector<Value>& a) -> Value {
         std::string out;
@@ -1095,7 +1152,14 @@ void Interpreter::installBuiltins() {
             case VK::List:
             case VK::Tuple:
             case VK::Set:
+            case VK::Deque:
                 return Value::integer((int64_t)v.vec->size());
+            case VK::Counter: {
+                int64_t n = 0;
+                for (auto& kv : *v.map)
+                    if (kv.second.k == VK::Int && kv.second.i != 0) ++n;
+                return Value::integer(n);
+            }
             case VK::Dict:
                 return Value::integer((int64_t)v.map->size());
             case VK::Range: {
@@ -1997,6 +2061,202 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
             return true;
         }, globals_);
         return acc;
+    });
+
+    // ---- M8: deque / Counter + collection free-functions --------------------
+    auto counterBump = [](Value& c, const Value& key, int64_t delta) {
+        for (auto& kv : *c.map)
+            if (valEq(kv.first, key)) {
+                kv.second = Value::integer(kv.second.i + delta);
+                return;
+            }
+        c.map->push_back({key, Value::integer(delta)});
+    };
+    globals_->vars["Deque"] = globals_->vars["deque"] =
+        biFn({"xs", "maxlen"}, [this](std::vector<Value>& a) -> Value {
+            int64_t maxlen = -1;
+            if (a.size() > 1 && a[1].k == VK::Int) maxlen = a[1].i;
+            std::vector<Value> out;
+            if (!a.empty() && a[0].k != VK::None)
+                iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+                    out.push_back(it); return true;
+                }, globals_);
+            if (maxlen >= 0 && (int64_t)out.size() > maxlen)
+                out.erase(out.begin(),
+                          out.begin() + ((int64_t)out.size() - maxlen));
+            return Value::deque(std::move(out), maxlen);
+        });
+    globals_->vars["Counter"] = globals_->vars["counter"] =
+        biFn({"xs"}, [this, counterBump](std::vector<Value>& a) -> Value {
+            Value c = Value::counter();
+            if (a.empty() || a[0].k == VK::None) return c;
+            const Value& xs = a[0];
+            if (xs.k == VK::Counter) { c.map = xs.map; return c; }
+            if (xs.k == VK::Dict) {
+                for (auto& kv : *xs.map)
+                    c.map->push_back({kv.first,
+                                      Value::integer(kv.second.k == VK::Int
+                                                         ? kv.second.i : 1)});
+                return c;
+            }
+            iterateSeq(xs, [&](Value& it, Env&) -> bool {
+                counterBump(c, it, 1); return true;
+            }, globals_);
+            return c;
+        });
+    globals_->vars["group_by"] = biFn({"f", "xs"}, [this](std::vector<Value>& a) -> Value {
+        Value out = Value::dict();
+        if (a.size() < 2) return out;
+        const Value& f = a[0];
+        iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+            Value key = callValue(f, {it}, 0, 0);
+            for (auto& kv : *out.map)
+                if (valEq(kv.first, key)) { kv.second.vec->push_back(it); return true; }
+            out.map->push_back({key, Value::list({it})});
+            return true;
+        }, globals_);
+        return out;
+    });
+    globals_->vars["chunk"] = biFn({"xs", "n"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> out;
+        if (a.size() < 2 || a[1].k != VK::Int || a[1].i <= 0) return Value::list(out);
+        int64_t n = a[1].i;
+        std::vector<Value> cur;
+        iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+            cur.push_back(it);
+            if ((int64_t)cur.size() == n) {
+                out.push_back(Value::list(std::move(cur)));
+                cur = {};
+            }
+            return true;
+        }, globals_);
+        if (!cur.empty()) out.push_back(Value::list(std::move(cur)));
+        return Value::list(std::move(out));
+    });
+    globals_->vars["flatten"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> out;
+        if (a.empty()) return Value::list(std::move(out));
+        iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+            if (it.k == VK::List || it.k == VK::Tuple || it.k == VK::Set ||
+                it.k == VK::Deque)
+                for (auto& e : *it.vec) out.push_back(e);
+            else
+                out.push_back(it);
+            return true;
+        }, globals_);
+        return Value::list(std::move(out));
+    });
+    globals_->vars["count"] = biFn({"xs", "x"}, [this](std::vector<Value>& a) -> Value {
+        int64_t n = 0;
+        if (a.size() < 2) return Value::integer(0);
+        const Value& needle = a[1];
+        iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+            if (valEq(it, needle)) ++n;
+            return true;
+        }, globals_);
+        return Value::integer(n);
+    });
+    globals_->vars["find"] = biFn({"xs", "x"}, [this](std::vector<Value>& a) -> Value {
+        if (a.size() < 2) return Value::integer(-1);
+        const Value& needle = a[1];
+        int64_t i = 0, found = -1;
+        iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+            if (valEq(it, needle)) { found = i; return false; }
+            ++i; return true;
+        }, globals_);
+        return Value::integer(found);
+    });
+    globals_->vars["binary_search"] = biFn({"xs", "x"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> v;
+        if (a.empty()) return Value::integer(-1);
+        iterateSeq(a[0], [&](Value& it, Env&) -> bool {
+            v.push_back(it); return true;
+        }, globals_);
+        const Value& needle = a.size() > 1 ? a[1] : Value::none();
+        size_t lo = 0, hi = v.size();
+        while (lo < hi) {
+            size_t mid = (lo + hi) / 2;
+            if (valEq(v[mid], needle)) return Value::integer((int64_t)mid);
+            if (valLess(v[mid], needle)) lo = mid + 1; else hi = mid;
+        }
+        return Value::integer(-1);
+    });
+    globals_->vars["partition"] = biFn({"f", "xs"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> yes, no;
+        if (a.size() >= 2) {
+            const Value& f = a[0];
+            iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                if (truthy(callValue(f, {it}, 0, 0))) yes.push_back(it);
+                else no.push_back(it);
+                return true;
+            }, globals_);
+        }
+        return Value::tuple({Value::list(std::move(yes)), Value::list(std::move(no))});
+    });
+    globals_->vars["heappush"] = biFn({"h", "x"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k != VK::List) panicHere("heappush expects a list");
+        a[0].vec->push_back(a.size() > 1 ? a[1] : Value::none());
+        heapSiftUp(*a[0].vec, a[0].vec->size() - 1, false);
+        return Value::none();
+    });
+    globals_->vars["heappop"] = biFn({"h"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k != VK::List || a[0].vec->empty())
+            panicHere("heappop from empty heap");
+        auto& h = *a[0].vec;
+        Value top = h.front();
+        h.front() = h.back();
+        h.pop_back();
+        if (!h.empty()) heapSiftDown(h, 0, false);
+        return top;
+    });
+    globals_->vars["heapify"] = biFn({"h"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k != VK::List) panicHere("heapify expects a list");
+        auto& h = *a[0].vec;
+        if (h.size() > 1)
+            for (size_t i = h.size() / 2; i-- > 0;) heapSiftDown(h, i, false);
+        return Value::none();
+    });
+    globals_->vars["heappush_max"] = biFn({"h", "x"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k != VK::List) panicHere("heappush_max expects a list");
+        a[0].vec->push_back(a.size() > 1 ? a[1] : Value::none());
+        heapSiftUp(*a[0].vec, a[0].vec->size() - 1, true);
+        return Value::none();
+    });
+    globals_->vars["heappop_max"] = biFn({"h"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k != VK::List || a[0].vec->empty())
+            panicHere("heappop_max from empty heap");
+        auto& h = *a[0].vec;
+        Value top = h.front();
+        h.front() = h.back();
+        h.pop_back();
+        if (!h.empty()) heapSiftDown(h, 0, true);
+        return top;
+    });
+    globals_->vars["nlargest"] = biFn({"n", "xs"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> v;
+        if (a.size() > 1)
+            iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                v.push_back(it); return true;
+            }, globals_);
+        std::stable_sort(v.begin(), v.end(),
+                         [](const Value& x, const Value& y) { return valLess(y, x); });
+        int64_t n = (!a.empty() && a[0].k == VK::Int) ? a[0].i : (int64_t)v.size();
+        if (n < 0) n = 0;
+        if ((size_t)n < v.size()) v.resize((size_t)n);
+        return Value::list(std::move(v));
+    });
+    globals_->vars["nsmallest"] = biFn({"n", "xs"}, [this](std::vector<Value>& a) -> Value {
+        std::vector<Value> v;
+        if (a.size() > 1)
+            iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                v.push_back(it); return true;
+            }, globals_);
+        std::stable_sort(v.begin(), v.end(),
+                         [](const Value& x, const Value& y) { return valLess(x, y); });
+        int64_t n = (!a.empty() && a[0].k == VK::Int) ? a[0].i : (int64_t)v.size();
+        if (n < 0) n = 0;
+        if ((size_t)n < v.size()) v.resize((size_t)n);
+        return Value::list(std::move(v));
     });
 
     // ---- WHY-1 / SP-8: string operations -----------------------------------
@@ -3501,12 +3761,18 @@ Value Interpreter::eval(const Expr& e, Env env) {
                     case VK::List:
                     case VK::Set:
                     case VK::Tuple:
+                    case VK::Deque:
                         for (const auto& el : *r.vec)
                             if (valuesEqual(l, el)) return Value::boolean(true);
                         return Value::boolean(false);
                     case VK::Dict:
                         for (const auto& kv : *r.map)
                             if (valuesEqual(l, kv.first)) return Value::boolean(true);
+                        return Value::boolean(false);
+                    case VK::Counter:
+                        for (const auto& kv : *r.map)
+                            if (kv.second.i != 0 && valuesEqual(l, kv.first))
+                                return Value::boolean(true);
                         return Value::boolean(false);
                     case VK::Str:
                         if (l.k != VK::Str)
@@ -3685,6 +3951,12 @@ Value cv = eval(*e.lhs, env);
                 case VK::List:
                 case VK::Tuple:
                     return (*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)];
+                case VK::Deque:
+                    return (*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)];
+                case VK::Counter:
+                    for (const auto& kv : *obj.map)
+                        if (valuesEqual(kv.first, idx)) return kv.second;
+                    return Value::integer(0);
                 case VK::Dict:
                     for (const auto& kv : *obj.map)
                         if (valuesEqual(kv.first, idx)) return kv.second;
@@ -3737,6 +4009,12 @@ Value cv = eval(*e.lhs, env);
                 case VK::List:
                 case VK::Tuple:
                     return (*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)];
+                case VK::Deque:
+                    return (*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)];
+                case VK::Counter:
+                    for (const auto& kv : *obj.map)
+                        if (valuesEqual(kv.first, idx)) return kv.second;
+                    return Value::integer(0);
                 case VK::Dict:
                     for (const auto& kv : *obj.map)
                         if (valuesEqual(kv.first, idx)) return kv.second;
@@ -4180,6 +4458,7 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
         case VK::List:
         case VK::Tuple:
         case VK::Set:
+        case VK::Deque:
             len = (int64_t)obj.vec->size();
             break;
         case VK::Str:
@@ -4224,6 +4503,7 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
     }
     if (obj.k == VK::Tuple) return Value::tuple(std::move(items));
     if (obj.k == VK::Set)   return makeSet(std::move(items));
+    if (obj.k == VK::Deque) return Value::deque(std::move(items));
     return Value::list(std::move(items));
 }
 
@@ -4993,6 +5273,213 @@ return Value::none();
             if (name == "len")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     return Value::integer((int64_t)a[0].vec->size());
+                });
+            break;
+        }
+
+        case VK::Deque: {
+            auto trim = [](Value& d) {
+                if (d.i >= 0 && (int64_t)d.vec->size() > d.i)
+                    d.vec->erase(d.vec->begin(),
+                                 d.vec->begin() + ((int64_t)d.vec->size() - d.i));
+            };
+            if (name == "maxlen")
+                return obj.i >= 0 ? Value::integer(obj.i) : Value::none();
+            if (name == "append" || name == "push_back" || name == "append_right")
+                return bind({}, [trim](std::vector<Value>& a) -> Value {
+                    a[0].vec->push_back(a.size() > 1 ? a[1] : Value::none());
+                    trim(a[0]);
+                    return Value::none();
+                });
+            if (name == "append_left" || name == "appendleft" ||
+                name == "push_front")
+                return bind({}, [trim](std::vector<Value>& a) -> Value {
+                    a[0].vec->insert(a[0].vec->begin(),
+                                     a.size() > 1 ? a[1] : Value::none());
+                    trim(a[0]);
+                    return Value::none();
+                });
+            if (name == "pop" || name == "pop_back" || name == "pop_right")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].vec->empty()) panicHere("pop from empty deque");
+                    Value v = a[0].vec->back();
+                    a[0].vec->pop_back();
+                    return v;
+                });
+            if (name == "pop_left" || name == "popleft" || name == "pop_front")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].vec->empty()) panicHere("pop from empty deque");
+                    Value v = a[0].vec->front();
+                    a[0].vec->erase(a[0].vec->begin());
+                    return v;
+                });
+            if (name == "extend" || name == "extend_right")
+                return bind({}, [this, trim](std::vector<Value>& a) -> Value {
+                    if (a.size() > 1)
+                        iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                            a[0].vec->push_back(it); trim(a[0]); return true;
+                        }, globals_);
+                    return Value::none();
+                });
+            if (name == "extend_left" || name == "extendleft")
+                return bind({}, [this, trim](std::vector<Value>& a) -> Value {
+                    std::vector<Value> xs;
+                    if (a.size() > 1)
+                        iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                            xs.push_back(it); return true;
+                        }, globals_);
+                    for (auto& it : xs)
+                        a[0].vec->insert(a[0].vec->begin(), it);
+                    trim(a[0]);
+                    return Value::none();
+                });
+            if (name == "rotate")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    auto& v = *a[0].vec;
+                    int64_t n = a.size() > 1 ? a[1].i : 1;
+                    if (!v.empty()) {
+                        int64_t k = ((n % (int64_t)v.size()) + (int64_t)v.size()) %
+                                    (int64_t)v.size();
+                        std::rotate(v.begin(), v.end() - k, v.end());
+                    }
+                    return Value::none();
+                });
+            if (name == "clear")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].vec->clear(); return Value::none();
+                });
+            if (name == "reverse")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    std::reverse(a[0].vec->begin(), a[0].vec->end());
+                    return Value::none();
+                });
+            if (name == "count")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    int64_t n = 0;
+                    for (auto& it : *a[0].vec)
+                        if (a.size() > 1 && valEq(it, a[1])) ++n;
+                    return Value::integer(n);
+                });
+            if (name == "remove")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() > 1)
+                        for (size_t i = 0; i < a[0].vec->size(); ++i)
+                            if (valEq((*a[0].vec)[i], a[1])) {
+                                a[0].vec->erase(a[0].vec->begin() + i);
+                                return Value::none();
+                            }
+                    panicHere("deque.remove(x): x not found");
+                });
+            if (name == "index")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() > 1)
+                        for (size_t i = 0; i < a[0].vec->size(); ++i)
+                            if (valEq((*a[0].vec)[i], a[1]))
+                                return Value::integer((int64_t)i);
+                    return Value::integer(-1);
+                });
+            if (name == "copy")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::deque(*a[0].vec, a[0].i);
+                });
+            if (name == "len")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::integer((int64_t)a[0].vec->size());
+                });
+            break;
+        }
+
+        case VK::Counter: {
+            auto bump = [](Value& c, const Value& key, int64_t delta) {
+                for (auto& kv : *c.map)
+                    if (valEq(kv.first, key)) {
+                        kv.second = Value::integer(kv.second.i + delta);
+                        return;
+                    }
+                c.map->push_back({key, Value::integer(delta)});
+            };
+            if (name == "total")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    int64_t t = 0;
+                    for (auto& kv : *a[0].map) t += kv.second.i;
+                    return Value::integer(t);
+                });
+            if (name == "len")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    int64_t n = 0;
+                    for (auto& kv : *a[0].map)
+                        if (kv.second.i != 0) ++n;
+                    return Value::integer(n);
+                });
+            if (name == "get")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() > 1)
+                        for (auto& kv : *a[0].map)
+                            if (valEq(kv.first, a[1])) return kv.second;
+                    return Value::integer(0);
+                });
+            if (name == "elements")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    std::vector<Value> out;
+                    for (auto& kv : *a[0].map)
+                        for (int64_t n = 0; n < kv.second.i; ++n)
+                            out.push_back(kv.first);
+                    return Value::list(std::move(out));
+                });
+            if (name == "keys")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    std::vector<Value> out;
+                    for (auto& kv : *a[0].map)
+                        if (kv.second.i != 0) out.push_back(kv.first);
+                    return Value::list(std::move(out));
+                });
+            if (name == "most_common")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    std::vector<std::pair<Value, Value>> entries;
+                    for (auto& kv : *a[0].map)
+                        if (kv.second.i != 0) entries.push_back(kv);
+                    std::stable_sort(entries.begin(), entries.end(),
+                                     [](const std::pair<Value, Value>& x,
+                                        const std::pair<Value, Value>& y) {
+                                         return x.second.i > y.second.i;
+                                     });
+                    int64_t n = (a.size() > 1 && a[1].k == VK::Int)
+                                    ? a[1].i : (int64_t)entries.size();
+                    if (n >= 0 && (size_t)n < entries.size())
+                        entries.erase(entries.begin() + (size_t)n, entries.end());
+                    std::vector<Value> out;
+                    for (auto& e : entries)
+                        out.push_back(Value::tuple({e.first, e.second}));
+                    return Value::list(std::move(out));
+                });
+            if (name == "update" || name == "subtract")
+                return bind({}, [this, bump, name](std::vector<Value>& a) -> Value {
+                    int64_t sign = (name == "update") ? 1 : -1;
+                    if (a.size() > 1) {
+                        if (a[1].k == VK::Counter)
+                            for (auto& kv : *a[1].map)
+                                bump(a[0], kv.first, sign * kv.second.i);
+                        else if (a[1].k == VK::Dict)
+                            for (auto& kv : *a[1].map)
+                                bump(a[0], kv.first,
+                                     sign * (kv.second.k == VK::Int
+                                                 ? kv.second.i : 1));
+                        else
+                            iterateSeq(a[1], [&](Value& it, Env&) -> bool {
+                                bump(a[0], it, sign); return true;
+                            }, globals_);
+                    }
+                    return Value::none();
+                });
+            if (name == "copy")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    Value c = Value::counter();
+                    *c.map = *a[0].map;
+                    return c;
+                });
+            if (name == "clear")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].map->clear(); return Value::none();
                 });
             break;
         }
@@ -6016,10 +6503,32 @@ static bool valEq(const Value& a, const Value& b) {
         case VK::List:
         case VK::Tuple:
         case VK::Set:
+        case VK::Deque:
             if (a.vec->size() != b.vec->size()) return false;
             for (size_t i = 0; i < a.vec->size(); ++i)
                 if (!valEq((*a.vec)[i], (*b.vec)[i])) return false;
             return true;
+        case VK::Counter: {
+            for (const auto& kv : *a.map) {
+                if (kv.second.i == 0) continue;
+                bool found = false;
+                for (const auto& kv2 : *b.map)
+                    if (valEq(kv.first, kv2.first) && kv.second.i == kv.second.i) {
+                        found = (kv.second.i == kv2.second.i);
+                        break;
+                    }
+                if (!found) return false;
+            }
+            for (const auto& kv : *b.map) {
+                if (kv.second.i == 0) continue;
+                bool found = false;
+                for (const auto& kv2 : *a.map)
+                    if (valEq(kv.first, kv2.first) &&
+                        kv.second.i == kv2.second.i) { found = true; break; }
+                if (!found) return false;
+            }
+            return true;
+        }
         case VK::Dict: {
             if (a.map->size() != b.map->size()) return false;
             for (const auto& kv : *a.map) {
@@ -6356,6 +6865,24 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
             v.k = VK::Bytes;
             return v;
         }
+        if (l.k == VK::Counter && r.k == VK::Counter) {
+            Value c = Value::counter();
+            auto addKey = [&](const Value& key, int64_t delta) {
+                for (auto& kv : *c.map)
+                    if (valEq(kv.first, key)) {
+                        kv.second = Value::integer(kv.second.i + delta);
+                        return;
+                    }
+                c.map->push_back({key, Value::integer(delta)});
+            };
+            for (auto& kv : *l.map) addKey(kv.first, kv.second.i);
+            for (auto& kv : *r.map) addKey(kv.first, kv.second.i);
+            std::vector<std::pair<Value, Value>> keep;
+            for (auto& kv : *c.map)
+                if (kv.second.i > 0) keep.push_back(kv);
+            *c.map = std::move(keep);
+            return c;
+        }
     }
     if (op == "-") {
         if (isBig(l.k) || isBig(r.k))
@@ -6364,6 +6891,24 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
             return Value::floating(numL() - numR());
+        if (l.k == VK::Counter && r.k == VK::Counter) {
+            Value c = Value::counter();
+            for (auto& kv : *l.map) c.map->push_back(kv);
+            auto subKey = [&](const Value& key, int64_t delta) {
+                for (auto& kv : *c.map)
+                    if (valEq(kv.first, key)) {
+                        kv.second = Value::integer(kv.second.i - delta);
+                        return;
+                    }
+                c.map->push_back({key, Value::integer(-delta)});
+            };
+            for (auto& kv : *r.map) subKey(kv.first, kv.second.i);
+            std::vector<std::pair<Value, Value>> keep;
+            for (auto& kv : *c.map)
+                if (kv.second.i > 0) keep.push_back(kv);
+            *c.map = std::move(keep);
+            return c;
+        }
     }
     if (op == "*") {
         if (isBig(l.k) || isBig(r.k)) {
@@ -6698,6 +7243,24 @@ void Interpreter::iterateSeq(const Value& seq,
                 Env child = makeChild(env);
                 Value item = Value::integer((int64_t)(unsigned char)c);
                 if (!body(item, child)) return;
+            }
+            return;
+        }
+        case VK::Deque: {
+            std::vector<Value> snapshot = *seq.vec;
+            for (auto& item : snapshot) {
+                Env child = makeChild(env);
+                if (!body(item, child)) return;
+            }
+            return;
+        }
+        case VK::Counter: {
+            std::vector<Value> keys;
+            for (auto& kv : *seq.map)
+                if (kv.second.i != 0) keys.push_back(kv.first);
+            for (auto& key : keys) {
+                Env child = makeChild(env);
+                if (!body(key, child)) return;
             }
             return;
         }
@@ -7144,7 +7707,7 @@ void Interpreter::assignTo(const Expr& target, Value v, Env env) {
             if (Value* rp = lvaluePtr(*target.lhs, env)) {
                 Value idx2 = eval(*target.rhs, env);
                 if (rp->k == VK::List || rp->k == VK::Set ||
-                    rp->k == VK::Tuple)
+                    rp->k == VK::Tuple || rp->k == VK::Deque)
                     (*rp->vec)[normIndex((int64_t)rp->vec->size(), idx2.i)] =
                         std::move(v);
                 else if (rp->k == VK::ByteArray || rp->k == VK::View) {
@@ -7193,6 +7756,18 @@ void Interpreter::assignTo(const Expr& target, Value v, Env env) {
                             return;
                         }
                     cont.map->emplace_back(std::move(idx), std::move(v));
+                    return;
+                case VK::Counter:
+                    for (auto& kv : *cont.map)
+                        if (valEq(kv.first, idx)) {
+                            kv.second = std::move(v);
+                            return;
+                        }
+                    cont.map->push_back({std::move(idx), std::move(v)});
+                    return;
+                case VK::Deque:
+                    (*cont.vec)[normIndex((int64_t)cont.vec->size(), idx.i)] =
+                        std::move(v);
                     return;
                 default:
                     panicHere("unsupported index assignment");
@@ -8073,6 +8648,17 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                         push(fromVal(Value::integer((unsigned char)d[n])));
                         break;
                     }
+                    case VK::Deque: {
+                        push(fromVal(Value((*obj.vec)[normIndex((int64_t)obj.vec->size(), idx.i)])));
+                        break;
+                    }
+                    case VK::Counter: {
+                        bool hit = false; Value rv = Value::integer(0);
+                        for (const auto& kv : *obj.map)
+                            if (valuesEqual(kv.first, idx)) { rv = kv.second; hit = true; break; }
+                        push(fromVal(std::move(rv)));
+                        break;
+                    }
                     default:
                         if (obj.k == VK::Struct || obj.k == VK::Heap)
                             push(fromVal(invokeMethod(obj, "index", {idx}, {}, env, 0, 0, nullptr)));
@@ -8238,6 +8824,13 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                     case VK::Bytes:
                         for (char c : seq.s)
                             items.push_back(Value::integer((int64_t)(unsigned char)c));
+                        break;
+                    case VK::Deque:
+                        items = *seq.vec;
+                        break;
+                    case VK::Counter:
+                        for (const auto& kv : *seq.map)
+                            if (kv.second.i != 0) items.push_back(kv.first);
                         break;
                     case VK::Chan: {
                         for (;;) {

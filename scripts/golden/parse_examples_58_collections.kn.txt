@@ -1,0 +1,535 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/58_collections.kn
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "d"
+      Value 
+        Call
+          Callee Ident "deque"
+          Arg
+            Value 
+              List len=3
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append"
+              Obj Ident "d"
+          Arg
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append_left"
+              Obj Ident "d"
+          Arg
+            Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="pop"
+                    Obj Ident "d"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="popleft"
+                    Obj Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="rotate"
+              Obj Ident "d"
+          Arg
+            Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value Ident "d"
+    Assign
+      Target Ident "window"
+      Value 
+        Call
+          Callee Ident "Deque"
+          Arg
+            Value 
+              List len=5
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+                Item Int "4"
+                Item Int "5"
+          Arg name=maxlen
+            Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value Ident "window"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "window"
+    Assign
+      Target Ident "c"
+      Value 
+        Call
+          Callee Ident "Counter"
+          Arg
+            Value Str "aabbbc"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "c"
+                At Char "a"
+          Arg
+            Value 
+              Index
+                Obj Ident "c"
+                At Char "b"
+          Arg
+            Value 
+              Index
+                Obj Ident "c"
+                At Char "c"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="total"
+                    Obj Ident "c"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="most_common"
+                          Obj Ident "c"
+                      Arg
+                        Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="elements"
+                          Obj Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="update"
+              Obj Ident "c"
+          Arg
+            Value Str "bc"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "c"
+                At Char "b"
+          Arg
+            Value 
+              Index
+                Obj Ident "c"
+                At Char "c"
+    Assign
+      Target Ident "other"
+      Value 
+        Call
+          Callee Ident "Counter"
+          Arg
+            Value Str "abcz"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Binary op="+"
+                    Lhs Ident "c"
+                    Rhs Ident "other"
+                At Char "z"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Binary op="-"
+                    Lhs Ident "c"
+                    Rhs Ident "other"
+                At Char "a"
+    Assign
+      Target Ident "h"
+      Value 
+        List len=8
+          Item Int "3"
+          Item Int "1"
+          Item Int "4"
+          Item Int "1"
+          Item Int "5"
+          Item Int "9"
+          Item Int "2"
+          Item Int "6"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "heapify"
+          Arg
+            Value Ident "h"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "heappush"
+          Arg
+            Value Ident "h"
+          Arg
+            Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "heappop"
+                Arg
+                  Value Ident "h"
+          Arg
+            Value 
+              Call
+                Callee Ident "heappop"
+                Arg
+                  Value Ident "h"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "nsmallest"
+                      Arg
+                        Value Int "3"
+                      Arg
+                        Value 
+                          List len=5
+                            Item Int "5"
+                            Item Int "4"
+                            Item Int "3"
+                            Item Int "2"
+                            Item Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "nlargest"
+                      Arg
+                        Value Int "3"
+                      Arg
+                        Value 
+                          List len=5
+                            Item Int "5"
+                            Item Int "4"
+                            Item Int "3"
+                            Item Int "2"
+                            Item Int "1"
+    Assign
+      Target Ident "mx"
+      Value 
+        List len=0
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "heappush_max"
+          Arg
+            Value Ident "mx"
+          Arg
+            Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "heappush_max"
+          Arg
+            Value Ident "mx"
+          Arg
+            Value Int "7"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "heappush_max"
+          Arg
+            Value Ident "mx"
+          Arg
+            Value Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "heappop_max"
+                Arg
+                  Value Ident "mx"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "group_by"
+                      Arg
+                        Value 
+                          Lambda params=(x: <inferred>)
+                            Body
+                              Return
+                                Value 
+                                  Binary op="%"
+                                    Lhs Ident "x"
+                                    Rhs Int "2"
+                      Arg
+                        Value 
+                          List len=5
+                            Item Int "1"
+                            Item Int "2"
+                            Item Int "3"
+                            Item Int "4"
+                            Item Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "chunk"
+                      Arg
+                        Value 
+                          List len=5
+                            Item Int "1"
+                            Item Int "2"
+                            Item Int "3"
+                            Item Int "4"
+                            Item Int "5"
+                      Arg
+                        Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "flatten"
+                      Arg
+                        Value 
+                          List len=3
+                            Item 
+                              List len=2
+                                Item Int "1"
+                                Item Int "2"
+                            Item 
+                              List len=1
+                                Item Int "3"
+                            Item 
+                              List len=2
+                                Item Int "4"
+                                Item Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "count"
+                Arg
+                  Value 
+                    List len=5
+                      Item Int "1"
+                      Item Int "2"
+                      Item Int "2"
+                      Item Int "3"
+                      Item Int "2"
+                Arg
+                  Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "find"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "10"
+                      Item Int "20"
+                      Item Int "30"
+                Arg
+                  Value Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "binary_search"
+                Arg
+                  Value 
+                    List len=5
+                      Item Int "1"
+                      Item Int "3"
+                      Item Int "5"
+                      Item Int "7"
+                      Item Int "9"
+                Arg
+                  Value Int "7"
+    Assign
+      Expr Ident "yes"
+      Expr Ident "no"
+      Expr 
+        Call
+          Callee Ident "partition"
+          Arg
+            Value 
+              Lambda params=(x: <inferred>)
+                Body
+                  Return
+                    Value 
+                      Binary op=">"
+                        Lhs Ident "x"
+                        Rhs Int "3"
+          Arg
+            Value 
+              List len=5
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+                Item Int "4"
+                Item Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value Ident "yes"
+          Arg
+            Value 
+              Call
+                Callee Ident "Str"
+                Arg
+                  Value Ident "no"
+<ROOT>/examples/58_collections.kn: OK (1 top-level statements)
+[exit 0]

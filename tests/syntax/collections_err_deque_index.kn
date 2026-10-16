@@ -1,0 +1,5 @@
+# expect: deque index must be an integer
+fn main() -> none {
+    d = deque([1, 2, 3]);
+    x = d["one"];
+}

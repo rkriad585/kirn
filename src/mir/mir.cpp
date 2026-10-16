@@ -118,6 +118,8 @@ Ty mapTy(sema::TyK k) {
         case sema::TyK::List:     return Ty::List;
         case sema::TyK::Dict:     return Ty::Dict;
         case sema::TyK::Set:      return Ty::Set;
+        case sema::TyK::Deque:    return Ty::Any;  // interpreter-only for now
+        case sema::TyK::Counter:  return Ty::Any;  // interpreter-only for now
         case sema::TyK::Tuple:    return Ty::Tuple;
         case sema::TyK::Chan:     return Ty::Chan;
         case sema::TyK::Range:    return Ty::Range;

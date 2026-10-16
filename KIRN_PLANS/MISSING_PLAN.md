@@ -162,6 +162,14 @@ indexing, `+`/`*`/`in`, and the buffer method surface. Green on the full gate
 (`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M7 phase
 note for the recorded scope deviations (no `stdlib/lib` module).
 
+**Implementation progress (2026-10-16).** M8 (Deque / Counter / heap + collection free-functions) is
+implemented in `src/` (runtime values + checker). The new work is `VK::Deque`/`VK::Counter`, their
+method surfaces, the min/max binary-heap helpers, and the free functions
+`group_by`/`chunk`/`flatten`/`count`/`find`/`binary_search`/`partition`. Green on the full gate
+(`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 239), crosscheck
+(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M8 phase
+note for the recorded scope deviations (no `stdlib/lib` module; builtins are shadowable).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -789,6 +797,35 @@ h = [3,1,2]; collections.heappush(h, 0); print(collections.heappop(h));   # 0
 **Testing:** `tests/collections/deque_*,counter_*,heap_*`; `examples/58_collections.kn`.
 
 **Expected result:** deque/Counter/heap and free-functions run with canonical semantics.
+
+**M8 phase note (implemented).** Delivered in `src/interp/value.h` (`VK::Deque` — a
+`std::shared_ptr<std::vector<Value>>` with an `Int` `maxlen` (`-1` = unbounded) and
+`Value::deque`; `VK::Counter` — a `map` of key→Int count and `Value::counter`) and
+`src/interp/runtime.cpp`: `repr`/`truthy`/`typeName`; the `Deque`/`deque` and `Counter`/`counter`
+constructors; deque methods (`append`/`append_left`/`appendleft`/`push_back`/`push_front`/`pop`/
+`pop_back`/`pop_right`/`pop_left`/`popleft`/`pop_front`/`extend`/`extend_left`/`extendleft`/`rotate`/
+`clear`/`reverse`/`count`/`remove`/`index`/`copy`/`len`/`maxlen`); Counter methods (`total`/`len`/
+`get`/`elements`/`keys`/`most_common`/`update`/`subtract`/`copy`/`clear`); static heap helpers
+`heapLt`/`heapSiftUp`/`heapSiftDown` and the free functions `heappush`/`heappop`/`heapify`/
+`heappush_max`/`heappop_max`/`nlargest`/`nsmallest` plus `group_by`/`chunk`/`flatten`/`count`/`find`/
+`binary_search`/`partition`; `len`, `in`, Int/Counter indexing, slicing (deque slices return a
+deque), iteration (`iterateSeq`, VM `OP_ITER_BEGIN`/`OP_INDEX`), index assignment, and `+`/`-`
+Counter algebra (positive counts only). The checker gained `TyK::Deque`/`TyK::Counter` (+
+`dequeTy`/`counterTy`), spellings, builtin registrations, method surfaces, index/SafeIndex typing,
+`iterableElem`, and `+`/`-` Counter typing; `src/mir/mir.cpp` maps both to `Ty::Any`
+(interpreter-only). Tests: `tests/syntax/collections_ok.kn`,
+`tests/syntax/collections_err_deque_index.kn`, `tests/vm_parity/collections_m8.kn`,
+`examples/58_collections.kn` (+3 recorded goldens). Deviations recorded: (1) the plan lists
+`stdlib/lib/collections.kn` (`STD P2c`), but the repository's stdlib is the `stdlib/pet` package tree
+(there is no `stdlib/lib`), so — as with M6/M7 — the collections API ships as builtins/methods and no
+module wrapper (or `SortedList`) was added. (2) `VK::Heap` was not added as a distinct value: heaps
+are ordinary lists manipulated by `heappush`/`heappop`/`heapify`, matching Python's `heapq` module.
+(3) To keep the plan's global free-function names (`count`, `find`, …) from colliding with existing
+user bindings (e.g. `var counter`, `fn find`, the `counter` generator in `examples/41`), prelude
+builtins are now overridable by user `var`/`const`/`fn` declarations at module scope and shadowable by
+local assignment — the interpreter erases the builtin binding when a user function takes its name.
+(4) Tests live under `tests/syntax`/`tests/vm_parity` rather than `tests/collections`, so the existing
+gates pick them up.
 
 ---
 

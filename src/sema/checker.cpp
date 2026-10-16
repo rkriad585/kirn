@@ -49,6 +49,8 @@ std::string toString(const Ty& t) {
                 ? "dict"
                 : "dict[" + toString(*t.args[0]) + ", " + toString(*t.args[1]) + "]";
         case TyK::Set:     return t.args.empty() ? "set" : "set[" + toString(*t.args[0]) + "]";
+        case TyK::Deque:   return t.args.empty() ? "deque" : "deque[" + toString(*t.args[0]) + "]";
+        case TyK::Counter: return t.args.empty() ? "Counter" : "Counter[" + toString(*t.args[0]) + "]";
         case TyK::Chan:    return t.args.empty() ? "chan" : "chan[" + toString(*t.args[0]) + "]";
         case TyK::Range:   return "range";
         case TyK::Gen:     return t.args.empty() ? "generator" : "generator[" + toString(*t.args[0]) + "]";
@@ -333,8 +335,15 @@ SymP Checker::declareLocal(SymK kind, const std::string& name, TyP t, bool mut,
                         "variable '" + name + "' shadows an outer binding");
         }
     }
-    if (Symbol* clash = scope_->declare(sym))
-        error(line, col, "'" + name + "' is already defined in this scope");
+    if (Symbol* clash = scope_->declare(sym)) {
+        // A prelude builtin may be overridden by a user declaration, exactly as
+        // user functions override builtins (see registerTopLevel).
+        if (clash->builtin && !sym->builtin) {
+            scope_->syms[sym->name] = sym;
+        } else {
+            error(line, col, "'" + name + "' is already defined in this scope");
+        }
+    }
     return sym;
 }
 
@@ -566,6 +575,34 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("__MemoryView", {unkTy()}, {"x"}, memoryViewTy(), false, 1);
     makeBuiltinFunc("fromhex", {strTy()}, {"s"}, bytesTy(), false, 1);
     makeBuiltinFunc("__FromHex", {strTy()}, {"s"}, bytesTy(), false, 1);
+    // M8: deque / Counter constructors and collection free-functions.
+    makeBuiltinFunc("Deque", {unkTy(), intTy()}, {"xs", "maxlen"}, dequeTy(),
+                    false, 1);
+    makeBuiltinFunc("deque", {unkTy(), intTy()}, {"xs", "maxlen"}, dequeTy(),
+                    false, 1);
+    makeBuiltinFunc("Counter", {unkTy()}, {"xs"}, counterTy(), false, 1);
+    makeBuiltinFunc("counter", {unkTy()}, {"xs"}, counterTy(), false, 1);
+    makeBuiltinFunc("group_by", {unkTy(), unkTy()}, {"f", "xs"},
+                    unkTy(), false, 2);
+    makeBuiltinFunc("chunk", {unkTy(), intTy()}, {"xs", "n"},
+                    listTy(listTy(unkTy())), false, 2);
+    makeBuiltinFunc("flatten", {unkTy()}, {"xs"}, listTy(unkTy()), false, 1);
+    makeBuiltinFunc("count", {unkTy(), unkTy()}, {"xs", "x"}, intTy(), false, 2);
+    makeBuiltinFunc("find", {unkTy(), unkTy()}, {"xs", "x"}, intTy(), false, 2);
+    makeBuiltinFunc("binary_search", {unkTy(), unkTy()}, {"xs", "x"}, intTy(),
+                    false, 2);
+    makeBuiltinFunc("partition", {unkTy(), unkTy()}, {"f", "xs"}, unkTy(),
+                    false, 2);
+    makeBuiltinFunc("heappush", {unkTy(), unkTy()}, {"h", "x"}, noneTy(), false, 2);
+    makeBuiltinFunc("heappop", {unkTy()}, {"h"}, unkTy(), false, 1);
+    makeBuiltinFunc("heapify", {unkTy()}, {"h"}, noneTy(), false, 1);
+    makeBuiltinFunc("heappush_max", {unkTy(), unkTy()}, {"h", "x"}, noneTy(),
+                    false, 2);
+    makeBuiltinFunc("heappop_max", {unkTy()}, {"h"}, unkTy(), false, 1);
+    makeBuiltinFunc("nlargest", {intTy(), unkTy()}, {"n", "xs"},
+                    listTy(unkTy()), false, 2);
+    makeBuiltinFunc("nsmallest", {intTy(), unkTy()}, {"n", "xs"},
+                    listTy(unkTy()), false, 2);
     makeBuiltinFunc("CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("__CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
@@ -1105,6 +1142,12 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             if (n == "bytes")   return bytesTy();
             if (n == "bytearray") return byteArrayTy();
             if (n == "memoryview") return memoryViewTy();
+            if (n == "deque")
+                return t->generics.size() >= 1
+                           ? dequeTy(resolveType(t->generics[0])) : dequeTy();
+            if (n == "Counter" || n == "counter")
+                return t->generics.size() >= 1
+                           ? counterTy(resolveType(t->generics[0])) : counterTy();
             if (n == "BigInt" || n == "bigint" || n == "big_int") return bigIntTy();
             if (n == "Rational" || n == "rational") return rationalTy();
             if (n == "Complex" || n == "complex") return complexTy();
@@ -1433,13 +1476,15 @@ TyP Checker::iterableElem(const TyP& t) const {
     switch (t->k) {
         case TyK::List:
         case TyK::Set:
+        case TyK::Deque:
+        case TyK::Counter:
         case TyK::Range:
         case TyK::Gen:
         case TyK::Chan:
         case TyK::Dict: {
             TyP e = argAt(t, 0);
             if (e && e->isError()) return unkTy();     // silence poisoned cascades
-            return e;
+            return e ? e : unkTy();
         }
         case TyK::Str:
             return charTy();
@@ -1922,6 +1967,67 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         return std::nullopt;
     }
 
+    // M8: deque method surface. The element type is argAt(recv, 0) when known.
+    if (recv->is(TyK::Deque)) {
+        TyP elem = argAt(recv, 0);
+        FuncSig s;
+        if (name == "append" || name == "push_back" || name == "append_right" ||
+            name == "append_left" || name == "appendleft" ||
+            name == "push_front") {
+            s.params.push_back(elem); s.names.push_back("x");
+            s.ret = noneTy(); s.required = 1; return s;
+        }
+        if (name == "pop" || name == "pop_back" || name == "pop_right" ||
+            name == "pop_left" || name == "popleft" || name == "pop_front") {
+            s.ret = elem ? elem : unkTy(); return s;
+        }
+        if (name == "extend" || name == "extend_right" || name == "extend_left" ||
+            name == "extendleft") {
+            s.params.push_back(unkTy()); s.names.push_back("xs");
+            s.ret = noneTy(); s.required = 1; return s;
+        }
+        if (name == "rotate") {
+            s.params.push_back(intTy()); s.names.push_back("n");
+            s.ret = noneTy(); s.required = 0; return s;
+        }
+        if (name == "clear" || name == "reverse") { s.ret = noneTy(); return s; }
+        if (name == "len") { s.ret = intTy(); return s; }
+        if (name == "count" || name == "index" || name == "remove") {
+            s.params.push_back(elem); s.names.push_back("x");
+            s.ret = (name == "count" || name == "index") ? intTy() : noneTy();
+            s.required = 1; return s;
+        }
+        if (name == "copy") { s.ret = recv; return s; }
+        if (name == "maxlen") { s.ret = optTy(intTy()); return s; }
+        return std::nullopt;
+    }
+
+    // M8: Counter method surface.
+    if (recv->is(TyK::Counter)) {
+        TyP elem = argAt(recv, 0);
+        FuncSig s;
+        if (name == "total" || name == "len") { s.ret = intTy(); return s; }
+        if (name == "elements" || name == "keys") {
+            s.ret = listTy(elem); return s;
+        }
+        if (name == "get") {
+            s.params.push_back(elem); s.names.push_back("k");
+            s.ret = intTy(); s.required = 1; return s;
+        }
+        if (name == "most_common") {
+            s.params.push_back(intTy()); s.names.push_back("n");
+            s.ret = listTy(tupleTy({elem, intTy()}));
+            s.required = 0; return s;
+        }
+        if (name == "update" || name == "subtract") {
+            s.params.push_back(unkTy()); s.names.push_back("xs");
+            s.ret = noneTy(); s.required = 1; return s;
+        }
+        if (name == "copy") { s.ret = recv; return s; }
+        if (name == "clear") { s.ret = noneTy(); return s; }
+        return std::nullopt;
+    }
+
     // M7: bytes / bytearray / memoryview method surface. `bytes` is immutable;
     // `bytearray` adds the mutating methods; `memoryview` is a read-only view.
     if (recv->is(TyK::Bytes) || recv->is(TyK::ByteArray) ||
@@ -2336,7 +2442,8 @@ void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
     switch (tgt.kind) {
         case ExKind::Ident: {
             Symbol* ex = scope_->find(tgt.text);
-            if (!ex) {
+            if (!ex || (ex->builtin && ex->kind == SymK::Func &&
+                        ex->homeScope != scope_->id)) {
                 declareLocal(SymK::Var, tgt.text, vt, /*mut*/ multi,
                              tgt.span.line, tgt.span.col);
                 typeCache_[&tgt] = vt;   // codegen: tag implicit bindings
@@ -3494,6 +3601,9 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             if (op == "<<") { /* shifts */ }
             if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" ||
                 op == "**" || op == "//") {
+                if ((op == "+" || op == "-") && lt->is(TyK::Counter) &&
+                    rt->is(TyK::Counter))
+                    return lt;
                 if (op == "+") {
                     auto isStrish = [](const TyP& t) {
                         return t->is(TyK::Str) || t->is(TyK::Char);
@@ -3614,6 +3724,20 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                               ", got " + toString(*idx));
                 return argAt(obj, 1);
             }
+            if (obj->is(TyK::Deque)) {
+                if (idx->is(TyK::Int)) return argAt(obj, 0);
+                if (idx->is(TyK::Range) && equal(argAt(idx, 0), intTy()))
+                    return listTy(argAt(obj, 0));
+                error(e.span, "deque index must be an integer");
+                return errTy();
+            }
+            if (obj->is(TyK::Counter)) {
+                if (!dynish(idx) && !assignable(idx, argAt(obj, 0)))
+                    error(e.span,
+                          "counter key expects " + toString(*argAt(obj, 0)) +
+                              ", got " + toString(*idx));
+                return intTy();
+            }
             if (obj->is(TyK::Str)) {
                 if (idx->is(TyK::Int)) return charTy();
                 if (idx->is(TyK::Range)) return strTy();
@@ -3662,6 +3786,12 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 if (!dynish(idx) && !idx->is(TyK::Int))
                     error(e.span, "list index must be an integer");
                 elem = argAt(base, 0);
+            } else if (base->is(TyK::Deque)) {
+                if (!dynish(idx) && !idx->is(TyK::Int))
+                    error(e.span, "deque index must be an integer");
+                elem = argAt(base, 0);
+            } else if (base->is(TyK::Counter)) {
+                elem = intTy();
             } else if (base->is(TyK::Dict)) {
                 elem = argAt(base, 1);
             } else if (base->is(TyK::Str)) {

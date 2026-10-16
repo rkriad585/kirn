@@ -1,0 +1,25 @@
+# reflect (M10): runtime type introspection and deep equality.
+import reflect;
+
+struct Vec2 {
+    x: f64;
+    y: f64 = 0.0;
+
+    fn len2(self) -> f64 { return self.x * self.x + self.y * self.y; }
+}
+
+fn main() -> none {
+    v = Vec2(x: 3.0, y: 4.0);
+    print(reflect.type(v));
+    print(reflect.kind_of(v));
+    print(reflect.kind_of(1), reflect.kind_of(1.0), reflect.kind_of("s"));
+    print(reflect.field_names(v));
+    print(reflect.methods(Vec2));
+    print(reflect.is_of_type(v, Vec2));
+    print(reflect.get_field(v, "x"));
+    print(reflect.has_field(v, "y"), reflect.has_field(v, "z"));
+    print(reflect.deep_equal([1, [2, 3]], [1, [2, 3]]));
+    print(reflect.deep_equal([1, [2, 3]], [1, [2, 4]]));
+    w = reflect.new(Vec2);
+    print(reflect.type(w), reflect.get_field(w, "y"));
+}

@@ -1,0 +1,23 @@
+# reflect VM parity (M10): types, fields, methods, deep equality, new.
+import reflect;
+
+struct Box {
+    value: Int = 7;
+    label: Str = "box";
+
+    fn describe(self) -> Str { return self.label; }
+}
+
+fn main() -> none {
+    b = Box();
+    print(reflect.type(b), reflect.kind_of(b));
+    print(reflect.fields(b));
+    print(reflect.field_names(b));
+    print(reflect.methods(Box));
+    print(reflect.is_of_type(b, Box), reflect.is_of_type(b, Int));
+    print(reflect.get_field(b, "value"), reflect.has_field(b, "label"));
+    print(reflect.deep_equal({"a": [1, 2]}, {"a": [1, 2]}));
+    print(reflect.deep_equal({"a": [1, 2]}, {"a": [1, 3]}));
+    print(reflect.kind_of([1, 2]), reflect.kind_of({"k": 1}));
+    print(reflect.sizeof([1, 2, 3]));
+}

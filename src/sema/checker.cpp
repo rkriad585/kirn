@@ -666,7 +666,8 @@ void Checker::predeclareBuiltins() {
     // pseudo-modules used by the standard environment (dynamically typed v1).
     // Not declared into scope: user `import time` etc. must not clash; the
     // importRoots_ set alone makes bare references resolve dynamically.
-    for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync"})
+    for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync",
+                            "reflect"})
         importRoots_.insert(mod);
 
     // Publish every name that resolves at top level without a user declaration,

@@ -1,0 +1,223 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/60_reflect.kn
+Import reflect
+StructDef "Account"
+  Field "owner" : Str
+  Field "balance" : f64
+    Default Float "0.0"
+  FuncDef "deposit"
+    Param "self" self : <inferred>
+    Param "amt" : f64
+    Ret none
+    Body
+      AugAssign op="+="
+        Target 
+          Member name="balance"
+            Obj Ident "self"
+        Value Ident "amt"
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "a"
+      Value 
+        Call
+          Callee Ident "Account"
+          Arg name=owner
+            Value Str "ada"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="deposit"
+              Obj Ident "a"
+          Arg name=amt
+            Value Float "125.5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="type"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="kind_of"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="field_names"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="fields"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="methods"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "Account"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_of_type"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+                Arg
+                  Value Ident "Account"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+                Arg
+                  Value Str "balance"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="has_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+                Arg
+                  Value Str "owner"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="has_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+                Arg
+                  Value Str "ssn"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="deep_equal"
+                    Obj Ident "reflect"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "1"
+                      Item 
+                        List len=2
+                          Item Int "2"
+                          Item Int "3"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "1"
+                      Item 
+                        List len=2
+                          Item Int "2"
+                          Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="deep_equal"
+                    Obj Ident "reflect"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "1"
+                      Item 
+                        List len=2
+                          Item Int "2"
+                          Item Int "3"
+                Arg
+                  Value 
+                    List len=2
+                      Item Int "1"
+                      Item 
+                        List len=2
+                          Item Int "2"
+                          Item Int "4"
+    Assign
+      Target Ident "fresh"
+      Value 
+        Call
+          Callee 
+            Member name="new"
+              Obj Ident "reflect"
+          Arg
+            Value Ident "Account"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "fresh"
+                Arg
+                  Value Str "balance"
+<ROOT>/examples/60_reflect.kn: OK (3 top-level statements)
+[exit 0]

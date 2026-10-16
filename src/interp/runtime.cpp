@@ -872,6 +872,55 @@ static std::string typeName(const Value& v) {
     }
 }
 
+// M10: coarse reflect kind — the category a value belongs to, independent of
+// its concrete type name (so BigInt/Int share "int", Decimal/Float "float").
+static std::string kindName(const Value& v) {
+    switch (v.k) {
+        case VK::Bool:   return "bool";
+        case VK::Int:
+        case VK::BigInt: return "int";
+        case VK::Float:
+        case VK::Decimal: return "float";
+        case VK::Rational:return "rational";
+        case VK::Complex: return "complex";
+        case VK::Str:    return "string";
+        case VK::Char:   return "char";
+        case VK::Bytes:  return "bytes";
+        case VK::ByteArray: return "bytearray";
+        case VK::View:   return "memoryview";
+        case VK::List:   return "list";
+        case VK::Tuple:  return "tuple";
+        case VK::Set:    return "set";
+        case VK::Dict:   return "dict";
+        case VK::Deque:  return "deque";
+        case VK::Counter:return "counter";
+        case VK::Range:  return "range";
+        case VK::Struct: return "struct";
+        case VK::Heap:   return "struct";
+        case VK::EnumV:  return "enum";
+        case VK::Result: return "result";
+        case VK::Fn:
+        case VK::Builtin: return "function";
+        case VK::Gen:    return "generator";
+        case VK::None:   return "none";
+        default:         return typeName(v);
+    }
+}
+
+// M10: name carried by a type reference. `Point` evaluates to a module value
+// tagged "__struct__:Point"; a string name is accepted directly (for the
+// dynamic path); a value falls back to its own type name.
+static std::string typeRefName(const Value& v) {
+    if (v.k == VK::Module &&
+        v.typeName.rfind("__struct__:", 0) == 0)
+        return v.typeName.substr(11);
+    if (v.k == VK::Module &&
+        v.typeName.rfind("__enum__:", 0) == 0)
+        return v.typeName.substr(9);
+    if (v.k == VK::Str) return v.s;
+    return typeName(v);
+}
+
 // Accumulate numeric addition (int + int -> int; float involved -> float).
 static void numericAdd(Value& acc, const Value& item) {
     if (acc.k == VK::Int && item.k == VK::Int) {
@@ -2861,6 +2910,158 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         if (name == "Cond") return syncCtorCond();
         if (name == "Atomic") return syncCtorAtomic();
         panicHere("sync has no member '" + name + "'");
+    }
+
+    // M10: runtime reflection. `typeof` is the same name query; these members
+    // expose the shape of a value (kind/type/fields/methods) and deep equality.
+    if (mod == "reflect") {
+        if (name == "type" || name == "typeof")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                return Value::str(a.empty() ? "none" : typeName(a[0]));
+            });
+        if (name == "kind_of" || name == "kind")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                return Value::str(a.empty() ? "none" : kindName(a[0]));
+            });
+        if (name == "fields")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                Value out = Value::dict();
+                if (a.empty()) return out;
+                const Value& x = a[0];
+                const std::vector<std::pair<std::string, Value>>* fs = nullptr;
+                if (x.k == VK::Struct) fs = &x.fields;
+                else if (x.k == VK::Heap && x.heap) fs = &x.heap->fields;
+                if (fs)
+                    for (const auto& f : *fs)
+                        out.map->push_back({Value::str(f.first), f.second});
+                return out;
+            });
+        if (name == "field_names")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                std::vector<Value> names;
+                if (a.empty()) return Value::list(std::move(names));
+                const Value& x = a[0];
+                const std::vector<std::pair<std::string, Value>>* fs = nullptr;
+                if (x.k == VK::Struct) fs = &x.fields;
+                else if (x.k == VK::Heap && x.heap) fs = &x.heap->fields;
+                if (fs)
+                    for (const auto& f : *fs)
+                        names.push_back(Value::str(f.first));
+                return Value::list(std::move(names));
+            });
+        if (name == "methods")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                std::vector<Value> out;
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    for (const auto& m : si->second->body)
+                        if (m->kind == ast::StKind::FuncDef)
+                            out.push_back(Value::str(m->name));
+                for (const auto& imp : impls_)
+                    if (imp.typeName == tn)
+                        for (const auto& kv : imp.methods)
+                            out.push_back(Value::str(kv.first));
+                return Value::list(std::move(out));
+            });
+        if (name == "is_of_type")
+            return biFn({"v", "t"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 2) return Value::boolean(false);
+                return Value::boolean(typeName(a[0]) == typeRefName(a[1]));
+            });
+        if (name == "get_field")
+            return biFn({"x", "name"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 2 || a[1].k != VK::Str)
+                    panicHere("reflect.get_field expects (value, name)");
+                const Value& x = a[0];
+                const std::vector<std::pair<std::string, Value>>* fs = nullptr;
+                if (x.k == VK::Struct) fs = &x.fields;
+                else if (x.k == VK::Heap && x.heap) fs = &x.heap->fields;
+                if (fs)
+                    for (const auto& f : *fs)
+                        if (f.first == a[1].s) return f.second;
+                panicHere("reflect.get_field: no field '" + a[1].s + "' on " +
+                          typeName(x));
+            });
+        if (name == "set_field")
+            return biFn({"x", "name", "value"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 3 || a[1].k != VK::Str)
+                    panicHere("reflect.set_field expects (value, name, value)");
+                if (a[0].k == VK::Heap && a[0].heap)
+                    for (auto& f : a[0].heap->fields)
+                        if (f.first == a[1].s) {
+                            f.second = a[2];
+                            return Value::none();
+                        }
+                panicHere("reflect.set_field: '" + a[1].s +
+                          "' is not a settable field on " + typeName(a[0]));
+            });
+        if (name == "has_field")
+            return biFn({"x", "name"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 2 || a[1].k != VK::Str)
+                    return Value::boolean(false);
+                const Value& x = a[0];
+                const std::vector<std::pair<std::string, Value>>* fs = nullptr;
+                if (x.k == VK::Struct) fs = &x.fields;
+                else if (x.k == VK::Heap && x.heap) fs = &x.heap->fields;
+                if (fs)
+                    for (const auto& f : *fs)
+                        if (f.first == a[1].s) return Value::boolean(true);
+                return Value::boolean(false);
+            });
+        if (name == "deep_equal")
+            return biFn({"a", "b"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 2) return Value::boolean(false);
+                return Value::boolean(valEq(a[0], a[1]));
+            });
+        if (name == "new")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                if (a.empty())
+                    panicHere("reflect.new expects a type reference");
+                std::string tn = typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si == structs_.end())
+                    panicHere("reflect.new: unknown struct '" + tn + "'");
+                Value v = Value::structV(tn);
+                for (const auto& fd : si->second->fields) {
+                    if (fd.defaultValue)
+                        v.fields.emplace_back(fd.name, eval(*fd.defaultValue,
+                                                            globals_));
+                    else if (auto def = containerDefaultFor(fd.type))
+                        v.fields.emplace_back(fd.name, std::move(*def));
+                    else if (fd.type && fd.type->kind == ast::TyKind::Name) {
+                        const std::string& ft = fd.type->name;
+                        if (ft == "Int" || ft == "int" || ft == "i64" ||
+                            ft == "i32" || ft == "i16" || ft == "i8" ||
+                            ft == "u64" || ft == "u32" || ft == "u16" ||
+                            ft == "u8")
+                            v.fields.emplace_back(fd.name, Value::integer(0));
+                        else if (ft == "f64" || ft == "f32" || ft == "float")
+                            v.fields.emplace_back(fd.name, Value::floating(0.0));
+                        else if (ft == "bool")
+                            v.fields.emplace_back(fd.name, Value::boolean(false));
+                        else if (ft == "str" || ft == "String" || ft == "string")
+                            v.fields.emplace_back(fd.name, Value::str(""));
+                        else
+                            v.fields.emplace_back(fd.name, Value::none());
+                    } else
+                        v.fields.emplace_back(fd.name, Value::none());
+                }
+                return v;
+            });
+        if (name == "sizeof" || name == "size_of")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                if (a.empty()) return Value::integer(0);
+                const Value& x = a[0];
+                if (x.k == VK::List || x.k == VK::Tuple || x.k == VK::Set ||
+                    x.k == VK::Gen || x.k == VK::Deque)
+                    return Value::integer(x.vec ? (int64_t)x.vec->size() : 0);
+                if (x.k == VK::Dict || x.k == VK::Counter)
+                    return Value::integer(x.map ? (int64_t)x.map->size() : 0);
+                if (x.k == VK::Str) return Value::integer((int64_t)x.s.size());
+                return Value::integer(0);
+            });
+        panicHere("reflect has no member '" + name + "'");
     }
 
     if (mod == "math") {

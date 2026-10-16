@@ -178,6 +178,14 @@ the full gate (`scripts/gates_linux.sh`, 251), golden (`scripts/golden_linux.sh`
 (`scripts/crosscheck_linux.sh`, 573) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M9 phase
 note for the recorded scope deviations.
 
+**Implementation progress (2026-10-16).** M10 (`reflect` module: runtime introspection) is implemented
+in `src/interp/runtime.cpp` (runtime metadata over `VK`/the struct/impl tables). The new work is the
+`reflect` pseudo-module — `type`/`kind_of`/`fields`/`field_names`/`methods`/`is_of_type`/`get_field`/
+`set_field`/`has_field`/`deep_equal`/`new`/`sizeof` — backed by two new helpers (`kindName`,
+`typeRefName`) and the existing `valEq` deep-equality (`typeof` is the same name query). Verified:
+gates 255, golden 245, crosscheck 579, stdlib 9, all 0 fail. See the M10 phase note for recorded
+scope deviations (no `stdlib/lib` module; `reflect.new` builds structs with type-based zero defaults).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -930,6 +938,32 @@ b = reflect.deep_equal(a, b);
 **Testing:** `tests/reflect/*_test.kn`; generic JSON serialization exercise; `examples/60_reflect.kn`.
 
 **Expected result:** full runtime `reflect` surface works and `typeof` is backed by it.
+
+**M10 phase note (implemented).** Delivered in `src/interp/runtime.cpp`: two static helpers —
+`kindName(v)` (coarse category: `int`/`float`/`string`/`list`/`dict`/`struct`/`enum`/`function`/…) and
+`typeRefName(v)` (extracts the type name from a `__struct__:`/`__enum__:` module value, a string, or a
+concrete value) — plus a `reflect` pseudo-module branch in `moduleMember` implementing
+`reflect.type(x)`/`reflect.typeof(x)` (alias of the M3 `typeof` query), `reflect.kind_of(x)`,
+`reflect.fields(x)` (struct/heap fields as an ordered dict), `reflect.field_names(x)`,
+`reflect.methods(t)` (struct-body `FuncDef`s plus `impl` methods for a type reference),
+`reflect.is_of_type(v, t)`, `reflect.get_field(x, name)`, `reflect.set_field(x, name, val)` (mutable
+heap fields), `reflect.has_field(x, name)`, `reflect.deep_equal(a, b)` (reuses `valEq`),
+`reflect.new(t)` (struct with default/zero field values), and `reflect.sizeof(x)`. The checker adds
+`reflect` to `importRoots_` so `import reflect;` resolves and member calls type as dynamic handles
+(same treatment as `sync`/`math`). Tests: `tests/syntax/reflect_ok.kn`,
+`tests/vm_parity/reflect_m10.kn`, `examples/60_reflect.kn` (+3 recorded goldens); gate 255, golden
+245, crosscheck 579, stdlib 9, all 0 fail; tree-walk and VM outputs are byte-identical. Deviations
+recorded: (1) the plan lists `stdlib/lib/reflect.kn` + `import lib.reflect`, but the repository has no
+`stdlib/lib` tree, so — as with M6–M9 — `reflect` ships as a builtin pseudo-module (`import reflect;`)
+and no module wrapper was added. (2) `reflect.fields` returns an ordered `dict` (name→value) rather
+than a list of descriptors; `field_names`/`methods` return `list(Str)`. (3) `reflect.new(t)` takes only
+a type reference and fills fields from their declared defaults (or a type-appropriate zero: `0`/`0.0`/
+`false`/`""`, containers from `containerDefaultFor`); a name+args overload was not added.
+(4) `reflect.set_field` mutates only `VK::Heap` fields (struct values are copied by value, so
+reflective mutation of an inline struct would not propagate). (5) Tests live under
+`tests/syntax`/`tests/vm_parity` rather than `tests/reflect`, so the existing gates run them. (6)
+Compile-time reflection and a first-class type _descriptor object_ remain a later `--strict` goal; the
+descriptor here is the type-name string plus the `fields`/`methods` queries.
 
 ---
 

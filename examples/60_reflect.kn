@@ -1,0 +1,30 @@
+# 60 — Reflection: type/kind queries, fields, methods, deep equality   (M10)
+import reflect;
+
+struct Account {
+    owner: Str;
+    balance: f64 = 0.0;
+
+    fn deposit(self, amt: f64) -> none { self.balance += amt; }
+}
+
+fn main() -> none {
+    a = Account(owner: "ada");
+    a.deposit(amt: 125.5);
+
+    print(reflect.type(a));        # Account
+    print(reflect.kind_of(a));     # struct
+    print(reflect.field_names(a)); # ['owner', 'balance']
+    print(reflect.fields(a));      # {'owner': 'ada', 'balance': 125.5}
+    print(reflect.methods(Account));
+    print(reflect.is_of_type(a, Account));
+
+    print(reflect.get_field(a, "balance"));
+    print(reflect.has_field(a, "owner"), reflect.has_field(a, "ssn"));
+
+    print(reflect.deep_equal([1, [2, 3]], [1, [2, 3]]));
+    print(reflect.deep_equal([1, [2, 3]], [1, [2, 4]]));
+
+    fresh = reflect.new(Account);
+    print(reflect.get_field(fresh, "balance"));
+}

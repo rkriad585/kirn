@@ -40,7 +40,9 @@ std::string toString(const Ty& t) {
         case TyK::Decimal: return t.name.empty() ? "Decimal" : t.name;
         case TyK::Str:     return t.name.empty() ? "Str" : t.name;
         case TyK::Char:    return t.name.empty() ? "Char" : t.name;
-        case TyK::Bytes:   return "bytes";
+        case TyK::Bytes:     return t.name.empty() ? "bytes" : t.name;
+        case TyK::ByteArray: return t.name.empty() ? "bytearray" : t.name;
+        case TyK::MemoryView: return t.name.empty() ? "memoryview" : t.name;
         case TyK::List:    return t.args.empty() ? "list" : "list[" + toString(*t.args[0]) + "]";
         case TyK::Dict:
             return t.args.size() < 2
@@ -555,6 +557,15 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("ComplexImag", {complexTy()}, {"z"}, floatTy(), false, 1);
     makeBuiltinFunc("ComplexConj", {complexTy()}, {"z"}, complexTy(), false, 1);
     makeBuiltinFunc("ComplexAbs", {complexTy()}, {"z"}, floatTy(), false, 1);
+    // M7: bytes / bytearray / memoryview construction and helpers.
+    makeBuiltinFunc("bytes", {unkTy()}, {"x"}, bytesTy(), false, 1);
+    makeBuiltinFunc("__Bytes", {unkTy()}, {"x"}, bytesTy(), false, 1);
+    makeBuiltinFunc("bytearray", {unkTy()}, {"x"}, byteArrayTy(), false, 1);
+    makeBuiltinFunc("__ByteArray", {unkTy()}, {"x"}, byteArrayTy(), false, 1);
+    makeBuiltinFunc("memoryview", {unkTy()}, {"x"}, memoryViewTy(), false, 1);
+    makeBuiltinFunc("__MemoryView", {unkTy()}, {"x"}, memoryViewTy(), false, 1);
+    makeBuiltinFunc("fromhex", {strTy()}, {"s"}, bytesTy(), false, 1);
+    makeBuiltinFunc("__FromHex", {strTy()}, {"s"}, bytesTy(), false, 1);
     makeBuiltinFunc("CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("__CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
@@ -1092,6 +1103,8 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 if (n == kCharNames[i]) return charTy(n);
             if (n == "strings") return strTy("strings");
             if (n == "bytes")   return bytesTy();
+            if (n == "bytearray") return byteArrayTy();
+            if (n == "memoryview") return memoryViewTy();
             if (n == "BigInt" || n == "bigint" || n == "big_int") return bigIntTy();
             if (n == "Rational" || n == "rational") return rationalTy();
             if (n == "Complex" || n == "complex") return complexTy();
@@ -1251,6 +1264,14 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     if (kFrom == TyK::Char && kTo == TyK::Char) return true;
     if (kFrom == TyK::Str && kTo == TyK::Str) return true;
     if (kFrom == TyK::Bytes && kTo == TyK::Bytes) return true;
+    if (kFrom == TyK::ByteArray && kTo == TyK::ByteArray) return true;
+    if (kFrom == TyK::MemoryView && kTo == TyK::MemoryView) return true;
+    // bytes/bytearray/memoryview are buffer-compatible: a memoryview binds a
+    // bytes or bytearray source, and either buffer accepts a memoryview rvalue.
+    if (kTo == TyK::MemoryView &&
+        (kFrom == TyK::Bytes || kFrom == TyK::ByteArray)) return true;
+    if (kFrom == TyK::MemoryView &&
+        (kTo == TyK::Bytes || kTo == TyK::ByteArray)) return true;
 
     // none literal widens into an optional
     if (kFrom == TyK::None && kTo == TyK::Opt) return true;
@@ -1356,6 +1377,19 @@ TyP Checker::unify(const TyP& a, const TyP& b, uint32_t line, uint32_t col,
         if (a->is(TyK::Decimal) && isdecT(b, true)) return decimalTy();
         if (b->is(TyK::Decimal) && isdecT(a, true)) return decimalTy();
     }
+    {
+        auto isbuf = [](const TyP& t) {
+            return t->is(TyK::Bytes) || t->is(TyK::ByteArray) ||
+                   t->is(TyK::MemoryView);
+        };
+        if (isbuf(a) && isbuf(b)) {
+            if (a->is(TyK::ByteArray) || b->is(TyK::ByteArray))
+                return byteArrayTy();
+            if (a->is(TyK::MemoryView) || b->is(TyK::MemoryView))
+                return memoryViewTy();
+            return bytesTy();
+        }
+    }
     if (a->is(TyK::None) && !b->is(TyK::None)) return optTy(b);
     if (b->is(TyK::None) && !a->is(TyK::None)) return optTy(a);
     if (a->is(TyK::Opt) && !b->is(TyK::Opt))
@@ -1409,6 +1443,10 @@ TyP Checker::iterableElem(const TyP& t) const {
         }
         case TyK::Str:
             return charTy();
+        case TyK::Bytes:
+        case TyK::ByteArray:
+        case TyK::MemoryView:
+            return intTy("UInt8");
         case TyK::Struct:
         case TyK::TraitObj: {
             auto sig = methodLookup(t, "next");
@@ -1884,6 +1922,45 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         return std::nullopt;
     }
 
+    // M7: bytes / bytearray / memoryview method surface. `bytes` is immutable;
+    // `bytearray` adds the mutating methods; `memoryview` is a read-only view.
+    if (recv->is(TyK::Bytes) || recv->is(TyK::ByteArray) ||
+        recv->is(TyK::MemoryView)) {
+        FuncSig s;
+        bool mut = recv->is(TyK::ByteArray);
+        if (name == "decode") {
+            s.params.push_back(strTy()); s.names.push_back("encoding");
+            s.ret = strTy(); s.required = 0; return s;
+        }
+        if (name == "hex" || name == "to_string") { s.ret = strTy(); return s; }
+        if (name == "len") { s.ret = intTy(); return s; }
+        if (name == "contains") {
+            s.params.push_back(intTy()); s.names.push_back("x");
+            s.ret = boolTy(); s.required = 1; return s;
+        }
+        if (name == "count") {
+            s.params.push_back(intTy()); s.names.push_back("x");
+            s.ret = intTy(); s.required = 1; return s;
+        }
+        if (name == "to_list" || name == "tolist") {
+            s.ret = listTy(intTy()); return s;
+        }
+        if (name == "to_bytes") { s.ret = bytesTy(); return s; }
+        if (mut && (name == "append" || name == "push_back")) {
+            s.params.push_back(intTy()); s.names.push_back("x");
+            s.ret = noneTy(); s.required = 1; return s;
+        }
+        if (mut && (name == "extend" || name == "extend_from")) {
+            s.params.push_back(recv); s.names.push_back("other");
+            s.ret = noneTy(); s.required = 1; return s;
+        }
+        if (mut && name == "clear") { s.ret = noneTy(); return s; }
+        if (mut && (name == "pop" || name == "pop_back")) {
+            s.ret = intTy(); return s;
+        }
+        return std::nullopt;
+    }
+
     if (recv->is(TyK::Str)) {
         if (name == "split") {
             FuncSig s;
@@ -2273,6 +2350,11 @@ void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
         case ExKind::Index:
         case ExKind::Member: {
             TyP tt = checkExpr(tgt);
+            if (tgt.kind == ExKind::Index && tgt.lhs) {
+                TyP bt = checkExpr(*tgt.lhs);
+                if (bt && bt->is(TyK::Bytes))
+                    error(tgt.span, "cannot assign into immutable 'bytes'");
+            }
             // loose element compatibility when shapes are known on both sides
             if (tt && !tt->isError() && !tt->isUnknown() && vt &&
                 !vt->isError() && !vt->isUnknown()) {
@@ -3361,8 +3443,13 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 return boolTy();
             }
             if (op == "==") {
+                auto isbuf = [](const TyP& t) {
+                    return t && (t->is(TyK::Bytes) || t->is(TyK::ByteArray) ||
+                                 t->is(TyK::MemoryView));
+                };
                 if (!dynish(lt) && !dynish(rt) && !equal(lt, rt) &&
                     !(isNumeric(*lt) && isNumeric(*rt)) &&
+                    !(isbuf(lt) && isbuf(rt)) &&
                     !assignable(lt, rt) && !assignable(rt, lt))
                     error(e.span,
                           "comparing incompatible types " + toString(*lt) +
@@ -3372,6 +3459,17 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             if (op == "!=" || op == "<" || op == "<=" || op == ">" || op == ">=")
                 return boolTy();
             if (op == "in") {
+                auto isbuf = [](const TyP& t) {
+                    return t && (t->is(TyK::Bytes) || t->is(TyK::ByteArray) ||
+                                 t->is(TyK::MemoryView));
+                };
+                if (isbuf(rt)) {
+                    if (!isbuf(lt) && !lt->is(TyK::Int) && !dynish(lt))
+                        error(e.span,
+                              "'" + toString(*lt) + "' cannot appear in " +
+                                  toString(*rt));
+                    return boolTy();
+                }
                 TyP elem = iterableElem(rt);
                 if (elem && elem->isError() && rt && !rt->isError())
                     error(e.span,
@@ -3402,10 +3500,25 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     };
                     bool strcat = isStrish(lt) && isStrish(rt);
                     bool listcat = lt->is(TyK::List) && rt->is(TyK::List);
+                    bool bytescat = (lt->is(TyK::Bytes) ||
+                                     lt->is(TyK::ByteArray)) &&
+                                    (rt->is(TyK::Bytes) ||
+                                     rt->is(TyK::ByteArray));
                     if (strcat) return strTy();
+                    if (bytescat)
+                        return (lt->is(TyK::ByteArray) ||
+                                rt->is(TyK::ByteArray))
+                                   ? byteArrayTy() : bytesTy();
                     if (listcat)
                         return listTy(unify(argAt(lt, 0), argAt(rt, 0),
                                             e.span.line, e.span.col, "'+'"));
+                }
+                if (op == "*") {
+                    auto byteish = [](const TyP& t) {
+                        return t->is(TyK::Bytes) || t->is(TyK::ByteArray);
+                    };
+                    if (byteish(lt) && rt->is(TyK::Int)) return lt;
+                    if (lt->is(TyK::Int) && byteish(rt)) return rt;
                 }
                 if (dynish(lt)) return rt;
                 if (dynish(rt)) return lt;
@@ -3505,6 +3618,14 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 if (idx->is(TyK::Int)) return charTy();
                 if (idx->is(TyK::Range)) return strTy();
                 error(e.span, "string index must be an integer");
+                return errTy();
+            }
+            if (obj->is(TyK::Bytes) || obj->is(TyK::ByteArray) ||
+                obj->is(TyK::MemoryView)) {
+                if (idx->is(TyK::Int)) return intTy("UInt8");
+                if (idx->is(TyK::Range))
+                    return obj->is(TyK::Bytes) ? bytesTy() : byteArrayTy();
+                error(e.span, "bytes index must be an integer");
                 return errTy();
             }
             if (obj->is(TyK::Tuple)) {

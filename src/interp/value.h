@@ -29,7 +29,7 @@ struct HeapObj;
 struct ThreadImpl;
 
 enum class VK {
-    None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, Char,
+    None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, ByteArray, View, Char,
     List, Dict, Set, Tuple, Range,
     Struct,                                   // by-value instance
     Heap, Weak,                               // `new` handles
@@ -79,6 +79,13 @@ struct Value {
     std::string mant;
     int64_t exp = 0;
     bool dneg = false;
+    // Mutable bytes buffer shared by VK::ByteArray and VK::View (zero-copy).
+    // For VK::Bytes the immutable content lives in `s`; for ByteArray/View the
+    // bytes live here so aliases observe in-place mutation.
+    std::shared_ptr<std::string> bstr;
+    size_t voff = 0;                          // view start offset
+    size_t vlen = 0;                          // view length in bytes
+    bool vreadonly = false;                   // view rejects in-place writes
 
     // containers (aliased)
     std::shared_ptr<std::vector<Value>> vec;                    // List/Set/Tuple
@@ -127,6 +134,18 @@ struct Value {
         return x;
     }
     static Value str(std::string v) { Value x; x.k = VK::Str; x.s = std::move(v); return x; }
+    static Value byteArray(std::string v) {
+        Value x; x.k = VK::ByteArray;
+        x.bstr = std::make_shared<std::string>(std::move(v));
+        return x;
+    }
+    static Value view(std::shared_ptr<std::string> buf, size_t off, size_t len,
+                      bool readonly) {
+        Value x; x.k = VK::View;
+        x.bstr = std::move(buf); x.voff = off; x.vlen = len;
+        x.vreadonly = readonly;
+        return x;
+    }
     static Value complexNum(double re, double im) {
         Value x; x.k = VK::Complex; x.re = re; x.im = im; return x;
     }

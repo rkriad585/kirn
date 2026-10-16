@@ -154,6 +154,14 @@ emitted as a separate data section (folding rewrites the AST literal instead).
 note for the recorded scope deviations (different transcendental path for `decimal`, no `stdlib/lib`
 modules, property vs method accessors).
 
+**Implementation progress (2026-10-16).** M7 (bytes/bytearray + buffer protocol) is implemented in
+`src/` (runtime values + checker). `bytes`/`b"..."` already existed; the new work is the mutable
+`bytearray`, the zero-copy `memoryview` view, the buffer `VK::ByteArray`/`VK::View` values, Int
+indexing, `+`/`*`/`in`, and the buffer method surface. Green on the full gate
+(`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 236), crosscheck
+(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M7 phase
+note for the recorded scope deviations (no `stdlib/lib` module).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -726,6 +734,29 @@ mv = memoryview(ba);                 # zero-copy
 **Testing:** `tests/bytes/*_test.kn` (immutable vs mutable, hashing, views); `examples/57_bytes.kn`.
 
 **Expected result:** `bytes`/`bytearray`/`memoryview` fully usable; missing type spelling fixed.
+
+**M7 phase note (implemented).** Delivered in `src/interp/value.h` (`VK::ByteArray` sharing a
+`std::shared_ptr<std::string>` buffer, and `VK::View` carrying `bstr`/`voff`/`vlen`/`vreadonly` plus
+`Value::byteArray`/`Value::view`) and `src/interp/runtime.cpp` (buffer helpers `isBuffer`/`bytesData`;
+`repr`/`truthy`/`typeName`; globals `bytes`/`bytearray`/`memoryview`/`fromhex`; `memberRead` with
+`decode`/`hex`/`to_string`/`len`/`contains`/`count`/`to_list`/`tolist`/`to_bytes` and the `bytearray`
+mutators `append`/`push_back`/`extend`/`extend_from`/`clear`/`pop`/`pop_back`; `sliceOf`,
+`OP_INDEX` and index-assignment for buffers with a readonly-view panic; `+` concat / `*` repeat /
+`in`; `valEq`/`valLess` cross-buffer comparison; casts; `typeTestMatches`). Types in
+`src/sema/type.h` (`TyK::ByteArray`/`TyK::MemoryView`, `byteArrayTy`/`memoryViewTy`) and
+`src/sema/checker.cpp` (`toString`, spellings `bytearray`/`memoryview`, builtin registrations,
+index→`UInt8`, `iterableElem`, `+`/`*`/`in`/`==` buffer rules, method surfaces, `assignable`
+widening, and a static "cannot assign into immutable `bytes`"). Immutability is enforced at check
+time and mirrored at run time. Tests: `tests/syntax/bytes_ok.kn`,
+`tests/syntax/bytes_err_immutable.kn`, `tests/syntax/bytes_err_concat_str.kn`,
+`tests/vm_parity/bytes.kn`, `examples/57_bytes.kn` (+3 recorded goldens). Deviations recorded:
+(1) the plan lists `stdlib/lib/bytes.kn` (`STD P4a`), but the repository's stdlib is the
+`stdlib/pet` package tree (there is no `stdlib/lib`), so — as with M6 — the buffer API ships as
+builtins/methods and no module wrapper was added. (2) `memoryview` writes are permitted (and flow
+back to the source) unless the view is marked read-only, matching Python's writable-buffer default;
+the plan's "zero-copy view" requirement is met by sharing the underlying buffer. (3) Tests live under
+`tests/syntax` (via the `*_ok`/`*_err` conventions) and `tests/vm_parity` rather than `tests/bytes`,
+so the existing gates pick them up.
 
 ---
 

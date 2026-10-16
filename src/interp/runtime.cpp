@@ -689,22 +689,39 @@ std::string toStr(const Value& v) {
     }
 }
 
+static bool isBuffer(const Value& v) {
+    return v.k == VK::Bytes || v.k == VK::ByteArray || v.k == VK::View;
+}
+
+// Raw bytes behind a buffer value. VK::Bytes is immutable (`s`); bytearray and
+// views share a mutable buffer (`bstr`), with a view narrowed by off/len.
+static std::string bytesData(const Value& v) {
+    if (v.k == VK::ByteArray) return v.bstr ? *v.bstr : std::string();
+    if (v.k == VK::View)
+        return v.bstr ? v.bstr->substr(v.voff, v.vlen) : std::string();
+    if (v.k == VK::Bytes) return v.s;
+    return std::string();
+}
+
 std::string repr(const Value& v) {
+    auto escBytes = [](const std::string& s) {
+        std::string o = "b'";
+        for (unsigned char c : s) {
+            if (c >= 0x20 && c < 0x7f && c != '\\' && c != '\'') {
+                o += (char)c;
+            } else {
+                char b[6];
+                snprintf(b, sizeof b, "\\x%02x", c);
+                o += b;
+            }
+        }
+        return o + "'";
+    };
     switch (v.k) {
         case VK::Str: return "'" + escapeStr(v.s) + "'";
-        case VK::Bytes: {
-            std::string o = "b'";
-            for (unsigned char c : v.s) {
-                if (c >= 0x20 && c < 0x7f && c != '\\' && c != '\'') {
-                    o += (char)c;
-                } else {
-                    char b[6];
-                    snprintf(b, sizeof b, "\\x%02x", c);
-                    o += b;
-                }
-            }
-            return o + "'";
-        }
+        case VK::Bytes: return escBytes(v.s);
+        case VK::ByteArray: return "bytearray(" + escBytes(v.bstr ? *v.bstr : std::string()) + ")";
+        case VK::View: return "memoryview(" + escBytes(bytesData(v)) + ")";
         case VK::List: {
             std::string o = "[";
             for (size_t i = 0; i < v.vec->size(); ++i)
@@ -780,6 +797,9 @@ bool truthy(const Value& v) {
         case VK::BigInt: return v.limbs && !v.limbs->empty();
         case VK::Complex: return v.re != 0.0 || v.im != 0.0;
         case VK::Decimal: return v.mant != "0";
+        case VK::Bytes:  return !v.s.empty();
+        case VK::ByteArray: return v.bstr && !v.bstr->empty();
+        case VK::View:   return v.vlen != 0;
         default:        panicHere("condition is not a bool");
     }
 }
@@ -796,6 +816,8 @@ static std::string typeName(const Value& v) {
         case VK::Decimal: return "decimal";
         case VK::Str:    return "string";
         case VK::Bytes:  return "bytes";
+        case VK::ByteArray: return "bytearray";
+        case VK::View:   return "memoryview";
         case VK::Char:   return "char";
         case VK::List:   return "list";
         case VK::Set:    return "set";
@@ -1066,6 +1088,10 @@ void Interpreter::installBuiltins() {
             case VK::Str:
             case VK::Bytes:
                 return Value::integer((int64_t)v.s.size());
+            case VK::ByteArray:
+                return Value::integer((int64_t)(v.bstr ? v.bstr->size() : 0));
+            case VK::View:
+                return Value::integer((int64_t)v.vlen);
             case VK::List:
             case VK::Tuple:
             case VK::Set:
@@ -1784,6 +1810,71 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         v.neg = neg && !limbs.empty();
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(limbs));
         return v;
+    });
+    // M7: bytes / bytearray / memoryview construction + hex helpers.
+    globals_->vars["bytes"] = globals_->vars["__Bytes"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty() || a[0].k == VK::None) {
+            Value v = Value::str(""); v.k = VK::Bytes; return v;
+        }
+        if (a[0].k == VK::Bytes) return a[0];
+        std::string s;
+        if (a[0].k == VK::ByteArray) s = a[0].bstr ? *a[0].bstr : "";
+        else if (a[0].k == VK::View) s = bytesData(a[0]);
+        else if (a[0].k == VK::Str) s = a[0].s;
+        else if (a[0].k == VK::List) {
+            for (auto& e : *a[0].vec) s.push_back((char)(e.i & 0xff));
+        } else {
+            panicHere("bytes(): unsupported operand");
+        }
+        Value v = Value::str(std::move(s)); v.k = VK::Bytes; return v;
+    });
+    globals_->vars["bytearray"] = globals_->vars["__ByteArray"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        std::string s;
+        if (!a.empty()) {
+            if (a[0].k == VK::Bytes) s = a[0].s;
+            else if (a[0].k == VK::ByteArray) s = a[0].bstr ? *a[0].bstr : "";
+            else if (a[0].k == VK::View) s = bytesData(a[0]);
+            else if (a[0].k == VK::Str) s = a[0].s;
+            else if (a[0].k == VK::Int) s = std::string((size_t)a[0].i, '\0');
+            else if (a[0].k == VK::List) {
+                for (auto& e : *a[0].vec) s.push_back((char)(e.i & 0xff));
+            } else {
+                panicHere("bytearray(): unsupported operand");
+            }
+        }
+        return Value::byteArray(std::move(s));
+    });
+    globals_->vars["memoryview"] = globals_->vars["__MemoryView"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a.empty()) panicHere("memoryview() expects an argument");
+        if (a[0].k == VK::Bytes) {
+            auto buf = std::make_shared<std::string>(a[0].s);
+            return Value::view(std::move(buf), 0, a[0].s.size(), true);
+        }
+        if (a[0].k == VK::ByteArray) {
+            if (!a[0].bstr)
+                return Value::view(std::make_shared<std::string>(), 0, 0, false);
+            return Value::view(a[0].bstr, 0, a[0].bstr->size(), false);
+        }
+        if (a[0].k == VK::View) return a[0];
+        panicHere("memoryview(): expected bytes or bytearray");
+    });
+    globals_->vars["fromhex"] = globals_->vars["FromHex"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {
+        std::string s = a[0].k == VK::Str ? a[0].s
+                      : a[0].k == VK::Bytes ? a[0].s : "";
+        std::string out;
+        int hi = -1;
+        for (char c : s) {
+            int d;
+            if (c >= '0' && c <= '9') d = c - '0';
+            else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+            else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+            else if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue;
+            else panicHere("fromhex(): invalid hex digit");
+            if (hi < 0) hi = d;
+            else { out.push_back((char)((hi << 4) | d)); hi = -1; }
+        }
+        if (hi >= 0) panicHere("fromhex(): odd number of hex digits");
+        Value v = Value::str(std::move(out)); v.k = VK::Bytes; return v;
     });
     globals_->vars["Bool"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::boolean(truthy(a[0]));
@@ -3256,6 +3347,8 @@ static bool typeTestMatches(const Value& v, const std::string& t) {
         t == "strings")
         return v.k == VK::Str;
     if (t == "bytes") return v.k == VK::Bytes;
+    if (t == "bytearray") return v.k == VK::ByteArray;
+    if (t == "memoryview") return v.k == VK::View;
     if (t == "Complex" || t == "complex") return v.k == VK::Complex;
     if (t == "Decimal" || t == "decimal") return v.k == VK::Decimal;
     if (t == "BigInt" || t == "bigint" || t == "big_int")
@@ -3419,6 +3512,19 @@ Value Interpreter::eval(const Expr& e, Env env) {
                         if (l.k != VK::Str)
                             panicHere("'in' on strings needs a string needle");
                         return Value::boolean(r.s.find(l.s) != std::string::npos);
+                    case VK::Bytes:
+                    case VK::ByteArray:
+                    case VK::View: {
+                        std::string hay = bytesData(r);
+                        if (isBuffer(l))
+                            return Value::boolean(hay.find(bytesData(l)) !=
+                                                  std::string::npos);
+                        if (l.k == VK::Int)
+                            return Value::boolean(
+                                hay.find((char)(l.i & 0xff)) !=
+                                std::string::npos);
+                        panicHere("'in' on bytes needs an int or bytes needle");
+                    }
                     case VK::Range:
                         return Value::boolean(
                             l.i >= r.lo &&
@@ -3590,6 +3696,12 @@ Value cv = eval(*e.lhs, env);
                         return Value::integer((unsigned char)obj.s[n]);
                     return Value::chr(decodeCharText(obj.s.substr(n, 1)));
                 }
+                case VK::ByteArray:
+                case VK::View: {
+                    std::string d = bytesData(obj);
+                    size_t n = normIndex((int64_t)d.size(), idx.i);
+                    return Value::integer((unsigned char)d[n]);
+                }
                 default: {
                     // Index trait lowering: g[i] calls user `index` method
                     if (obj.k == VK::Struct || obj.k == VK::Heap)
@@ -3635,6 +3747,12 @@ Value cv = eval(*e.lhs, env);
                     if (obj.k == VK::Bytes)
                         return Value::integer((unsigned char)obj.s[n]);
                     return Value::chr(decodeCharText(obj.s.substr(n, 1)));
+                }
+                case VK::ByteArray:
+                case VK::View: {
+                    std::string d = bytesData(obj);
+                    size_t n = normIndex((int64_t)d.size(), idx.i);
+                    return Value::integer((unsigned char)d[n]);
                 }
                 default: {
                     if (obj.k == VK::Struct || obj.k == VK::Heap)
@@ -3905,6 +4023,42 @@ Value cv = eval(*e.lhs, env);
                                   decFromSigned(std::to_string(v.den), 0));
                 panicHere("invalid cast to 'Decimal'");
             }
+            if (t == "bytes") {
+                if (v.k == VK::Bytes) return v;
+                if (isBuffer(v)) {
+                    Value b = Value::str(bytesData(v)); b.k = VK::Bytes; return b;
+                }
+                if (v.k == VK::Str) {
+                    Value b = Value::str(v.s); b.k = VK::Bytes; return b;
+                }
+                if (v.k == VK::List) {
+                    std::string s;
+                    for (auto& e2 : *v.vec) s.push_back((char)(e2.i & 0xff));
+                    Value b = Value::str(std::move(s)); b.k = VK::Bytes; return b;
+                }
+                panicHere("invalid cast to 'bytes'");
+            }
+            if (t == "bytearray") {
+                if (v.k == VK::ByteArray) return v;
+                if (isBuffer(v)) return Value::byteArray(bytesData(v));
+                if (v.k == VK::Str) return Value::byteArray(v.s);
+                if (v.k == VK::List) {
+                    std::string s;
+                    for (auto& e2 : *v.vec) s.push_back((char)(e2.i & 0xff));
+                    return Value::byteArray(std::move(s));
+                }
+                panicHere("invalid cast to 'bytearray'");
+            }
+            if (t == "memoryview") {
+                if (v.k == VK::View) return v;
+                if (v.k == VK::ByteArray && v.bstr)
+                    return Value::view(v.bstr, 0, v.bstr->size(), false);
+                if (isBuffer(v)) {
+                    auto buf = std::make_shared<std::string>(bytesData(v));
+                    return Value::view(std::move(buf), 0, buf->size(), true);
+                }
+                panicHere("invalid cast to 'memoryview'");
+            }
             if (v.k == VK::None && t == "none") return v;
             if (v.k != VK::None && !typeTestMatches(v, t))
                 panicHere("invalid cast to '" + t + "'");
@@ -4020,6 +4174,8 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
                      int64_t step) {
     if (step <= 0) panicHere("negative slice step unsupported");
     int64_t len = 0;
+    std::string buf;
+    bool bufMode = false;
     switch (obj.k) {
         case VK::List:
         case VK::Tuple:
@@ -4027,8 +4183,14 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
             len = (int64_t)obj.vec->size();
             break;
         case VK::Str:
-        case VK::Bytes:
             len = (int64_t)obj.s.size();
+            break;
+        case VK::Bytes:
+        case VK::ByteArray:
+        case VK::View:
+            buf = bytesData(obj);
+            len = (int64_t)buf.size();
+            bufMode = true;
             break;
         default:
             panicHere("cannot slice this value");
@@ -4041,14 +4203,23 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
 
     std::vector<Value> items;
     std::string chars;
-    bool strMode = obj.k == VK::Str || obj.k == VK::Bytes;
+    bool strMode = bufMode || obj.k == VK::Str;
     for (int64_t i = lo; i < hi; i += step) {
-        if (strMode) chars += obj.s[(size_t)i];
+        if (bufMode) chars += buf[(size_t)i];
+        else if (obj.k == VK::Str) chars += obj.s[(size_t)i];
         else items.push_back((*obj.vec)[(size_t)i]);
     }
     if (strMode) {
         Value r = Value::str(std::move(chars));
         if (obj.k == VK::Bytes) r.k = VK::Bytes;
+        else if (obj.k == VK::ByteArray) r.k = VK::ByteArray;
+        else if (obj.k == VK::View) {
+            r.k = VK::View;
+            r.bstr = std::make_shared<std::string>(r.s);
+            r.voff = 0;
+            r.vlen = r.s.size();
+            r.vreadonly = obj.vreadonly;
+        }
         return r;
     }
     if (obj.k == VK::Tuple) return Value::tuple(std::move(items));
@@ -4822,6 +4993,94 @@ return Value::none();
             if (name == "len")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     return Value::integer((int64_t)a[0].vec->size());
+                });
+            break;
+        }
+
+        case VK::Bytes:
+        case VK::ByteArray:
+        case VK::View: {
+            if (name == "hex")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    static const char* hx = "0123456789abcdef";
+                    std::string s = bytesData(a[0]), o;
+                    for (unsigned char c : s) {
+                        o += hx[c >> 4];
+                        o += hx[c & 0xf];
+                    }
+                    return Value::str(o);
+                });
+            if (name == "decode")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::str(bytesData(a[0]));
+                });
+            if (name == "len")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::integer((int64_t)bytesData(a[0]).size());
+                });
+            if (name == "to_string")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::str(bytesData(a[0]));
+                });
+            if (name == "to_list" || name == "tolist")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    std::vector<Value> xs;
+                    for (unsigned char c : bytesData(a[0]))
+                        xs.push_back(Value::integer((int64_t)c));
+                    return Value::list(std::move(xs));
+                });
+            if (name == "to_bytes")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    Value v = Value::str(bytesData(a[0]));
+                    v.k = VK::Bytes;
+                    return v;
+                });
+            if (name == "contains")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    int64_t needle = a.size() > 1 ? a[1].i : -1;
+                    for (unsigned char c : bytesData(a[0]))
+                        if ((int64_t)c == needle) return Value::boolean(true);
+                    return Value::boolean(false);
+                });
+            if (name == "count")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    int64_t needle = a.size() > 1 ? a[1].i : -1;
+                    int64_t n = 0;
+                    for (unsigned char c : bytesData(a[0]))
+                        if ((int64_t)c == needle) ++n;
+                    return Value::integer(n);
+                });
+            // mutating methods: only reachable through bytearray receivers
+            if (name == "append" || name == "push_back")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].k != VK::ByteArray || !a[0].bstr)
+                        panicHere("append(): expected a bytearray");
+                    a[0].bstr->push_back((char)(a[1].i & 0xff));
+                    return Value::none();
+                });
+            if (name == "extend" || name == "extend_from")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].k != VK::ByteArray || !a[0].bstr)
+                        panicHere("extend(): expected a bytearray");
+                    if (a.size() > 1 && isBuffer(a[1]))
+                        a[0].bstr->append(bytesData(a[1]));
+                    return Value::none();
+                });
+            if (name == "clear")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].k != VK::ByteArray || !a[0].bstr)
+                        panicHere("clear(): expected a bytearray");
+                    a[0].bstr->clear();
+                    return Value::none();
+                });
+            if (name == "pop" || name == "pop_back")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a[0].k != VK::ByteArray || !a[0].bstr)
+                        panicHere("pop(): expected a bytearray");
+                    if (a[0].bstr->empty()) panicHere("pop() on empty bytearray");
+                    unsigned char c = (unsigned char)a[0].bstr->back();
+                    a[0].bstr->pop_back();
+                    return Value::integer((int64_t)c);
                 });
             break;
         }
@@ -5709,6 +5968,11 @@ static bool valEq(const Value& a, const Value& b) {
         if (isd(a.k) && isd(b.k)) return decCmp(a, b) == 0;
         return false;
     }
+    if (isBuffer(a) || isBuffer(b)) {
+        if (isBuffer(a) && isBuffer(b))
+            return bytesData(a) == bytesData(b);
+        return false;
+    }
     if (a.k == VK::Rational || b.k == VK::Rational) {
         if (a.k == VK::Float || b.k == VK::Float)
             return numToDouble2(a) == numToDouble2(b);
@@ -5822,6 +6086,7 @@ static bool valLess(const Value& l, const Value& r) {
         return x < y;
     }
     if (l.k == VK::Str && r.k == VK::Str)   return l.s < r.s;
+    if (isBuffer(l) && isBuffer(r))         return bytesData(l) < bytesData(r);
     if (l.k == VK::Char && r.k == VK::Char) return l.ch < r.ch;
     if (l.k == VK::Bool && r.k == VK::Bool) return (int)l.b < (int)r.b;
     panicHere("cannot order these values");
@@ -6083,6 +6348,14 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
             for (auto& el : *r.vec) out.push_back(el);
             return Value::list(std::move(out));
         }
+        if (isBuffer(l) && isBuffer(r)) {
+            std::string out = bytesData(l) + bytesData(r);
+            if (l.k == VK::ByteArray || r.k == VK::ByteArray)
+                return Value::byteArray(std::move(out));
+            Value v = Value::str(std::move(out));
+            v.k = VK::Bytes;
+            return v;
+        }
     }
     if (op == "-") {
         if (isBig(l.k) || isBig(r.k))
@@ -6110,6 +6383,14 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
             for (int64_t n = 0; n < r.i; ++n)
                 for (auto& el : *l.vec) out.push_back(el);
             return Value::list(std::move(out));
+        }
+        if (isBuffer(l) && r.k == VK::Int) {
+            std::string base = bytesData(l), out;
+            for (int64_t n = 0; n < r.i; ++n) out += base;
+            if (l.k == VK::ByteArray) return Value::byteArray(std::move(out));
+            Value v = Value::str(std::move(out));
+            v.k = VK::Bytes;
+            return v;
         }
     }
     if (op == "/") {
@@ -6406,6 +6687,16 @@ void Interpreter::iterateSeq(const Value& seq,
                 Env child = makeChild(env);
                 Value item =
                     Value::integer((int64_t)(unsigned char)c);
+                if (!body(item, child)) return;
+            }
+            return;
+        }
+        case VK::ByteArray:
+        case VK::View: {
+            std::string data = bytesData(seq);
+            for (char c : data) {
+                Env child = makeChild(env);
+                Value item = Value::integer((int64_t)(unsigned char)c);
                 if (!body(item, child)) return;
             }
             return;
@@ -6856,6 +7147,14 @@ void Interpreter::assignTo(const Expr& target, Value v, Env env) {
                     rp->k == VK::Tuple)
                     (*rp->vec)[normIndex((int64_t)rp->vec->size(), idx2.i)] =
                         std::move(v);
+                else if (rp->k == VK::ByteArray || rp->k == VK::View) {
+                    if (rp->k == VK::View && rp->vreadonly)
+                        panicHere("cannot mutate a read-only memoryview");
+                    size_t lim = rp->k == VK::View ? rp->vlen : rp->bstr->size();
+                    size_t n = normIndex((int64_t)lim, idx2.i);
+                    (*rp->bstr)[(rp->k == VK::View ? rp->voff : 0) + n] =
+                        (char)(v.i & 0xff);
+                }
                 else if (rp->k == VK::Dict) {
                     for (auto& kv : *rp->map)
                         if (valEq(kv.first, idx2)) {
@@ -6876,6 +7175,17 @@ void Interpreter::assignTo(const Expr& target, Value v, Env env) {
                     (*cont.vec)[normIndex((int64_t)cont.vec->size(), idx.i)] =
                         std::move(v);
                     return;
+                case VK::ByteArray:
+                case VK::View: {
+                    if (cont.k == VK::View && cont.vreadonly)
+                        panicHere("cannot mutate a read-only memoryview");
+                    size_t lim = cont.k == VK::View ? cont.vlen
+                                                    : cont.bstr->size();
+                    size_t n = normIndex((int64_t)lim, idx.i);
+                    (*cont.bstr)[(cont.k == VK::View ? cont.voff : 0) + n] =
+                        (char)(v.i & 0xff);
+                    return;
+                }
                 case VK::Dict:
                     for (auto& kv : *cont.map)
                         if (valEq(kv.first, idx)) {
@@ -7755,6 +8065,12 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                             push(fromVal(Value::integer((unsigned char)obj.s[n])));
                         else
                             push(fromVal(Value::chr(decodeCharText(obj.s.substr(n, 1)))));
+                        break;
+                    }
+                    case VK::ByteArray: case VK::View: {
+                        std::string d = bytesData(obj);
+                        size_t n = normIndex((int64_t)d.size(), idx.i);
+                        push(fromVal(Value::integer((unsigned char)d[n])));
                         break;
                     }
                     default:

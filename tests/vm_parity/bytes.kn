@@ -1,0 +1,18 @@
+fn main() -> none {
+    var s = b"\x00\x01\x02";
+    print(len(s), s[1], s.hex());
+
+    var ba = bytearray(b"\x10\x20");
+    ba.append(0x30);
+    ba[0] = 0x40;
+    print(ba.hex(), ba.to_list());
+
+    var mv = memoryview(ba);
+    print(len(mv), mv[2]);
+    mv[2] = 0x55;
+    print(ba.hex());
+
+    print(0x40 in ba);
+    print((b"\x01" + b"\x02").hex());
+    print((b"\x09" * 2).hex());
+}

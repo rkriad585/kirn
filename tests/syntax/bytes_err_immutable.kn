@@ -1,0 +1,6 @@
+fn main() -> none {
+    b = b"abc";
+    b[0] = 1;
+    print(b);
+}
+# expect: cannot assign into immutable 'bytes'

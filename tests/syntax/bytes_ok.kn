@@ -1,0 +1,38 @@
+fn main() -> none {
+    # Bytes literal, indexing returns Int, len.
+    b = b"\x00\x01\x0A";
+    print(len(b));
+    print(b[1]);
+
+    # Hex / decode round-trip.
+    print(b.hex());
+    print(b.decode("utf-8").len());
+
+    # Immutable bytes are hashable -> usable as dict keys.
+    d = {b"a": 1, b"b": 2};
+    print(d[b"a"], d[b"b"]);
+
+    # Concatenation and repetition.
+    print((b"\x01" + b"\x02").hex());
+    print((b"\xAB" * 3).hex());
+
+    # bytearray is the mutable sibling.
+    ba = bytearray(b"\x00\x01\x02");
+    ba.append(0xFF);
+    ba[0] = 0x10;
+    print(ba.hex(), len(ba));
+    print(ba[0]);
+    print(ba.to_list());
+
+    # memoryview is a zero-copy view; writes flow back to the buffer.
+    mv = memoryview(ba);
+    print(len(mv), mv[1]);
+    mv[1] = 0x2A;
+    print(ba.hex());
+
+    # Containment and iteration yield Ints.
+    print(0x2A in ba);
+    for x in bytearray(b"\x41\x42") {
+        print(x);
+    }
+}

@@ -1,0 +1,193 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/57_bytes.kn
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "b"
+      Value Str "\\x00\\x01\\x0A\\xFF" b
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "b"
+                At Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="hex"
+                    Obj Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="decode"
+                            Obj Ident "b"
+                        Arg
+                          Value Str "utf-8"
+    Assign
+      Target Ident "table"
+      Value 
+        Dict len=2
+          Pair
+            Key Str "ok" b
+            Val Int "200"
+          Pair
+            Key Str "nf" b
+            Val Int "404"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "table"
+                At Str "nf" b
+    Assign
+      Target Ident "ba"
+      Value 
+        Call
+          Callee Ident "bytearray"
+          Arg
+            Value Str "hello" b
+    Assign
+      Target 
+        Index
+          Obj Ident "ba"
+          At Int "0"
+      Value Int "0x48"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append"
+              Obj Ident "ba"
+          Arg
+            Value Int "0x21"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="decode"
+                    Obj Ident "ba"
+                Arg
+                  Value Str "utf-8"
+    Assign
+      Target Ident "mv"
+      Value 
+        Call
+          Callee Ident "memoryview"
+          Arg
+            Value Ident "ba"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "len"
+                Arg
+                  Value Ident "mv"
+    Assign
+      Target 
+        Index
+          Obj Ident "mv"
+          At Int "1"
+      Value Int "0xBE"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="hex"
+                    Obj Ident "ba"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="hex"
+                    Obj 
+                      Binary op="+"
+                        Lhs Str "\\x01\\x02" b
+                        Rhs Str "\\x03" b
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="hex"
+                    Obj 
+                      Binary op="*"
+                        Lhs Str "\\xAB" b
+                        Rhs Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="in"
+                Lhs Int "0xBE"
+                Rhs Ident "ba"
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatBind octet
+      Iter Str "\\x01\\x02\\x03" b
+      Body
+        Assign
+          Target Ident "total"
+          Value 
+            Binary op="+"
+              Lhs Ident "total"
+              Rhs Ident "octet"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "total"
+<ROOT>/examples/57_bytes.kn: OK (1 top-level statements)
+[exit 0]

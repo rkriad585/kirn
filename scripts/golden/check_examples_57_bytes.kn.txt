@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/57_bytes.kn
+<ROOT>/examples/57_bytes.kn: OK
+[exit 0]

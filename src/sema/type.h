@@ -23,6 +23,8 @@ enum class TyK {
     Str,
     Char,
     Bytes,       // immutable byte buffer, VK::Bytes at runtime
+    ByteArray,   // mutable byte buffer, VK::ByteArray at runtime
+    MemoryView,  // zero-copy view over bytes/bytearray, VK::View at runtime
     List,       // args[0] elem
     Dict,       // args[0]=K args[1]=V
     Set,        // args[0]
@@ -87,6 +89,8 @@ inline TyP boolTy(std::string n = "Bool") { return Ty::named(TyK::Bool, std::mov
 inline TyP strTy(std::string n = "Str") { return Ty::named(TyK::Str, std::move(n)); }
 inline TyP charTy(std::string n = "Char") { return Ty::named(TyK::Char, std::move(n)); }
 inline TyP bytesTy()      { return Ty::named(TyK::Bytes, "bytes"); }
+inline TyP byteArrayTy(std::string n = "bytearray") { return Ty::named(TyK::ByteArray, std::move(n)); }
+inline TyP memoryViewTy(std::string n = "memoryview") { return Ty::named(TyK::MemoryView, std::move(n)); }
 inline TyP intTy(std::string n = "Int64")  { return Ty::named(TyK::Int, std::move(n)); }
 inline TyP floatTy(std::string n = "Float64") { return Ty::named(TyK::Float, std::move(n)); }
 inline TyP bigIntTy(std::string n = "BigInt") { return Ty::named(TyK::BigInt, std::move(n)); }

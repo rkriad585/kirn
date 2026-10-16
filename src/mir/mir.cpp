@@ -107,9 +107,14 @@ Ty mapTy(sema::TyK k) {
         case sema::TyK::Int:      return Ty::Int;
         case sema::TyK::Float:    return Ty::Float;
         case sema::TyK::BigInt:   return Ty::Any;  // interpreter-only for now
+        case sema::TyK::Rational: return Ty::Any;  // interpreter-only for now
+        case sema::TyK::Complex:  return Ty::Any;  // interpreter-only for now
+        case sema::TyK::Decimal:  return Ty::Any;  // interpreter-only for now
         case sema::TyK::Char:     return Ty::Char;
         case sema::TyK::Str:      return Ty::Str;
         case sema::TyK::Bytes:    return Ty::Bytes;
+        case sema::TyK::ByteArray: return Ty::Any;  // interpreter-only for now
+        case sema::TyK::MemoryView: return Ty::Any;  // interpreter-only for now
         case sema::TyK::List:     return Ty::List;
         case sema::TyK::Dict:     return Ty::Dict;
         case sema::TyK::Set:      return Ty::Set;

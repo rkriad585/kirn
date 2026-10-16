@@ -1,0 +1,38 @@
+fn main() -> none {
+    # `bytes` is an immutable sequence of octets; `b"..."` is its literal.
+    b = b"\x00\x01\x0A\xFF";
+    print(len(b));
+    print(b[1]);                 # indexing yields an Int
+    print(b.hex());
+
+    # Text is recovered with an explicit decode.
+    print(b.decode("utf-8").len());
+
+    # Immutable bytes are hashable, so they work as dict keys.
+    table = {b"ok": 200, b"nf": 404};
+    print(table[b"nf"]);
+
+    # `bytearray` is the mutable variant: in-place edits and appends.
+    ba = bytearray(b"hello");
+    ba[0] = 0x48;                # 'H'
+    ba.append(0x21);             # '!'
+    print(ba.decode("utf-8"));
+
+    # `memoryview` is a zero-copy window onto another buffer.
+    mv = memoryview(ba);
+    print(len(mv));
+    mv[1] = 0xBE;                # writes are visible in the source buffer
+    print(ba.hex());
+
+    # Concatenation and repetition.
+    print((b"\x01\x02" + b"\x03").hex());
+    print((b"\xAB" * 2).hex());
+
+    # Iteration and containment use Int octets.
+    print(0xBE in ba);
+    total = 0;
+    for octet in b"\x01\x02\x03" {
+        total = total + octet;
+    }
+    print(total);
+}

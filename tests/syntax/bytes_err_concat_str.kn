@@ -1,0 +1,6 @@
+fn main() -> none {
+    b = b"abc";
+    x = b + "def";
+    print(x);
+}
+# expect: invalid operands to '+'

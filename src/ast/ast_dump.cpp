@@ -124,6 +124,7 @@ const char* exName(ExKind k) {
         case ExKind::Spread:    return "Spread";
         case ExKind::SafeIndex: return "SafeIndex";
         case ExKind::SafeCall:  return "SafeCall";
+        case ExKind::Comptime:  return "Comptime";
         case ExKind::List:      return "List";
         case ExKind::Dict:      return "Dict";
         case ExKind::Set:       return "Set";
@@ -307,6 +308,10 @@ void dumpExpr(const Expr& e, int d) {
                           << (a.name.empty() ? "" : " name=" + a.name) << '\n';
                 if (a.value) childExpr("Value", a.value, d + 2);
             }
+            return;
+        case ExKind::Comptime:
+            std::cout << ind(d) << "Comptime\n";
+            childExpr("Expr", e.lhs, d + 1);
             return;
         case ExKind::List:
         case ExKind::Set:
@@ -569,6 +574,10 @@ void dump(const Stmt& s, int d) {
             std::cout << ind(d) << "Using\n";
             if (s.target) childExpr("Target", s.target, d + 1);
             if (s.value) childExpr("Value", s.value, d + 1);
+            return;
+        case StKind::ComptimeBlock:
+            std::cout << ind(d) << "ComptimeBlock\n";
+            for (const auto& st : s.body) dump(*st, d + 1);
             return;
         case StKind::If: {
             std::cout << ind(d) << "If\n";

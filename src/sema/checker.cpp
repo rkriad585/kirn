@@ -1,6 +1,9 @@
 // Semantic analysis for Kirn v1. See checker.h for the design overview.
 #include "sema/checker.h"
 #include "sema/borrow.h"
+#include "support/literals.h"
+
+#include <functional>
 
 namespace kirn {
 namespace sema {
@@ -869,6 +872,12 @@ static bool containsYieldStmt(const ast::Stmt& s) {
 }
 
 void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
+    // M5: collect every `const fn` up front so a const declaration may call a
+    // const function defined later in the same file.
+    for (const auto& st : prog)
+        if (st->kind == StKind::FuncDef && st->isConstFn)
+            constFns_[st->name] = st.get();
+
     for (const auto& st : prog) {
         switch (st->kind) {
             case StKind::FuncDef: {
@@ -924,6 +933,39 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                              st->span.line, st->span.col);
                 if (Symbol* cs = scope_->find(n))
                     cs->pub = st->pub;
+                // M5: fold a compile-time-evaluable initializer. The value is
+                // recorded regardless (so later const/`const fn` expressions can
+                // read it); the AST is rewritten to a literal only for computed
+                // scalars/collections, so native codegen sees a constant and the
+                // `--release` call is eliminated.
+                if (st->value) {
+                    constSteps_ = 0;
+                    ConstVal cv;
+                    if (constEvalExpr(*st->value, cv)) {
+                        constVals_[n] = cv;
+                        bool trivial =
+                            st->value->kind == ExKind::Int ||
+                            st->value->kind == ExKind::Float ||
+                            st->value->kind == ExKind::CharLit ||
+                            st->value->kind == ExKind::Str ||
+                            st->value->kind == ExKind::List ||
+                            st->value->kind == ExKind::Tuple ||
+                            st->value->kind == ExKind::Set ||
+                            st->value->kind == ExKind::Dict;
+                        bool foldable =
+                            cv.k == ConstVal::K::Int ||
+                            cv.k == ConstVal::K::Bool ||
+                            cv.k == ConstVal::K::Str ||
+                            cv.k == ConstVal::K::List ||
+                            cv.k == ConstVal::K::Tuple;
+                        if (!trivial && foldable) {
+                            auto lit = constValToExpr(cv, st->value->span);
+                            const ast::Expr* lp = lit.get();
+                            st->value = std::move(lit);
+                            if (vt) typeCache_[lp] = vt;
+                        }
+                    }
+                }
                 break;
             }
 
@@ -953,6 +995,9 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                 break;
         }
     }
+
+    // M5: purity gate for every `const fn` (reported even if never called).
+    for (const auto& kv : constFns_) checkConstFnPurity(*kv.second);
 }
 
 // =============================== type resolution ============================
@@ -2783,6 +2828,20 @@ void Checker::checkStmt(const ast::Stmt& s) {
             break;
         }
 
+        case StKind::ComptimeBlock: {
+            // Type-check the body normally, then force compile-time evaluation.
+            checkBlock(s.body);
+            std::map<std::string, ConstVal> saved = constLocals_;
+            constSteps_ = 0;
+            ConstVal r;
+            if (constEvalStmts(s.body, r) == -1)
+                error(s.span,
+                      "E-CONST-IMPURE: comptime block contains a statement "
+                      "that is not compile-time-evaluable");
+            constLocals_ = std::move(saved);
+            break;
+        }
+
         case StKind::If: {
             const ast::Expr* cond =
                 s.exprs.empty() ? nullptr : s.exprs[0].get();            if (cond) requireBool(checkExpr(*cond), s.span.line, s.span.col,
@@ -3657,6 +3716,19 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             return result ? result : unkTy();
         }
 
+        case ExKind::Comptime: {
+            TyP t = e.lhs ? checkExpr(*e.lhs) : unkTy();
+            if (e.lhs) {
+                constSteps_ = 0;
+                ConstVal v;
+                if (!constEvalExpr(*e.lhs, v))
+                    error(e.span,
+                          "E-CONST-IMPURE: '@comptime' expression is not "
+                          "compile-time-evaluable");
+            }
+            return t;
+        }
+
         case ExKind::AssignExpr: {
             // Walrus `(name := value)`: bind/assign and yield the value.
             TyP vt = e.rhs ? checkExpr(*e.rhs) : unkTy();
@@ -4223,5 +4295,767 @@ TyP Checker::checkCall(const ast::Expr& e) {
     return unkTy();
 }
 
+// ====================== M5: const fn / comptime evaluator ====================
+
+namespace {
+
+bool constTruthy(const ConstVal& v) {
+    switch (v.k) {
+        case ConstVal::K::Int:   return v.i != 0;
+        case ConstVal::K::Float: return v.f != 0.0;
+        case ConstVal::K::Bool:  return v.b;
+        case ConstVal::K::Str:   return !v.s.empty();
+        case ConstVal::K::List:  return !v.elems.empty();
+        case ConstVal::K::Tuple: return !v.elems.empty();
+        case ConstVal::K::None:  return false;
+        default:                 return false;
+    }
+}
+
+bool constIsNum(const ConstVal& v) {
+    return v.k == ConstVal::K::Int || v.k == ConstVal::K::Float;
+}
+double constNum(const ConstVal& v) {
+    return v.k == ConstVal::K::Float ? v.f : (double)v.i;
+}
+
+// Builtins that a `const fn` may call: pure, total, and implemented by
+// constCall below. Anything else is E-CONST-IMPURE.
+bool constCallAllowed(const std::string& n) {
+    static const std::set<std::string> k = {
+        "abs", "Abs", "__Abs", "len", "Len", "int", "Int", "float", "Float",
+        "bool", "Bool", "Ord", "__Ord", "Chr", "__Chr", "min", "Min",
+        "max", "Max", "pow", "Pow", "__Pow", "sum",
+    };
+    return k.count(n) != 0;
+}
+
+}  // namespace
+
+bool Checker::constEvalIter(const ast::Expr& iter, ConstVal& out) {
+    if (iter.kind == ExKind::Binary &&
+        (iter.op == ".." || iter.op == "..=")) {
+        ConstVal lo, hi;
+        if (!iter.lhs || !iter.rhs) return false;
+        if (!constEvalExpr(*iter.lhs, lo) || !constEvalExpr(*iter.rhs, hi))
+            return false;
+        if (lo.k != ConstVal::K::Int || hi.k != ConstVal::K::Int) return false;
+        long long end = hi.i + (iter.op == "..=" ? 1 : 0);
+        out = ConstVal{};
+        out.k = ConstVal::K::List;
+        for (long long i = lo.i; i < end; ++i) {
+            ConstVal e;
+            e.k = ConstVal::K::Int;
+            e.i = i;
+            out.elems.push_back(e);
+            if (out.elems.size() > 100000) return false;
+        }
+        return true;
+    }
+    ConstVal v;
+    if (!constEvalExpr(iter, v)) return false;
+    if (v.k == ConstVal::K::List || v.k == ConstVal::K::Tuple) {
+        out = std::move(v);
+        return true;
+    }
+    return false;
+}
+
+bool Checker::constCall(const std::string& name,
+                        const std::vector<ConstVal>& args, const ast::Span& sp,
+                        ConstVal& out) {
+    auto num = [](const ConstVal& v, double& d) {
+        if (v.k == ConstVal::K::Int) { d = (double)v.i; return true; }
+        if (v.k == ConstVal::K::Float) { d = v.f; return true; }
+        return false;
+    };
+
+    auto fnIt = constFns_.find(name);
+    if (fnIt != constFns_.end()) {
+        const ast::Stmt* fn = fnIt->second;
+        if (args.size() != fn->params.size()) return false;
+        std::map<std::string, ConstVal> saved;
+        std::set<std::string> savedPresent;
+        for (size_t i = 0; i < fn->params.size(); ++i) {
+            const std::string& p = fn->params[i].name;
+            auto old = constLocals_.find(p);
+            if (old != constLocals_.end()) {
+                saved[p] = old->second;
+                savedPresent.insert(p);
+            }
+            constLocals_[p] = args[i];
+        }
+        ConstVal ret;
+        int flow = constEvalStmts(fn->body, ret);
+        for (const auto& p : fn->params) {
+            auto it = saved.find(p.name);
+            if (it != saved.end()) constLocals_[p.name] = it->second;
+            else constLocals_.erase(p.name);
+        }
+        if (flow == -1) return false;
+        if (flow == 1) { out = ret; return true; }
+        out = ConstVal{};
+        out.k = ConstVal::K::None;
+        return true;
+    }
+
+        if (name == "len" || name == "Len") {
+            if (args.size() != 1) return false;
+            out = ConstVal{};
+            out.k = ConstVal::K::Int;
+            if (args[0].k == ConstVal::K::Str) out.i = (long long)args[0].s.size();
+            else if (args[0].k == ConstVal::K::List ||
+                     args[0].k == ConstVal::K::Tuple)
+                out.i = (long long)args[0].elems.size();
+            else return false;
+            return true;
+        }
+    if ((name == "abs" || name == "Abs") && args.size() == 1) {
+        if (args[0].k == ConstVal::K::Int) {
+            out = args[0];
+            if (out.i < 0) out.i = -out.i;
+            return true;
+        }
+        if (args[0].k == ConstVal::K::Float) {
+            out = args[0];
+            out.f = out.f < 0 ? -out.f : out.f;
+            return true;
+        }
+        return false;
+    }
+    if ((name == "min" || name == "Min" || name == "max" || name == "Max") &&
+        args.size() == 2) {
+        bool wantMax = (name == "max" || name == "Max");
+        double a, b;
+        if (!num(args[0], a) || !num(args[1], b)) return false;
+        const ConstVal& pick = (wantMax ? (a >= b) : (a <= b)) ? args[0] : args[1];
+        out = pick;
+        return true;
+    }
+    if (name == "int" || name == "Int") {
+        if (args.size() != 1) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Int;
+        if (args[0].k == ConstVal::K::Int) out.i = args[0].i;
+        else if (args[0].k == ConstVal::K::Float) out.i = (long long)args[0].f;
+        else if (args[0].k == ConstVal::K::Bool) out.i = args[0].b ? 1 : 0;
+        else return false;
+        return true;
+    }
+    if (name == "float" || name == "Float") {
+        if (args.size() != 1) return false;
+        double d;
+        if (!num(args[0], d)) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Float;
+        out.f = d;
+        return true;
+    }
+    if (name == "bool" || name == "Bool") {
+        if (args.size() != 1) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Bool;
+        out.b = constTruthy(args[0]);
+        return true;
+    }
+    if (name == "Ord" || name == "__Ord") {
+        if (args.size() != 1 || args[0].k != ConstVal::K::Char) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Int;
+        out.i = args[0].s.empty() ? 0 : (unsigned char)args[0].s[0];
+        return true;
+    }
+    if (name == "Chr" || name == "__Chr") {
+        if (args.size() != 1 || args[0].k != ConstVal::K::Int) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Char;
+        out.s = std::string(1, (char)args[0].i);
+        return true;
+    }
+    if (name == "Pow" || name == "__Pow" || name == "pow") {
+        if (args.size() != 2 || args[0].k != ConstVal::K::Int ||
+            args[1].k != ConstVal::K::Int)
+            return false;
+        if (args[1].i < 0) return false;
+        long long base = args[0].i, e = args[1].i, r = 1;
+        while (e > 0) {
+            if (e & 1) r *= base;
+            base *= base;
+            e >>= 1;
+            if (++constSteps_ > 100000) return false;
+        }
+        out = ConstVal{};
+        out.k = ConstVal::K::Int;
+        out.i = r;
+        return true;
+    }
+    if (name == "sum") {
+        if (args.size() != 1 ||
+            (args[0].k != ConstVal::K::List && args[0].k != ConstVal::K::Tuple))
+            return false;
+        long long acc = 0;
+        for (const auto& e : args[0].elems) {
+            if (e.k != ConstVal::K::Int) return false;
+            acc += e.i;
+        }
+        out = ConstVal{};
+        out.k = ConstVal::K::Int;
+        out.i = acc;
+        return true;
+    }
+    (void)sp;
+    return false;
+}
+
+bool Checker::constEvalExpr(const ast::Expr& e, ConstVal& out) {
+    if (++constSteps_ > 200000) return false;
+    switch (e.kind) {
+        case ExKind::Int:
+            out = ConstVal{};
+            out.k = ConstVal::K::Int;
+            out.i = parseIntLiteral(e.text);
+            return true;
+        case ExKind::Float:
+            out = ConstVal{};
+            out.k = ConstVal::K::Float;
+            out.f = parseFloatLiteral(e.text);
+            return true;
+        case ExKind::CharLit:
+            out = ConstVal{};
+            out.k = ConstVal::K::Char;
+            out.s = e.text;
+            return true;
+        case ExKind::Str:
+            out = ConstVal{};
+            out.k = ConstVal::K::Str;
+            out.s = e.text;
+            return true;
+        case ExKind::Ident: {
+            if (e.text == "true" || e.text == "false") {
+                out = ConstVal{};
+                out.k = ConstVal::K::Bool;
+                out.b = e.text == "true";
+                return true;
+            }
+            if (e.text == "none") {
+                out = ConstVal{};
+                out.k = ConstVal::K::None;
+                return true;
+            }
+            auto lit = constLocals_.find(e.text);
+            if (lit != constLocals_.end()) { out = lit->second; return true; }
+            auto git = constVals_.find(e.text);
+            if (git != constVals_.end()) { out = git->second; return true; }
+            return false;
+        }
+        case ExKind::Unary: {
+            ConstVal a;
+            if (!e.rhs || !constEvalExpr(*e.rhs, a)) return false;
+            if (e.op == "+") { out = a; return true; }
+            if (e.op == "-") {
+                if (a.k == ConstVal::K::Int) { out = a; out.i = -a.i; return true; }
+                if (a.k == ConstVal::K::Float) { out = a; out.f = -a.f; return true; }
+                return false;
+            }
+            if (e.op == "~") {
+                if (a.k != ConstVal::K::Int) return false;
+                out = a; out.i = ~a.i; return true;
+            }
+            if (e.op == "not") {
+                if (a.k != ConstVal::K::Bool) return false;
+                out = a; out.b = !a.b; return true;
+            }
+            return false;
+        }
+        case ExKind::Binary: {
+            if (e.op == ".." || e.op == "..=") return constEvalIter(e, out);
+            if (e.op == "and" || e.op == "or") {
+                ConstVal a;
+                if (!e.lhs || !constEvalExpr(*e.lhs, a)) return false;
+                bool l = constTruthy(a);
+                if (e.op == "and" && !l) { out = a; return true; }
+                if (e.op == "or" && l) { out = a; return true; }
+                if (!e.rhs || !constEvalExpr(*e.rhs, out)) return false;
+                return true;
+            }
+            ConstVal a, b;
+            if (!e.lhs || !e.rhs) return false;
+            if (!constEvalExpr(*e.lhs, a) || !constEvalExpr(*e.rhs, b))
+                return false;
+            const std::string& op = e.op;
+            // string concatenation
+            if (op == "+" && a.k == ConstVal::K::Str && b.k == ConstVal::K::Str) {
+                out = a; out.s += b.s; return true;
+            }
+            // equality / ordering on same-kind scalars
+            bool aNum = a.k == ConstVal::K::Int || a.k == ConstVal::K::Float;
+            bool bNum = b.k == ConstVal::K::Int || b.k == ConstVal::K::Float;
+            if (op == "==" || op == "!=") {
+                bool eq;
+                if (aNum && bNum) {
+                    double x = a.k == ConstVal::K::Int ? (double)a.i : a.f;
+                    double y = b.k == ConstVal::K::Int ? (double)b.i : b.f;
+                    eq = x == y;
+                } else if (a.k == b.k && a.k != ConstVal::K::List &&
+                           a.k != ConstVal::K::Tuple) {
+                    switch (a.k) {
+                        case ConstVal::K::Bool: eq = a.b == b.b; break;
+                        case ConstVal::K::Str:
+                        case ConstVal::K::Char: eq = a.s == b.s; break;
+                        case ConstVal::K::None: eq = true; break;
+                        default: eq = false; break;
+                    }
+                } else {
+                    return false;
+                }
+                out = ConstVal{};
+                out.k = ConstVal::K::Bool;
+                out.b = (op == "==") ? eq : !eq;
+                return true;
+            }
+            if (op == "<" || op == "<=" || op == ">" || op == ">=") {
+                double x, y;
+                if (aNum && bNum) {
+                    x = a.k == ConstVal::K::Int ? (double)a.i : a.f;
+                    y = b.k == ConstVal::K::Int ? (double)b.i : b.f;
+                } else if (a.k == ConstVal::K::Str && b.k == ConstVal::K::Str) {
+                    bool r = op == "<" ? a.s < b.s
+                             : op == "<=" ? a.s <= b.s
+                             : op == ">" ? a.s > b.s : a.s >= b.s;
+                    out = ConstVal{};
+                    out.k = ConstVal::K::Bool;
+                    out.b = r;
+                    return true;
+                } else {
+                    return false;
+                }
+                bool r = op == "<"    ? x < y
+                         : op == "<=" ? x <= y
+                         : op == ">"  ? x > y
+                                      : x >= y;
+                out = ConstVal{};
+                out.k = ConstVal::K::Bool;
+                out.b = r;
+                return true;
+            }
+            if (a.k == ConstVal::K::Int && b.k == ConstVal::K::Int) {
+                long long x = a.i, y = b.i;
+                out = ConstVal{};
+                out.k = ConstVal::K::Int;
+                if (op == "+") { out.i = x + y; return true; }
+                if (op == "-") { out.i = x - y; return true; }
+                if (op == "*") { out.i = x * y; return true; }
+                if (op == "/" || op == "//") {
+                    if (y == 0) return false;
+                    out.i = (op == "/") ? x / y : x / y;   // int division
+                    return true;
+                }
+                if (op == "%") { if (y == 0) return false; out.i = x % y; return true; }
+                if (op == "**") {
+                    if (y < 0) return false;
+                    long long r = 1, base = x, e = y;
+                    while (e > 0) {
+                        if (e & 1) r *= base;
+                        base *= base;
+                        e >>= 1;
+                        if (++constSteps_ > 100000) return false;
+                    }
+                    out.i = r; return true;
+                }
+                if (op == "&") { out.i = x & y; return true; }
+                if (op == "|") { out.i = x | y; return true; }
+                if (op == "^") { out.i = x ^ y; return true; }
+                if (op == "<<") { out.i = x << y; return true; }
+                if (op == ">>") { out.i = x >> y; return true; }
+                return false;
+            }
+            if ((a.k == ConstVal::K::Float || a.k == ConstVal::K::Int) &&
+                (b.k == ConstVal::K::Float || b.k == ConstVal::K::Int)) {
+                double x = a.k == ConstVal::K::Float ? a.f : (double)a.i;
+                double y = b.k == ConstVal::K::Float ? b.f : (double)b.i;
+                out = ConstVal{};
+                out.k = ConstVal::K::Float;
+                if (op == "+") { out.f = x + y; return true; }
+                if (op == "-") { out.f = x - y; return true; }
+                if (op == "*") { out.f = x * y; return true; }
+                if (op == "/") { if (y == 0.0) return false; out.f = x / y; return true; }
+                return false;
+            }
+            return false;
+        }
+        case ExKind::Cond: {
+            ConstVal c;
+            if (!e.cond || !constEvalExpr(*e.cond, c)) return false;
+            if (constTruthy(c))
+                return e.lhs && constEvalExpr(*e.lhs, out);
+            return e.rhs && constEvalExpr(*e.rhs, out);
+        }
+        case ExKind::Cast: {
+            ConstVal a;
+            if (!e.lhs || !constEvalExpr(*e.lhs, a)) return false;
+            out = a;
+            return true;
+        }
+        case ExKind::List:
+        case ExKind::Tuple: {
+            out = ConstVal{};
+            out.k = e.kind == ExKind::List ? ConstVal::K::List
+                                           : ConstVal::K::Tuple;
+            for (const auto& el : e.elems) {
+                ConstVal v;
+                if (!el || !constEvalExpr(*el, v)) return false;
+                out.elems.push_back(std::move(v));
+                if (out.elems.size() > 100000) return false;
+            }
+            return true;
+        }
+        case ExKind::Index: {
+            ConstVal base, idx;
+            if (!e.lhs || !e.rhs) return false;
+            if (!constEvalExpr(*e.lhs, base) || !constEvalExpr(*e.rhs, idx))
+                return false;
+            if (base.k == ConstVal::K::List || base.k == ConstVal::K::Tuple) {
+                if (idx.k != ConstVal::K::Int) return false;
+                long long i = idx.i;
+                if (i < 0 || (size_t)i >= base.elems.size()) return false;
+                out = base.elems[(size_t)i];
+                return true;
+            }
+            if (base.k == ConstVal::K::Str && idx.k == ConstVal::K::Int) {
+                long long i = idx.i;
+                if (i < 0 || (size_t)i >= base.s.size()) return false;
+                out = ConstVal{};
+                out.k = ConstVal::K::Char;
+                out.s = std::string(1, base.s[(size_t)i]);
+                return true;
+            }
+            return false;
+        }
+        case ExKind::Call: {
+            if (!e.lhs || e.lhs->kind != ExKind::Ident) return false;
+            for (const auto& a : e.args)
+                if (!a.name.empty()) return false;   // named args: unsupported
+            std::vector<ConstVal> args;
+            for (const auto& a : e.args) {
+                ConstVal v;
+                if (!a.value || !constEvalExpr(*a.value, v)) return false;
+                args.push_back(std::move(v));
+            }
+            return constCall(e.lhs->text, args, e.span, out);
+        }
+        case ExKind::ListComp: {
+            out = ConstVal{};
+            out.k = ConstVal::K::List;
+            if (e.elems.empty()) return false;
+            const ast::Expr* elem = e.elems[0].get();
+            std::function<bool(size_t)> run = [&](size_t ci) -> bool {
+                if (ci == e.clauses.size()) {
+                    ConstVal v;
+                    if (!elem || !constEvalExpr(*elem, v)) return false;
+                    out.elems.push_back(std::move(v));
+                    return out.elems.size() <= 100000;
+                }
+                const CompClause& cl = e.clauses[ci];
+                if (cl.isFor && cl.iter && cl.pat &&
+                    cl.pat->kind == PatKind::Bind) {
+                    ConstVal seq;
+                    if (!constEvalIter(*cl.iter, seq)) return false;
+                    const std::string& name = cl.pat->bindName;
+                    auto old = constLocals_.find(name);
+                    bool had = old != constLocals_.end();
+                    ConstVal saved = had ? old->second : ConstVal{};
+                    for (const auto& item : seq.elems) {
+                        constLocals_[name] = item;
+                        if (!run(ci + 1)) return false;
+                    }
+                    if (had) constLocals_[name] = saved;
+                    else constLocals_.erase(name);
+                    return true;
+                }
+                if (!cl.isFor && cl.cond) {
+                    ConstVal c;
+                    if (!constEvalExpr(*cl.cond, c)) return false;
+                    if (!constTruthy(c)) return true;
+                    return run(ci + 1);
+                }
+                return false;
+            };
+            return run(0);
+        }
+        default:
+            return false;
+    }
+}
+
+int Checker::constEvalStmts(const std::vector<ast::StmtP>& body,
+                            ConstVal& ret) {
+    for (const auto& st : body) {
+        if (++constSteps_ > 200000) return -1;
+        switch (st->kind) {
+            case StKind::Pass:
+                break;
+            case StKind::VarDecl:
+            case StKind::ConstDecl: {
+                if (!st->target || st->target->kind != ExKind::Ident)
+                    return -1;
+                ConstVal v;
+                if (!st->value || !constEvalExpr(*st->value, v)) return -1;
+                constLocals_[st->target->text] = std::move(v);
+                break;
+            }
+            case StKind::Assign: {
+                if (st->exprs.size() != 2 ||
+                    st->exprs[0]->kind != ExKind::Ident)
+                    return -1;
+                ConstVal v;
+                if (!constEvalExpr(*st->exprs[1], v)) return -1;
+                constLocals_[st->exprs[0]->text] = std::move(v);
+                break;
+            }
+            case StKind::AugAssign: {
+                if (st->exprs.size() != 2 ||
+                    st->exprs[0]->kind != ExKind::Ident)
+                    return -1;
+                ConstVal cur, rhs;
+                auto it = constLocals_.find(st->exprs[0]->text);
+                if (it == constLocals_.end()) return -1;
+                cur = it->second;
+                if (!constEvalExpr(*st->exprs[1], rhs)) return -1;
+                ast::Expr bin;
+                bin.kind = ExKind::Binary;
+                bin.op = st->augOp;
+                ConstVal la = cur, lb = rhs;
+                // reuse the binary evaluator by simulating literal operands
+                if (la.k == ConstVal::K::Int && lb.k == ConstVal::K::Int) {
+                    long long x = la.i, y = lb.i;
+                    ConstVal r;
+                    r.k = ConstVal::K::Int;
+                    if (st->augOp == "+") r.i = x + y;
+                    else if (st->augOp == "-") r.i = x - y;
+                    else if (st->augOp == "*") r.i = x * y;
+                    else if ((st->augOp == "/" || st->augOp == "//") && y != 0)
+                        r.i = x / y;
+                    else if (st->augOp == "%" && y != 0) r.i = x % y;
+                    else return -1;
+                    constLocals_[st->exprs[0]->text] = r;
+                } else {
+                    return -1;
+                }
+                break;
+            }
+            case StKind::ExprStmt: {
+                if (st->exprs.empty()) break;
+                ConstVal v;
+                if (!constEvalExpr(*st->exprs[0], v)) return -1;
+                break;
+            }
+            case StKind::Return: {
+                if (st->exprs.empty()) {
+                    ret = ConstVal{};
+                    ret.k = ConstVal::K::None;
+                    return 1;
+                }
+                if (!constEvalExpr(*st->exprs[0], ret)) return -1;
+                return 1;
+            }
+            case StKind::Break:
+                return 2;
+            case StKind::Continue:
+                return 3;
+            case StKind::Unsafe:
+            case StKind::ComptimeBlock: {
+                int f = constEvalStmts(st->body, ret);
+                if (f == -1) return -1;
+                if (f == 1 || f == 2 || f == 3) return f;
+                break;
+            }
+            case StKind::If: {
+                ConstVal c;
+                if (st->exprs.empty() || !constEvalExpr(*st->exprs[0], c))
+                    return -1;
+                const std::vector<StmtP>& branch =
+                    constTruthy(c) ? st->body : st->elseBody;
+                int f = constEvalStmts(branch, ret);
+                if (f == -1) return -1;
+                if (f == 1 || f == 2 || f == 3) return f;
+                break;
+            }
+            case StKind::While: {
+                for (;;) {
+                    ConstVal c;
+                    if (st->exprs.empty() || !constEvalExpr(*st->exprs[0], c))
+                        return -1;
+                    if (!constTruthy(c)) break;
+                    int f = constEvalStmts(st->body, ret);
+                    if (f == -1) return -1;
+                    if (f == 1) return 1;
+                    if (f == 3) continue;   // continue
+                    if (f == 2) break;      // break
+                    if (++constSteps_ > 200000) return -1;
+                }
+                break;
+            }
+            case StKind::For: {
+                if (st->pat && st->pat->kind == PatKind::Bind &&
+                    !st->exprs.empty()) {
+                    ConstVal seq;
+                    if (!constEvalIter(*st->exprs[0], seq)) return -1;
+                    const std::string& name = st->pat->bindName;
+                    auto old = constLocals_.find(name);
+                    bool had = old != constLocals_.end();
+                    ConstVal saved = had ? old->second : ConstVal{};
+                    for (const auto& item : seq.elems) {
+                        constLocals_[name] = item;
+                        int f = constEvalStmts(st->body, ret);
+                        if (f == -1) return -1;
+                        if (f == 1) return 1;
+                        if (f == 2) break;
+                        if (++constSteps_ > 200000) return -1;
+                    }
+                    if (had) constLocals_[name] = saved;
+                    else constLocals_.erase(name);
+                    break;
+                }
+                return -1;
+            }
+            default:
+                return -1;
+        }
+    }
+    return 0;
+}
+
+ast::ExprP Checker::constValToExpr(const ConstVal& v,
+                                   const ast::Span& sp) const {
+    auto e = std::make_unique<ast::Expr>();
+    e->span = sp;
+    switch (v.k) {
+        case ConstVal::K::Int:
+            e->kind = ExKind::Int;
+            e->text = std::to_string(v.i);
+            break;
+        case ConstVal::K::Float:
+            e->kind = ExKind::Float;
+            e->text = std::to_string(v.f);
+            break;
+        case ConstVal::K::Bool:
+            e->kind = ExKind::Ident;
+            e->text = v.b ? "true" : "false";
+            break;
+        case ConstVal::K::Str:
+            e->kind = ExKind::Str;
+            e->text = v.s;
+            break;
+        case ConstVal::K::Char:
+            e->kind = ExKind::CharLit;
+            e->text = v.s;
+            break;
+        case ConstVal::K::None:
+            e->kind = ExKind::Ident;
+            e->text = "none";
+            break;
+        case ConstVal::K::List:
+        case ConstVal::K::Tuple:
+            e->kind = v.k == ConstVal::K::List ? ExKind::List : ExKind::Tuple;
+            for (const auto& el : v.elems)
+                e->elems.push_back(constValToExpr(el, sp));
+            break;
+        default:
+            e->kind = ExKind::Ident;
+            e->text = "none";
+            break;
+    }
+    return e;
+}
+
+// Structural purity scan for a `const fn` body.
+void Checker::checkConstFnPurity(const ast::Stmt& fn) {
+    std::function<void(const ast::Expr&)> wExpr;
+    std::function<void(const std::vector<ast::StmtP>&)> wBody;
+
+    auto impure = [&](const ast::Span& sp, const char* what) {
+        error(sp.line, sp.col, std::string("E-CONST-IMPURE: ") + what +
+                                   " is not allowed in a 'const fn'");
+    };
+
+    wExpr = [&](const ast::Expr& e) {
+        if (e.kind == ExKind::Call) {
+            if (e.lhs && e.lhs->kind == ExKind::Ident) {
+                const std::string& n = e.lhs->text;
+                if (constFns_.count(n) == 0 && !constCallAllowed(n))
+                    impure(e.span, "call to runtime function");
+            } else if (e.lhs) {
+                impure(e.span, "method call");
+            }
+        } else if (e.kind == ExKind::Lambda) {
+            impure(e.span, "closure");
+        }
+        if (e.lhs) wExpr(*e.lhs);
+        if (e.rhs) wExpr(*e.rhs);
+        if (e.value) wExpr(*e.value);
+        if (e.cond) wExpr(*e.cond);
+        for (const auto& el : e.elems)
+            if (el) wExpr(*el);
+        for (const auto& pr : e.pairs) {
+            if (pr.first) wExpr(*pr.first);
+            if (pr.second) wExpr(*pr.second);
+        }
+        for (const auto& a : e.args)
+            if (a.value) wExpr(*a.value);
+        for (const auto& part : e.parts)
+            if (part.expr) wExpr(*part.expr);
+        for (const auto& cl : e.clauses) {
+            if (cl.iter) wExpr(*cl.iter);
+            if (cl.cond) wExpr(*cl.cond);
+        }
+    };
+
+    wBody = [&](const std::vector<ast::StmtP>& body) {
+        for (const auto& st : body) {
+            if (!st) continue;
+            switch (st->kind) {
+                case StKind::Raise:      impure(st->span, "'raise'"); break;
+                case StKind::Try:        impure(st->span, "'try'"); break;
+                case StKind::Defer:      impure(st->span, "'defer'"); break;
+                case StKind::Spawn:      impure(st->span, "'spawn'"); break;
+                case StKind::With:       impure(st->span, "'with'"); break;
+                case StKind::Using:      impure(st->span, "'using'"); break;
+                case StKind::Yield:      impure(st->span, "'yield'"); break;
+                case StKind::Gather:
+                case StKind::GatherStmt: impure(st->span, "'gather'"); break;
+                case StKind::Select:     impure(st->span, "'select'"); break;
+                case StKind::Import:
+                case StKind::Export:     impure(st->span, "import"); break;
+                case StKind::Del:        impure(st->span, "'del'"); break;
+                case StKind::Goto:       impure(st->span, "'goto'"); break;
+                case StKind::Label:      impure(st->span, "label"); break;
+                case StKind::BucketDecl: impure(st->span, "'bucket'"); break;
+                case StKind::TempDecl:   impure(st->span, "'temp'"); break;
+                default: break;
+            }
+            if (st->value) wExpr(*st->value);
+            if (st->target) wExpr(*st->target);
+            for (const auto& x : st->exprs)
+                if (x) wExpr(*x);
+            for (const auto& c : st->elifConds)
+                if (c) wExpr(*c);
+            for (const auto& arm : st->arms) {
+                if (arm.guard) wExpr(*arm.guard);
+                wBody(arm.body);
+            }
+            for (const auto& sa : st->selArms)
+                if (sa.chanOp) wExpr(*sa.chanOp);
+            wBody(st->body);
+            wBody(st->elseBody);
+            wBody(st->elifBodies);
+        }
+    };
+
+    wBody(fn.body);
+}
+
+// ====================== end M5 evaluator ====================
+
 } // namespace sema
 } // namespace kirn
+

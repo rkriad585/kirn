@@ -93,6 +93,9 @@ enum class ExKind {
     // walk; Spread is `*expr`/`**expr` in displays and comp elements; SafeIndex
     // and SafeCall are the `.?[i]` / `.?()` nil-safe forms.
     DictComp, SetComp, Spread, SafeIndex, SafeCall,
+    // M5 compile-time. Comptime = `@comptime(expr)` / `comptime(expr)` (lhs is
+    // the forced-compile-time operand, folded by the checker).
+    Comptime,
 };
 
 enum class StrFlavor { Normal, Raw, Byte, C };
@@ -185,7 +188,7 @@ enum class StKind {
     DoWhile, Goto, Label, Gather, GatherStmt,
     Import, Export,
     Del, LocalDecl, GlobalDecl, TempDecl, BucketDecl, Yield,
-    With, Using,
+    With, Using, ComptimeBlock,
 };
 
 struct FieldDecl {
@@ -234,6 +237,7 @@ struct Stmt {
     bool privateDecl = false;         // `pr` modifier: explicit module-private
     bool externDef = false;           // `extern fn f(...) -> T` (no body)
     bool isGenerator = false;         // body contains a `yield` statement
+    bool isConstFn = false;           // `const fn f(...)` — pure, const-evaluable
 
     // Import
     std::string moduleName;           // dotted as written

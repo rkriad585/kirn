@@ -304,7 +304,14 @@ ast::StmtP Parser::parseTopOrStmt() {
         if (atIdent("record")) return parseRecordDef(true);
         if (atIdent("enum"))   { auto s = parseEnumDef();   s->pub = true; return s; }
         if (atIdent("trait"))  { auto s = parseTraitDef();  s->pub = true; return s; }
-        if (atIdent("const"))  { advance(); auto s = finishConstDecl(); s->pub = true; return s; }
+        if (atIdent("const") && atIdent("fn", 1)) {
+            advance();                                  // 'const'
+            auto s = parseFuncDef(false);
+            s->isConstFn = true;
+            s->pub = true;
+            return s;
+        }
+        if (atIdent("const")) { advance(); auto s = finishConstDecl(); s->pub = true; return s; }
         diags_.report(cur().line, cur().col,
                       "'pub' must precede fn/struct/class/interface/record/enum/trait/const");
         throw Abort("pub");
@@ -325,7 +332,13 @@ ast::StmtP Parser::parseTopOrStmt() {
     if (atIdent("impl")) return parseImplDef();
     if (atIdent("import") || atIdent("from")) return parseImport(atIdent("from"), false);
     if (atIdent("export")) return parseImport(false, true);
-    if (atIdent("const")) { advance(); return finishConstDecl(); }
+        if (atIdent("const") && atIdent("fn", 1)) {
+            advance();                                  // 'const'
+            auto s = parseFuncDef(false);
+            s->isConstFn = true;
+            return s;
+        }
+        if (atIdent("const")) { advance(); return finishConstDecl(); }
     if (atIdent("try") && atPunct("{", 1)) return parseCompound();
     if (atIdent("with") && looksLikeWithStmt()) return parseWithStmt();
     if (atIdent("if") || atIdent("while") || atIdent("for") ||
@@ -342,6 +355,17 @@ ast::StmtP Parser::parseTopOrStmt() {
         s->span = spanHere();
         s->exprs.push_back(parseExpr());
         expectPunct(",");
+        return s;
+    }
+    if (atIdent("comptime") && atPunct("{", 1)) {
+        // `comptime { ... }` — compile-time-only block, evaluated by the checker.
+        auto sp = spanHere();
+        advance();                                      // 'comptime'
+        auto s = std::make_unique<ast::Stmt>();
+        s->kind = ast::StKind::ComptimeBlock;
+        s->span = sp;
+        s->body = parseBlock();
+        endBlock();
         return s;
     }
     return parseSimple();
@@ -2042,6 +2066,19 @@ ast::ExprP Parser::parseTerm() {
     return l;
 }
 ast::ExprP Parser::parseUnary() {
+    // `@comptime(expr)`: annotation-style force-compile-time expression.
+    if (atOp("@") && atIdent("comptime", 1) && atPunct("(", 2)) {
+        auto sp = spanHere();
+        advance();                                      // '@'
+        advance();                                      // 'comptime'
+        expectPunct("(");
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Comptime;
+        e->span = sp;
+        e->lhs = parseExpr();
+        expectPunct(")");
+        return e;
+    }
     if (atIdent("try")) {                               // try expr (propagate)
         auto e = std::make_unique<ast::Expr>();
         e->kind = ast::ExKind::Unary;
@@ -2218,6 +2255,18 @@ ast::ExprP Parser::parsePostfix() {
 ast::ExprP Parser::parsePrimary() {
     ast::Span sp = spanHere();
     const Token& t = cur();
+
+    // comptime(expr): contextual keyword forcing compile-time evaluation.
+    if (t.kind == Tok::Ident && t.text == "comptime" && atPunct("(", 1)) {
+        advance();                                      // 'comptime'
+        expectPunct("(");
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Comptime;
+        e->span = sp;
+        e->lhs = parseExpr();
+        expectPunct(")");
+        return e;
+    }
 
     // match-expression: `match <subj> { case pat [if g] { body } ... }` yields
     // the trailing expression of the chosen arm's body (else none).

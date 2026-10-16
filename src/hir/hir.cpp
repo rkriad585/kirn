@@ -605,6 +605,13 @@ struct Lowerer {
             case ast::ExKind::Spread:
                 return mk(ExprKind::Error, sp, ty,
                     payload::Error{"expression kind is interpreter/VM only, not lowered in HIR"});
+
+            // M5 `@comptime(expr)`: validated as pure by the checker; HIR lowers
+            // the operand (its runtime value equals the folded constant).
+            case ast::ExKind::Comptime:
+                return e.lhs ? lower(*e.lhs)
+                    : mk(ExprKind::Error, sp, ty,
+                         payload::Error{"@comptime has no operand"});
         }
         return mk(ExprKind::Error, sp, ty, payload::Error{"unhandled expression kind"});
     }
@@ -690,6 +697,16 @@ struct Lowerer {
                         b.stmts.push_back(mk(StmtKind::ExprStmt, sp, std::move(es)));
                     }
                 }
+                for (const auto& st : s.body)
+                    if (st) b.stmts.push_back(lower(*st));
+                popScope();
+                return mk(StmtKind::Block, sp, std::move(b));
+            }
+            // `comptime { ... }`: a scoped block. Its compile-time evaluation is
+            // the checker's job; HIR only keeps the body resolved.
+            case ast::StKind::ComptimeBlock: {
+                payload::Block b;
+                b.scope = pushScope();
                 for (const auto& st : s.body)
                     if (st) b.stmts.push_back(lower(*st));
                 popScope();

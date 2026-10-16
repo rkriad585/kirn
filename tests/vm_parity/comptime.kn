@@ -1,0 +1,26 @@
+# comptime — M5 `const fn` folding and `@comptime`/`comptime` blocks. The
+# function containing `@comptime` is not bytecode-compiled, so gate 4 pins that
+# the tree-walker and VM still agree on the folded program.
+const fn fact(n: Int) -> Int {
+    if n <= 1 { return 1; }
+    return n * fact(n - 1);
+}
+
+const fn clamp(x: Int, lo: Int, hi: Int) -> Int {
+    if x < lo { return lo; }
+    if x > hi { return hi; }
+    return x;
+}
+
+const FACT5 = fact(5);
+const RANGE_LO = clamp(0 - 3, 0, 10);
+const SQUARES = [i * i for i in 1..=5];
+
+fn main() -> none {
+    print(FACT5);
+    print(RANGE_LO);
+    print(SQUARES);
+    n = @comptime(fact(3) + 1);
+    print(n);
+    comptime { clamp(99, 0, 10); }
+}

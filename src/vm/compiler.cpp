@@ -808,6 +808,7 @@ public:
                 break;
             case ExKind::New: case ExKind::Cast: case ExKind::Lambda:
             case ExKind::FString: case ExKind::Spread:
+            case ExKind::Comptime:
                 em.f.interpreted = true;
                 em.emit(OP_NONEZ);
                 break;

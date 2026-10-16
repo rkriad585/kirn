@@ -1,0 +1,8 @@
+fn runtime(x: Int) -> Int { return x + 1; }
+
+const fn bad(n: Int) -> Int { return runtime(n); }
+
+fn main() -> none {
+    print(bad(1));
+}
+# expect: E-CONST-IMPURE

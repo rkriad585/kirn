@@ -84,7 +84,10 @@ KEYWORD         = "fn"    | "var"   | "if"    | "elif"
    "with" and "using" are contextual too: at statement position `with` opens
    a context-manager block (`with e [as n], … { … }`, see with_stmt) and
    `using` opens a scoped-release binding (`using n = e;`, see using_stmt);
-   elsewhere both stay plain IDENTIFIERs.
+   elsewhere both stay plain IDENTIFIERs. "comptime" is contextual: `comptime`
+   before `{` opens a compile-time-only block (see comptime_stmt) and
+   `comptime ( expr )` / `@comptime(expr)` is a forced compile-time
+   expression (see comptime_expr); otherwise it stays a plain IDENTIFIER.
    Container/view/error type names below are plain IDENTIFIERs bound in the
    prelude — list[Int], gen[T], result[T, E], option[Int] / Int?, any /
    dynamic all parse through base_type.                                     *)
@@ -238,7 +241,7 @@ decl_body       = func_def | struct_def | enum_def | const_decl
 
 (* ---- Functions ------------------------------------------------------------ *)
 
-func_def        = visibility , ( "fn" | "fn" ) IDENTIFIER [ type_params ]
+func_def        = visibility , [ "const" ] , "fn" IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] block
                 | visibility , "extern" , "fn" IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] ";" ;
@@ -416,12 +419,18 @@ with_item       = expr [ "as" IDENTIFIER ] ;
    (invisible to normal lookup); `bucket release x` moves it back.        *)
 
 expr_stmt       = expr ;
+
+comptime_stmt   = "comptime" block ;
+(* M5 compile-time-only block: the checker forces every statement to be
+   compile-time-evaluable (E-CONST-IMPURE otherwise). The executable paths
+   run the body as an ordinary scoped block. `comptime` is contextual: it is
+   a keyword only when immediately followed by `{`.                      *)
 call_expr       = postfix_expr ;
 (* A call-only expression (at least one call_suffix); used by `defer`/`spawn`. *)
 
 compound_stmt   = if_stmt | while_stmt | do_while_stmt | for_stmt
                 | match_stmt | select_stmt | unsafe_block | spawn_stmt
-                | with_stmt | gather_stmt | try_stmt ;
+                | with_stmt | comptime_stmt | gather_stmt | try_stmt ;
 
 if_stmt         = "if" if_head block { "elif" expr block }
                   [ "else" block ] ;
@@ -562,6 +571,7 @@ atom            = literal
                 | "unsafe" block                 (* unsafe as expr  [PROV.] *)
                 | "new" type [ call_suffix ]
                 | "typeof" "(" expr ")"          (* M3: type descriptor     *)
+                | comptime_expr                  (* M5: forced const-eval   *)
                 | "self" | "Self"
                 | "%"                            (* pipe topic; only in a
                                                     `|>` body, else
@@ -569,6 +579,11 @@ atom            = literal
                 ;
 
 call_arg_list   = call_arg , { "," , call_arg } [ "," ] ;
+
+(* M5 forced compile-time expression: `comptime ( expr )` or the annotation
+   spelling `@comptime(expr)`. The operand must be compile-time-evaluable
+   (E-CONST-IMPURE otherwise); its runtime value is the folded constant.  *)
+comptime_expr   = "comptime" "(" expr ")" | "@" "comptime" "(" expr ")" ;
 
 (* M3: `*expr` (list/set) and `**expr` (dict) spread an iterable/dict into a
    display or comprehension element (PEP 448/798). *)

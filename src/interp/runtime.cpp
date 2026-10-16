@@ -2691,6 +2691,12 @@ void Interpreter::exec(const Stmt& s, Env env) {
             return;
         }
 
+        case ast::StKind::ComptimeBlock:
+            // The checker already evaluated the block; at runtime it is an
+            // ordinary scoped block (any `const` bindings inside stay local).
+            execBlock(s.body, makeChild(env));
+            return;
+
             case ast::StKind::If:
                 // block bodies get a fresh child frame so `var` shadowing matches
                 // the checker's lexical scopes (previously the same env was used).
@@ -3392,6 +3398,11 @@ Value cv = eval(*e.lhs, env);
         case ast::ExKind::Cond:
             return truthy(eval(*e.cond, env)) ? eval(*e.lhs, env)
                                               : eval(*e.rhs, env);
+
+        case ast::ExKind::Comptime:
+            // Validated as pure by the checker; evaluating it yields the same
+            // compile-time constant.
+            return e.lhs ? eval(*e.lhs, env) : Value::none();
 
         case ast::ExKind::ListComp:
         case ast::ExKind::SetComp:

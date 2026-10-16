@@ -24,6 +24,20 @@ struct LintConfig {
     std::set<std::string> deny;     // e.g. {"W0101"}
 };
 
+// A fully-evaluated compile-time value produced by the M5 const evaluator.
+// Deliberately small and independent of the runtime `Value`: const-eval runs in
+// the checker, which must not depend on the interpreter. Lists/tuples carry
+// their elements; there is no dict/set/struct support in the first stage.
+struct ConstVal {
+    enum class K { Invalid, Int, Float, Bool, Str, Char, None, List, Tuple };
+    K k = K::Invalid;
+    long long i = 0;
+    double f = 0.0;
+    bool b = false;
+    std::string s;
+    std::vector<ConstVal> elems;
+};
+
 class Checker {
 public:
     explicit Checker(DiagEngine& diags, const LintConfig* cfg = nullptr)
@@ -218,6 +232,30 @@ private:
     bool isSendableVisit(const TyP& t, std::string* why,
                          std::set<std::string>& seeing);
 
+    // ---- M5: compile-time evaluation (const fn / comptime) ----
+    // Interpreter for the pure, side-effect-free subset of the language that a
+    // `const fn` body may use. `constEvalExpr` returns false (leaving `out`
+    // unspecified) when the expression is not compile-time-evaluable; it does
+    // not report, so callers can choose whether that is an error (comptime) or
+    // merely "not folded" (a plain `const` initializer).
+    bool constEvalExpr(const ast::Expr& e, ConstVal& out);
+    // Statement walk for a const fn body / comptime block. Returns a flow code:
+    // 0 normal, 1 return (`ret` set), 2 break, 3 continue, -1 not-evaluable.
+    int constEvalStmts(const std::vector<ast::StmtP>& body, ConstVal& ret);
+    bool constCall(const std::string& name, const std::vector<ConstVal>& args,
+                   const ast::Span& sp, ConstVal& out);
+    // Evaluate a `for pat in iter` clause's iterable into a list (ranges and
+    // list/tuple/str displays). Returns false when the iterable is not a
+    // compile-time-known sequence.
+    bool constEvalIter(const ast::Expr& iter, ConstVal& out);
+    // Structural purity scan for a `const fn` body: every call must target a
+    // `const fn` or an allowlisted pure builtin, and no runtime-only construct
+    // (raise/spawn/with/... ) may appear. Reports E-CONST-IMPURE on the offender.
+    void checkConstFnPurity(const ast::Stmt& fn);
+    // Rewrites `@comptime(expr)`/`comptime {}` results into the AST where the
+    // evaluator succeeded, so downstream codegen sees literals (native folding).
+    ast::ExprP constValToExpr(const ConstVal& v, const ast::Span& sp) const;
+
     DiagEngine& diags_;
     Scope* scope_ = nullptr;
     std::vector<std::string> builtinNames_;
@@ -264,6 +302,11 @@ private:
     std::set<const Symbol*> narrowWarned_;
     // Advisory diagnostics become errors when set (see setStrict).
     bool strict_ = false;
+    // M5 compile-time evaluation state.
+    std::map<std::string, const ast::Stmt*> constFns_;  // name -> const fn def
+    std::map<std::string, ConstVal> constVals_;         // name -> folded value
+    std::map<std::string, ConstVal> constLocals_;       // active const-eval frame
+    int constSteps_ = 0;                                // eval step budget
 };
 
 } // namespace sema

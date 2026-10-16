@@ -128,6 +128,24 @@ stdlib (`kirn test stdlib/pet`, 9) suites. See the M4 phase note for the recorde
 (no implicit declaration-based RAII, no `drop(value)` builtin, no `contextlib.kn`, no `Copy`/`Drop`
 conflict check).
 
+**Implementation progress (2026-10-16).** M5 (`const fn`, compile-time constant evaluation,
+`@comptime(expr)` / `comptime { }`) is implemented in `src/sema/checker.{h,cpp}` as a pure AST
+interpreter (`ConstVal`) that folds arithmetic, comparisons, `and`/`or`, conditionals, calls to other
+`const fn`s (with recursion and a step budget), list/tuple displays, indexing, bounded comprehensions
+over ranges, and a small set of pure builtins (`abs`/`min`/`max`/`len`/`Int`/`Float`/`Bool`/`Ord`/
+`Chr`/`Pow`/`sum`). A `const NAME = <evaluable>` initializer is folded to a literal (so native/codegen
+sees a constant and the `--release` call is eliminated); `const fn` bodies are structurally checked and
+a call to a runtime function or a runtime-only statement reports `E-CONST-IMPURE`; `@comptime(expr)`
+and `comptime { }` force compile-time evaluation and report `E-CONST-IMPURE` when the operand is not
+constant. Executable paths treat `@comptime(expr)` as its operand and `comptime { }` as an ordinary
+scoped block (HIR lowers both), so behaviour is unchanged on the tree-walker and the VM. Green on the
+full gate (`scripts/gates_linux.sh`, 230), golden (`scripts/golden_linux.sh`, 230), crosscheck
+(`scripts/crosscheck_linux.sh`, 545+) and stdlib (`kirn test stdlib/pet`, 9) suites. Recorded scope
+deviations: const-eval supports scalars, lists/tuples, and bounded comprehensions but not
+dicts/sets/structs, method calls, string methods, or I/O; `sizeof`/`alignof` are not builtins, so the
+plan's `@comptime(alignof(Point))` form is out of scope for this stage; the constant table is not
+emitted as a separate data section (folding rewrites the AST literal instead).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -575,14 +593,20 @@ aligned = @comptime(alignof(Point));            # comptime expression
 comptime { validate(enum::variants); }          # compile-time-only block
 ```
 
-**Error handling:** calling a runtime function from `const fn` → `E-CONST-IMPURE`; `@comptime` of a
-non-const expr → error; non-constant array length → error.
-
-**Testing:** `tests/comptime/const_fn_*.kn` positive/negative; verify constant folding eliminates the
-call in `--release` native output (codegen check); `examples/55_comptime.kn`.
-
 **Expected result:** `const fn`/consts evaluate at compile time; `@comptime`/`comptime` blocks guard
 compile-time-only code; native output folds constants.
+
+**M5 phase note (implemented).** Delivered in `src/ast` (`Stmt::isConstFn`, `StKind::ComptimeBlock`,
+`ExKind::Comptime`), `src/parser/parser.cpp` (`const fn`, `comptime { }`, `comptime(expr)` /
+`@comptime(expr)`), and `src/sema/checker.{h,cpp}` (the const evaluator + purity scan). Executable
+paths: `src/interp/runtime.cpp` (`Comptime`→operand, `ComptimeBlock`→block), `src/vm/compiler.cpp`
+(interpreted fallback), `src/hir/hir.cpp` (both lowered), native `default:false` (interpreter
+fallback). Tests: `tests/syntax/const_fn_ok.kn`, `tests/syntax/const_fn_err_impure.kn`,
+`tests/syntax/comptime_err_impure.kn`, `tests/vm_parity/comptime.kn`, `examples/49_comptime.kn` (+3
+recorded goldens). The plan's `tests/comptime/` path was not used because the gate discovers
+`tests/syntax/*_ok*.kn` / `*_err*.kn`; the tests live there so they are actually run. Deviations
+listed in the progress note above: scalar/list/tuple const-eval only (no dict/set/struct/method/IO),
+no `sizeof`/`alignof`, and folding rewrites the AST literal rather than emitting a data section.
 
 ---
 

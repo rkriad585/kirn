@@ -1,0 +1,6 @@
+fn main() -> none {
+    y = 5;
+    x = @comptime(y + 1);
+    print(x);
+}
+# expect: E-CONST-IMPURE

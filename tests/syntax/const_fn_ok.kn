@@ -1,0 +1,19 @@
+const fn fact(n: Int) -> Int {
+    if n <= 1 { return 1; }
+    return n * fact(n - 1);
+}
+
+const fn sq(x: Int) -> Int { return x * x; }
+
+const TABLE = [fact(i) for i in 0..=5];
+const SQ10 = sq(10);
+const GREETING = "hi " + "there";
+
+fn main() -> none {
+    print(TABLE);
+    print(SQ10);
+    print(GREETING);
+    x = @comptime(2 + 3 * 4);
+    print(x);
+    comptime { sq(3); }
+}

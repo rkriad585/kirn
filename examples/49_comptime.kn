@@ -1,0 +1,32 @@
+const fn fact(n: Int) -> Int {
+    if n <= 1 { return 1; }
+    return n * fact(n - 1);
+}
+
+const fn sq(x: Int) -> Int { return x * x; }
+
+const fn sum_of(n: Int) -> Int {
+    total = 0;
+    i = 0;
+    while i <= n {
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}
+
+const fn validate_range(lo: Int, hi: Int) -> Bool { return lo < hi; }
+
+const TABLE = [fact(i) for i in 0..=6];
+const POWERS = [2 ** i for i in 0..=8];
+const TOTAL = sum_of(10);
+
+fn main() -> none {
+    print(TABLE);
+    print(POWERS);
+    print(TOTAL);
+    print(sq(12));
+    shift = @comptime(1 << 5);
+    print(shift);
+    comptime { validate_range(3, 7); }
+}

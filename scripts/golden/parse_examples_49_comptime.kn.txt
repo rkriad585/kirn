@@ -1,0 +1,166 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/49_comptime.kn
+FuncDef "fact"
+  Param "n" : Int
+  Ret Int
+  Body
+    If
+      Cond 
+        Binary op="<="
+          Lhs Ident "n"
+          Rhs Int "1"
+      Then
+        Return
+          Value Int "1"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs 
+            Call
+              Callee Ident "fact"
+              Arg
+                Value 
+                  Binary op="-"
+                    Lhs Ident "n"
+                    Rhs Int "1"
+FuncDef "sq"
+  Param "x" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "x"
+          Rhs Ident "x"
+FuncDef "sum_of"
+  Param "n" : Int
+  Ret Int
+  Body
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    Assign
+      Target Ident "i"
+      Value Int "0"
+    While
+      Cond 
+        Binary op="<="
+          Lhs Ident "i"
+          Rhs Ident "n"
+      Body
+        Assign
+          Target Ident "total"
+          Value 
+            Binary op="+"
+              Lhs Ident "total"
+              Rhs Ident "i"
+        Assign
+          Target Ident "i"
+          Value 
+            Binary op="+"
+              Lhs Ident "i"
+              Rhs Int "1"
+    Return
+      Value Ident "total"
+FuncDef "validate_range"
+  Param "lo" : Int
+  Param "hi" : Int
+  Ret Bool
+  Body
+    Return
+      Value 
+        Binary op="<"
+          Lhs Ident "lo"
+          Rhs Ident "hi"
+ConstDecl
+  Target Ident "TABLE"
+  Value 
+    ListComp
+      Element 
+        Call
+          Callee Ident "fact"
+          Arg
+            Value Ident "i"
+      For
+        PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "0"
+          Rhs Int "6"
+ConstDecl
+  Target Ident "POWERS"
+  Value 
+    ListComp
+      Element 
+        Binary op="**"
+          Lhs Int "2"
+          Rhs Ident "i"
+      For
+        PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "0"
+          Rhs Int "8"
+ConstDecl
+  Target Ident "TOTAL"
+  Value 
+    Call
+      Callee Ident "sum_of"
+      Arg
+        Value Int "10"
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "TABLE"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "POWERS"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "TOTAL"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "sq"
+                Arg
+                  Value Int "12"
+    Assign
+      Target Ident "shift"
+      Value 
+        Comptime
+          Expr 
+            Binary op="<<"
+              Lhs Int "1"
+              Rhs Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "shift"
+    ComptimeBlock
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "validate_range"
+            Arg
+              Value Int "3"
+            Arg
+              Value Int "7"
+<ROOT>/examples/49_comptime.kn: OK (8 top-level statements)
+[exit 0]

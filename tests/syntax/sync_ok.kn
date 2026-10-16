@@ -1,0 +1,57 @@
+# M9: sync module — Mutex, RwMutex, WaitGroup, Once, Cond, Atomic check+run clean.
+import sync;
+
+fn main() -> none {
+    mu = sync.Mutex();
+    assert_eq(mu.try_lock(), true);
+    assert_eq(mu.locked(), true);
+    mu.unlock();
+
+    rw = sync.RwMutex();
+    rw.rlock();
+    rw.runlock();
+    rw.lock();
+    rw.unlock();
+    assert_eq(type(rw), "RwMutex");
+
+    once = sync.Once();
+    hits = 0;
+    once.do(fn () { hits += 1; });
+    once.do(fn () { hits += 1; });
+    assert_eq(hits, 1);
+    assert_eq(once.done(), true);
+
+    a = sync.Atomic[Int](0);
+    assert_eq(a.load(), 0);
+    a.store(5);
+    assert_eq(a.load(), 5);
+    assert_eq(a.add(2), 7);
+    assert_eq(a.swap(9), 7);
+    assert_eq(a.compare_exchange(9, 1), true);
+    assert_eq(a.load(), 1);
+
+    ab = sync.Atomic(true);
+    assert_eq(ab.load(), true);
+    af = sync.Atomic(1.5);
+    assert_eq(af.load(), 1.5);
+
+    # Cond handshakes with a Mutex across a worker.
+    cond = sync.Cond();
+    cwg = sync.WaitGroup();
+    var ready = false;
+    seen = 0;
+    cwg.go(fn () {
+        mu.lock();
+        while ready == false {
+            cond.wait(mu);
+        }
+        seen += 1;
+        mu.unlock();
+    });
+    mu.lock();
+    ready = true;
+    cond.signal();
+    mu.unlock();
+    cwg.wait();
+    assert_eq(seen, 1);
+}

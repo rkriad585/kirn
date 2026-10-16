@@ -1,0 +1,54 @@
+# 59 — Concurrency: the sync module (Mutex, WaitGroup, Atomic, Once)   (plan §7/M9)
+import sync;
+
+fn main() -> none {
+    # A Mutex-protected counter shared by four workers.
+    mu = sync.Mutex();
+    total = 0;
+    wg = sync.WaitGroup();
+    for _ in 1..=4 {
+        wg.go(fn () {
+            for _ in 1..=250 {
+                mu.lock();
+                total += 1;
+                mu.unlock();
+            }
+        });
+    }
+    wg.wait();
+    print("counter = " + Str(total));
+
+    # An Atomic counter: lock-free increments from four workers.
+    hits = sync.Atomic[Int](0);
+    wg2 = sync.WaitGroup();
+    for _ in 1..=4 {
+        wg2.go(fn () {
+            for _ in 1..=250 { hits.add(1); }
+        });
+    }
+    wg2.wait();
+    print("atomic = " + Str(hits.load()));
+
+    # Once runs its body exactly once, however many callers race.
+    once = sync.Once();
+    starts = 0;
+    once.do(fn () { starts += 1; });
+    once.do(fn () { starts += 1; });
+    print("once = " + Str(starts));
+
+    # RwMutex: readers share, the writer is exclusive.
+    rw = sync.RwMutex();
+    state = 0;
+    wg3 = sync.WaitGroup();
+    for _ in 1..=4 {
+        wg3.go(fn () {
+            for _ in 1..=100 {
+                rw.lock();
+                state += 1;
+                rw.unlock();
+            }
+        });
+    }
+    wg3.wait();
+    print("rw = " + Str(state));
+}

@@ -170,6 +170,14 @@ method surfaces, the min/max binary-heap helpers, and the free functions
 (`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M8 phase
 note for the recorded scope deviations (no `stdlib/lib` module; builtins are shadowable).
 
+**Implementation progress (2026-10-16).** M9 (`sync` module: mutex/waitgroup/atomic) is implemented
+in `src/` (runtime values + checker). The new work is `VK::Mutex`/`RwMutex`/`WaitGroup`/`Once`/
+`Cond`/`Atomic` sharing one `SyncImpl` allocation, their method surfaces, `sync.Atomic[T](v)` /
+`Atomic[T](v)` construction, `WaitGroup.go` = spawn + add, and the `sync` pseudo-module. Green on
+the full gate (`scripts/gates_linux.sh`, 251), golden (`scripts/golden_linux.sh`, 242), crosscheck
+(`scripts/crosscheck_linux.sh`, 573) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M9 phase
+note for the recorded scope deviations.
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -862,6 +870,32 @@ var a = sync.Atomic[Int](0); a.add(1); print(a.load());
 cases. **Exit criteria** reuse `PLAN P14` (crawler demo, condvar select, no data races).
 
 **Expected result:** `sync` primitives run correctly and race-free.
+
+**M9 phase note (implemented).** Delivered in `src/interp/value.h` (`VK::Mutex`/`RwMutex`/
+`WaitGroup`/`Once`/`Cond`/`Atomic`, one `std::shared_ptr<SyncImpl>` slot) and `src/interp/runtime.cpp`
+(`SyncImpl` + `makeSync` + constructors, the `sync` pseudo-module, and the full member surface):
+`Mutex.lock/unlock/try_lock/locked`; `RwMutex.lock/unlock/rlock/runlock/try_lock` (readers share, one
+writer); `WaitGroup.add/done/wait/go` where `go(f)` = increment + spawn and `wait()` blocks on a
+condition variable until the count drains; `Once.do/done`; `Cond.wait(mu)/signal/broadcast` (its
+condvar combined with the caller's `Mutex`, adopting the lock so the wait is atomic); and
+`Atomic.load/store/swap/add/sub/inc/dec/compare_exchange` over `std::atomic<int64_t|bool|double>`
+with sequential consistency. `sync.Atomic[T](v)` (and the bracketless `Atomic(v)`) type the element
+by `T`/the initial value; `Atomic[T]` also runs the `isSendable(T)` gate. The checker registers the
+primitives as dynamic handles (verified: gate 251, golden 242, crosscheck 573, stdlib 9, all 0 fail).
+Tests: `tests/syntax/sync_ok.kn`, `tests/vm_parity/sync_m9.kn`, `examples/59_sync.kn` (+3 recorded
+goldens). Deviations recorded: (1) the plan lists `stdlib/lib/sync.kn` and `import lib.sync`, but the
+repository has no `stdlib/lib` tree, so — as with M6/M7/M8 — `sync` ships as a builtin pseudo-module
+(`import sync; sync.Mutex()`) plus bare globals, and no module wrapper was added. (2) The plan's
+example grammar `count += 1 in mu` is illustrative only; locking is explicit via `mu.lock()`/
+`mu.unlock()` (no `in`-guarded-assignment form was added). (3) `select` keeps its 1 ms-backoff poll
+rather than switching to a channel condvar: select spans channels, timers and boolean gates, so the
+periodic poll is still required for the last two, and changing it was out of proportion to the
+primitive work. (4) TSan/ASan CI runs are not wired into this repository's gate scripts; correctness
+is shown by deterministic tree-walk/VM parity tests (`tests/vm_parity/sync_m9.kn`) and the
+`examples/59_sync.kn` shared-counter totals, not by a sanitizer build. (5) Full `PLAN P14`
+"no shared mutable across threads" is not statically enforced for `spawn`/`WaitGroup.go` closures;
+the existing `chan.send` sendability gate is retained and `Atomic[T]` element types are checked for
+sendability, but the dynamic closure model leaves a sound general analysis to a later phase.
 
 ---
 

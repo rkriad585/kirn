@@ -27,6 +27,7 @@ using Env = std::shared_ptr<EnvS>;
 struct ChanImpl;
 struct HeapObj;
 struct ThreadImpl;
+struct SyncImpl;
 
 enum class VK {
     None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, ByteArray, View, Char,
@@ -39,6 +40,7 @@ enum class VK {
     Builtin,                                  // builtin global fn / method impl
     Gen,                                      // generator (yield) — eager list
     Chan, ThreadH, Timer, Module, File, Arena, Ptr,
+    Mutex, RwMutex, WaitGroup, Once, Cond, Atomic,
 };
 
 using BuiltinFn = std::function<Value(std::vector<Value>&)>;
@@ -120,6 +122,7 @@ struct Value {
     // runtime objects
     std::shared_ptr<ChanImpl> chan;
     std::shared_ptr<ThreadImpl> thread;
+    std::shared_ptr<SyncImpl> sync;           // M9: Mutex/RwMutex/WaitGroup/Once/Cond/Atomic
     int64_t deadlineMs = 0;                   // Timer (epoch ms)
 
     // ---- constructors -------------------------------------------------------

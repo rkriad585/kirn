@@ -1,0 +1,210 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/59_sync.kn
+Import sync
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "mu"
+      Value 
+        Call
+          Callee 
+            Member name="Mutex"
+              Obj Ident "sync"
+    Assign
+      Target Ident "total"
+      Value Int "0"
+    Assign
+      Target Ident "wg"
+      Value 
+        Call
+          Callee 
+            Member name="WaitGroup"
+              Obj Ident "sync"
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "4"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="go"
+                  Obj Ident "wg"
+              Arg
+                Value 
+                  Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="wait"
+              Obj Ident "wg"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "counter = "
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "total"
+    Assign
+      Target Ident "hits"
+      Value 
+        Call
+          Callee 
+            Index
+              Obj 
+                Member name="Atomic"
+                  Obj Ident "sync"
+              At Ident "Int"
+          Arg
+            Value Int "0"
+    Assign
+      Target Ident "wg2"
+      Value 
+        Call
+          Callee 
+            Member name="WaitGroup"
+              Obj Ident "sync"
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "4"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="go"
+                  Obj Ident "wg2"
+              Arg
+                Value 
+                  Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="wait"
+              Obj Ident "wg2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "atomic = "
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="load"
+                              Obj Ident "hits"
+    Assign
+      Target Ident "once"
+      Value 
+        Call
+          Callee 
+            Member name="Once"
+              Obj Ident "sync"
+    Assign
+      Target Ident "starts"
+      Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="do"
+              Obj Ident "once"
+          Arg
+            Value 
+              Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="do"
+              Obj Ident "once"
+          Arg
+            Value 
+              Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "once = "
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "starts"
+    Assign
+      Target Ident "rw"
+      Value 
+        Call
+          Callee 
+            Member name="RwMutex"
+              Obj Ident "sync"
+    Assign
+      Target Ident "state"
+      Value Int "0"
+    Assign
+      Target Ident "wg3"
+      Value 
+        Call
+          Callee 
+            Member name="WaitGroup"
+              Obj Ident "sync"
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "4"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="go"
+                  Obj Ident "wg3"
+              Arg
+                Value 
+                  Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="wait"
+              Obj Ident "wg3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs Str "rw = "
+                Rhs 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "state"
+<ROOT>/examples/59_sync.kn: OK (2 top-level statements)
+[exit 0]

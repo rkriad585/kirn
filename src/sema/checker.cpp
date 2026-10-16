@@ -603,6 +603,15 @@ void Checker::predeclareBuiltins() {
                     listTy(unkTy()), false, 2);
     makeBuiltinFunc("nsmallest", {intTy(), unkTy()}, {"n", "xs"},
                     listTy(unkTy()), false, 2);
+    // M9: `sync` primitives. Handles are dynamically typed; methods resolve at
+    // runtime and the sendability gate treats them as opaque shared objects.
+    makeBuiltinFunc("Mutex", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("RwMutex", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("RWLock", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("WaitGroup", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("Once", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("Cond", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("Atomic", {unkTy()}, {"init"}, unkTy(), false, 0);
     makeBuiltinFunc("CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("__CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
@@ -657,7 +666,7 @@ void Checker::predeclareBuiltins() {
     // pseudo-modules used by the standard environment (dynamically typed v1).
     // Not declared into scope: user `import time` etc. must not clash; the
     // importRoots_ set alone makes bare references resolve dynamically.
-    for (const char* mod : {"time", "mem", "io", "os", "json", "math"})
+    for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync"})
         importRoots_.insert(mod);
 
     // Publish every name that resolves at top level without a user declaration,
@@ -4534,6 +4543,36 @@ TyP Checker::checkCall(const ast::Expr& e) {
                           a.value->span.col);
         }
         return base ? base : unkTy();
+    }
+
+    // sync.Atomic[T](v) / Atomic[T](v): element type lands in the index, value
+    // typing is dynamic (matches the runtime, which types by the initial value).
+    // The element must be sendable: it is shared mutable state across threads.
+    if (callee->kind == ExKind::Index && callee->lhs) {
+        const ast::Expr* b = callee->lhs.get();
+        bool isAtomic = (b->kind == ExKind::Ident && b->text == "Atomic") ||
+                        (b->kind == ExKind::Member && b->text == "Atomic");
+        if (isAtomic) {
+            TyP elemTy;
+            const ast::Expr* tyArg = callee->rhs.get();
+            if (tyArg && tyArg->kind == ExKind::Ident) {
+                if (tyArg->text == "Bool" || tyArg->text == "bool")
+                    elemTy = boolTy();
+                else if (tyArg->text == "Float" || tyArg->text == "float" ||
+                         tyArg->text == "f64" || tyArg->text == "f32")
+                    elemTy = floatTy();
+                else
+                    elemTy = intTy();
+            }
+            std::string why;
+            if (elemTy && !isSendable(elemTy, &why))
+                error(callee->rhs ? callee->rhs->span.line : e.span.line,
+                      callee->rhs ? callee->rhs->span.col : e.span.col,
+                      "Atomic element type " + toString(*elemTy) +
+                          " is not sendable: " + why);
+            for (const auto& a : e.args) checkExpr(*a.value);
+            return unkTy();
+        }
     }
 
     // direct symbol callee keeps full signature info (variadic/optional)

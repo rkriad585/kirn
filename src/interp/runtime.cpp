@@ -860,6 +860,12 @@ static std::string typeName(const Value& v) {
         case VK::Builtin:return "builtin";
         case VK::Gen:    return "generator";
         case VK::Chan:   return "chan";
+        case VK::Mutex:  return "Mutex";
+        case VK::RwMutex: return "RwMutex";
+        case VK::WaitGroup: return "WaitGroup";
+        case VK::Once:   return "Once";
+        case VK::Cond:   return "Cond";
+        case VK::Atomic: return "Atomic";
         case VK::Module: return "module";
         case VK::Ptr:    return "ptr";
         default:         return "value";
@@ -1097,6 +1103,79 @@ static Value biFn(std::vector<std::string> params, BuiltinFn fn) {
     v.biParams = std::move(params);
     v.bi = std::move(fn);
     return v;
+}
+
+// ---- M9: `sync` primitives -------------------------------------------------
+// One impl allocation per Mutex/RwMutex/WaitGroup/Once/Cond/Atomic value; the
+// VK tag selects which fields and surface are live. Mutex is a plain std::mutex
+// so `Cond.wait` can adopt it; RwMutex tracks readers/writer explicitly; Atomic
+// maps to std::atomic with sequential consistency.
+struct SyncImpl {
+    std::mutex m;
+    std::condition_variable cv;
+    // Mutex
+    std::thread::id owner;
+    bool locked = false;
+    // Once
+    bool done = false;
+    // WaitGroup
+    int64_t count = 0;
+    // RwMutex (readers may share; a writer is exclusive)
+    int readers = 0;
+    bool writer = false;
+    // Atomic
+    int elem = 0;                              // 0 = int, 1 = bool, 2 = float
+    std::atomic<int64_t> ai{0};
+    std::atomic<bool> ab{false};
+    std::atomic<double> ad{0.0};
+};
+
+static Value makeSync(VK kind) {
+    Value v;
+    v.k = kind;
+    v.sync = std::make_shared<SyncImpl>();
+    return v;
+}
+
+static Value syncCtorMutex() {
+    return biFn({}, [](std::vector<Value>&) { return makeSync(VK::Mutex); });
+}
+static Value syncCtorRwMutex() {
+    return biFn({}, [](std::vector<Value>&) { return makeSync(VK::RwMutex); });
+}
+static Value syncCtorWaitGroup() {
+    return biFn({}, [](std::vector<Value>&) { return makeSync(VK::WaitGroup); });
+}
+static Value syncCtorOnce() {
+    return biFn({}, [](std::vector<Value>&) -> Value {
+        return makeSync(VK::Once);
+    });
+}
+static Value syncCtorCond() {
+    return biFn({}, [](std::vector<Value>&) -> Value {
+        return makeSync(VK::Cond);
+    });
+}
+static Value syncCtorAtomic() {
+    return biFn({"init"}, [](std::vector<Value>& a) -> Value {
+        Value v = makeSync(VK::Atomic);
+        if (!a.empty() && a[0].k != VK::None) {
+            const Value& init = a[0];
+            if (init.k == VK::Bool) {
+                v.sync->elem = 1;
+                v.sync->ab.store(init.b);
+            } else if (init.k == VK::Float) {
+                v.sync->elem = 2;
+                v.sync->ad.store(init.d);
+            } else if (init.k == VK::Int) {
+                v.sync->elem = 0;
+                v.sync->ai.store(init.i);
+            } else {
+                panicHere("Atomic requires an Int, Bool, or Float initial value");
+            }
+        }
+        return v;
+    });
 }
 
 // ---- M8: heap helpers (a heap is just a list kept in heap order) ----------
@@ -2259,6 +2338,15 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::list(std::move(v));
     });
 
+    // ---- M9: `sync` primitives ---------------------------------------------
+    globals_->vars["Mutex"] = syncCtorMutex();
+    globals_->vars["RwMutex"] = syncCtorRwMutex();
+    globals_->vars["RWLock"] = syncCtorRwMutex();
+    globals_->vars["WaitGroup"] = syncCtorWaitGroup();
+    globals_->vars["Once"] = syncCtorOnce();
+    globals_->vars["Cond"] = syncCtorCond();
+    globals_->vars["Atomic"] = syncCtorAtomic();
+
     // ---- WHY-1 / SP-8: string operations -----------------------------------
     globals_->vars["upper"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {
         std::string out = a[0].s;
@@ -2763,6 +2851,16 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             panicHere("module '" + dotted + "' has no exported member '" +
                       name + "'");
         return *mv;
+    }
+
+    if (mod == "sync") {
+        if (name == "Mutex") return syncCtorMutex();
+        if (name == "RwMutex" || name == "RWLock") return syncCtorRwMutex();
+        if (name == "WaitGroup") return syncCtorWaitGroup();
+        if (name == "Once") return syncCtorOnce();
+        if (name == "Cond") return syncCtorCond();
+        if (name == "Atomic") return syncCtorAtomic();
+        panicHere("sync has no member '" + name + "'");
     }
 
     if (mod == "math") {
@@ -3833,6 +3931,39 @@ Value Interpreter::eval(const Expr& e, Env env) {
                                          ? parseIntText(a.value->text)
                                          : eval(*a.value, env).i);
                 return c;
+            }
+
+            // sync.Atomic[T](v) / Atomic[T](v): generic element type
+            if (e.lhs->kind == ast::ExKind::Index && e.lhs->lhs) {
+                const ast::Expr* b = e.lhs->lhs.get();
+                bool isAtomic =
+                    (b->kind == ast::ExKind::Ident && b->text == "Atomic") ||
+                    (b->kind == ast::ExKind::Member && b->text == "Atomic");
+                if (isAtomic) {
+                    int elem = 0;
+                    const ast::Expr* tyArg = e.lhs->rhs.get();
+                    if (tyArg && tyArg->kind == ast::ExKind::Ident) {
+                        if (tyArg->text == "Bool" || tyArg->text == "bool")
+                            elem = 1;
+                        else if (tyArg->text == "Float" || tyArg->text == "float" ||
+                                 tyArg->text == "f64" || tyArg->text == "f32")
+                            elem = 2;
+                    }
+                    Value v = makeSync(VK::Atomic);
+                    v.sync->elem = elem;
+                    if (!e.args.empty() && e.args[0].value) {
+                        Value init = eval(*e.args[0].value, env);
+                        if (elem == 1) v.sync->ab.store(init.b);
+                        else if (elem == 2)
+                            v.sync->ad.store(init.k == VK::Int ? (double)init.i
+                                                               : init.d);
+                        else
+                            v.sync->ai.store(init.k == VK::Float
+                                                 ? (int64_t)init.d
+                                                 : init.i);
+                    }
+                    return v;
+                }
             }
 
             // heap struct: `new X(..)` may parse as Call around New with the
@@ -4932,6 +5063,251 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     return Value::none();
                 });
             break;
+
+        // ---- M9: `sync` primitives -----------------------------------------
+        case VK::Mutex: {
+            if (name == "lock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].sync->m.lock();
+                    a[0].sync->locked = true;
+                    a[0].sync->owner = std::this_thread::get_id();
+                    return Value::none();
+                });
+            if (name == "unlock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].sync->locked = false;
+                    a[0].sync->owner = std::thread::id{};
+                    a[0].sync->m.unlock();
+                    return Value::none();
+                });
+            if (name == "try_lock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sync->m.try_lock()) return Value::boolean(false);
+                    a[0].sync->locked = true;
+                    a[0].sync->owner = std::this_thread::get_id();
+                    return Value::boolean(true);
+                });
+            if (name == "locked")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::boolean(a[0].sync->locked);
+                });
+            break;
+        }
+
+        case VK::RwMutex: {
+            if (name == "lock" || name == "wlock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::unique_lock<std::mutex> lk(s->m);
+                    s->cv.wait(lk, [&] { return !s->writer && s->readers == 0; });
+                    s->writer = true;
+                    return Value::none();
+                });
+            if (name == "unlock" || name == "wunlock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    { std::lock_guard<std::mutex> lk(s->m); s->writer = false; }
+                    s->cv.notify_all();
+                    return Value::none();
+                });
+            if (name == "rlock" || name == "rdlock" || name == "read_lock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::unique_lock<std::mutex> lk(s->m);
+                    s->cv.wait(lk, [&] { return !s->writer; });
+                    s->readers++;
+                    return Value::none();
+                });
+            if (name == "runlock" || name == "r_unlock" || name == "read_unlock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    { std::lock_guard<std::mutex> lk(s->m); --s->readers; }
+                    s->cv.notify_all();
+                    return Value::none();
+                });
+            if (name == "try_lock")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::lock_guard<std::mutex> lk(s->m);
+                    if (!s->writer && s->readers == 0) {
+                        s->writer = true;
+                        return Value::boolean(true);
+                    }
+                    return Value::boolean(false);
+                });
+            break;
+        }
+
+        case VK::WaitGroup: {
+            if (name == "add")
+                return bind({"n"}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    int64_t n = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 1;
+                    {
+                        std::lock_guard<std::mutex> lk(s->m);
+                        s->count += n;
+                    }
+                    if (n <= 0) s->cv.notify_all();
+                    return Value::none();
+                });
+            if (name == "done")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    {
+                        std::lock_guard<std::mutex> lk(s->m);
+                        --s->count;
+                    }
+                    s->cv.notify_all();
+                    return Value::none();
+                });
+            if (name == "wait")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::unique_lock<std::mutex> lk(s->m);
+                    s->cv.wait(lk, [&] { return s->count == 0; });
+                    return Value::none();
+                });
+            if (name == "go")
+                return bind({"f"}, [this](std::vector<Value>& a) -> Value {
+                    auto sync = a[0].sync;
+                    Value f = a.size() > 1 ? a[1] : Value::none();
+                    {
+                        std::lock_guard<std::mutex> lk(sync->m);
+                        sync->count++;
+                    }
+                    auto t = std::make_shared<ThreadImpl>();
+                    {
+                        std::lock_guard<std::mutex> lk(threadsM_);
+                        threads_.push_back(t);
+                    }
+                    t->th = std::thread([this, f, sync]() {
+                        try {
+                            callValue(f, {}, 0, 0);
+                        } catch (...) {
+                        }
+                        {
+                            std::lock_guard<std::mutex> lk(sync->m);
+                            --sync->count;
+                        }
+                        sync->cv.notify_all();
+                    });
+                    return Value::none();
+                });
+            break;
+        }
+
+        case VK::Once: {
+            if (name == "do" || name == "call")
+                return bind({"f"}, [this](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::lock_guard<std::mutex> lk(s->m);
+                    if (!s->done) {
+                        s->done = true;
+                        if (a.size() > 1) callValue(a[1], {}, 0, 0);
+                    }
+                    return Value::none();
+                });
+            if (name == "done")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::boolean(a[0].sync->done);
+                });
+            break;
+        }
+
+        case VK::Cond: {
+            if (name == "wait")
+                return bind({"mu"}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() < 2 || a[1].k != VK::Mutex)
+                        panicHere("Cond.wait requires a Mutex");
+                    std::unique_lock<std::mutex> lk(a[1].sync->m, std::adopt_lock);
+                    a[0].sync->cv.wait(lk);
+                    lk.release();              // caller keeps holding the Mutex
+                    return Value::none();
+                });
+            if (name == "signal")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].sync->cv.notify_one();
+                    return Value::none();
+                });
+            if (name == "broadcast")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    a[0].sync->cv.notify_all();
+                    return Value::none();
+                });
+            break;
+        }
+
+        case VK::Atomic: {
+            auto loadVal = [](const Value& s) -> Value {
+                if (s.sync->elem == 1) return Value::boolean(s.sync->ab.load());
+                if (s.sync->elem == 2) return Value::floating(s.sync->ad.load());
+                return Value::integer(s.sync->ai.load());
+            };
+            if (name == "load")
+                return bind({}, [loadVal](std::vector<Value>& a) -> Value {
+                    return loadVal(a[0]);
+                });
+            if (name == "store")
+                return bind({"v"}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() < 2) return Value::none();
+                    SyncImpl* s = a[0].sync.get();
+                    if (a[1].k == VK::Bool) s->ab.store(a[1].b);
+                    else if (a[1].k == VK::Float) s->ad.store(a[1].d);
+                    else s->ai.store(a[1].i);
+                    return Value::none();
+                });
+            if (name == "swap")
+                return bind({"v"}, [loadVal](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    Value old = loadVal(a[0]);
+                    if (a.size() > 1) {
+                        if (a[1].k == VK::Bool) s->ab.store(a[1].b);
+                        else if (a[1].k == VK::Float) s->ad.store(a[1].d);
+                        else s->ai.store(a[1].i);
+                    }
+                    return old;
+                });
+            if (name == "add" || name == "sub" || name == "fetch_add" ||
+                name == "fetch_sub" || name == "inc" || name == "dec") {
+                bool sub = (name == "sub" || name == "fetch_sub" ||
+                            name == "dec");
+                return bind({"d"}, [sub](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    if (s->elem == 2) {
+                        double d = a.size() > 1
+                                       ? (a[1].k == VK::Int ? (double)a[1].i
+                                                            : a[1].d)
+                                       : 1.0;
+                        if (sub) d = -d;
+                        double now = s->ad.load() + d;
+                        s->ad.store(now);
+                        return Value::floating(now);
+                    }
+                    int64_t d = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 1;
+                    if (sub) d = -d;
+                    return Value::integer(s->ai.fetch_add(d) + d);
+                });
+            }
+            if (name == "compare_exchange" || name == "cas")
+                return bind({"old", "new"}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    if (s->elem == 2) {
+                        double old = a.size() > 1 ? a[1].d : 0.0;
+                        double nw = a.size() > 2 ? a[2].d : 0.0;
+                        if (s->ad.load() == old) { s->ad.store(nw); return Value::boolean(true); }
+                        return Value::boolean(false);
+                    }
+                    if (s->elem == 1) {
+                        bool old = a.size() > 1 ? a[1].b : false;
+                        bool nw = a.size() > 2 ? a[2].b : false;
+                        return Value::boolean(s->ab.compare_exchange_strong(old, nw));
+                    }
+                    int64_t old = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                    int64_t nw = a.size() > 2 && a[2].k == VK::Int ? a[2].i : 0;
+                    return Value::boolean(s->ai.compare_exchange_strong(old, nw));
+                });
+            break;
+        }
 
         default:
             break;

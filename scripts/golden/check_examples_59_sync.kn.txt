@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/59_sync.kn
+<ROOT>/examples/59_sync.kn: OK
+[exit 0]

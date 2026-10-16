@@ -1,0 +1,29 @@
+# vm_parity — M9 sync primitives must produce identical tree-walk/VM output.
+import sync;
+
+fn main() -> none {
+    mu = sync.Mutex();
+    total = 0;
+    wg = sync.WaitGroup();
+    for _ in 1..=4 {
+        wg.go(fn () {
+            for _ in 1..=100 {
+                mu.lock();
+                total += 1;
+                mu.unlock();
+            }
+        });
+    }
+    wg.wait();
+    print(total);
+
+    hits = sync.Atomic[Int](0);
+    wg2 = sync.WaitGroup();
+    for _ in 1..=4 {
+        wg2.go(fn () {
+            for _ in 1..=100 { hits.add(1); }
+        });
+    }
+    wg2.wait();
+    print(hits.load());
+}

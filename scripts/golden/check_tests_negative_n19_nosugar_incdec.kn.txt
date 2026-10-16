@@ -1,0 +1,12 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n19_nosugar_incdec.kn
+<ROOT>/tests/negative/n19_nosugar_incdec.kn:6:6: warning[W-nosugar]: `++` is not Kirn syntax
+ 6 |     x++;
+   |      ^^
+ = note: increment/decrement are written `+= 1`; there is no `++` operator
+ 6 |     x++;
+ = help: replace with `+= 1`
+<ROOT>/tests/negative/n19_nosugar_incdec.kn:6:8: error: expected expression, found ';'
+ 6 |     x++;
+   |        ^
+<ROOT>/tests/negative/n19_nosugar_incdec.kn: 1 error(s), 1 warning(s)
+[exit 1]

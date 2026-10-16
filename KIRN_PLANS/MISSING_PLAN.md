@@ -197,6 +197,15 @@ Verified: gates 261, golden 251, crosscheck 579, stdlib 9, all 0 fail. See the M
 recorded deviations (optional params, `@` matmul, safe-chain, comprehensions, and `const fn` folding
 remain deferred).
 
+**Implementation progress (2026-10-16).** M12 (rejected features closed) is done as documentation + a
+nudge lint. `docs/FEATURE_GAP_ANALYSIS.md` gains §4.1 recording the permanent rejection of `++`/`--`
+and C-style `?:` with rationale, sanctioned forms (`x += 1`, `if c { a } else { b }`), and the
+`W-nosugar` contract; `grammar/kirn.ebnf` §9 (item 9) carries the same cross-referenced rationale; and
+the parser emits `warning[W-nosugar]` (with a note + `+= 1` fix-it) on an adjacent `++`/`--` whose next
+token terminates the expression — never on valid `a + +b` / `a - -b` / `a++b`. No syntax was added.
+New negative test `tests/negative/n19_nosugar_incdec.kn`. Suites: gates 263, golden 254, crosscheck
+591, stdlib 9, all 0 fail.
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -1057,6 +1066,25 @@ rationale (canonical §3.4/§3.5); a `kirn check` lint `W-nosugar` (optional, wa
 `x++`-like patterns suggesting `+= 1`). No syntax added.
 
 **Expected result:** `++/--` and `?:` documented as deliberate exclusions; users get a helping nudge.
+
+**M12 phase note (implemented).** Documentation: `docs/FEATURE_GAP_ANALYSIS.md` §4.1 ("Rejected sugar —
+`++`/`--` and C-style ternary `?:` (permanent)") states both rejections with rationale and the
+sanctioned substitutes (`x += 1`/`x -= 1`; `if c { a } else { b }`), and cross-references the canonical
+decisions (`EXP_PLAN` §A4.9, `PLAN` §5.4, `grammar/kirn.ebnf` §9, `MISSING_PLAN` ownership rows 4/5);
+`grammar/kirn.ebnf` item 9 carries the same rationale and points at `FEATURE_GAP_ANALYSIS.md` §4.1.
+Nudge lint: `src/parser/parser.cpp` gains `nudgeIncDec()` (declared in `src/parser/parser.h`), called
+from `parseArith()` before a binary `+`/`-`. It fires only when the next token is the same operator
+character **adjacent** in the source (`b.col == a.col + 1`) and the token after that terminates the
+expression (`;`, `)`, `]`, `}`, `,`, newline, EOF) — i.e. exactly the `x++`/`x--` shapes — emitting
+`warning[W-nosugar]` with a note and a fix-it (`replace with += 1`) via the fluent `DiagEngine` API.
+It does **not** add syntax: the parse still fails on the token after the accidental unary `+`/`-`, so
+the user sees the nudge alongside the error; warnings alone never fail (`errorCount()`, matching
+`W-narrow`). Genuine `a + +b`, `a - -b`, and the valid `a++b` (= `a + (+b)`) are deliberately not
+flagged. Negative test `tests/negative/n19_nosugar_incdec.kn` (`# expect: W-nosugar`). Suites: gates
+263, golden 254, crosscheck 591, stdlib 9, all 0 fail. **Not done (recorded):** a ternary-specific
+nudge — `c ? a : b` is indistinguishable from postfix `c?` propagation plus a following expression
+until the absent `;`, so the grammar comment + §4.1 note are the contract; no `W-nosugar` is emitted
+for `?:`.
 
 ---
 

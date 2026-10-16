@@ -13,14 +13,14 @@ what has been adopted, what is deliberately deferred, and a prioritized roadmap.
 
 Both reference trees were surveyed at the compiler level:
 
-| | Go (`go-master`) | Rust (`rust-main`) |
-|---|---|---|
-| Lexer | `src/cmd/compile/internal/syntax/scanner.go`, `src/go/scanner` | `compiler/rustc_lexer/src/lib.rs` |
-| Parser | `src/go/parser/parser.go` | `compiler/rustc_parse/src/parser/*` |
-| AST | `src/cmd/compile/internal/syntax/nodes.go` | `compiler/rustc_ast/src/ast.rs` |
-| Types | `src/go/types/*` (113 files) | `compiler/rustc_hir_typeck/src/*` |
-| Bounds/moves | escape analysis `cmd/compile/internal/escape` | `compiler/rustc_borrowck/src/*` (NLL) |
-| Backend | SSA `cmd/compile/internal/ssa` | LLVM/Cranelift/GCC |
+|              | Go (`go-master`)                                               | Rust (`rust-main`)                    |
+| ------------ | -------------------------------------------------------------- | ------------------------------------- |
+| Lexer        | `src/cmd/compile/internal/syntax/scanner.go`, `src/go/scanner` | `compiler/rustc_lexer/src/lib.rs`     |
+| Parser       | `src/go/parser/parser.go`                                      | `compiler/rustc_parse/src/parser/*`   |
+| AST          | `src/cmd/compile/internal/syntax/nodes.go`                     | `compiler/rustc_ast/src/ast.rs`       |
+| Types        | `src/go/types/*` (113 files)                                   | `compiler/rustc_hir_typeck/src/*`     |
+| Bounds/moves | escape analysis `cmd/compile/internal/escape`                  | `compiler/rustc_borrowck/src/*` (NLL) |
+| Backend      | SSA `cmd/compile/internal/ssa`                                 | LLVM/Cranelift/GCC                    |
 
 Kirn's pipeline is a single-pass recursive-descent parser + AST + type checker
 (`src/parser`, `src/sema`) feeding a tree-walking interpreter (`src/interp`) that is
@@ -32,6 +32,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 ## 2. What Kirn Already Has (mirrors Go/Rust)
 
 ### Syntax / structure
+
 - `{ }` blocks, `;` statement terminators — C/Go/Rust style, layout-free.
 - `fn f(a: int, b: int) -> int { ... }` — typed function declarations.
   - diverging from Rust's `fn`, Python's `fn`; keyword `fn` retained for
@@ -53,6 +54,7 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
   labeled loops + `break label:` / `continue label:`.
 
 ### Stdlib modules available to import
+
 `math`, `time`, `io`, `mem`, `json`, `os`, `text` (e.g. `text.slug.slugify`).
 
 ---
@@ -61,41 +63,41 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 
 ### 3.1 Expression & statement level
 
-| Feature | Go | Rust | Kirn | Priority |
-|---|---|---|---|---|
-| `?:`-style conditional expressions | ✗ (if is stmt) | `if/else` expr | ✅ Rust-form `if c { a } else { b }` | done |
-| Ternary `a ? b : c` | ✗ | macro | ✗ (rejected §4.9) | low |
-| `++`/`--` inc/dec | ✅ | ✗ (via `+=`) | ✗ (rejected) | low |
-| Assignment as expression | ✗ | ✗ (`=` returns `()`) | ✗ (stmt only) | done/intent |
-| Multiple/swap assignment `a,b=b,a` | ✅ | ✅ tuple | ✅ | done |
-| `defer` | ✅ | ✗ | ✅ | done |
-| `panic`/`recover` | ✅ | `panic!`/`catch_unwind` | ✅ `raise`/`catch_panic` | done |
-| `go`/goroutines | ✅ | ✗ (threads) | ✅ `spawn` | done |
-| channels | ✅ | `mpsc`/`sync` | ✅ `chan` | done |
-| `select` | ✅ | ✗ | ✅ `select` | done |
-| `?` propagation | ✗ | ✅ | ✅ | done |
-| `for range` | ✅ | `for x in` | ✅ `for pat in expr` | done |
-| C-style `for(;;)` | ✅ | `loop`/`while` | ✗ | low |
-| labeled `break`/`continue` | ✅ | `'label: loop` | **NEW** ✅ | done |
-| pattern bindings `@` | ✗ | ✅ | **NEW** ✅ | done |
-| or-patterns `a | b` | ✗ | ✅ | **NEW** ✅ | done |
-| slice patterns `[a,b,..]` | ✗ | ✅ | ✗ | medium |
-| `..` rest in patterns | ✗ | ✅ | ✗ | medium |
-| range/`..=` patterns | ✗ | ✅ | ✅ | done |
-| `@`-combined ranges `n @ 1..=5` | ✗ | ✅ | **NEW** ✅ | done |
-| closures / lambdas | ✅ | ✅ | ✅ `(x) => e` | done |
-| multi-statement closures | ✅ | ✅ | ✗ (single-expr only) | medium |
-| generics | ✅ | ✅ | ✅ | done |
-| const generics | ✗ | ✅ | ✗ | low |
-| associated types / GATs | ✗ | ✅ | ✗ | low |
-| trait bounds resolution | ✅ iface | ✅ | partial | medium |
-| `impl Trait for Type` | ✗ | ✅ | ✅ | done |
-| auto-derive (`#[derive]`) | ✗ | ✅ | ✗ | low |
-| macros `macro_rules!` | (via generics) | ✅ | ✗ | low |
-| build tags / cfg | ✅ | `#[cfg]` | `unsafe` only | low |
-| error type `result[T,E]` | ✗ | ✅ | ✅ | done |
-| optional `T?` | ✗ | ✅ `Option<T>` | ✅ | done |
-| nil-able `T?` vs `none` | ✗ | ✗ | ✅ `is none` | done |
+| Feature                            | Go             | Rust                    | Kirn                                 | Priority    |
+| ---------------------------------- | -------------- | ----------------------- | ------------------------------------ | ----------- |
+| `?:`-style conditional expressions | ✗ (if is stmt) | `if/else` expr          | ✅ Rust-form `if c { a } else { b }` | done        |
+| Ternary `a ? b : c`                | ✗              | macro                   | ✗ (rejected §4.1)                    | low         |
+| `++`/`--` inc/dec                  | ✅             | ✗ (via `+=`)            | ✗ (rejected §4.1)                    | low         |
+| Assignment as expression           | ✗              | ✗ (`=` returns `()`)    | ✗ (stmt only)                        | done/intent |
+| Multiple/swap assignment `a,b=b,a` | ✅             | ✅ tuple                | ✅                                   | done        |
+| `defer`                            | ✅             | ✗                       | ✅                                   | done        |
+| `panic`/`recover`                  | ✅             | `panic!`/`catch_unwind` | ✅ `raise`/`catch_panic`             | done        |
+| `go`/goroutines                    | ✅             | ✗ (threads)             | ✅ `spawn`                           | done        |
+| channels                           | ✅             | `mpsc`/`sync`           | ✅ `chan`                            | done        |
+| `select`                           | ✅             | ✗                       | ✅ `select`                          | done        |
+| `?` propagation                    | ✗              | ✅                      | ✅                                   | done        |
+| `for range`                        | ✅             | `for x in`              | ✅ `for pat in expr`                 | done        |
+| C-style `for(;;)`                  | ✅             | `loop`/`while`          | ✗                                    | low         |
+| labeled `break`/`continue`         | ✅             | `'label: loop`          | **NEW** ✅                           | done        |
+| pattern bindings `@`               | ✗              | ✅                      | **NEW** ✅                           | done        |
+| or-patterns `a                     | b`             | ✗                       | ✅                                   | **NEW** ✅  | done |
+| slice patterns `[a,b,..]`          | ✗              | ✅                      | ✗                                    | medium      |
+| `..` rest in patterns              | ✗              | ✅                      | ✗                                    | medium      |
+| range/`..=` patterns               | ✗              | ✅                      | ✅                                   | done        |
+| `@`-combined ranges `n @ 1..=5`    | ✗              | ✅                      | **NEW** ✅                           | done        |
+| closures / lambdas                 | ✅             | ✅                      | ✅ `(x) => e`                        | done        |
+| multi-statement closures           | ✅             | ✅                      | ✗ (single-expr only)                 | medium      |
+| generics                           | ✅             | ✅                      | ✅                                   | done        |
+| const generics                     | ✗              | ✅                      | ✗                                    | low         |
+| associated types / GATs            | ✗              | ✅                      | ✗                                    | low         |
+| trait bounds resolution            | ✅ iface       | ✅                      | partial                              | medium      |
+| `impl Trait for Type`              | ✗              | ✅                      | ✅                                   | done        |
+| auto-derive (`#[derive]`)          | ✗              | ✅                      | ✗                                    | low         |
+| macros `macro_rules!`              | (via generics) | ✅                      | ✗                                    | low         |
+| build tags / cfg                   | ✅             | `#[cfg]`                | `unsafe` only                        | low         |
+| error type `result[T,E]`           | ✗              | ✅                      | ✅                                   | done        |
+| optional `T?`                      | ✗              | ✅ `Option<T>`          | ✅                                   | done        |
+| nil-able `T?` vs `none`            | ✗              | ✗                       | ✅ `is none`                         | done        |
 
 ### 3.2 Pattern-power roadmap (Rust `PatKind` parity)
 
@@ -132,18 +134,18 @@ the AST before native AOT emission.
 
 Go `src/` stdlib groups and Kirn status:
 
-| Group | Examples | Kirn | Priority |
-|---|---|---|---|
-| text/format | `fmt`, `strings`, `strconv` | f-strings, `str` methods | done |
-| collections | `container/*`, `sort`, `slices`, `maps` | builtin list/dict/set, `.sort()` | high |
-| os/fs | `os`, `os/exec`, `path/filepath` | `os` stub, `io` | medium |
-| net/http | `net/http` | ✗ | low |
-| encoding | `encoding/json`, `base64`, `hex` | `json.dumps` stub | medium |
-| regexp | `regexp` | ✗ | medium |
-| time | `time` | `time` stub | done/medium |
-| math | `math`, `math/rand` | `math` stub | medium |
-| crypto | `crypto/*` | ✗ | low |
-| sync | `sync`, `sync/atomic` | `chan`/`spawn` | medium |
+| Group       | Examples                                | Kirn                             | Priority    |
+| ----------- | --------------------------------------- | -------------------------------- | ----------- |
+| text/format | `fmt`, `strings`, `strconv`             | f-strings, `str` methods         | done        |
+| collections | `container/*`, `sort`, `slices`, `maps` | builtin list/dict/set, `.sort()` | high        |
+| os/fs       | `os`, `os/exec`, `path/filepath`        | `os` stub, `io`                  | medium      |
+| net/http    | `net/http`                              | ✗                                | low         |
+| encoding    | `encoding/json`, `base64`, `hex`        | `json.dumps` stub                | medium      |
+| regexp      | `regexp`                                | ✗                                | medium      |
+| time        | `time`                                  | `time` stub                      | done/medium |
+| math        | `math`, `math/rand`                     | `math` stub                      | medium      |
+| crypto      | `crypto/*`                              | ✗                                | low         |
+| sync        | `sync`, `sync/atomic`                   | `chan`/`spawn`                   | medium      |
 
 ---
 
@@ -158,11 +160,38 @@ Go `src/` stdlib groups and Kirn status:
   suffice.
 - **Async/await, CGO-style FFI upgrade, WASM targets** — out of interpreter scope.
 
+### 4.1 Rejected sugar — `++`/`--` and C-style ternary `?:` (permanent)
+
+Both forms are **deliberately and permanently rejected** for v1. The decisions live in
+`KIRN_PLANS/EXP_PLAN.md` (§A4.9 — the operator-surface freeze) and `KIRN_PLANS/PLAN.md`
+(§5.4), and are recorded in `grammar/kirn.ebnf` §9 (item 9) and the `MISSING_PLAN.md`
+ownership rows 4/5. Both are closed: reopening either requires an edition RFC.
+
+- **`++`/`--`** — two spellings for one effect (`x += 1`), plus a new postfix/precedence
+  band and the classic pre-vs-post evaluation trap. `x += 1;` / `x -= 1;` already cover it
+  with the existing compound-assignment operators. (Rust and Python omit it too.)
+- **C-style ternary `a ? b : c`** — a second conditional-expression surface. Kirn already
+  has the Rust-form `if c { a } else { b }`, which nests and has no dangling-`:` trap.
+  `?` is spoken for by postfix `?` propagation and the `.?.` / `?[` / `?!` safe-chain.
+
+Sanctioned substitutes (no syntax is added):
+
+| Rejected form | Write instead           |
+| ------------- | ----------------------- |
+| `x++` / `++x` | `x += 1`                |
+| `x--` / `--x` | `x -= 1`                |
+| `a ? b : c`   | `if a { b } else { c }` |
+
+`kirn check` reports `warning[W-nosugar]` on an adjacent `++`/`--` whose next token
+terminates the expression (a nudge with a `replace with += 1` fix-it) — it never accepts the
+form, and never fires on valid `a + +b`, `a - -b`, or `a++b` (= `a + (+b)`).
+
 ---
 
 ## 5. Roadmap (prioritized)
 
 ### v1.x — expression/pattern parity (this pass)
+
 - [x] Pattern aliases `name @ sub-pattern`
 - [x] Or-patterns `p1 | p2 | ...`
 - [x] Labeled loops + `break label` / `continue label`
@@ -170,6 +199,7 @@ Go `src/` stdlib groups and Kirn status:
 - [ ] Multi-statement closures (introduce `fn` block bodies)
 
 ### v2 — standard library breadth
+
 - [ ] `collections` module: `HashMap`, `HashSet`, `Vec`-style ergonomics
 - [ ] `strings` module surface: `split/join/trim/replace/index/lower/upper`
 - [ ] `regexp` module (small NFA engine)
@@ -178,12 +208,14 @@ Go `src/` stdlib groups and Kirn status:
 - [ ] `io`: `read_file/write_file/read_lines` (some exist)
 
 ### v3 — type-system hardening
+
 - [ ] Default type-parameter values
 - [ ] Interface-as-method-set bounds (Go style)
 - [ ] `iota` enum discriminants
 - [ ] Conservative borrow/move checker over AST (pre-AOT)
 
 ### v4 — concurrency & memory
+
 - [ ] `sync` module: mutex/rwlock/once/barrier (Go `sync`)
 - [ ] `atomic` operations
 - [ ] GC tuning for the native heap (`new`/`box`)

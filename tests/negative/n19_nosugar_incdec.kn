@@ -1,0 +1,7 @@
+# `++`/`--` are permanently rejected (EXP_PLAN §A4.9; PLAN §5.4). The parser
+# still errors, but now names the rejection W-nosugar and suggests `+= 1`.
+# expect: W-nosugar
+fn main() -> none {
+    x: Int = 0;
+    x++;
+}

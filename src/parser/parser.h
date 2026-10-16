@@ -89,6 +89,11 @@ private:
     ast::ExprP parseBitAnd();
     ast::ExprP parseShift();
     ast::ExprP parseArith();
+    // M12: W-nosugar nudge for `x++`/`x--` (rejected; use `+= 1`/`-= 1`).
+    // Called at a binary `+`/`-` position; emits a warning only when the two
+    // operator tokens are adjacent and the next token terminates the
+    // expression, which can only be an attempted increment/decrement.
+    void nudgeIncDec();
     ast::ExprP parseTerm();
     ast::ExprP parseUnary();
     ast::ExprP parsePower();

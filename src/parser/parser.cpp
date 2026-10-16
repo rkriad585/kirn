@@ -2048,12 +2048,42 @@ ast::ExprP Parser::parseShift() {
 ast::ExprP Parser::parseArith() {
     ast::ExprP l = parseTerm();
     while (atOp("+") || atOp("-")) {
+        nudgeIncDec();
         std::string op = cur().text;
         ast::Span sp = spanHere();
         advance();
         l = bin(op.c_str(), std::move(l), parseTerm(), sp);
     }
     return l;
+}
+
+// `++`/`--` are deliberately not Kirn syntax (grammar §9; EXP_PLAN A4.9; PLAN
+// §5.4). This never adds syntax: the parse still fails, but a user who typed
+// `x++`/`x--` gets a named diagnostic with the sanctioned `+= 1`/`-= 1` form
+// instead of a bare "expected expression". Gated on the two operator tokens
+// being adjacent and the next token terminating the expression, so genuine
+// `a + +b` / `a - -b` / `a++b` (= `a + (+b)`) never trip it.
+void Parser::nudgeIncDec() {
+    const Token& a = cur();
+    const Token& b = cur(1);
+    if (b.kind != Tok::Op || b.text != a.text) return;
+    if (a.line != b.line || b.col != a.col + 1) return;
+    const Token& c = cur(2);
+    bool term = c.kind == Tok::Eof || c.kind == Tok::Newline ||
+                (c.kind == Tok::Punct &&
+                 (c.text == ";" || c.text == ")" || c.text == "]" ||
+                  c.text == "}" || c.text == ","));
+    if (!term) return;
+    std::string op2 = a.text + a.text;
+    std::string fix = a.text + "= 1";
+    diags_.warning(SpanRange{a.line, a.col, a.line, b.col + 1})
+        .code("W-nosugar")
+        .msg("`" + op2 + "` is not Kirn syntax")
+        .note(SpanRange::point(a.line, a.col),
+              "increment/decrement are written `" + fix + "`; there is no `" +
+                  op2 + "` operator")
+        .fixit(SpanRange{a.line, a.col, a.line, b.col + 1}, fix)
+        .emit();
 }
 ast::ExprP Parser::parseTerm() {
     ast::ExprP l = parseUnary();

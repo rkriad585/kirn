@@ -682,7 +682,12 @@ type_postfix    = "?" ;               (* option sugar:  Int? == option[Int]  *)
 #    returns, expressions). Empty statement `;` is permitted but discouraged;
 #    fmt removes it.
 # 9. Everything not listed here is intentionally NOT in v1: no ternary `?:`,
-#    no increment/decrement ++/--, no implicit Bool→Int, no goto.
+#    no increment/decrement ++/--, no implicit Bool→Int, no goto. The two
+#    sugar rejections are PERMANENT (EXP_PLAN §A4.9; PLAN §5.4;
+#    docs/FEATURE_GAP_ANALYSIS.md §4.1): write `x += 1`/`x -= 1` instead of
+#    `++`/`--`, and `if c { a } else { b }` instead of `c ? a : b`. Reopening
+#    either requires an edition RFC. `kirn check` reports `W-nosugar` on an
+#    adjacent `++`/`--` (a nudge only — no syntax is accepted).
 # 10. Anonymous functions are single-expression lambdas ONLY (`(x) => e`).
 #     Multi-statement closures bind a nested named `fn`.
 # 11. `pass` keyword covers empty blocks. `del` is implemented (bindings, dict

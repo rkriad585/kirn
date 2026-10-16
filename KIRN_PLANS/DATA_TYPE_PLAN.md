@@ -171,6 +171,8 @@ Layer 0  Native substrate   interp/value.h VK tags, sema/type.h TyK, runtime.cpp
 
 > **Spelling rule (AI-first, machine-consumable):** widths are name-level spellings on the `Int`/`Float` kinds, not distinct kinds. Micro (`i64`) and capitalized (`Int64`) spellings are synonyms and mutually assignable; methods stay lowercase (`.to_int()`, `.checked_mul()`), free builtins/types stay capitalized (`BigInt(...)`, `Rational(...)`, `Str(...)`). `i64`/`double` is the trunk; wider/unsigned widths are BigInt-backed with range checks in a later hardening step.
 
+> **Implemented (surface cut):** the lowercase constructor aliases `complex(...)`, `rational(...)`, and `decimal(...)` were **removed** — only the CapCase constructors `Complex`, `Rational`, and `Decimal` resolve in the checker/runtime, and the lowercase spellings now error (`unknown type` / `undefined function`). The `big_int` type keeps its lowercase spelling alongside `BigInt` (the one deliberate exception). The `Complex`/`Rational`/`Decimal` alias `complex`/`rational`/`decimal` columns in the table above are aspirational and no longer part of the surface.
+
 ### 3.2 The `bytes` unification (important design decision)
 
 Four languages have wildly different byte models. We pick a **single unifying answer**:
@@ -364,20 +366,20 @@ _Substrate:_
 - Function-style `math` pseudomodule grows to match (this also serves `STD_LIBS_PLAN.md` math phase): `pi`, `tau`, `e`, `inf`, `nan`, `floor,ceil,trunc,round,abs,copysign,fmod,floor_div,sqrt,exp,ln,log2,log10,sin,cos,tan,asin,acos,atan,atan2,sinh,cosh,tanh,pow,min,max,fma,gamma,lgamma`.
 - Add `VK::Rational` (numerator/denominator as `Value::Int`), normalizing by GCD. Zero denominator → panic/raise.
 
-_Kirn surface:_ `rational(num, den)` constructor + `numerator`, `denominator`, `to_float`, `to_int`, and operators `+ - * / **`; rich comparisons.
+_Kirn surface:_ `Rational(num, den)` constructor + `numerator`, `denominator`, `to_float`, `to_int`, and operators `+ - * / **`; rich comparisons.
 
 _Code example:_
 
 ```kirn
 fn main() {
-    frac = rational(1, 2) + rational(1, 3);     # 5/6 exactly
+    frac = Rational(1, 2) + Rational(1, 3);     # 5/6 exactly
     assert_eq(frac.numerator(), 5);
     assert_eq(frac.denominator(), 6);
     assert(abs(math.pi - 3.141592653589793) < 1e-12);
     assert(inf.is_infinite());
     assert((0.1 + 0.2) != 0.3);                 # float caveat still true
     # but rational is exact:
-    assert(rational(1,10) + rational(2,10) == rational(3,10));
+    assert(Rational(1,10) + Rational(2,10) == Rational(3,10));
     assert_eq(2.5.floor(), 2);
     assert_eq((-2.5).round(), -2);              # round-half-even
 }
@@ -448,22 +450,22 @@ _Goal:_ Python/Ruby/Go `complex` support for engineering & math code.
 _Substrate:_
 
 - `VK::Complex` (two `double`: re, im). Arithmetic `+ - * /` (ANSI C Annex G semantics, mirroring CPython `complexobject.c`), `abs`→magnitude, `conjugate`, `real`, `imag`, `arg`/`phase`, `polar`/`rect`, `pow`, `exp`, `log`, trig.
-- `complex(re, im)` constructor; `real(c)`/`imag(c)` free funcs (Go spelling) + `.real`/`.imag` properties (Python/Ruby spelling).
+- `Complex(re, im)` constructor; `real(c)`/`imag(c)` free funcs (Go spelling) + `.real`/`.imag` properties (Python/Ruby spelling).
 
-_Kirn surface:_ `complex(re, im)`, operators, `c.conjugate()`, `abs(c)`, `c.re()/c.im()` or `.real`/`.imag`.
+_Kirn surface:_ `Complex(re, im)`, operators, `c.conjugate()`, `abs(c)`, `c.re()/c.im()` or `.real`/`.imag`.
 
 _Code example:_
 
 ```kirn
 fn main() {
-    c = complex(3, 4);
+    c = Complex(3, 4);
     assert_eq(abs(c), 5);                 # sqrt(3^2+4^2)
-    z = c * complex(1, -1);
+    z = c * Complex(1, -1);
     z = z.conjugate();
-    e = complex(0, 1).exp();              # Euler: e^{i} = cos 1 + i sin 1
+    e = Complex(0, 1).exp();              # Euler: e^{i} = cos 1 + i sin 1
     assert(abs(e.real() - math.cos(1)) < 1e-12);
     assert(abs(e.imag() - math.sin(1)) < 1e-12);
-    roots = complex(-1, 0).sqrt();
+    roots = Complex(-1, 0).sqrt();
     print(roots);                         # (0+1j) / (0-1j)
 }
 ```
@@ -489,16 +491,16 @@ _Substrate:_
 - `VK::Decimal` (sign × digits × exponent; arbitrary precision decimal) with a `Context`-style precision + rounding `enum { HALF_EVEN, DOWN, CEIL, ... }`.
 - Methods: `quantize`, `round`, `floor`, `ceil`, `trunc`, `sqrt`, `ln`, `exp`, `compare`, `min`, `max`, `is_zero/signed/nan`.
 - `VK::BigFloat` (significand × 2^exp, `prec` bits, rounding mode) — Go `big.Float` parity.
-- Money safe: `decimal("0.10") + decimal("0.20") == decimal("0.30")` exactly.
+- Money safe: `Decimal("0.10") + Decimal("0.20") == Decimal("0.30")` exactly.
 
-_Kirn surface:_ `decimal(Str)`, methods; `big_float(Str)` with `prec`.
+_Kirn surface:_ `Decimal(Str)`, methods; `big_float(Str)` with `prec`.
 
 _Code example:_
 
 ```kirn
 fn main() {
-    price = decimal("19.99");
-    tax = price * decimal("0.0825");          # exact cents
+    price = Decimal("19.99");
+    tax = price * Decimal("0.0825");          # exact cents
     total = (price + tax).quantize(2);        # round to 2 decimal places
     assert_eq(total.to_string(), "21.64");
     pi = big_float(200);                      # 200-bit precision pi

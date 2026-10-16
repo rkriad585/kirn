@@ -327,10 +327,12 @@ const traits, struct/enum const params, comptime reflection).
 **Numeric types (P6):** 13. **big_int** — arbitrary-precision integers, `VK::BigInt` sign+limbs (`DATA P3`). Kirn keeps
 fixed-width `Int` default + `big_int` opt-in (see DATA §3.7 pragmatism, line 54). Methods:
 `bit_length`, `bit_count`, `is_prime` (Miller-Rabin), `powmod`, `gcd`, `to_bytes/from_bytes`,
-`Str(x, base 2..36)`. 14. **complex / rational / decimal** — `complex(re, im)`, `.real/.imag/.conjugate()`, full
-arithmetic (ANSI C Annex G semantics, `DATA P4`); `rational(num, den)` auto-reduces,
-`.numerator/.denominator` (`DATA P2`); `decimal("0.1")` context precision, money-safe, does
+`Str(x, base 2..36)`. 14. **Complex / Rational / Decimal** — `Complex(re, im)`, `.real/.imag/.conjugate()`, full
+arithmetic (ANSI C Annex G semantics, `DATA P4`); `Rational(num, den)` auto-reduces,
+`.numerator/.denominator` (`DATA P2`); `Decimal("0.1")` context precision, money-safe, does
 **not** auto-promote to float (`DATA P5`). Promote along `Integral < Rational < Real < Complex`.
+
+> **Implemented spelling:** CapCase only — the lowercase `complex(...)`/`rational(...)`/`decimal(...)` aliases were removed (checker + runtime); `big_int` keeps its lowercase spelling.
 
 **Byte & collections types (P6–P7):** 15. **bytes / bytearray** — `bytes` immutable+hashable, `bytearray` mutable+unhashable; `b"..."`
 literal; indexing returns **int**; buffer protocol + `memoryview` zero-copy view; fix the missing
@@ -723,8 +725,8 @@ API stays in `STD` (`lib.bigint`, `lib.math`).
 
 ```kirn
 big_int("123456789012345678901234567890") ** 10      # arbitrary precision
-complex(3,4) + complex(1,2)                          # 4+6i, .real/.imag/.conjugate()
-rational(1,3) + rational(1,6)                        # 1/2, auto-reduced
+Complex(3,4) + Complex(1,2)                          # 4+6i, .real/.imag/.conjugate()
+Rational(1,3) + Rational(1,6)                        # 1/2, auto-reduced
 Decimal("0.1") + Decimal("0.2")                      # 0.3 (exact), never 0.3000...004
 
 x: big_int = big_int(2) ** 1000;                     # prints full 2^1000

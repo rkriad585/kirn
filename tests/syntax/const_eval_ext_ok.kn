@@ -1,0 +1,29 @@
+# Const-eval extension (M? / feat pass): dict/set literals, struct
+# construction, receiver methods, and sizeof/alignof all fold at compile time.
+struct Point {
+    x: Int;
+    y: Int;
+}
+const D = @comptime({"a": 1, "b": 2});
+const S = @comptime({1, 2, 3});
+const P = @comptime(Point(x: 3, y: 4));
+const KEYS = @comptime({"a": 1, "b": 2}.keys());
+const HAS = @comptime({1, 2, 3}.contains(2));
+const UP = @comptime("hello".upper());
+const SZ = @comptime(sizeof(Point));
+const AL = @comptime(alignof(Point));
+const fn width() -> Int { return alignof(Point); }
+const AL2 = @comptime(width());
+
+fn main() -> none {
+    assert_eq(len(D), 2);
+    assert_eq(len(S), 3);
+    assert_eq(P.x, 3);
+    assert_eq(P.y, 4);
+    assert_eq(len(KEYS), 2);
+    assert_eq(HAS, true);
+    assert_eq(UP, "HELLO");
+    assert_eq(SZ, 16);
+    assert_eq(AL, 8);
+    assert_eq(AL2, 8);
+}

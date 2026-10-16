@@ -29,13 +29,21 @@ struct LintConfig {
 // the checker, which must not depend on the interpreter. Lists/tuples carry
 // their elements; there is no dict/set/struct support in the first stage.
 struct ConstVal {
-    enum class K { Invalid, Int, Float, Bool, Str, Char, None, List, Tuple };
+    enum class K {
+        Invalid, Int, Float, Bool, Str, Char, None, List, Tuple, Set, Dict,
+        Struct,
+    };
     K k = K::Invalid;
     long long i = 0;
     double f = 0.0;
     bool b = false;
     std::string s;
-    std::vector<ConstVal> elems;
+    std::string typeName;             // Struct: struct name
+    std::vector<ConstVal> elems;      // List/Tuple/Set
+    std::vector<ConstVal> keys;       // Dict: keys (parallel with vals)
+    std::vector<ConstVal> vals;       // Dict: values
+    std::vector<std::string> fieldNames;   // Struct: field names (decl order)
+    std::vector<ConstVal> fieldVals;       // Struct: field values
 };
 
 class Checker {
@@ -248,6 +256,16 @@ private:
     // list/tuple/str displays). Returns false when the iterable is not a
     // compile-time-known sequence.
     bool constEvalIter(const ast::Expr& iter, ConstVal& out);
+    // Evaluate a struct construction `Name(field: v, ...)` into a Struct value
+    // (positional args fill fields in declaration order; missing fields use
+    // defaults or none). Returns false when `Name` is not a known struct.
+    bool constEvalStructCtor(const std::string& tn,
+                             const std::vector<ast::CallArg>& args,
+                             ConstVal& out);
+    // Static byte size / natural alignment of a type for `sizeof`/`alignof` in a
+    // const context: scalars use sema/type.h; structs use a C-style layout over
+    // their declared fields. Returns -1 for an unknown type.
+    int constLayoutBytes(const ast::TypeP& t, bool align, int depth);
     // Structural purity scan for a `const fn` body: every call must target a
     // `const fn` or an allowlisted pure builtin, and no runtime-only construct
     // (raise/spawn/with/... ) may appear. Reports E-CONST-IMPURE on the offender.

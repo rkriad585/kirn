@@ -606,6 +606,8 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                bool record, int depth = 0);
 
 // install the [dependencies] declared by the package at pkgDir
+// (driver/tool warnings print as `warning[W90xx]`; see the band list in
+//  src/driver/driver.cpp above installPkgDeps)
 static void installPkgDeps(const Manifest& pkg, const fs::path& pkgDir,
                            bool global_, int depth) {
     if (depth > 8) return;
@@ -618,7 +620,7 @@ static void installPkgDeps(const Manifest& pkg, const fs::path& pkgDir,
             fs::path p = fs::path(spec.at("path"));
             if (p.is_relative()) p = pkgDir / p;
             if (!fs::exists(p)) {
-                std::cerr << "  warning: dependency '" << name
+                std::cerr << "  warning[W9001]: dependency '" << name
                           << "' path not found: " << p.string() << "\n";
                 continue;
             }
@@ -671,13 +673,13 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
             (appBin / (ref.destName + hostExeSuffix())).generic_string();
         std::string entry = resolveEntry(pkg, libDest);
         if (entry.empty()) {
-            std::cerr << "  warning: app '" << ref.destName
+            std::cerr << "  warning[W9002]: app '" << ref.destName
                       << "' has no entry point; sources installed but not "
                          "launchable\n";
         } else {
             std::string mainSrc;
             if (!readFile((libDest / entry).generic_string(), mainSrc)) {
-                std::cerr << "  warning: cannot read " << entry << "\n";
+                std::cerr << "  warning[W9003]: cannot read " << entry << "\n";
             } else {
                 // resolve the app's local modules from inside its tree
                 std::string old = fs::current_path().generic_string();
@@ -694,14 +696,14 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                 std::string err;
                 if (runner.empty())
                     std::cerr
-                        << "  warning: interpreter runner unavailable; app "
+                        << "  warning[W9004]: interpreter runner unavailable; app "
                            "sources installed but not launchable\n";
                 else if (!bundleBinary(runner, binFile,
                                        bundleTail(pkg.name, pkg.version,
                                                   hostTarget(), entry,
                                                   mainSrc, embedded),
                                        err))
-                    std::cerr << "  warning: " << err << "\n";
+                    std::cerr << "  warning[W9005]: " << err << "\n";
             }
         }
         if (global_) {
@@ -709,7 +711,7 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                 std::cout << "  PATH updated - restart your shell to use '"
                           << ref.destName << "' anywhere\n";
             else
-                std::cerr << "  warning: could not update PATH\n";
+                std::cerr << "  warning[W9006]: could not update PATH\n";
         } else {
             std::cout << "  app binary: "
                       << fs::absolute(appBin).generic_string() << "/"

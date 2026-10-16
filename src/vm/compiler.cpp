@@ -421,9 +421,9 @@ public:
             }
 
             case StKind::AugAssign: {
-                // `??=` is lazy: assign only when the target is none. Desugar to
+                // `?? =` is lazy: assign only when the target is none. Desugar to
                 // `if a is none { a = b }` with the existing IS/JUMP ops.
-                if (s.augOp == "??=") {
+                if (s.augOp == "?" "?=") {
                     if (s.exprs.size() != 2 || s.exprs[0]->kind != ExKind::Ident) {
                         em.f.interpreted = true;
                         break;

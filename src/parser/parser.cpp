@@ -2549,38 +2549,68 @@ ast::ExprP Parser::parsePrimary() {
     }
 
     if (t.kind == Tok::Ident) {
-        // `sizeof(<scalar-type-name>)` -- an operator over types, not a
-        // variable call, so it is resolved in the parser and baked to an int
-        // literal. The size table lives in sema/type.h so the spellings and
-        // byte counts stay in one place.
-        if (t.text == "sizeof") {
+        // `sizeof(<type>)` / `alignof(<type>)` -- operators over types, not
+        // variable calls. Scalar spellings are baked to an int literal here
+        // (the size/align table lives in sema/type.h). Aggregate spellings
+        // (user structs/enums) cannot be sized at parse time, so they are
+        // rewritten to a normal call to the `sizeof`/`alignof` builtin, whose
+        // argument is the type name used as a type reference; the checker and
+        // runtime resolve the layout.
+        if (t.text == "sizeof" || t.text == "size_of" ||
+            t.text == "alignof" || t.text == "align_of") {
+            bool isAlign = t.text == "alignof" || t.text == "align_of";
+            std::string builtin = isAlign ? "alignof" : "sizeof";
             advance();
             if (!atPunct("(")) {
-                diags_.report(t.line, t.col, "expected '(' after 'sizeof'");
+                diags_.report(t.line, t.col,
+                              "expected '(' after '" + t.text + "'");
                 throw Abort("sizeof");
             }
             advance();                                   // consume '('
             ast::TypeP ty = parseType();
             if (ty && ty->kind == ast::TyKind::Name && !ty->name.empty()) {
-                int bytes = sema::typeSizeBytes(ty->name);
-                if (bytes < 0) {
-                    diags_.report(t.line, t.col,
-                                  "sizeof(): unknown scalar type '" + ty->name + "'");
-                    throw Abort("sizeof");
+                int n = isAlign ? sema::typeAlignBytes(ty->name)
+                                : sema::typeSizeBytes(ty->name);
+                if (n >= 0) {                            // scalar: bake a literal
+                    if (!atPunct(")")) {
+                        diags_.report(cur().line, cur().col,
+                                      "expected ')' after " + t.text + " argument");
+                        throw Abort("sizeof");
+                    }
+                    advance();                           // consume ')'
+                    auto e = std::make_unique<ast::Expr>();
+                    e->kind = ast::ExKind::Int;
+                    e->text = std::to_string(n);
+                    e->span = sp;
+                    return e;
                 }
+                // Non-scalar type name: defer to the runtime builtin with the
+                // name used as a type reference.
                 if (!atPunct(")")) {
-                    diags_.report(cur().line, cur().col, "expected ')' after sizeof argument");
+                    diags_.report(cur().line, cur().col,
+                                  "expected ')' after " + t.text + " argument");
                     throw Abort("sizeof");
                 }
                 advance();                               // consume ')'
-                auto e = std::make_unique<ast::Expr>();
-                e->kind = ast::ExKind::Int;
-                e->text = std::to_string(bytes);
-                e->span = sp;
-                return e;
+                auto callee = std::make_unique<ast::Expr>();
+                callee->kind = ast::ExKind::Ident;
+                callee->text = builtin;
+                callee->span = sp;
+                auto arg = std::make_unique<ast::Expr>();
+                arg->kind = ast::ExKind::Ident;
+                arg->text = ty->name;
+                arg->span = sp;
+                auto c = std::make_unique<ast::Expr>();
+                c->kind = ast::ExKind::Call;
+                c->span = sp;
+                c->lhs = std::move(callee);
+                ast::CallArg ca;
+                ca.value = std::move(arg);
+                c->args.push_back(std::move(ca));
+                return c;
             }
             diags_.report(t.line, t.col,
-                          "sizeof() expects a scalar type name");
+                          t.text + "() expects a type name");
             throw Abort("sizeof");
         }
         if (t.text == "chan" && (atPunct("[", 1) || atPunct("(", 1))) {

@@ -625,6 +625,10 @@ void dump(const Stmt& s, int d) {
         case StKind::Goto:
             std::cout << ind(d) << "Goto '" << s.label << "'\n";
             return;
+        case StKind::Label:
+            std::cout << ind(d) << "Label '" << s.label << "'\n";
+            for (const auto& st : s.body) dump(*st, d + 1);
+            return;
         case StKind::For:
             std::cout << ind(d) << "For\n";
             if (s.pat) dumpPat(*s.pat, d + 1);

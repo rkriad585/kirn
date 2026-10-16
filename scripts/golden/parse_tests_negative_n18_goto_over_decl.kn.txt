@@ -6,5 +6,12 @@ FuncDef "main"
     ConstDecl
       Target Ident "A"
       Value Int "10"
+    Label 'over'
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value Ident "A"
 <ROOT>/tests/negative/n18_goto_over_decl.kn: OK (1 top-level statements)
 [exit 0]

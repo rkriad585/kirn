@@ -227,5 +227,19 @@ FuncDef "main"
                   Rhs Int "3"
               Then
                 Goto 'done2'
+    Label 'done2'
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                Binary op="+"
+                  Lhs Str "gotoOut="
+                  Rhs 
+                    Call
+                      Callee Ident "Str"
+                      Arg
+                        Value Ident "acc"
 <ROOT>/examples/43_nested_constructs.kn: OK (1 top-level statements)
 [exit 0]

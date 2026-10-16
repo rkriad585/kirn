@@ -1,0 +1,27 @@
+# sizeof / alignof: scalar spellings fold to literals in the parser; struct
+# spellings resolve a C-style layout (fields in declaration order, natural
+# alignment, padded to the largest field alignment).
+struct Point {
+    x: Int;
+    y: Int;
+}
+struct Mixed {
+    a: Bool;
+    b: Int;
+    c: Float;
+}
+fn main() -> none {
+    # scalars
+    assert_eq(sizeof(Bool), 1);
+    assert_eq(alignof(Bool), 1);
+    assert_eq(sizeof(Int), 8);
+    assert_eq(alignof(Int), 8);
+    assert_eq(sizeof(f32), 4);
+    assert_eq(alignof(f32), 4);
+    assert_eq(sizeof(u8), 1);
+    # structs
+    assert_eq(sizeof(Point), 16);
+    assert_eq(alignof(Point), 8);
+    assert_eq(sizeof(Mixed), 24);
+    assert_eq(alignof(Mixed), 8);
+}

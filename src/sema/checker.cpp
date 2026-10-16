@@ -3,6 +3,7 @@
 #include "sema/borrow.h"
 #include "support/literals.h"
 
+#include <cctype>
 #include <functional>
 
 namespace kirn {
@@ -205,7 +206,7 @@ void collectPatCoverage(const ast::Pat& p, std::set<std::string>& covered,
     }
 }
 
-bool isBoolish(const TyP& t) {
+[[maybe_unused]] bool isBoolish(const TyP& t) {
     return !t || t->isError() || t->isUnknown() || t->is(TyK::Bool);
 }
 
@@ -552,16 +553,14 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("__RationalGt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
     makeBuiltinFunc("RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
     makeBuiltinFunc("__RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
-    // Lowercase spelling aliases for the numeric constructors (plan syntax).
-    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
+    // Lowercase spelling alias kept only for `big_int` (do-not-touch per plan);
+    // the canonical numeric constructors are CapCase: Rational/Complex/Decimal.
     makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
     // M6 numeric types: complex (rectangular) and decimal (arbitrary precision).
     makeBuiltinFunc("Complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
     makeBuiltinFunc("__Complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
-    makeBuiltinFunc("complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
     makeBuiltinFunc("Decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
     makeBuiltinFunc("__Decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
-    makeBuiltinFunc("decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
     makeBuiltinFunc("ComplexReal", {complexTy()}, {"z"}, floatTy(), false, 1);
     makeBuiltinFunc("ComplexImag", {complexTy()}, {"z"}, floatTy(), false, 1);
     makeBuiltinFunc("ComplexConj", {complexTy()}, {"z"}, complexTy(), false, 1);
@@ -624,6 +623,10 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("Bool", {unkTy()}, {"x"}, boolTy(), false, 1);
     makeBuiltinFunc("type", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("typeof", {unkTy()}, {"x"}, strTy(), false, 1);
+    // `sizeof(T)` / `alignof(T)`: the parser bakes scalar spellings to a
+    // literal and rewrites aggregate (struct/enum) spellings to a call here.
+    makeBuiltinFunc("sizeof", {unkTy()}, {"t"}, intTy(), false, 1);
+    makeBuiltinFunc("alignof", {unkTy()}, {"t"}, intTy(), false, 1);
     makeBuiltinFunc("repr", {unkTy()}, {"x"}, strTy(), false, 1);
     makeBuiltinFunc("sum", {unkTy()}, {"xs"}, unkTy(), false, 1);
     makeBuiltinFunc("Min", {unkTy()}, {"xs"}, unkTy(), false, 1);
@@ -740,7 +743,7 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                         fts.push_back(fd.type ? resolveType(fd.type) : unkTy());
                     structFields_[st.get()] = std::move(fts);
                 }
-                if (Symbol* clash = scope_->declare(sym))
+                if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
                 break;
@@ -750,7 +753,7 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 sym->kind = SymK::EnumName;
                 sym->name = st->name;
                 enums_[st->name] = sym;
-                if (Symbol* clash = scope_->declare(sym))
+                if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
                 break;
@@ -767,7 +770,7 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                     sym->name = st->name;
                     traits_[st->name] = sym;
                 }
-                if (Symbol* clash = scope_->declare(sym))
+                if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
                 break;
@@ -819,7 +822,7 @@ void Checker::fillNominals(const std::vector<ast::StmtP>& prog) {
                     if (es)
                         for (const auto& p : vs->payloads)
                             es->variantPayloads[v.name].push_back(p);
-                    if (Symbol* clash = scope_->declare(vs))
+                    if (scope_->declare(vs))
                         error(v.span,
                               "'" + v.name + "' is already defined");
                 }
@@ -1031,7 +1034,10 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                             cv.k == ConstVal::K::Bool ||
                             cv.k == ConstVal::K::Str ||
                             cv.k == ConstVal::K::List ||
-                            cv.k == ConstVal::K::Tuple;
+                            cv.k == ConstVal::K::Tuple ||
+                            cv.k == ConstVal::K::Set ||
+                            cv.k == ConstVal::K::Dict ||
+                            cv.k == ConstVal::K::Struct;
                         if (!trivial && foldable) {
                             auto lit = constValToExpr(cv, st->value->span);
                             const ast::Expr* lp = lit.get();
@@ -1159,9 +1165,9 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 return t->generics.size() >= 1
                            ? counterTy(resolveType(t->generics[0])) : counterTy();
             if (n == "BigInt" || n == "bigint" || n == "big_int") return bigIntTy();
-            if (n == "Rational" || n == "rational") return rationalTy();
-            if (n == "Complex" || n == "complex") return complexTy();
-            if (n == "Decimal" || n == "decimal") return decimalTy();
+            if (n == "Rational") return rationalTy();
+            if (n == "Complex") return complexTy();
+            if (n == "Decimal") return decimalTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -2938,19 +2944,19 @@ void Checker::checkStmt(const ast::Stmt& s) {
             TyP tt = checkExpr(tgt);
             TyP vt = checkExpr(*s.exprs[1]);
             const std::string& op = s.augOp;
-            if (op == "??=") {
-                // `a ??= b`: only assigns when `a` is none. Target must be an
+            if (op == "?" "?=") {
+                // `a ?? = b`: only assigns when `a` is none. Target must be an
                 // optional; the value must fit the unwrapped element type.
                 bool optish = tt && (tt->is(TyK::Opt) || tt->isError() ||
                                      tt->isUnknown());
                 if (!optish)
-                    error(tgt.span, "'??=' requires an optional target, got " +
+                    error(tgt.span, "'?" "?=' requires an optional target, got " +
                                         toString(*tt));
                 TyP base = unwrapOpt(tt);
                 if (!vt->isUnknown() && !vt->isError() && base &&
                     !base->isUnknown() && !base->isError() &&
                     !assignable(vt, base))
-                    error(tgt.span, "'??=' cannot assign " + toString(*vt) +
+                    error(tgt.span, "'?" "?=' cannot assign " + toString(*vt) +
                                         " to " + toString(*tt));
                 checkReassignable(tgt);
                 break;
@@ -3343,7 +3349,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
             // scope. Previously we passed a bare name to declareLocal, creating
             // a second empty-signature Symbol, so calls to a nested function
             // failed "too many arguments". Mirror registerTopLevel.
-            if (Symbol* clash = scope_->declare(sym))
+            if (scope_->declare(sym))
                 error(s.span.line, s.span.col,
                       "duplicate definition of '" + s.name + "'");
             funcs_[s.name] = sym;
@@ -3373,7 +3379,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
             sym->pub = s.pub;
             structs_[s.name] = sym;
             structDecls_[s.name] = &s;
-            if (Symbol* clash = scope_->declare(sym))
+            if (scope_->declare(sym))
                 error(s.span, "duplicate definition of '" + s.name + "'");
             fillStructBody(sym, s);
             Save<TyP> selfGuard(selfTy_);
@@ -3392,7 +3398,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
             sym->kind = SymK::EnumName;
             sym->name = s.name;
             enums_[s.name] = sym;
-            if (Symbol* clash = scope_->declare(sym))
+            if (scope_->declare(sym))
                 error(s.span, "duplicate definition of '" + s.name + "'");
             TvGuard tv(typeVars_, s.typeParams);
             for (const auto& v : s.variants) {
@@ -3405,7 +3411,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
                     vs->payloads.emplace_back(p.name, resolveType(p.type));
                 for (const auto& p : vs->payloads)
                     sym->variantPayloads[v.name].push_back(p);
-                if (Symbol* clash = scope_->declare(vs))
+                if (scope_->declare(vs))
                     error(v.span, "'" + v.name + "' is already defined");
             }
             break;
@@ -3424,7 +3430,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
                 sym->name = s.name;
                 traits_[s.name] = sym;
             }
-            if (Symbol* clash = scope_->declare(sym))
+            if (scope_->declare(sym))
                 error(s.span, "duplicate definition of '" + s.name + "'");
             TvGuard tv(typeVars_, s.typeParams);
             for (const auto& sg : s.sigs)
@@ -4132,7 +4138,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             TyP lt = e.lhs ? checkExpr(*e.lhs) : unkTy();
             TyP rt = e.rhs ? checkExpr(*e.rhs) : unkTy();
             TyP base = unwrapOpt(lt);
-            return unify(base, rt, e.span.line, e.span.col, "'??' operands");
+            return unify(base, rt, e.span.line, e.span.col, "'?" "?' operands");
         }
     }
     return unkTy();
@@ -4719,15 +4725,18 @@ bool constTruthy(const ConstVal& v) {
         case ConstVal::K::Str:   return !v.s.empty();
         case ConstVal::K::List:  return !v.elems.empty();
         case ConstVal::K::Tuple: return !v.elems.empty();
+        case ConstVal::K::Set:   return !v.elems.empty();
+        case ConstVal::K::Dict:  return !v.keys.empty();
+        case ConstVal::K::Struct:return true;
         case ConstVal::K::None:  return false;
         default:                 return false;
     }
 }
 
-bool constIsNum(const ConstVal& v) {
+[[maybe_unused]] bool constIsNum(const ConstVal& v) {
     return v.k == ConstVal::K::Int || v.k == ConstVal::K::Float;
 }
-double constNum(const ConstVal& v) {
+[[maybe_unused]] double constNum(const ConstVal& v) {
     return v.k == ConstVal::K::Float ? v.f : (double)v.i;
 }
 
@@ -4737,12 +4746,228 @@ bool constCallAllowed(const std::string& n) {
     static const std::set<std::string> k = {
         "abs", "Abs", "__Abs", "len", "Len", "int", "Int", "float", "Float",
         "bool", "Bool", "Ord", "__Ord", "Chr", "__Chr", "min", "Min",
-        "max", "Max", "pow", "Pow", "__Pow", "sum",
+        "max", "Max", "pow", "Pow", "__Pow", "sum", "sizeof", "alignof",
     };
     return k.count(n) != 0;
 }
 
+// Pure receiver methods the const evaluator knows how to run (see
+// constMethodCall). Method calls to anything else stay E-CONST-IMPURE.
+bool constMethodAllowed(const std::string& m) {
+    static const std::set<std::string> k = {
+        "len", "length", "size", "upper", "lower", "trim", "starts_with",
+        "ends_with", "contains", "has", "keys", "values",
+    };
+    return k.count(m) != 0;
+}
+
+// Structural equality of two const values (used by `contains`/`has` and by
+// dict/set literal evaluation).
+bool constEquals(const ConstVal& a, const ConstVal& b) {
+    if (a.k != b.k) {
+        bool an = a.k == ConstVal::K::Int || a.k == ConstVal::K::Float;
+        bool bn = b.k == ConstVal::K::Int || b.k == ConstVal::K::Float;
+        if (!(an && bn)) return false;
+        double x = a.k == ConstVal::K::Int ? (double)a.i : a.f;
+        double y = b.k == ConstVal::K::Int ? (double)b.i : b.f;
+        return x == y;
+    }
+    switch (a.k) {
+        case ConstVal::K::Int:   return a.i == b.i;
+        case ConstVal::K::Float: return a.f == b.f;
+        case ConstVal::K::Bool:  return a.b == b.b;
+        case ConstVal::K::Str:
+        case ConstVal::K::Char:  return a.s == b.s;
+        case ConstVal::K::None:  return true;
+        case ConstVal::K::List:
+        case ConstVal::K::Tuple:
+        case ConstVal::K::Set: {
+            if (a.elems.size() != b.elems.size()) return false;
+            for (size_t i = 0; i < a.elems.size(); ++i)
+                if (!constEquals(a.elems[i], b.elems[i])) return false;
+            return true;
+        }
+        case ConstVal::K::Dict: {
+            if (a.keys.size() != b.keys.size()) return false;
+            for (size_t i = 0; i < a.keys.size(); ++i) {
+                bool found = false;
+                for (size_t j = 0; j < b.keys.size(); ++j)
+                    if (constEquals(a.keys[i], b.keys[j])) {
+                        found = constEquals(a.vals[i], b.vals[j]);
+                        break;
+                    }
+                if (!found) return false;
+            }
+            return true;
+        }
+        case ConstVal::K::Struct: {
+            if (a.typeName != b.typeName ||
+                a.fieldNames.size() != b.fieldNames.size())
+                return false;
+            for (size_t i = 0; i < a.fieldNames.size(); ++i)
+                if (a.fieldNames[i] != b.fieldNames[i] ||
+                    !constEquals(a.fieldVals[i], b.fieldVals[i]))
+                    return false;
+            return true;
+        }
+        default: return false;
+    }
+}
+
+// Pure receiver methods for the const evaluator: only total, allocation-free
+// string/collection queries. Anything else returns false (E-CONST-IMPURE at
+// the call site).
+bool constMethodCall(const ConstVal& recv, const std::string& m,
+                     const std::vector<ConstVal>& args, ConstVal& out) {
+    auto lenOf = [](const ConstVal& v, long long& n) -> bool {
+        switch (v.k) {
+            case ConstVal::K::Str:   n = (long long)v.s.size(); return true;
+            case ConstVal::K::List:
+            case ConstVal::K::Tuple:
+            case ConstVal::K::Set:   n = (long long)v.elems.size(); return true;
+            case ConstVal::K::Dict:  n = (long long)v.keys.size(); return true;
+            default: return false;
+        }
+    };
+    if (m == "len" || m == "length" || m == "size") {
+        long long n;
+        if (!lenOf(recv, n)) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::Int;
+        out.i = n;
+        return true;
+    }
+    if (m == "upper" || m == "lower") {
+        if (recv.k != ConstVal::K::Str) return false;
+        out = recv;
+        for (char& c : out.s)
+            c = (m == "upper") ? (char)std::toupper((unsigned char)c)
+                               : (char)std::tolower((unsigned char)c);
+        return true;
+    }
+    if (m == "trim") {
+        if (recv.k != ConstVal::K::Str) return false;
+        const std::string& s = recv.s;
+        size_t b = 0, e = s.size();
+        while (b < e && std::isspace((unsigned char)s[b])) ++b;
+        while (e > b && std::isspace((unsigned char)s[e - 1])) --e;
+        out = recv;
+        out.s = s.substr(b, e - b);
+        return true;
+    }
+    if (m == "starts_with" || m == "ends_with") {
+        if (recv.k != ConstVal::K::Str || args.size() != 1 ||
+            args[0].k != ConstVal::K::Str)
+            return false;
+        const std::string& s = recv.s;
+        const std::string& p = args[0].s;
+        bool r;
+        if (p.size() > s.size()) r = false;
+        else if (m == "starts_with") r = s.compare(0, p.size(), p) == 0;
+        else r = s.compare(s.size() - p.size(), p.size(), p) == 0;
+        out = ConstVal{};
+        out.k = ConstVal::K::Bool;
+        out.b = r;
+        return true;
+    }
+    if (m == "contains" || m == "has") {
+        out = ConstVal{};
+        out.k = ConstVal::K::Bool;
+        if (recv.k == ConstVal::K::Str && args.size() == 1) {
+            if (args[0].k == ConstVal::K::Str)
+                out.b = recv.s.find(args[0].s) != std::string::npos;
+            else if (args[0].k == ConstVal::K::Char && !args[0].s.empty())
+                out.b = recv.s.find(args[0].s[0]) != std::string::npos;
+            else return false;
+            return true;
+        }
+        if ((recv.k == ConstVal::K::List || recv.k == ConstVal::K::Tuple ||
+             recv.k == ConstVal::K::Set) && args.size() == 1) {
+            for (const auto& e : recv.elems)
+                if (constEquals(e, args[0])) { out.b = true; break; }
+            return true;
+        }
+        if (recv.k == ConstVal::K::Dict && args.size() == 1) {
+            for (const auto& key : recv.keys)
+                if (constEquals(key, args[0])) { out.b = true; break; }
+            return true;
+        }
+        return false;
+    }
+    if (m == "keys" || m == "values") {
+        if (recv.k != ConstVal::K::Dict) return false;
+        out = ConstVal{};
+        out.k = ConstVal::K::List;
+        out.elems = (m == "keys") ? recv.keys : recv.vals;
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
+
+int Checker::constLayoutBytes(const ast::TypeP& t, bool align, int depth) {
+    if (depth > 64) return 8;
+    if (t && t->kind == ast::TyKind::Name) {
+        int s = align ? sema::typeAlignBytes(t->name)
+                      : sema::typeSizeBytes(t->name);
+        if (s >= 0) return s;
+        auto it = structDecls_.find(t->name);
+        if (it != structDecls_.end()) {
+            auto up = [](int off, int a) { return a > 1 ? (off + a - 1) / a * a : off; };
+            if (align) {
+                int maxA = 1;
+                for (const auto& f : it->second->fields) {
+                    int fa = constLayoutBytes(f.type, true, depth + 1);
+                    if (fa > maxA) maxA = fa;
+                }
+                return maxA;
+            }
+            int off = 0, maxA = 1;
+            for (const auto& f : it->second->fields) {
+                int fa = constLayoutBytes(f.type, true, depth + 1);
+                off = up(off, fa);
+                off += constLayoutBytes(f.type, false, depth + 1);
+                if (fa > maxA) maxA = fa;
+            }
+            return up(off, maxA);
+        }
+    }
+    return 8;   // handle / opaque
+}
+
+bool Checker::constEvalStructCtor(const std::string& tn,
+                                  const std::vector<ast::CallArg>& args,
+                                  ConstVal& out) {
+    auto di = structDecls_.find(tn);
+    if (di == structDecls_.end()) return false;
+    const ast::Stmt& def = *di->second;
+    out = ConstVal{};
+    out.k = ConstVal::K::Struct;
+    out.typeName = tn;
+    size_t pos = 0;
+    for (const auto& fd : def.fields) {
+        const ast::Expr* val = nullptr;
+        for (const auto& a : args)
+            if (a.name == fd.name) { val = a.value.get(); break; }
+        ConstVal fv;
+        if (val) {
+            if (!constEvalExpr(*val, fv)) return false;
+        } else if (pos < args.size() && args[pos].name.empty()) {
+            if (!args[pos].value || !constEvalExpr(*args[pos].value, fv))
+                return false;
+            ++pos;
+        } else if (fd.defaultValue) {
+            if (!constEvalExpr(*fd.defaultValue, fv)) return false;
+        } else {
+            fv = ConstVal{};
+            fv.k = ConstVal::K::None;
+        }
+        out.fieldNames.push_back(fd.name);
+        out.fieldVals.push_back(std::move(fv));
+    }
+    return true;
+}
 
 bool Checker::constEvalIter(const ast::Expr& iter, ConstVal& out) {
     if (iter.kind == ExKind::Binary &&
@@ -4766,8 +4991,16 @@ bool Checker::constEvalIter(const ast::Expr& iter, ConstVal& out) {
     }
     ConstVal v;
     if (!constEvalExpr(iter, v)) return false;
-    if (v.k == ConstVal::K::List || v.k == ConstVal::K::Tuple) {
+    if (v.k == ConstVal::K::List || v.k == ConstVal::K::Tuple ||
+        v.k == ConstVal::K::Set) {
         out = std::move(v);
+        return true;
+    }
+    if (v.k == ConstVal::K::Dict) {
+        // Iterating a dict yields its keys.
+        out = ConstVal{};
+        out.k = ConstVal::K::List;
+        out.elems = v.keys;
         return true;
     }
     return false;
@@ -4817,8 +5050,11 @@ bool Checker::constCall(const std::string& name,
             out.k = ConstVal::K::Int;
             if (args[0].k == ConstVal::K::Str) out.i = (long long)args[0].s.size();
             else if (args[0].k == ConstVal::K::List ||
-                     args[0].k == ConstVal::K::Tuple)
+                     args[0].k == ConstVal::K::Tuple ||
+                     args[0].k == ConstVal::K::Set)
                 out.i = (long long)args[0].elems.size();
+            else if (args[0].k == ConstVal::K::Dict)
+                out.i = (long long)args[0].keys.size();
             else return false;
             return true;
         }
@@ -5109,10 +5345,12 @@ bool Checker::constEvalExpr(const ast::Expr& e, ConstVal& out) {
             return true;
         }
         case ExKind::List:
-        case ExKind::Tuple: {
+        case ExKind::Tuple:
+        case ExKind::Set: {
             out = ConstVal{};
             out.k = e.kind == ExKind::List ? ConstVal::K::List
-                                           : ConstVal::K::Tuple;
+                    : e.kind == ExKind::Set ? ConstVal::K::Set
+                                            : ConstVal::K::Tuple;
             for (const auto& el : e.elems) {
                 ConstVal v;
                 if (!el || !constEvalExpr(*el, v)) return false;
@@ -5121,17 +5359,62 @@ bool Checker::constEvalExpr(const ast::Expr& e, ConstVal& out) {
             }
             return true;
         }
+        case ExKind::Dict: {
+            out = ConstVal{};
+            out.k = ConstVal::K::Dict;
+            for (const auto& pr : e.pairs) {
+                ConstVal kk, vv;
+                if (!pr.first || !pr.second) return false;
+                if (!constEvalExpr(*pr.first, kk) ||
+                    !constEvalExpr(*pr.second, vv))
+                    return false;
+                out.keys.push_back(std::move(kk));
+                out.vals.push_back(std::move(vv));
+                if (out.keys.size() > 100000) return false;
+            }
+            return true;
+        }
+        case ExKind::New: {
+            // Struct construction `Name(field: v, ...)`.
+            if (!e.newType || e.newType->kind != ast::TyKind::Name) return false;
+            return constEvalStructCtor(e.newType->name, e.args, out);
+        }
+        case ExKind::Member: {
+            // Field access `s.name` on a const struct, or `m[key]`-free dict
+            // member access is not supported; only struct fields here.
+            ConstVal base;
+            if (!e.lhs || !constEvalExpr(*e.lhs, base)) return false;
+            if (base.k != ConstVal::K::Struct) return false;
+            for (size_t i = 0; i < base.fieldNames.size(); ++i)
+                if (base.fieldNames[i] == e.text) {
+                    out = base.fieldVals[i];
+                    return true;
+                }
+            return false;
+        }
         case ExKind::Index: {
             ConstVal base, idx;
             if (!e.lhs || !e.rhs) return false;
             if (!constEvalExpr(*e.lhs, base) || !constEvalExpr(*e.rhs, idx))
                 return false;
-            if (base.k == ConstVal::K::List || base.k == ConstVal::K::Tuple) {
-                if (idx.k != ConstVal::K::Int) return false;
-                long long i = idx.i;
-                if (i < 0 || (size_t)i >= base.elems.size()) return false;
-                out = base.elems[(size_t)i];
-                return true;
+            if (base.k == ConstVal::K::List || base.k == ConstVal::K::Tuple ||
+                base.k == ConstVal::K::Set) {
+                if (idx.k == ConstVal::K::Int) {
+                    long long i = idx.i;
+                    if (i < 0 || (size_t)i >= base.elems.size()) return false;
+                    out = base.elems[(size_t)i];
+                    return true;
+                }
+                if (base.k == ConstVal::K::Set) return false;
+                return false;
+            }
+            if (base.k == ConstVal::K::Dict) {
+                for (size_t i = 0; i < base.keys.size(); ++i)
+                    if (constEquals(base.keys[i], idx)) {
+                        out = base.vals[i];
+                        return true;
+                    }
+                return false;
             }
             if (base.k == ConstVal::K::Str && idx.k == ConstVal::K::Int) {
                 long long i = idx.i;
@@ -5144,7 +5427,39 @@ bool Checker::constEvalExpr(const ast::Expr& e, ConstVal& out) {
             return false;
         }
         case ExKind::Call: {
-            if (!e.lhs || e.lhs->kind != ExKind::Ident) return false;
+            if (!e.lhs) return false;
+            // `sizeof(T)` / `alignof(T)`: the argument is a type name, not a
+            // value, so it cannot be evaluated as an ordinary argument.
+            if (e.lhs->kind == ExKind::Ident &&
+                (e.lhs->text == "sizeof" || e.lhs->text == "alignof") &&
+                e.args.size() == 1 && e.args[0].value &&
+                e.args[0].value->kind == ExKind::Ident) {
+                ast::TypeP ty =
+                    ast::Type::makeName(e.args[0].value->text, e.span);
+                int n = constLayoutBytes(ty, e.lhs->text == "alignof", 0);
+                if (n < 0) return false;
+                out = ConstVal{};
+                out.k = ConstVal::K::Int;
+                out.i = n;
+                return true;
+            }
+            // Method call `recv.m(args)`.
+            if (e.lhs->kind == ExKind::Member) {
+                ConstVal recv;
+                if (!e.lhs->lhs || !constEvalExpr(*e.lhs->lhs, recv))
+                    return false;
+                std::vector<ConstVal> args;
+                for (const auto& a : e.args) {
+                    if (!a.name.empty()) return false;
+                    ConstVal v;
+                    if (!a.value || !constEvalExpr(*a.value, v)) return false;
+                    args.push_back(std::move(v));
+                }
+                return constMethodCall(recv, e.lhs->text, args, out);
+            }
+            if (e.lhs->kind != ExKind::Ident) return false;
+            // A call whose callee names a struct is a construction, not a call.
+            if (constEvalStructCtor(e.lhs->text, e.args, out)) return true;
             for (const auto& a : e.args)
                 if (!a.name.empty()) return false;   // named args: unsupported
             std::vector<ConstVal> args;
@@ -5368,10 +5683,30 @@ ast::ExprP Checker::constValToExpr(const ConstVal& v,
             break;
         case ConstVal::K::List:
         case ConstVal::K::Tuple:
-            e->kind = v.k == ConstVal::K::List ? ExKind::List : ExKind::Tuple;
+        case ConstVal::K::Set:
+            e->kind = v.k == ConstVal::K::List ? ExKind::List
+                      : v.k == ConstVal::K::Set ? ExKind::Set
+                                                : ExKind::Tuple;
             for (const auto& el : v.elems)
                 e->elems.push_back(constValToExpr(el, sp));
             break;
+        case ConstVal::K::Dict:
+            e->kind = ExKind::Dict;
+            for (size_t i = 0; i < v.keys.size(); ++i)
+                e->pairs.emplace_back(constValToExpr(v.keys[i], sp),
+                                      constValToExpr(v.vals[i], sp));
+            break;
+        case ConstVal::K::Struct: {
+            e->kind = ExKind::New;
+            e->newType = ast::Type::makeName(v.typeName, sp);
+            for (size_t i = 0; i < v.fieldNames.size(); ++i) {
+                ast::CallArg a;
+                a.name = v.fieldNames[i];
+                a.value = constValToExpr(v.fieldVals[i], sp);
+                e->args.push_back(std::move(a));
+            }
+            break;
+        }
         default:
             e->kind = ExKind::Ident;
             e->text = "none";
@@ -5394,8 +5729,15 @@ void Checker::checkConstFnPurity(const ast::Stmt& fn) {
         if (e.kind == ExKind::Call) {
             if (e.lhs && e.lhs->kind == ExKind::Ident) {
                 const std::string& n = e.lhs->text;
-                if (constFns_.count(n) == 0 && !constCallAllowed(n))
+                // `Name(...)` with a struct callee is a const-evaluable
+                // construction, not a call to a runtime function.
+                bool structCtor = structDecls_.count(n) != 0;
+                if (!structCtor && constFns_.count(n) == 0 &&
+                    !constCallAllowed(n))
                     impure(e.span, "call to runtime function");
+            } else if (e.lhs && e.lhs->kind == ExKind::Member) {
+                if (!constMethodAllowed(e.lhs->text))
+                    impure(e.span, "method call");
             } else if (e.lhs) {
                 impure(e.span, "method call");
             }

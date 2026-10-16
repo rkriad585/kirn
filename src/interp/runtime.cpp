@@ -607,7 +607,7 @@ static std::string fmtComplex(const Value& v) {
     return "(" + re + (v.im < 0 ? "-" : "+") + im + "i)";
 }
 
-static bool isCplxOperand(const Value& v) {
+[[maybe_unused]] static bool isCplxOperand(const Value& v) {
     return v.k == VK::Complex || v.k == VK::Int || v.k == VK::Float ||
            v.k == VK::Rational;
 }
@@ -977,6 +977,60 @@ void ChanImpl::close() {
 // setup
 // ---------------------------------------------------------------------------
 
+// ---- sizeof / alignof static layout ---------------------------------------
+// Kirn values are heap handles in the interpreter/VM, so a *static* byte size
+// is only well defined for scalar primitives and for structs laid out C-style:
+// fields in declaration order, each aligned to its natural alignment, the
+// struct padded to its largest field alignment. Every non-scalar field
+// (list/dict/set/str/optional/fn/ptr/ref) is a handle and counts as one
+// machine word (8 bytes) with 8-byte alignment.
+using StructTable = std::unordered_map<std::string, const Stmt*>;
+
+static int alignUpBytes(int off, int a) { return a > 1 ? (off + a - 1) / a * a : off; }
+
+static int layoutAlignBytes(const ast::TypeP& t, const StructTable& structs,
+                            int depth);
+
+static int layoutSizeBytes(const ast::TypeP& t, const StructTable& structs,
+                           int depth) {
+    if (depth > 64) return 8;                 // recursive/opaque: treat as handle
+    if (t && t->kind == ast::TyKind::Name) {
+        int s = sema::typeSizeBytes(t->name);
+        if (s >= 0) return s;
+        auto it = structs.find(t->name);
+        if (it != structs.end()) {
+            int off = 0, maxA = 1;
+            for (const auto& f : it->second->fields) {
+                int fa = layoutAlignBytes(f.type, structs, depth + 1);
+                off = alignUpBytes(off, fa);
+                off += layoutSizeBytes(f.type, structs, depth + 1);
+                if (fa > maxA) maxA = fa;
+            }
+            return alignUpBytes(off, maxA);
+        }
+    }
+    return 8;                                 // handle / opaque
+}
+
+static int layoutAlignBytes(const ast::TypeP& t, const StructTable& structs,
+                            int depth) {
+    if (depth > 64) return 8;
+    if (t && t->kind == ast::TyKind::Name) {
+        int a = sema::typeAlignBytes(t->name);
+        if (a >= 0) return a;
+        auto it = structs.find(t->name);
+        if (it != structs.end()) {
+            int maxA = 1;
+            for (const auto& f : it->second->fields) {
+                int fa = layoutAlignBytes(f.type, structs, depth + 1);
+                if (fa > maxA) maxA = fa;
+            }
+            return maxA;
+        }
+    }
+    return 8;
+}
+
 Interpreter::Interpreter(const Stmt& program) {
     globals_ = makeChild(nullptr);
     installBuiltins();
@@ -1319,7 +1373,6 @@ void Interpreter::installBuiltins() {
         v.den = d;
         return v;
     });
-    globals_->vars["rational"] = globals_->vars["Rational"];
     globals_->vars["Numerator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("numerator: argument is not a rational");
         return Value::integer(a[0].num);
@@ -1374,7 +1427,6 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::complexNum(re, im);
     });
     globals_->vars["__Complex"] = globals_->vars["Complex"];
-    globals_->vars["complex"] = globals_->vars["Complex"];
     globals_->vars["Decimal"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::Str) return decParse(a[0].s);
         if (a[0].k == VK::Int) return decFromSigned(std::to_string(a[0].i), 0);
@@ -1387,7 +1439,6 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::none();
     });
     globals_->vars["__Decimal"] = globals_->vars["Decimal"];
-    globals_->vars["decimal"] = globals_->vars["Decimal"];
     globals_->vars["ComplexReal"] = biFn({"z"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Complex) panicHere("complex_real: argument is not a complex");
         return Value::floating(a[0].re);
@@ -2073,6 +2124,23 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     });
     globals_->vars["type"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(typeName(a[0]));
+    });
+
+    // sizeof(T) / alignof(T): T is a type reference (a struct/enum type name
+    // resolved to a `__struct__:`/`__enum__:` module, or a plain string name).
+    // Scalar spellings are baked by the parser; struct layouts are computed
+    // from the declaration table (see layoutSizeBytes).
+    globals_->vars["sizeof"] = biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+        if (a.empty()) return Value::integer(0);
+        std::string tn = typeRefName(a[0]);
+        auto ty = ast::Type::makeName(tn, {});
+        return Value::integer(layoutSizeBytes(ty, structs_, 0));
+    });
+    globals_->vars["alignof"] = biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+        if (a.empty()) return Value::integer(0);
+        std::string tn = typeRefName(a[0]);
+        auto ty = ast::Type::makeName(tn, {});
+        return Value::integer(layoutAlignBytes(ty, structs_, 0));
     });
 
     // repr(x): debug/typed string form (quotes strings, shows containers/fields).
@@ -3518,8 +3586,8 @@ void Interpreter::exec(const Stmt& s, Env env) {
         }
 
         case ast::StKind::AugAssign: {
-            if (s.augOp == "??=") {
-                // `a ??= b`: assign only when `a` is none (short-circuit).
+            if (s.augOp == "?" "?=") {
+                // `a ?? = b`: assign only when `a` is none (short-circuit).
                 Value cur = eval(*s.exprs[0], env);
                 if (cur.isNone())
                     assignTo(*s.exprs[0], eval(*s.exprs[1], env), env);
@@ -3908,11 +3976,11 @@ static bool typeTestMatches(const Value& v, const std::string& t) {
     if (t == "bytes") return v.k == VK::Bytes;
     if (t == "bytearray") return v.k == VK::ByteArray;
     if (t == "memoryview") return v.k == VK::View;
-    if (t == "Complex" || t == "complex") return v.k == VK::Complex;
-    if (t == "Decimal" || t == "decimal") return v.k == VK::Decimal;
+    if (t == "Complex") return v.k == VK::Complex;
+    if (t == "Decimal") return v.k == VK::Decimal;
     if (t == "BigInt" || t == "bigint" || t == "big_int")
         return v.k == VK::BigInt;
-    if (t == "Rational" || t == "rational") return v.k == VK::Rational;
+    if (t == "Rational") return v.k == VK::Rational;
     if (isCharTypeName(t)) return v.k == VK::Char;
     if (isBoolTypeName(t)) return v.k == VK::Bool;
     int bits; bool isUnsigned;
@@ -4617,13 +4685,13 @@ Value cv = eval(*e.lhs, env);
                                                       : v.k == VK::Float ? v.d
                                                                          : 0.0);
             if (isBoolTypeName(t)) return Value::boolean(truthy(v));
-            if (t == "Complex" || t == "complex") {
+            if (t == "Complex") {
                 if (v.k == VK::Complex) return v;
                 if (v.k == VK::Int || v.k == VK::Float || v.k == VK::Rational)
                     return fromCplx(toCplx(v));
                 panicHere("invalid cast to 'Complex'");
             }
-            if (t == "Decimal" || t == "decimal") {
+            if (t == "Decimal") {
                 if (v.k == VK::Decimal) return v;
                 if (v.k == VK::Int) return decFromSigned(std::to_string(v.i), 0);
                 if (v.k == VK::Float) return decFromDouble(v.d);
@@ -7090,7 +7158,7 @@ static bool valEq(const Value& a, const Value& b) {
                 if (kv.second.i == 0) continue;
                 bool found = false;
                 for (const auto& kv2 : *b.map)
-                    if (valEq(kv.first, kv2.first) && kv.second.i == kv.second.i) {
+                    if (valEq(kv.first, kv2.first)) {
                         found = (kv.second.i == kv2.second.i);
                         break;
                     }
@@ -8678,6 +8746,7 @@ void Interpreter::enableVm() {
         "RationalGe","__RationalGe",
         "CopySign","__CopySign","Pow","__Pow",
         "Str","Int","Float","Bool","Min","Max",
+        "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
         "math","time","io","mem","json","text","os",
@@ -9230,9 +9299,9 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                         break;
                     }
                     case VK::Counter: {
-                        bool hit = false; Value rv = Value::integer(0);
+                        Value rv = Value::integer(0);
                         for (const auto& kv : *obj.map)
-                            if (valuesEqual(kv.first, idx)) { rv = kv.second; hit = true; break; }
+                            if (valuesEqual(kv.first, idx)) { rv = kv.second; break; }
                         push(fromVal(std::move(rv)));
                         break;
                     }

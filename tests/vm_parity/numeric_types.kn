@@ -1,5 +1,5 @@
 fn main() -> none {
-    var c = complex(2, -3) * complex(1, 1);
+    var c = Complex(2, -3) * Complex(1, 1);
     print(c);
     print(c.real, c.imag);
 
@@ -9,5 +9,5 @@ fn main() -> none {
     print(Decimal("1") / Decimal("4"));
 
     print(big_int("12345678901234567890") + 1);
-    print(rational(3, 4).numerator(), rational(3, 4).denominator());
+    print(Rational(3, 4).numerator(), Rational(3, 4).denominator());
 }

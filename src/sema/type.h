@@ -148,6 +148,18 @@ inline int typeSizeBytes(const std::string& n) {
     }
     return -1;
 }
+
+// Natural alignment in bytes for a scalar primitive type spelling: the smallest
+// power of two that is >= its size, capped at 8. `none` (size 0) aligns to 1.
+// Aggregate/container spellings are not scalar and return -1. Used by `alignof`.
+inline int typeAlignBytes(const std::string& n) {
+    int s = typeSizeBytes(n);
+    if (s < 0) return -1;
+    if (s == 0) return 1;
+    int a = 1;
+    while (a < s && a < 8) a <<= 1;
+    return a;
+}
 inline TyP ptrTy(TyP i)   { return Ty::one(TyK::Ptr, std::move(i)); }
 inline TyP dictTy(TyP kk, TyP vv) { return Ty::two(TyK::Dict, std::move(kk), std::move(vv)); }
 inline TyP tupleTy(std::vector<TyP> items) {

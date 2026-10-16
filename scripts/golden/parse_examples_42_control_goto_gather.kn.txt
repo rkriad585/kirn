@@ -122,6 +122,20 @@ FuncDef "main"
         AugAssign op="+="
           Target Ident "total2"
           Value Ident "k"
+    Label 'done'
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value 
+                Binary op="+"
+                  Lhs Str "gotoTotal="
+                  Rhs 
+                    Call
+                      Callee Ident "Str"
+                      Arg
+                        Value Ident "total2"
     Assign
       Target Ident "visited"
       Value 

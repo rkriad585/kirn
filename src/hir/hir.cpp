@@ -612,6 +612,11 @@ struct Lowerer {
                 return e.lhs ? lower(*e.lhs)
                     : mk(ExprKind::Error, sp, ty,
                          payload::Error{"@comptime has no operand"});
+
+            // `%` outside any pipe has no meaning (checker reported E-PIPE-TOPIC);
+            // fall through to the generic unhandled return below.
+            case ast::ExKind::Topic:
+                break;
         }
         return mk(ExprKind::Error, sp, ty, payload::Error{"unhandled expression kind"});
     }

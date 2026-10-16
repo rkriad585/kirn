@@ -64,7 +64,7 @@ void warnLegacyEnv() {
         found += "KIRN_STDLIB -> KIRN_STDLIB";
     }
     if (!found.empty())
-        std::cerr << "warning: " << found
+        std::cerr << "warning[W9008]: " << found
                   << " are no longer supported; use the KIRN_* names\n";
 }
 

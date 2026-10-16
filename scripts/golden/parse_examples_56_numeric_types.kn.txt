@@ -41,14 +41,14 @@ FuncDef "main"
         Binary op="+"
           Lhs 
             Call
-              Callee Ident "complex"
+              Callee Ident "Complex"
               Arg
                 Value Int "3"
               Arg
                 Value Int "4"
           Rhs 
             Call
-              Callee Ident "complex"
+              Callee Ident "Complex"
               Arg
                 Value Int "1"
               Arg
@@ -82,7 +82,7 @@ FuncDef "main"
                   Member name="conjugate"
                     Obj 
                       Call
-                        Callee Ident "complex"
+                        Callee Ident "Complex"
                         Arg
                           Value Int "3"
                         Arg
@@ -98,7 +98,7 @@ FuncDef "main"
                   Member name="abs"
                     Obj 
                       Call
-                        Callee Ident "complex"
+                        Callee Ident "Complex"
                         Arg
                           Value Int "3"
                         Arg
@@ -112,14 +112,14 @@ FuncDef "main"
               Binary op="+"
                 Lhs 
                   Call
-                    Callee Ident "rational"
+                    Callee Ident "Rational"
                     Arg
                       Value Int "1"
                     Arg
                       Value Int "3"
                 Rhs 
                   Call
-                    Callee Ident "rational"
+                    Callee Ident "Rational"
                     Arg
                       Value Int "1"
                     Arg
@@ -135,7 +135,7 @@ FuncDef "main"
                   Member name="to_float"
                     Obj 
                       Call
-                        Callee Ident "rational"
+                        Callee Ident "Rational"
                         Arg
                           Value Int "1"
                         Arg

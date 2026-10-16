@@ -3,5 +3,19 @@ FuncDef "main"
   Ret none
   Body
     Goto 'dup'
+    Label 'dup'
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value Str "a"
+    Label 'dup'
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value Str "b"
 <ROOT>/tests/negative/n16_goto_dup_label.kn: OK (1 top-level statements)
 [exit 0]

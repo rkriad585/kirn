@@ -1,7 +1,9 @@
 # Kirn — Feature Gap Analysis vs Go & Rust
 
 **Status:** Living document · last updated with `kirn build` single-file mode, brace-syntax
-migration (v1), pattern aliases, or-patterns, and labeled loops.
+migration (v1), pattern aliases, or-patterns, labeled loops, the CapCase type surface cut,
+`sizeof`/`alignof` builtins, broader `@comptime`/`const` evaluation, and coded `W90xx`
+driver/tool warnings.
 
 This document compares Kirn against the reference language implementations in
 `C:\Users\rkriad585\Projects\go-rust-source-code` (`go-master`, `rust-main`) and records
@@ -98,6 +100,8 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 | error type `result[T,E]`           | ✗              | ✅                      | ✅                                   | done        |
 | optional `T?`                      | ✗              | ✅ `Option<T>`          | ✅                                   | done        |
 | nil-able `T?` vs `none`            | ✗              | ✗                       | ✅ `is none`                         | done        |
+| `sizeof` / `alignof`              | ✅ `unsafe.Sizeof` | `std::mem::size_of` | ✅ builtins (`size_of`/`align_of`)   | done        |
+| compile-time eval (`@comptime`)   | const-expr     | `const fn`              | ✅ (dict/set/struct/methods)         | done        |
 
 ### 3.2 Pattern-power roadmap (Rust `PatKind` parity)
 
@@ -189,6 +193,33 @@ Canonical forms (both spellings work; the left column is preferred):
 `replace with += 1` fix-it); it never fires on valid `a + +b` or `a - -b`. The ternary emits no
 warning. A nested-ternary chain lowers on the tree-walker and VM; the MIR `rt` dumper still
 rejects nested conditional expressions (shared with nested `if` expressions).
+
+### 4.2 Type surface cut, `sizeof`/`alignof`, and const-eval breadth (this pass)
+
+- **CapCase is canonical.** The lowercase constructor aliases `complex(...)`,
+  `rational(...)`, and `decimal(...)` were **removed**; only `Complex` / `Rational` /
+  `Decimal` resolve and the lowercase spellings now error (`unknown type` /
+  `undefined function`). `big_int` keeps its lowercase spelling alongside `BigInt`
+  (the deliberate exception; `bigint` still resolves as a _type_ spelling but not as a
+  constructor). The numeric-type examples/tests (`examples/56_numeric_types.kn`,
+  `tests/syntax/numbers_ok.kn`, `tests/vm_parity/numeric_types.kn`) were rewritten to
+  CapCase.
+- **`sizeof(T)` / `alignof(T)`** (aliases `size_of` / `align_of`) resolve as builtins.
+  For scalar `T` the parser bakes an integer literal; for struct/enum `T` it lowers to a
+  normal builtin call evaluated at run time. Layout is C-style — fields in declaration
+  order with natural alignment, padded to the struct's max alignment, and every
+  non-scalar field is an 8-byte handle. E.g. `sizeof(Point) == 16`,
+  `alignof(Point) == 8`, and `@comptime(sizeof(Point))` folds.
+- **Const-eval breadth.** `@comptime` (and `const`) now evaluates set/dict literals,
+  struct construction `Point(x: 1, y: 2)`, struct field access, indexing into sets/dicts,
+  iteration over sets/dicts (a dict yields its keys), and the pure receiver methods
+  `len`/`length`/`size`, `upper`/`lower`/`trim`, `starts_with`/`ends_with`/`contains`/`has`,
+  and `keys`/`values`. Struct values fold back to `Name(field: v, ...)`.
+- **Coded driver/tool warnings.** The non-source `warning:` strings in
+  `src/driver/driver.cpp`, `tools/kirn.cpp`, and `tools/kirnrun.cpp` now carry a stable
+  `warning[W90xx]: ...` code — W9001 dep path, W9002 no entry, W9003 unreadable entry,
+  W9004 no runner, W9005 bundle failed, W9006 PATH update, W9007 toolchain, W9008 legacy
+  env. Source lints remain in the `W01xx` band; HIR uses `W9000`.
 
 ---
 

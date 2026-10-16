@@ -1,0 +1,18 @@
+fn main() -> none {
+    # complex: rectangular arithmetic and accessors
+    c = complex(3, 4) + complex(1, 2);
+    print(c);                              # (4.0+6.0i)
+    print(c.real, c.imag);                 # 4.0 6.0
+    print(complex(0, 1).conjugate());      # (0.0-1.0i)
+    print(complex(3, 4).abs());            # 5.0
+
+    # decimal: exact, never 0.30000000000000004
+    print(Decimal("0.1") + Decimal("0.2"));    # 0.3
+    print(Decimal("1.5") * Decimal("2"));      # 3.0
+    print(Decimal("2.567").quantize(-2));      # 2.57
+    print(Decimal("10").to_int());             # 10
+
+    # rational and big_int are unchanged
+    print(rational(1, 3) + rational(1, 6));    # 1/2
+    print(big_int(2) ** 100);                  # 1267650600228229401496703205376
+}

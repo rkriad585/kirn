@@ -29,7 +29,7 @@ struct HeapObj;
 struct ThreadImpl;
 
 enum class VK {
-    None, Bool, Int, Float, Rational, BigInt, Str, Bytes, Char,
+    None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, Char,
     List, Dict, Set, Tuple, Range,
     Struct,                                   // by-value instance
     Heap, Weak,                               // `new` handles
@@ -70,6 +70,15 @@ struct Value {
     // sign tracked separately. Shared so big values copy cheaply.
     std::shared_ptr<std::vector<uint64_t>> limbs;
     bool neg = false;                         // sign bit for big ints
+    // Complex fields (valid when k == VK::Complex): rectangular a + bi.
+    double re = 0.0;
+    double im = 0.0;
+    // Decimal fields (valid when k == VK::Decimal): value = sign * mant * 10^exp
+    // with `mant` holding only ASCII digits (no sign, no dot). `dneg` is the
+    // sign; `exp` may be negative. `mant` is empty only for the value zero.
+    std::string mant;
+    int64_t exp = 0;
+    bool dneg = false;
 
     // containers (aliased)
     std::shared_ptr<std::vector<Value>> vec;                    // List/Set/Tuple
@@ -118,6 +127,14 @@ struct Value {
         return x;
     }
     static Value str(std::string v) { Value x; x.k = VK::Str; x.s = std::move(v); return x; }
+    static Value complexNum(double re, double im) {
+        Value x; x.k = VK::Complex; x.re = re; x.im = im; return x;
+    }
+    static Value decimalNum(std::string mant, int64_t exp, bool dneg = false) {
+        Value x; x.k = VK::Decimal;
+        x.mant = std::move(mant); x.exp = exp; x.dneg = dneg;
+        return x;
+    }
     static Value chr(char32_t c) { Value x; x.k = VK::Char; x.ch = c; return x; }
     static Value list(std::vector<Value> vs = {}) {
         Value x; x.k = VK::List;

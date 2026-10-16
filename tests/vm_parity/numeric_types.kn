@@ -1,0 +1,13 @@
+fn main() -> none {
+    var c = complex(2, -3) * complex(1, 1);
+    print(c);
+    print(c.real, c.imag);
+
+    var d = Decimal("1.1") - Decimal("0.2");
+    print(d);
+    print(d == Decimal("0.9"));
+    print(Decimal("1") / Decimal("4"));
+
+    print(big_int("12345678901234567890") + 1);
+    print(rational(3, 4).numerator(), rational(3, 4).denominator());
+}

@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/56_numeric_types.kn
+<ROOT>/examples/56_numeric_types.kn: OK
+[exit 0]

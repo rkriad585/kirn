@@ -1,0 +1,23 @@
+fn main() -> none {
+    # Arbitrary-precision integers.
+    x: big_int = big_int(2) ** 1000;
+    print(x.bit_length());
+    print(big_int("123456789012345678901234567890") ** 2);
+
+    # Complex numbers: rectangular arithmetic.
+    z = complex(3, 4) + complex(1, 2);
+    print(z);
+    print(z.real, z.imag);
+    print(complex(3, 4).conjugate());
+    print(complex(3, 4).abs());
+
+    # Exact rationals.
+    print(rational(1, 3) + rational(1, 6));
+    print(rational(1, 3).to_float());
+
+    # Decimal: money-safe, no float promotion.
+    print(Decimal("0.1") + Decimal("0.2"));
+    print(Decimal("1.5") * Decimal("2"));
+    print(Decimal("2.567").quantize(-2));
+    print(Decimal("10") / Decimal("3"));
+}

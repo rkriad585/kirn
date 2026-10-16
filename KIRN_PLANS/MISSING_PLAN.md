@@ -146,6 +146,14 @@ dicts/sets/structs, method calls, string methods, or I/O; `sizeof`/`alignof` are
 plan's `@comptime(alignof(Point))` form is out of scope for this stage; the constant table is not
 emitted as a separate data section (folding rewrites the AST literal instead).
 
+**Implementation progress (2026-10-16).** M6 (extended numeric types) is implemented in `src/`
+(runtime values + checker); `big_int`/`rational` already existed, so the new work is `complex` and
+`decimal` plus the promotion lattice `Integral < Rational < Real < Complex`. Green on the full gate
+(`scripts/gates_linux.sh`, 236), golden (`scripts/golden_linux.sh`, 233), crosscheck
+(`scripts/crosscheck_linux.sh`, 555) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M6 phase
+note for the recorded scope deviations (different transcendental path for `decimal`, no `stdlib/lib`
+modules, property vs method accessors).
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -656,6 +664,29 @@ order; `examples/56_numeric_types.kn`.
 
 **Expected result:** all four numeric types work with correct promotion and precision; existing `Int`/
 `Float` behavior unchanged.
+
+**M6 phase note (implemented).** Delivered in `src/interp/value.h` (`VK::Complex` with `double re,im`;
+`VK::Decimal` with sign + decimal-digit string + `int64_t` exponent; `Value::complexNum`/`decimalNum`)
+and `src/interp/runtime.cpp` (complex/decimal helpers, `toStr`/`truthy`/`typeName`, global
+registrations `Complex`/`complex`/`Decimal`/`decimal`/`rational`/`big_int` and `ComplexReal`/
+`ComplexImag`/`ComplexConj`/`ComplexAbs`, `memberRead`, `binop`, `valEq`/`valLess`, `Cast`,
+`typeTestMatches`). Types in `src/sema/type.h` (`TyK::Complex`/`TyK::Decimal`, `complexTy`/`decimalTy`)
+and `src/sema/checker.cpp` (spellings, builtin registration, `unify`, binary-arith typing with
+`complex` dominating and `decimal`+`Float` rejected, `memberAccess` property access, method surfaces,
+`assignable` widening). Complex is backed by `std::complex<double>`; accessors are `z.real`/`z.imag`
+(properties) and `.conjugate()`/`.abs()`/`.arg`/`exp`/`log`/`sqrt`/`sin`/`cos`/`tan`/`pow` (methods).
+Decimal is exact for `+`/`-`/`*` via `bignum::Big`, with `/` rounded to 28 significant digits
+(half-up) and `quantize(int)`. Tests: `tests/syntax/numbers_ok.kn`,
+`tests/syntax/numbers_err_float_mix.kn`, `tests/vm_parity/numeric_types.kn`,
+`examples/56_numeric_types.kn` (+3 recorded goldens). Deviations recorded: (1) `rational` exposes
+`numerator()`/`denominator()` as methods, not properties, so existing call-sites are unchanged;
+`complex` uses `.real`/`.imag` as properties (matching the plan example) with `absolute`/conjugate as
+methods. (2) `decimal` `sqrt`/`ln`/`exp` are computed through `double` (documented precision limit),
+not full arbitrary-precision transcendentals; `+`/`-`/`*` are exact and `/` is rounded to 28
+significant digits. (3) There is no `stdlib/lib` directory in the tree, so the plan's `lib.bigint`/
+`lib.math` module wrappers were not added; the builtins are globally registered as before. (The plan's
+`tests/numbers/` path was not used because the gate discovers `tests/syntax/*_ok*.kn` / `*_err*.kn`
+and `tests/vm_parity/*.kn`; the tests live there so they are actually run.)
 
 ---
 

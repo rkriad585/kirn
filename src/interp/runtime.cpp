@@ -16,6 +16,7 @@
 #include <climits>
 #include <chrono>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -373,7 +374,275 @@ static std::string escapeStr(const std::string& s) {
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// M6 numeric types: complex (rectangular, backed by std::complex<double>) and
+// decimal (arbitrary-precision sign/mantissa/exponent; exact +,-,* and a
+// precision-bounded division). Helpers live here so both the string formatters
+// and the operator/eval paths share them.
+// ---------------------------------------------------------------------------
+static std::string fmtDouble(double d);
+
+// Decimal canonical form: mant holds ASCII digits (no sign, no dot), value is
+// sign * mant * 10^exp. Zero is mant "0", exp 0, dneg false.
+static Value decNorm(std::string mant, int64_t exp, bool dneg) {
+    size_t i = 0;
+    while (i + 1 < mant.size() && mant[i] == '0') ++i;
+    if (i) mant.erase(0, i);
+    if (mant.empty()) mant = "0";
+    if (mant == "0") { exp = 0; dneg = false; }
+    return Value::decimalNum(std::move(mant), exp, dneg);
+}
+
+// Parse a signed digit string produced by bignum::Big::toString().
+static Value decFromSigned(std::string digits, int64_t exp) {
+    bool dneg = false;
+    if (!digits.empty() && (digits[0] == '-' || digits[0] == '+')) {
+        dneg = digits[0] == '-';
+        digits.erase(0, 1);
+    }
+    return decNorm(std::move(digits), exp, dneg);
+}
+
+static Value decParse(const std::string& in) {
+    std::string s = in;
+    bool dneg = false;
+    size_t p = 0;
+    while (p < s.size() && std::isspace((unsigned char)s[p])) ++p;
+    if (p < s.size() && (s[p] == '+' || s[p] == '-')) {
+        dneg = s[p] == '-';
+        ++p;
+    }
+    std::string digits;
+    int64_t frac = 0;
+    bool seenDot = false, hasE = false;
+    for (; p < s.size(); ++p) {
+        char c = s[p];
+        if (c == '.') {
+            if (seenDot) panicHere("decimal: invalid literal");
+            seenDot = true;
+        } else if (c == 'e' || c == 'E') {
+            hasE = true;
+            ++p;
+            break;
+        } else if (std::isdigit((unsigned char)c)) {
+            digits.push_back(c);
+            if (seenDot) ++frac;
+        } else {
+            panicHere("decimal: invalid literal");
+        }
+    }
+    int64_t e = 0;
+    if (hasE) {
+        bool eneg = false;
+        if (p < s.size() && (s[p] == '+' || s[p] == '-')) {
+            eneg = s[p] == '-';
+            ++p;
+        }
+        if (p >= s.size()) panicHere("decimal: invalid exponent");
+        for (; p < s.size(); ++p) {
+            if (!std::isdigit((unsigned char)s[p]))
+                panicHere("decimal: invalid exponent");
+            e = e * 10 + (s[p] - '0');
+        }
+        if (eneg) e = -e;
+    }
+    if (digits.empty()) panicHere("decimal: invalid literal");
+    return decNorm(digits, e - frac, dneg);
+}
+
+static std::string decToString(const Value& v) {
+    const std::string& m = v.mant;
+    std::string out;
+    if (v.exp >= 0) {
+        out = m + std::string((size_t)v.exp, '0');
+    } else {
+        int64_t frac = -v.exp;
+        if ((int64_t)m.size() > frac)
+            out = m.substr(0, m.size() - (size_t)frac) + "." +
+                  m.substr(m.size() - (size_t)frac);
+        else
+            out = "0." + std::string((size_t)(frac - (int64_t)m.size()), '0') +
+                  m;
+    }
+    if (v.dneg) out = "-" + out;
+    return out;
+}
+
+static Value decAdd(const Value& x, const Value& y) {
+    int64_t e = std::min(x.exp, y.exp);
+    std::string xm = x.mant + std::string((size_t)(x.exp - e), '0');
+    std::string ym = y.mant + std::string((size_t)(y.exp - e), '0');
+    bignum::Big a = bignum::fromStr((x.dneg ? "-" : "") + xm);
+    bignum::Big b = bignum::fromStr((y.dneg ? "-" : "") + ym);
+    return decFromSigned(a.add(b).toString(), e);
+}
+
+static Value decNeg(const Value& v) {
+    Value r = v;
+    if (r.mant != "0") r.dneg = !r.dneg;
+    return r;
+}
+
+static Value decSub(const Value& x, const Value& y) { return decAdd(x, decNeg(y)); }
+
+static Value decMul(const Value& x, const Value& y) {
+    bignum::Big a = bignum::fromStr((x.dneg ? "-" : "") + x.mant);
+    bignum::Big b = bignum::fromStr((y.dneg ? "-" : "") + y.mant);
+    return decFromSigned(a.mul(b).toString(), x.exp + y.exp);
+}
+
+static int decCmp(const Value& x, const Value& y) {
+    bool xz = x.mant == "0", yz = y.mant == "0";
+    if (xz && yz) return 0;
+    if (x.dneg != y.dneg) return x.dneg ? -1 : 1;
+    int64_t e = std::min(x.exp, y.exp);
+    std::string xm = x.mant + std::string((size_t)(x.exp - e), '0');
+    std::string ym = y.mant + std::string((size_t)(y.exp - e), '0');
+    int c;
+    if (xm.size() != ym.size()) c = xm.size() < ym.size() ? -1 : 1;
+    else if (xm < ym) c = -1;
+    else if (xm > ym) c = 1;
+    else c = 0;
+    return x.dneg ? -c : c;
+}
+
+// Round `digits` (no sign) with exponent `exp` to `prec` significant digits
+// using half-up rounding.
+static Value decRoundSig(std::string digits, int64_t exp, bool dneg, int prec) {
+    if ((int64_t)digits.size() <= prec)
+        return decNorm(std::move(digits), exp, dneg);
+    int64_t drop = (int64_t)digits.size() - prec;
+    bool roundUp = digits[(size_t)prec] >= '5';
+    std::string keep = digits.substr(0, (size_t)prec);
+    if (roundUp) {
+        int i = (int)keep.size() - 1;
+        for (; i >= 0; --i) {
+            if (keep[(size_t)i] == '9') keep[(size_t)i] = '0';
+            else { keep[(size_t)i] += 1; break; }
+        }
+        if (i < 0) { keep = "1" + keep; ++drop; }
+    }
+    // drop insignificant trailing zeros (the value is unchanged) so 1/4 reads
+    // as 0.25 rather than 0.2500...0.
+    while (keep.size() > 1 && keep.back() == '0') { keep.pop_back(); ++drop; }
+    return decNorm(std::move(keep), exp + drop, dneg);
+}
+
+static Value decDiv(const Value& x, const Value& y) {
+    if (y.mant == "0") panicHere("decimal division by zero");
+    if (x.mant == "0") return decNorm("0", 0, false);
+    const int prec = 28;
+    int64_t K = (int64_t)prec + (int64_t)y.mant.size();
+    bignum::Big scale = bignum::fromI64(10).pow((uint64_t)K);
+    bignum::Big a = bignum::fromStr(x.mant);
+    bignum::Big b = bignum::fromStr(y.mant);
+    bignum::Big q = a.mul(scale).div(b);
+    return decRoundSig(q.toString(), x.exp - y.exp - K, x.dneg ^ y.dneg, prec);
+}
+
+static Value decPowInt(const Value& base, int64_t e) {
+    bool neg = e < 0;
+    uint64_t ue = neg ? (uint64_t)(-(e + 1)) + 1 : (uint64_t)e;
+    bignum::Big r = bignum::fromStr(base.mant).pow(ue);
+    Value out = decFromSigned(r.toString(), base.exp * (int64_t)ue);
+    if (base.dneg && (ue & 1)) out.dneg = !out.dneg;
+    if (neg) {
+        Value one = decNorm("1", 0, false);
+        return decDiv(one, out);
+    }
+    return out;
+}
+
+static Value decFromDouble(double x) {
+    char buf[64];
+    snprintf(buf, sizeof buf, "%.17g", x);
+    return decParse(buf);
+}
+
+static double decToDouble(const Value& v) { return std::stod(decToString(v)); }
+
+static int64_t decToI64Trunc(const Value& v) {
+    bignum::Big m = bignum::fromStr(v.mant);
+    if (v.exp >= 0) {
+        m = m.mul(bignum::fromI64(10).pow((uint64_t)v.exp));
+    } else {
+        int64_t drop = -v.exp;
+        bignum::Big p10 = bignum::fromI64(10).pow((uint64_t)drop);
+        m.limbs = bignum::divmodMag(m.limbs, p10.limbs).first;
+    }
+    std::string s = m.toString();
+    if (v.dneg && s != "0") s = "-" + s;
+    try {
+        return std::stoll(s);
+    } catch (...) {
+        panicHere("decimal: integer value out of range");
+    }
+    return 0;
+}
+
+static Value decQuantize(const Value& x, int64_t targetExp) {
+    if (x.mant == "0")
+        return decNorm("0", targetExp, false);
+    if (x.exp >= targetExp)
+        return decNorm(x.mant + std::string((size_t)(x.exp - targetExp), '0'),
+                       targetExp, x.dneg);
+    int64_t drop = targetExp - x.exp;
+    bignum::Big m = bignum::fromStr(x.mant);
+    bignum::Big p10 = bignum::fromI64(10).pow((uint64_t)drop);
+    auto qr = bignum::divmodMag(m.limbs, p10.limbs);
+    bignum::Big q;
+    q.limbs = qr.first;
+    bignum::Big r;
+    r.limbs = qr.second;
+    bignum::Big two;
+    two.limbs = bignum::fromInt(2);
+    if (r.mul(two).cmpAbs(p10) >= 0)
+        q.limbs = bignum::addMag(q.limbs, bignum::fromInt(1));
+    return decNorm(q.toString(), targetExp, x.dneg);
+}
+
+static std::string fmtComplex(const Value& v) {
+    std::string re = fmtDouble(v.re);
+    std::string im = fmtDouble(std::fabs(v.im));
+    return "(" + re + (v.im < 0 ? "-" : "+") + im + "i)";
+}
+
+static bool isCplxOperand(const Value& v) {
+    return v.k == VK::Complex || v.k == VK::Int || v.k == VK::Float ||
+           v.k == VK::Rational;
+}
+
+static std::complex<double> toCplx(const Value& v) {
+    if (v.k == VK::Complex) return {v.re, v.im};
+    if (v.k == VK::Int) return {(double)v.i, 0.0};
+    if (v.k == VK::Float) return {v.d, 0.0};
+    if (v.k == VK::Rational) return {(double)v.num / (double)v.den, 0.0};
+    panicHere("complex: unsupported operand");
+    return {};
+}
+
+static Value fromCplx(const std::complex<double>& z) {
+    return Value::complexNum(z.real(), z.imag());
+}
+
 std::string repr(const Value& v);
+
+static std::string fmtDouble(double d) {
+    if (std::isnan(d)) return "NaN";
+    if (std::isinf(d)) return d > 0 ? "inf" : "-inf";
+    for (int prec = 15; prec <= 17; ++prec) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%.*g", prec, d);
+        if (strtod(buf, nullptr) == d) {
+            std::string r(buf);
+            if (r.find('.') == std::string::npos &&
+                r.find('e') == std::string::npos)
+                r += ".0";
+            return r;
+        }
+    }
+    return std::to_string(d);
+}
 
 std::string toStr(const Value& v) {
     switch (v.k) {
@@ -402,22 +671,8 @@ std::string toStr(const Value& v) {
             }
             return s;
         }
-        case VK::Float: {
-            if (std::isnan(v.d)) return "NaN";
-            if (std::isinf(v.d)) return v.d > 0 ? "inf" : "-inf";
-            for (int prec = 15; prec <= 17; ++prec) {
-                char buf[64];
-                snprintf(buf, sizeof buf, "%.*g", prec, v.d);
-                if (strtod(buf, nullptr) == v.d) {
-                    std::string r(buf);
-                    if (r.find('.') == std::string::npos &&
-                        r.find('e') == std::string::npos)
-                        r += ".0";
-                    return r;
-                }
-            }
-            return std::to_string(v.d);
-        }
+        case VK::Float:
+            return fmtDouble(v.d);
         case VK::Rational: {
             return std::to_string(v.num) + "/" + std::to_string(v.den);
         }
@@ -427,6 +682,8 @@ std::string toStr(const Value& v) {
             if (v.limbs) b.limbs = *v.limbs;
             return b.toString();
         }
+        case VK::Complex: return fmtComplex(v);
+        case VK::Decimal: return decToString(v);
         case VK::Str:    return v.s;
         default:         return repr(v);
     }
@@ -521,6 +778,8 @@ bool truthy(const Value& v) {
         case VK::Int:   return v.i != 0;
         case VK::Float: return v.d != 0.0;
         case VK::BigInt: return v.limbs && !v.limbs->empty();
+        case VK::Complex: return v.re != 0.0 || v.im != 0.0;
+        case VK::Decimal: return v.mant != "0";
         default:        panicHere("condition is not a bool");
     }
 }
@@ -533,6 +792,8 @@ static std::string typeName(const Value& v) {
         case VK::Int:    return "int";
         case VK::Float:  return "float";
         case VK::BigInt: return "bigint";
+        case VK::Complex: return "complex";
+        case VK::Decimal: return "decimal";
         case VK::Str:    return "string";
         case VK::Bytes:  return "bytes";
         case VK::Char:   return "char";
@@ -840,6 +1101,7 @@ void Interpreter::installBuiltins() {
         v.den = d;
         return v;
     });
+    globals_->vars["rational"] = globals_->vars["Rational"];
     globals_->vars["Numerator"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Rational) panicHere("numerator: argument is not a rational");
         return Value::integer(a[0].num);
@@ -879,6 +1141,50 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
         panicHere("to_rational: unsupported operand");
         return Value::none();
+    });
+    globals_->vars["Complex"] = biFn({"re", "im"}, [](std::vector<Value>& a) -> Value {
+        auto d = [](const Value& v) -> double {
+            if (v.k == VK::Float) return v.d;
+            if (v.k == VK::Int) return (double)v.i;
+            if (v.k == VK::Rational) return (double)v.num / (double)v.den;
+            if (v.k == VK::Complex) return v.re;
+            panicHere("complex: bad component");
+            return 0.0;
+        };
+        double re = d(a[0]);
+        double im = a.size() > 1 ? d(a[1]) : 0.0;
+        return Value::complexNum(re, im);
+    });
+    globals_->vars["__Complex"] = globals_->vars["Complex"];
+    globals_->vars["complex"] = globals_->vars["Complex"];
+    globals_->vars["Decimal"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k == VK::Str) return decParse(a[0].s);
+        if (a[0].k == VK::Int) return decFromSigned(std::to_string(a[0].i), 0);
+        if (a[0].k == VK::Float) return decFromDouble(a[0].d);
+        if (a[0].k == VK::Decimal) return a[0];
+        if (a[0].k == VK::Rational)
+            return decDiv(decFromSigned(std::to_string(a[0].num), 0),
+                          decFromSigned(std::to_string(a[0].den), 0));
+        panicHere("decimal: unsupported argument");
+        return Value::none();
+    });
+    globals_->vars["__Decimal"] = globals_->vars["Decimal"];
+    globals_->vars["decimal"] = globals_->vars["Decimal"];
+    globals_->vars["ComplexReal"] = biFn({"z"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Complex) panicHere("complex_real: argument is not a complex");
+        return Value::floating(a[0].re);
+    });
+    globals_->vars["ComplexImag"] = biFn({"z"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Complex) panicHere("complex_imag: argument is not a complex");
+        return Value::floating(a[0].im);
+    });
+    globals_->vars["ComplexConj"] = biFn({"z"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Complex) panicHere("complex_conj: argument is not a complex");
+        return Value::complexNum(a[0].re, -a[0].im);
+    });
+    globals_->vars["ComplexAbs"] = biFn({"z"}, [](std::vector<Value>& a) -> Value {
+        if (a[0].k != VK::Complex) panicHere("complex_abs: argument is not a complex");
+        return Value::floating(std::hypot(a[0].re, a[0].im));
     });
     globals_->vars["FAbs"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k != VK::Float) panicHere("fabs: argument is not a float");
@@ -1693,6 +1999,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
         return v;
     });
+    globals_->vars["big_int"] = globals_->vars["BigInt"];
     globals_->vars["BitLength"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         if (a[0].k == VK::BigInt) {
             if (!a[0].limbs) return Value::integer(0);
@@ -2949,6 +3256,11 @@ static bool typeTestMatches(const Value& v, const std::string& t) {
         t == "strings")
         return v.k == VK::Str;
     if (t == "bytes") return v.k == VK::Bytes;
+    if (t == "Complex" || t == "complex") return v.k == VK::Complex;
+    if (t == "Decimal" || t == "decimal") return v.k == VK::Decimal;
+    if (t == "BigInt" || t == "bigint" || t == "big_int")
+        return v.k == VK::BigInt;
+    if (t == "Rational" || t == "rational") return v.k == VK::Rational;
     if (isCharTypeName(t)) return v.k == VK::Char;
     if (isBoolTypeName(t)) return v.k == VK::Bool;
     int bits; bool isUnsigned;
@@ -3564,6 +3876,7 @@ Value cv = eval(*e.lhs, env);
                     if (v.k == VK::Float) return Value::integer((int64_t)v.d);
                     if (v.k == VK::Bool) return Value::integer(v.b ? 1 : 0);
                     if (v.k == VK::Char) return Value::integer((int64_t)v.ch);
+                    if (v.k == VK::Decimal) return Value::integer(decToI64Trunc(v));
                     return v;
                 }
                 if (v.k == VK::Int) {
@@ -3576,6 +3889,22 @@ Value cv = eval(*e.lhs, env);
                                                       : v.k == VK::Float ? v.d
                                                                          : 0.0);
             if (isBoolTypeName(t)) return Value::boolean(truthy(v));
+            if (t == "Complex" || t == "complex") {
+                if (v.k == VK::Complex) return v;
+                if (v.k == VK::Int || v.k == VK::Float || v.k == VK::Rational)
+                    return fromCplx(toCplx(v));
+                panicHere("invalid cast to 'Complex'");
+            }
+            if (t == "Decimal" || t == "decimal") {
+                if (v.k == VK::Decimal) return v;
+                if (v.k == VK::Int) return decFromSigned(std::to_string(v.i), 0);
+                if (v.k == VK::Float) return decFromDouble(v.d);
+                if (v.k == VK::Str) return decParse(v.s);
+                if (v.k == VK::Rational)
+                    return decDiv(decFromSigned(std::to_string(v.num), 0),
+                                  decFromSigned(std::to_string(v.den), 0));
+                panicHere("invalid cast to 'Decimal'");
+            }
             if (v.k == VK::None && t == "none") return v;
             if (v.k != VK::None && !typeTestMatches(v, t))
                 panicHere("invalid cast to '" + t + "'");
@@ -5251,6 +5580,71 @@ return Value::none();
             break;
         }
 
+        case VK::Complex: {
+            if (name == "real") return Value::floating(obj.re);
+            if (name == "imag") return Value::floating(obj.im);
+            if (name == "conjugate" || name == "conj")
+                return bind({}, [](std::vector<Value>& a) { return Value::complexNum(a[0].re, -a[0].im); });
+            if (name == "abs")
+                return bind({}, [](std::vector<Value>& a) { return Value::floating(std::hypot(a[0].re, a[0].im)); });
+            if (name == "arg")
+                return bind({}, [](std::vector<Value>& a) { return Value::floating(std::atan2(a[0].im, a[0].re)); });
+            if (name == "exp")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::exp(toCplx(a[0]))); });
+            if (name == "log")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::log(toCplx(a[0]))); });
+            if (name == "sqrt")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::sqrt(toCplx(a[0]))); });
+            if (name == "sin")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::sin(toCplx(a[0]))); });
+            if (name == "cos")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::cos(toCplx(a[0]))); });
+            if (name == "tan")
+                return bind({}, [](std::vector<Value>& a) { return fromCplx(std::tan(toCplx(a[0]))); });
+            if (name == "pow") {
+                return bind({"exp"}, [](std::vector<Value>& a) -> Value {
+                    return fromCplx(std::pow(toCplx(a[0]), toCplx(a[1])));
+                });
+            }
+            break;
+        }
+
+        case VK::Decimal: {
+            if (name == "to_float")
+                return bind({}, [](std::vector<Value>& a) { return Value::floating(decToDouble(a[0])); });
+            if (name == "to_int")
+                return bind({}, [](std::vector<Value>& a) { return Value::integer(decToI64Trunc(a[0])); });
+            if (name == "abs") {
+                return bind({}, [](std::vector<Value>& a) {
+                    Value v = a[0];
+                    v.dneg = false;
+                    return v;
+                });
+            }
+            if (name == "sqrt") {
+                return bind({}, [](std::vector<Value>& a) {
+                    if (a[0].dneg && a[0].mant != "0")
+                        panicHere("decimal: sqrt of a negative value");
+                    return decFromDouble(std::sqrt(decToDouble(a[0])));
+                });
+            }
+            if (name == "ln" || name == "log")
+                return bind({}, [](std::vector<Value>& a) { return decFromDouble(std::log(decToDouble(a[0]))); });
+            if (name == "exp")
+                return bind({}, [](std::vector<Value>& a) { return decFromDouble(std::exp(decToDouble(a[0]))); });
+            if (name == "quantize") {
+                return bind({"exp"}, [](std::vector<Value>& a) {
+                    int64_t e = a.size() > 1
+                                    ? (a[1].k == VK::Int ? a[1].i : (int64_t)a[1].d)
+                                    : 0;
+                    return decQuantize(a[0], e);
+                });
+            }
+            if (name == "to_string")
+                return bind({}, [](std::vector<Value>& a) { return Value::str(decToString(a[0])); });
+            break;
+        }
+
         default:
             break;
     }
@@ -5302,6 +5696,19 @@ static bool ratParts(const Value& v, i128& n, i128& d) {
 }
 
 static bool valEq(const Value& a, const Value& b) {
+    if (a.k == VK::Complex || b.k == VK::Complex) {
+        auto isnum = [](VK k) {
+            return k == VK::Complex || k == VK::Int || k == VK::Float ||
+                   k == VK::Rational;
+        };
+        if (isnum(a.k) && isnum(b.k)) return toCplx(a) == toCplx(b);
+        return false;
+    }
+    if (a.k == VK::Decimal || b.k == VK::Decimal) {
+        auto isd = [](VK k) { return k == VK::Decimal || k == VK::Int; };
+        if (isd(a.k) && isd(b.k)) return decCmp(a, b) == 0;
+        return false;
+    }
     if (a.k == VK::Rational || b.k == VK::Rational) {
         if (a.k == VK::Float || b.k == VK::Float)
             return numToDouble2(a) == numToDouble2(b);
@@ -5331,6 +5738,8 @@ static bool valEq(const Value& a, const Value& b) {
         case VK::Bool:  return a.b == b.b;
         case VK::Int:   return a.i == b.i;
         case VK::Float: return a.d == b.d;
+        case VK::Complex: return a.re == b.re && a.im == b.im;
+        case VK::Decimal: return decCmp(a, b) == 0;
         case VK::BigInt:
             return a.neg == b.neg &&
                    (a.limbs == b.limbs ||
@@ -5388,6 +5797,11 @@ bool Interpreter::valuesEqual(const Value& a, const Value& b) {
 }
 
 static bool valLess(const Value& l, const Value& r) {
+    if (l.k == VK::Decimal || r.k == VK::Decimal) {
+        auto isd = [](VK k) { return k == VK::Decimal || k == VK::Int; };
+        if (isd(l.k) && isd(r.k)) return decCmp(l, r) < 0;
+        panicHere("cannot order these values");
+    }
     if (l.k == VK::Rational || r.k == VK::Rational) {
         if (l.k == VK::Float || r.k == VK::Float)
             return numToDouble2(l) < numToDouble2(r);
@@ -5528,6 +5942,53 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         v.limbs = std::make_shared<std::vector<uint64_t>>(std::move(b.limbs));
         return v;
     };
+
+    // M6 complex arithmetic: any numeric operand promotes to complex.
+    if (l.k == VK::Complex || r.k == VK::Complex) {
+        if (op == "@")
+            panicHere("E-MATMUL-SCALAR: '@' requires matrix/vector operands "
+                      "(use '*' for element-wise multiplication)");
+        std::complex<double> x = toCplx(l), y = toCplx(r);
+        if (op == "+") return fromCplx(x + y);
+        if (op == "-") return fromCplx(x - y);
+        if (op == "*") return fromCplx(x * y);
+        if (op == "/") {
+            if (y == std::complex<double>(0.0, 0.0))
+                panicHere("complex division by zero");
+            return fromCplx(x / y);
+        }
+        if (op == "**") return fromCplx(std::pow(x, y));
+        panicHere("unsupported operator on complex");
+    }
+
+    // M6 decimal arithmetic: exact +,-,* and precision-bounded /. Mixing a
+    // decimal with a float is rejected (explicit conversion only); Int operands
+    // are promoted to Decimal.
+    if (l.k == VK::Decimal || r.k == VK::Decimal) {
+        auto asDec = [](const Value& v) -> Value {
+            if (v.k == VK::Decimal) return v;
+            if (v.k == VK::Int) return decFromSigned(std::to_string(v.i), 0);
+            panicHere("decimal: implicit mixing with float/other is not allowed; "
+                      "convert explicitly");
+            return Value::none();
+        };
+        if (op == "==" || op == "!=")
+            return Value::boolean((op == "==") == (decCmp(l, r) == 0));
+        if (op == "<")  return Value::boolean(decCmp(l, r) < 0);
+        if (op == ">")  return Value::boolean(decCmp(l, r) > 0);
+        if (op == "<=") return Value::boolean(decCmp(l, r) <= 0);
+        if (op == ">=") return Value::boolean(decCmp(l, r) >= 0);
+        Value x = asDec(l), y = asDec(r);
+        if (op == "+") return decAdd(x, y);
+        if (op == "-") return decSub(x, y);
+        if (op == "*") return decMul(x, y);
+        if (op == "/") return decDiv(x, y);
+        if (op == "**") {
+            if (r.k != VK::Int) panicHere("decimal: exponent must be an int");
+            return decPowInt(x, r.i);
+        }
+        panicHere("unsupported operator on decimal");
+    }
 
     // Phase 2 exact rational arithmetic: Rational with Int/BigInt/Rational.
     // A Float operand demotes the whole expression to float.

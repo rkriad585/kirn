@@ -36,6 +36,8 @@ std::string toString(const Ty& t) {
         case TyK::Float:   return t.name.empty() ? "Float" : t.name;
         case TyK::BigInt:  return t.name.empty() ? "BigInt" : t.name;
         case TyK::Rational: return t.name.empty() ? "Rational" : t.name;
+        case TyK::Complex: return t.name.empty() ? "Complex" : t.name;
+        case TyK::Decimal: return t.name.empty() ? "Decimal" : t.name;
         case TyK::Str:     return t.name.empty() ? "Str" : t.name;
         case TyK::Char:    return t.name.empty() ? "Char" : t.name;
         case TyK::Bytes:   return "bytes";
@@ -539,6 +541,20 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("__RationalGt", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
     makeBuiltinFunc("RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
     makeBuiltinFunc("__RationalGe", {unkTy(), unkTy()}, {"a", "b"}, boolTy(), false, 1);
+    // Lowercase spelling aliases for the numeric constructors (plan syntax).
+    makeBuiltinFunc("rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
+    makeBuiltinFunc("big_int", {unkTy()}, {"s"}, bigIntTy(), false, 1);
+    // M6 numeric types: complex (rectangular) and decimal (arbitrary precision).
+    makeBuiltinFunc("Complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
+    makeBuiltinFunc("__Complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
+    makeBuiltinFunc("complex", {unkTy(), unkTy()}, {"re", "im"}, complexTy(), false, 1);
+    makeBuiltinFunc("Decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
+    makeBuiltinFunc("__Decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
+    makeBuiltinFunc("decimal", {unkTy()}, {"x"}, decimalTy(), false, 1);
+    makeBuiltinFunc("ComplexReal", {complexTy()}, {"z"}, floatTy(), false, 1);
+    makeBuiltinFunc("ComplexImag", {complexTy()}, {"z"}, floatTy(), false, 1);
+    makeBuiltinFunc("ComplexConj", {complexTy()}, {"z"}, complexTy(), false, 1);
+    makeBuiltinFunc("ComplexAbs", {complexTy()}, {"z"}, floatTy(), false, 1);
     makeBuiltinFunc("CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("__CopySign", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
     makeBuiltinFunc("Pow", {floatTy(), floatTy()}, {"x", "y"}, floatTy(), false, 1);
@@ -1076,8 +1092,10 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 if (n == kCharNames[i]) return charTy(n);
             if (n == "strings") return strTy("strings");
             if (n == "bytes")   return bytesTy();
-            if (n == "BigInt" || n == "bigint") return bigIntTy();
+            if (n == "BigInt" || n == "bigint" || n == "big_int") return bigIntTy();
             if (n == "Rational" || n == "rational") return rationalTy();
+            if (n == "Complex" || n == "complex") return complexTy();
+            if (n == "Decimal" || n == "decimal") return decimalTy();
 
             // containers
             size_t ngens = t->generics.size();
@@ -1211,6 +1229,19 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     if (kFrom == TyK::Float && kTo == TyK::Float) return true;
     if (kFrom == TyK::BigInt && kTo == TyK::BigInt) return true;
     if (kFrom == TyK::Rational && kTo == TyK::Rational) return true;
+    if (kFrom == TyK::Complex && kTo == TyK::Complex) return true;
+    if (kFrom == TyK::Decimal && kTo == TyK::Decimal) return true;
+    // numeric widening: integral/rational values bind into decimal/complex.
+    if (kTo == TyK::Decimal &&
+        (kFrom == TyK::Int || kFrom == TyK::BigInt || kFrom == TyK::Rational))
+        return true;
+    if (kTo == TyK::Complex &&
+        (kFrom == TyK::Int || kFrom == TyK::Float || kFrom == TyK::BigInt ||
+         kFrom == TyK::Rational || kFrom == TyK::Decimal))
+        return true;
+    if (kTo == TyK::Rational &&
+        (kFrom == TyK::Int || kFrom == TyK::BigInt))
+        return true;
 
     // The width families (b8/b16/b32, char8/16/32, string/str/strings,
     // bytes) are distinct spellings of one runtime value kind, so they are
@@ -1309,6 +1340,22 @@ TyP Checker::unify(const TyP& a, const TyP& b, uint32_t line, uint32_t col,
     if (b->is(TyK::Rational) &&
         (a->is(TyK::Int) || a->is(TyK::BigInt)))
         return rationalTy();
+    {
+        auto isnumT = [](const TyP& t) {
+            return t->is(TyK::Int) || t->is(TyK::Float) || t->is(TyK::BigInt) ||
+                   t->is(TyK::Rational) || t->is(TyK::Complex);
+        };
+        if ((a->is(TyK::Complex) || b->is(TyK::Complex)) && isnumT(a) && isnumT(b))
+            return complexTy();
+    }
+    {
+        auto isdecT = [](const TyP& t, bool allowDec) {
+            return (allowDec && t->is(TyK::Decimal)) || t->is(TyK::Int) ||
+                   t->is(TyK::BigInt) || t->is(TyK::Rational);
+        };
+        if (a->is(TyK::Decimal) && isdecT(b, true)) return decimalTy();
+        if (b->is(TyK::Decimal) && isdecT(a, true)) return decimalTy();
+    }
     if (a->is(TyK::None) && !b->is(TyK::None)) return optTy(b);
     if (b->is(TyK::None) && !a->is(TyK::None)) return optTy(a);
     if (a->is(TyK::Opt) && !b->is(TyK::Opt))
@@ -1621,6 +1668,51 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         if (name == "abs") {
             s.ret = recv;
             s.required = 0;
+            return s;
+        }
+        return std::nullopt;
+    }
+
+    // M6 complex / decimal method surfaces.
+    if (recv->is(TyK::Complex)) {
+        FuncSig s;
+        if (name == "abs" || name == "arg") {
+            s.ret = floatTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "conjugate" || name == "conj" || name == "exp" ||
+            name == "log" || name == "sqrt" || name == "sin" ||
+            name == "cos" || name == "tan") {
+            s.ret = complexTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "pow") {
+            s.params.push_back(complexTy());
+            s.names.push_back("exp");
+            s.ret = complexTy();
+            s.required = 1;
+            return s;
+        }
+        return std::nullopt;
+    }
+    if (recv->is(TyK::Decimal)) {
+        FuncSig s;
+        if (name == "to_float") { s.ret = floatTy(); s.required = 0; return s; }
+        if (name == "to_int")   { s.ret = intTy("Int64"); s.required = 0; return s; }
+        if (name == "to_string"){ s.ret = strTy(); s.required = 0; return s; }
+        if (name == "abs" || name == "sqrt" || name == "ln" ||
+            name == "log" || name == "exp") {
+            s.ret = decimalTy();
+            s.required = 0;
+            return s;
+        }
+        if (name == "quantize") {
+            s.params.push_back(intTy("Int64"));
+            s.names.push_back("exp");
+            s.ret = decimalTy();
+            s.required = 1;
             return s;
         }
         return std::nullopt;
@@ -3318,6 +3410,28 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 if (dynish(lt)) return rt;
                 if (dynish(rt)) return lt;
                 if (isNumeric(*lt) && isNumeric(*rt)) {
+                    if (lt->is(TyK::Complex) || rt->is(TyK::Complex)) {
+                        if (lt->is(TyK::Decimal) || rt->is(TyK::Decimal)) {
+                            error(e.span,
+                                  "complex and decimal cannot be mixed without "
+                                  "an explicit conversion");
+                            return errTy();
+                        }
+                        return complexTy();
+                    }
+                    if (lt->is(TyK::Decimal) || rt->is(TyK::Decimal)) {
+                        auto decok = [](const TyP& t) {
+                            return t->is(TyK::Decimal) || t->is(TyK::Int) ||
+                                   t->is(TyK::BigInt) || t->is(TyK::Rational);
+                        };
+                        if (!decok(lt) || !decok(rt)) {
+                            error(e.span,
+                                  "decimal cannot mix with float without an "
+                                  "explicit conversion");
+                            return errTy();
+                        }
+                        return decimalTy();
+                    }
                     if (lt->is(TyK::Float) || rt->is(TyK::Float)) return floatTy();
                     if (lt->is(TyK::Rational) || rt->is(TyK::Rational)) {
                         // exact rational arithmetic; `/` and `**` stay rational
@@ -3919,6 +4033,13 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
         if (!nilSafe)
             error(line, col, "enum '" + obj->name + "' has no variant '" +
                                  name + "'");
+        return miss();
+    }
+
+    if (obj->is(TyK::Complex)) {
+        if (name == "real" || name == "imag") return floatTy();
+        if (!nilSafe)
+            error(line, col, "type Complex has no member '" + name + "'");
         return miss();
     }
 

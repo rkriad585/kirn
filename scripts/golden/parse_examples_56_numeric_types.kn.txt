@@ -1,0 +1,213 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/56_numeric_types.kn
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl : big_int
+      Target Ident "x"
+      Value 
+        Binary op="**"
+          Lhs 
+            Call
+              Callee Ident "big_int"
+              Arg
+                Value Int "2"
+          Rhs Int "1000"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="bit_length"
+                    Obj Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="**"
+                Lhs 
+                  Call
+                    Callee Ident "big_int"
+                    Arg
+                      Value Str "123456789012345678901234567890"
+                Rhs Int "2"
+    Assign
+      Target Ident "z"
+      Value 
+        Binary op="+"
+          Lhs 
+            Call
+              Callee Ident "complex"
+              Arg
+                Value Int "3"
+              Arg
+                Value Int "4"
+          Rhs 
+            Call
+              Callee Ident "complex"
+              Arg
+                Value Int "1"
+              Arg
+                Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "z"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Member name="real"
+                Obj Ident "z"
+          Arg
+            Value 
+              Member name="imag"
+                Obj Ident "z"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="conjugate"
+                    Obj 
+                      Call
+                        Callee Ident "complex"
+                        Arg
+                          Value Int "3"
+                        Arg
+                          Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="abs"
+                    Obj 
+                      Call
+                        Callee Ident "complex"
+                        Arg
+                          Value Int "3"
+                        Arg
+                          Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Call
+                    Callee Ident "rational"
+                    Arg
+                      Value Int "1"
+                    Arg
+                      Value Int "3"
+                Rhs 
+                  Call
+                    Callee Ident "rational"
+                    Arg
+                      Value Int "1"
+                    Arg
+                      Value Int "6"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_float"
+                    Obj 
+                      Call
+                        Callee Ident "rational"
+                        Arg
+                          Value Int "1"
+                        Arg
+                          Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="+"
+                Lhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "0.1"
+                Rhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "0.2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="*"
+                Lhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "1.5"
+                Rhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="quantize"
+                    Obj 
+                      Call
+                        Callee Ident "Decimal"
+                        Arg
+                          Value Str "2.567"
+                Arg
+                  Value 
+                    Unary op="-"
+                      Operand Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="/"
+                Lhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "10"
+                Rhs 
+                  Call
+                    Callee Ident "Decimal"
+                    Arg
+                      Value Str "3"
+<ROOT>/examples/56_numeric_types.kn: OK (1 top-level statements)
+[exit 0]

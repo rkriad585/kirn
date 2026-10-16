@@ -1,0 +1,6 @@
+fn main() -> none {
+    d = Decimal("0.1");
+    x = d + 0.2;
+    print(x);
+}
+# expect: cannot mix with float

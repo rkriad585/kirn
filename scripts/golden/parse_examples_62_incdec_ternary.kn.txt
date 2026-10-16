@@ -1,0 +1,143 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/62_incdec_ternary.kn
+FuncDef "classify"
+  Param "n" : Int
+  Ret Str
+  Body
+    If
+      Cond 
+        Binary op=">"
+          Lhs Ident "n"
+          Rhs Int "0"
+      Then
+        Return
+          Value Str "pos"
+    Return
+      Value 
+        Cond
+          If 
+            Binary op="<"
+              Lhs Ident "n"
+              Rhs Int "0"
+          Then Str "neg"
+          Else Str "zero"
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "x"
+      Value Int "5"
+    ExprStmt
+      Value 
+        AssignExpr
+          Target Ident "x"
+          Value 
+            Binary op="+"
+              Lhs Ident "x"
+              Rhs Int "1"
+    ExprStmt
+      Value 
+        AssignExpr
+          Target Ident "x"
+          Value 
+            Binary op="+"
+              Lhs Ident "x"
+              Rhs Int "1"
+    ExprStmt
+      Value 
+        AssignExpr
+          Target Ident "x"
+          Value 
+            Binary op="-"
+              Lhs Ident "x"
+              Rhs Int "1"
+    ExprStmt
+      Value 
+        AssignExpr
+          Target Ident "x"
+          Value 
+            Binary op="-"
+              Lhs Ident "x"
+              Rhs Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              AssignExpr
+                Target Ident "x"
+                Value 
+                  Binary op="+"
+                    Lhs Ident "x"
+                    Rhs Int "1"
+          Arg
+            Value Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "classify"
+                Arg
+                  Value Int "3"
+          Arg
+            Value 
+              Call
+                Callee Ident "classify"
+                Arg
+                  Value 
+                    Unary op="-"
+                      Operand Int "2"
+          Arg
+            Value 
+              Call
+                Callee Ident "classify"
+                Arg
+                  Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Cond
+                If 
+                  Binary op=">"
+                    Lhs 
+                      Binary op="+"
+                        Lhs Ident "x"
+                        Rhs Int "1"
+                    Rhs Int "5"
+                Then Int "10"
+                Else Int "20"
+    VarDecl
+      Target Ident "nothing"
+      Value Ident "none"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Cond
+                If 
+                  Binary op="=="
+                    Lhs Ident "nothing"
+                    Rhs Ident "none"
+                Then Str "none"
+                Else Str "some"
+<ROOT>/examples/62_incdec_ternary.kn:16:6: error: `x++` is sugar for `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn:17:5: error: `x++` is sugar for `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn:18:6: error: `x--` is sugar for `x -= 1`
+<ROOT>/examples/62_incdec_ternary.kn:19:5: error: `x--` is sugar for `x -= 1`
+<ROOT>/examples/62_incdec_ternary.kn:23:12: error: `x++` is sugar for `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn: 5 error(s) (0 lex, 5 parse)
+[exit 1]

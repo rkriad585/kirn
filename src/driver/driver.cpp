@@ -1135,7 +1135,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
 // scaffolding: rust-style structure with Kirn folder names
 // ---------------------------------------------------------------------------
 
-int cmdNew(const std::string& name, bool lib) {
+[[maybe_unused]] int cmdNew(const std::string& name, bool lib) {
     if (name.empty() || name.find_first_of("/\\") != std::string::npos ||
         name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") !=
             std::string::npos) {
@@ -1685,7 +1685,7 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
     return parsePkgRef(raw, ref);
 }
 
-int cmdInstall(const std::string& raw, bool global_) {
+[[maybe_unused]] int cmdInstall(const std::string& raw, bool global_) {
     PkgRef ref;
     if (!resolveRaw(raw, ref)) return 1;
     return installOne(ref, raw, global_, /*record=*/true);
@@ -1695,7 +1695,7 @@ int cmdInstall(const std::string& raw, bool global_) {
 //   kirn add <pkg>...   resolve + install + record each dependency
 //   kirn add            (no args) tidy: install every manifest dep that is
 //                       missing from pets/
-int cmdAdd(const std::vector<std::string>& pkgs) {
+[[maybe_unused]] int cmdAdd(const std::vector<std::string>& pkgs) {
     if (pkgs.empty()) {
         Manifest proj = readManifest(".");
         if (proj.deps.empty()) {
@@ -1745,7 +1745,7 @@ if (fs::exists(pkgBase(false) / name)) continue;
     return rc;
 }
 
-int cmdUpdate(const std::string& only) {
+[[maybe_unused]] int cmdUpdate(const std::string& only) {
     Manifest proj = readManifest(".");
     std::vector<LockEntry> locks = readLock(".");
     if (proj.deps.empty()) {
@@ -1801,7 +1801,7 @@ int cmdUpdate(const std::string& only) {
     return rc;
 }
 
-int cmdRemove(const std::string& name) {
+[[maybe_unused]] int cmdRemove(const std::string& name) {
     Manifest proj = readManifest(".");
     std::vector<LockEntry> locks = readLock(".");
     bool hadDep = proj.deps.erase(name) > 0;
@@ -1824,7 +1824,7 @@ int cmdRemove(const std::string& name) {
     return 0;
 }
 
-int cmdList() {
+[[maybe_unused]] int cmdList() {
     auto show = [](const char* label, const fs::path& base) {
         std::error_code ec;
         if (!fs::is_directory(base)) return;
@@ -1869,7 +1869,7 @@ int cmdList() {
 //   kirn clone <spec> --full        keep full history (default: depth 1)
 // ---------------------------------------------------------------------------
 
-int cmdClone(const std::string& spec, bool full) {
+[[maybe_unused]] int cmdClone(const std::string& spec, bool full) {
     if (std::system(("git --version >" + std::string(shellNullDevice()) + " 2>" + shellNullDevice()).c_str()) != 0) {
         std::cerr << "kirn clone: git not found on PATH\n";
         return 1;
@@ -1922,7 +1922,7 @@ int cmdClone(const std::string& spec, bool full) {
 // kirn list online — browse the Pets Registry
 // ---------------------------------------------------------------------------
 
-int cmdListOnline() {
+[[maybe_unused]] int cmdListOnline() {
     const std::string cache = ".pets-registry.toml";
     std::system("curl -s --max-time 15 -o .pets-registry.toml "
                 "https://raw.githubusercontent.com/pets-registry/pets/main/"
@@ -2000,7 +2000,7 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
     std::sort(out.begin(), out.end());
 }
 
-int cmdTest(const std::vector<std::string>& args, size_t from) {
+[[maybe_unused]] int cmdTest(const std::vector<std::string>& args, size_t from) {
     std::vector<fs::path> files;
     if (from == args.size() || args[from] == ".") {
         collectTestFiles(".", files);
@@ -2188,7 +2188,7 @@ std::string mdInline(const std::string& s) {
     return o;
 }
 
-std::string mdToHtml(const std::string& md) {
+[[maybe_unused]] std::string mdToHtml(const std::string& md) {
     std::ostringstream o;
     bool inCode = false, inList = false;
     std::vector<std::string> lines;
@@ -2235,7 +2235,7 @@ std::string mdToHtml(const std::string& md) {
     return o.str();
 }
 
-std::string pageHtml(const std::string& title, const std::string& bodyHtml,
+[[maybe_unused]] std::string pageHtml(const std::string& title, const std::string& bodyHtml,
                      const std::string& nav) {
     std::ostringstream o;
     o << "<!doctype html><html><head><meta charset=\"utf-8\">"
@@ -2345,7 +2345,7 @@ int serveDocs(const fs::path&, int, const std::string&,
 }
 #endif
 
-int cmdDoc(const std::string& target, int port) {
+[[maybe_unused]] int cmdDoc(const std::string& target, int port) {
     // resolve target: dir | installed name
     fs::path libDir(target);
     if (!fs::is_directory(libDir)) {
@@ -2982,6 +2982,11 @@ struct SasmEmitter {
                 expr(*e.lhs);
                 out << nl("CAST " + tyName(e.newType.get()));
                 break;
+            default:
+                // Statement-level forms (AssignExpr/Pipe/Coalesce/Topic/Match/
+                // Comptime) have no bytecode opcode here; the dumper ignores
+                // them rather than emitting a misleading line.
+                break;
         }
     }
 
@@ -3147,6 +3152,10 @@ struct SasmEmitter {
                 break;
             case ST::Pass:
                 out << nl("NOP");
+                break;
+            default:
+                // Statement forms the bytecode dumper does not model are
+                // skipped rather than printed as an empty line.
                 break;
         }
     }

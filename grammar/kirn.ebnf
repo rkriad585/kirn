@@ -681,13 +681,14 @@ type_postfix    = "?" ;               (* option sugar:  Int? == option[Int]  *)
 # 8. `;` terminates every simple statement (imports, consts, assignments,
 #    returns, expressions). Empty statement `;` is permitted but discouraged;
 #    fmt removes it.
-# 9. Everything not listed here is intentionally NOT in v1: no ternary `?:`,
-#    no increment/decrement ++/--, no implicit Bool→Int, no goto. The two
-#    sugar rejections are PERMANENT (EXP_PLAN §A4.9; PLAN §5.4;
-#    docs/FEATURE_GAP_ANALYSIS.md §4.1): write `x += 1`/`x -= 1` instead of
-#    `++`/`--`, and `if c { a } else { b }` instead of `c ? a : b`. Reopening
-#    either requires an edition RFC. `kirn check` reports `W-nosugar` on an
-#    adjacent `++`/`--` (a nudge only — no syntax is accepted).
+# 9. Everything not listed here is intentionally NOT in v1: no implicit
+#    Bool→Int, no goto. Increment/decrement `++`/`--` and the C-style ternary
+#    `c ? a : b` ARE accepted, as sugar (docs/FEATURE_GAP_ANALYSIS.md §4.1):
+#    `x++`/`++x` desugar to `x := x + 1`, `x--`/`--x` to `x := x - 1`, and
+#    `c ? a : b` shares the `if c { a } else { b }` conditional expression
+#    (right-associative, lowest precedence). `kirn check` still reports
+#    `W-nosugar` on every `++`/`--` as a nudge toward `x += 1`/`x -= 1`; the
+#    ternary emits no warning. `x + +b` / `x - -b` never trigger the nudge.
 # 10. Anonymous functions are single-expression lambdas ONLY (`(x) => e`).
 #     Multi-statement closures bind a nested named `fn`.
 # 11. `pass` keyword covers empty blocks. `del` is implemented (bindings, dict

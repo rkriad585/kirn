@@ -11,7 +11,7 @@ namespace {
 bool isAugOp(std::string_view s) {
     return s == "+=" || s == "-=" || s == "*=" || s == "/=" || s == "%=" ||
            s == "**=" || s == "//=" || s == "&=" || s == "|=" || s == "^=" ||
-           s == "<<=" || s == ">>=" || s == "@=" || s == "??=";
+           s == "<<=" || s == ">>=" || s == "@=" || s == "?" "?=";
 }
 bool isCmpTok(std::string_view s) {
     return s == "<" || s == ">" || s == "<=" || s == ">=" || s == "==" ||
@@ -1797,7 +1797,112 @@ ast::ExprP Parser::parseExpr() {
 
     ast::ExprP lam;
     if (tryParseLambda(lam)) return lam;
-    return parsePipe();
+    return parseTernary();
+}
+
+ast::ExprP Parser::parseTernary() {
+    // C-style `cond ? then : else`, right-associative, lower precedence than
+    // every binary operator and the pipe. It shares ExKind::Cond with the
+    // `if c { a } else { b }` expression, so the checker/VM/tree-walker need no
+    // new node. The `?` propagation operator keeps precedence because
+    // parsePostfix declines to consume a `?` that opens a ternary (see
+    // ternaryQuestion()).
+    ast::ExprP cond = parsePipe();
+    if (!atOp("?") || !ternaryQuestion()) return cond;
+    ast::Span sp = spanHere();
+    advance();                                          // '?'
+    ast::ExprP thenE = parsePipe();
+    if (!atPunct(":")) {
+        diags_.report(cur().line, cur().col,
+                      "expected ':' in ternary expression 'cond ? a : b'");
+        throw Abort("ternary");
+    }
+    advance();                                          // ':'
+    ast::ExprP elseE = parseTernary();                  // right-assoc
+    auto e = std::make_unique<ast::Expr>();
+    e->kind = ast::ExKind::Cond;
+    e->span = sp;
+    e->cond = std::move(cond);
+    e->lhs = std::move(thenE);
+    e->rhs = std::move(elseE);
+    return e;
+}
+
+bool Parser::ternaryQuestion() const {
+    // cur() is the '?'. Walk forward tracking bracket depth; a ':' at depth 0
+    // before the expression terminates means this '?' opens a ternary. Nested
+    // dicts/lambdas/slices keep their ':' behind a bracket, so they never count.
+    int depth = 0;
+    for (size_t i = 1;; ++i) {
+        const Token& t = cur(i);
+        if (t.kind == Tok::Eof || t.kind == Tok::Newline) return false;
+        if (t.kind == Tok::Punct) {
+            if (t.text == "(" || t.text == "[" || t.text == "{") { ++depth; continue; }
+            if (t.text == ")" || t.text == "]" || t.text == "}") {
+                if (depth == 0) return false;           // closes an outer group
+                --depth;
+                continue;
+            }
+            if (depth == 0 && t.text == ";") return false;
+            if (depth == 0 && t.text == ",") return false;
+            if (depth == 0 && t.text == ":") return true;
+        }
+    }
+}
+
+ast::ExprP Parser::makeIncrDecr(ast::ExprP target, const std::string& op,
+                                bool postfix, ast::Span opSpan) {
+    ast::Span sp = target ? target->span : spanHere();
+    if (!target || target->kind != ast::ExKind::Ident) {
+        diags_.report(sp.line, sp.col,
+                      "'" + op + "' target must be a variable name");
+        throw Abort("incdec");
+    }
+    std::string name = target->text;
+    std::string sug = name + (op == "++" ? " += 1" : " -= 1");
+    // M12 nudge, kept live: ++/-- are accepted as sugar, but we still point at
+    // the explicit form the Kirn surface documents (`x += 1` / `x -= 1`).
+    // The caret highlights the operator; the fix-it rewrites the whole
+    // `x++` / `++x` span, which differs between the two spellings.
+    uint32_t nameEnd = sp.endCol ? sp.endCol : sp.col + (uint32_t)name.size();
+    SpanRange opRange{opSpan.line, opSpan.col, opSpan.line, opSpan.col + 2};
+    SpanRange whole{sp.line, postfix ? sp.col : opSpan.col,
+                    sp.line, postfix ? opSpan.col + 2 : nameEnd};
+    diags_.warning(opRange)
+        .code("W-nosugar")
+        .msg("`" + name + op + "` is sugar for `" + sug + "`")
+        .note(SpanRange::point(opSpan.line, opSpan.col),
+              "prefer the explicit form `" + sug + "`; increment/decrement are "
+              "not part of the canonical Kirn surface")
+        .fixit(whole, sug)
+        .emit();
+    // lhs: a fresh binding node with the same name (the target tree is moved
+    // into the arithmetic rhs, so it cannot be shared).
+    auto lhs = std::make_unique<ast::Expr>();
+    lhs->kind = ast::ExKind::Ident;
+    lhs->text = name;
+    lhs->span = sp;
+    // rhs: name +/- 1
+    auto one = std::make_unique<ast::Expr>();
+    one->kind = ast::ExKind::Int;
+    one->text = "1";
+    one->span = sp;
+    auto sum = std::make_unique<ast::Expr>();
+    sum->kind = ast::ExKind::Binary;
+    sum->op = (op == "++") ? "+" : "-";
+    sum->span = sp;
+    sum->lhs = std::move(target);
+    sum->rhs = std::move(one);
+    auto a = std::make_unique<ast::Expr>();
+    a->kind = ast::ExKind::AssignExpr;
+    a->span = sp;
+    a->lhs = std::move(lhs);
+    a->rhs = std::move(sum);
+    // Mark as implicitly parenthesized so the statement-level walrus guard
+    // (E-WALRUS-STMT) does not reject the desugared form.
+    a->paren = true;
+    (void)postfix;   // both spellings yield the updated value (documented)
+    return a;
 }
 
 ast::ExprP Parser::parseCondExpr() {
@@ -1935,7 +2040,7 @@ ast::ExprP Parser::parseElvis() {
         ast::ExprP r = parseElvis();                // right-assoc chain
         if (isBareLogical(l) || isBareLogical(r)) {
             diags_.report(sp.line, sp.col,
-                          "E-COALESCE-MIX: '??' cannot mix with 'and'/'or' "
+                          "E-COALESCE-MIX: '?" "' cannot mix with 'and'/'or' "
                           "without parentheses");
             throw Abort("coalesce-mix");
         }
@@ -2118,6 +2223,12 @@ ast::ExprP Parser::parseUnary() {
         e->rhs = parseUnary();
         return e;
     }
+    if (atOp("++") || atOp("--")) {                     // prefix ++x / --x
+        std::string op = cur().text;
+        ast::Span osp = spanHere();
+        advance();
+        return makeIncrDecr(parseUnary(), op, /*postfix=*/false, osp);
+    }
     if (atOp("-") || atOp("+") || atOp("~") || atOp("&") || atOp("*") ||
         atIdent("not")) {
         auto e = std::make_unique<ast::Expr>();
@@ -2269,12 +2380,20 @@ ast::ExprP Parser::parsePostfix() {
             throw Abort("safecall");
         }
         if (atOp("?")) {
+            if (ternaryQuestion()) break;               // c ? a : b handled by parseTernary
             advance();
             auto t = std::make_unique<ast::Expr>();
             t->kind = ast::ExKind::Try;
             t->span = spanHere();
             t->lhs = std::move(e);
             e = std::move(t);
+            continue;
+        }
+        if (atOp("++") || atOp("--")) {                 // postfix x++ / x--
+            std::string op = cur().text;
+            ast::Span osp = spanHere();
+            advance();
+            e = makeIncrDecr(std::move(e), op, /*postfix=*/true, osp);
             continue;
         }
         break;
@@ -2481,12 +2600,12 @@ ast::ExprP Parser::parsePrimary() {
         }
         if (isKeyword(t.text)) {
             // keywords valid as expressions here
-            if (t.text == "none" || t.text == "true" || t.text == "false" ||
-                t.text == "self") {
+            if (t.text == "none" || t.text == "None" || t.text == "true" ||
+                t.text == "false" || t.text == "self") {
                 advance();
                 auto e = std::make_unique<ast::Expr>();
                 e->kind = ast::ExKind::Ident;
-                e->text = t.text;
+                e->text = (t.text == "None") ? "none" : t.text;  // None == none
                 e->span = spanOf(t);
                 return e;
             }

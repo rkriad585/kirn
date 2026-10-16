@@ -76,6 +76,7 @@ private:
     ast::ExprP parseExpr();                       // lambda | cond | comp | or
     ast::ExprP parseCondExpr();
     ast::ExprP parseCompExpr(ast::ExprP first);   // generator / listcomp body
+    ast::ExprP parseTernary();                    // cond ? a : b   (C-style)
     ast::ExprP parsePipe();                       // a |> body   (M1, loosest)
     ast::ExprP parseWalrus();                     // (name := expr) (M1)
     ast::ExprP parseElvis();                      // a ?? b      (M1, right-assoc)
@@ -94,6 +95,15 @@ private:
     // operator tokens are adjacent and the next token terminates the
     // expression, which can only be an attempted increment/decrement.
     void nudgeIncDec();
+    // ++x / x++ / --x / x-- desugar to `x := x +/- 1` (AssignExpr), yielding the
+    // updated value. `op` is "++" or "--"; `postfix` records the spelling, and
+    // `opSpan` locates the operator for the W-nosugar nudge (`prefer x += 1`).
+    ast::ExprP makeIncrDecr(ast::ExprP target, const std::string& op, bool postfix,
+                            ast::Span opSpan);
+    // True when the `?` at the cursor opens a C-style ternary `c ? a : b`
+    // (a depth-0 ':' follows before the expression terminates) rather than the
+    // postfix `?` propagation operator.
+    bool ternaryQuestion() const;
     ast::ExprP parseTerm();
     ast::ExprP parseUnary();
     ast::ExprP parsePower();

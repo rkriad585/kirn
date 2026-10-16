@@ -206,6 +206,28 @@ token terminates the expression — never on valid `a + +b` / `a - -b` / `a++b`.
 New negative test `tests/negative/n19_nosugar_incdec.kn`. Suites: gates 263, golden 254, crosscheck
 591, stdlib 9, all 0 fail.
 
+**Implementation progress (2026-10-16).** M13 (reopen sugar rows 4/5 + `None` + warning hygiene) is
+implemented in `src/`. Rows 4 and 5 are no longer rejected: `src/lex/lexer.cpp` adds `++`/`--` to
+`kOps2`, and `src/parser/parser.cpp` lowers prefix/postfix `x++`/`++x`/`x--`/`--x` to
+`ast::ExKind::AssignExpr` (`x := x +/- 1`, implicitly parenthesized so the statement-level
+`E-WALRUS-STMT` guard is not tripped) — both spellings yield the updated value. C-style ternary
+`c ? a : b` is parsed by a new `parseTernary()` at the lowest precedence band, sharing
+`ast::ExKind::Cond` with the `if c { a } else { b }` expression and right-associative; `parsePostfix`
+declines to consume a `?` that opens a ternary (`ternaryQuestion()` scans for a depth-0 `:`), so the
+postfix `?` propagation operator keeps precedence. The `W-nosugar` nudge is kept live: `makeIncrDecr`
+emits `warning[W-nosugar]` on every `++`/`--` use with a whole-expression `replace with x += 1`
+fix-it. `None` is added to `kKeywords` as the CapCase spelling of the unit literal (the parser
+normalizes the `None` expression to `none`, and type-name resolution already accepted it). Warning
+hygiene: driver.cpp's dead duplicate `cmd*`/`mdToHtml`/`pageHtml` helpers are marked
+`[[maybe_unused]]`, the two bytecode-dumper switches gained an explicit `default`, and two trigraph
+spellings in `parser.cpp` were split. Test churn: `tests/negative/n19_nosugar_incdec.kn` and its
+goldens were retired (the form is now accepted, so it can no longer fail) and replaced by
+`examples/62_incdec_ternary.kn` (+3 goldens) whose `check` golden records the live `W-nosugar`.
+Suites: gates 263, golden 254, crosscheck 591, stdlib 9, all 0 fail. Recorded deviation: nested
+ternary/if-expression chains still fail the MIR `rt` verifier (`block: phi incoming ... does not
+match predecessors`) — a pre-existing conditional-lowering gap shared with nested `if` expressions,
+not introduced here.
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans

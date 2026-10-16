@@ -41,7 +41,7 @@ bool isKeyword(std::string_view ident) {
         "return", "break", "continue", "match", "case", "struct", "enum",
         "trait", "impl", "import", "export", "pub", "defer", "spawn", "chan",
         "select", "try", "raise", "catch", "unsafe", "extern", "new", "box", "self",
-        "Self", "and", "or", "not", "is", "as", "true", "false", "none",
+        "Self", "and", "or", "not", "is", "as", "true", "false", "None", "none",
         "pass", "class", "interface", "record", "implements", "extends",
         "dynamic",
         "None",
@@ -59,7 +59,7 @@ constexpr std::string_view kOps3[] = {"<<=", ">>=", "..=", ".?.", "??="};
 constexpr std::string_view kOps2[] = {
     "**", "//", "==", "!=", "<=", ">=", "<<", ">>", "+=", "-=", "*=", "/=",
     "%=", "@=", "&=", "|=", "^=", "->", "<-", "..", "=>", ":=", "|>", "??",
-    ".?",
+    ".?", "++", "--",
 };
 constexpr std::string_view kPunct1 = "()[]{},:.;";
 constexpr std::string_view kOp1 = "+-*/%&|^~<>=?@";

@@ -66,8 +66,8 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 | Feature                            | Go             | Rust                    | Kirn                                 | Priority    |
 | ---------------------------------- | -------------- | ----------------------- | ------------------------------------ | ----------- |
 | `?:`-style conditional expressions | ✗ (if is stmt) | `if/else` expr          | ✅ Rust-form `if c { a } else { b }` | done        |
-| Ternary `a ? b : c`                | ✗              | macro                   | ✗ (rejected §4.1)                    | low         |
-| `++`/`--` inc/dec                  | ✅             | ✗ (via `+=`)            | ✗ (rejected §4.1)                    | low         |
+| Ternary `a ? b : c`                | ✗              | macro                   | ✅ (sugar §4.1, `W-nosugar` none)    | done        |
+| `++`/`--` inc/dec                  | ✅             | ✗ (via `+=`)            | ✅ (sugar §4.1, live `W-nosugar`)    | done        |
 | Assignment as expression           | ✗              | ✗ (`=` returns `()`)    | ✗ (stmt only)                        | done/intent |
 | Multiple/swap assignment `a,b=b,a` | ✅             | ✅ tuple                | ✅                                   | done        |
 | `defer`                            | ✅             | ✗                       | ✅                                   | done        |
@@ -160,31 +160,35 @@ Go `src/` stdlib groups and Kirn status:
   suffice.
 - **Async/await, CGO-style FFI upgrade, WASM targets** — out of interpreter scope.
 
-### 4.1 Rejected sugar — `++`/`--` and C-style ternary `?:` (permanent)
+### 4.1 Sugar — `++`/`--` and C-style ternary `?:` (accepted, nudged)
 
-Both forms are **deliberately and permanently rejected** for v1. The decisions live in
-`KIRN_PLANS/EXP_PLAN.md` (§A4.9 — the operator-surface freeze) and `KIRN_PLANS/PLAN.md`
-(§5.4), and are recorded in `grammar/kirn.ebnf` §9 (item 9) and the `MISSING_PLAN.md`
-ownership rows 4/5. Both are closed: reopening either requires an edition RFC.
+Both forms are **accepted as sugar** for v1. This supersedes the earlier permanent-rejection
+stance: `MISSING_PLAN.md` ownership rows 4/5 were reopened, and the parser now accepts the
+syntax and desugars it to machinery Kirn already has.
 
-- **`++`/`--`** — two spellings for one effect (`x += 1`), plus a new postfix/precedence
-  band and the classic pre-vs-post evaluation trap. `x += 1;` / `x -= 1;` already cover it
-  with the existing compound-assignment operators. (Rust and Python omit it too.)
-- **C-style ternary `a ? b : c`** — a second conditional-expression surface. Kirn already
-  has the Rust-form `if c { a } else { b }`, which nests and has no dangling-`:` trap.
-  `?` is spoken for by postfix `?` propagation and the `.?.` / `?[` / `?!` safe-chain.
+- **`++`/`--`** — `x++` / `++x` desugar to `x := x + 1` and `x--` / `--x` to `x := x - 1`
+  (`ast::ExKind::AssignExpr`), yielding the **updated** value (the classic pre/post distinction
+  is deliberately collapsed — both spellings return the new value). `kirn check` still emits
+  `warning[W-nosugar]` pointing at the operator, with a `replace with` fix-it, to steer agents
+  and humans to the explicit `x += 1` / `x -= 1` forms.
+- **C-style ternary `a ? b : c`** — right-associative, lower precedence than every binary
+  operator and the pipe, and it shares `ast::ExKind::Cond` with the Rust-form
+  `if c { a } else { b }`. The postfix `?` propagation operator keeps precedence: `parsePostfix`
+  declines to consume a `?` that opens a ternary (a depth-0 `:` follows before the expression
+  terminates). The `.?[` / `.?(` / `?[` safe-chain forms are unaffected.
 
-Sanctioned substitutes (no syntax is added):
+Canonical forms (both spellings work; the left column is preferred):
 
-| Rejected form | Write instead           |
+| Sugar form    | Canonical form          |
 | ------------- | ----------------------- |
 | `x++` / `++x` | `x += 1`                |
 | `x--` / `--x` | `x -= 1`                |
 | `a ? b : c`   | `if a { b } else { c }` |
 
-`kirn check` reports `warning[W-nosugar]` on an adjacent `++`/`--` whose next token
-terminates the expression (a nudge with a `replace with += 1` fix-it) — it never accepts the
-form, and never fires on valid `a + +b`, `a - -b`, or `a++b` (= `a + (+b)`).
+`kirn check` reports `warning[W-nosugar]` on every `++`/`--` use (a nudge with a
+`replace with += 1` fix-it); it never fires on valid `a + +b` or `a - -b`. The ternary emits no
+warning. A nested-ternary chain lowers on the tree-walker and VM; the MIR `rt` dumper still
+rejects nested conditional expressions (shared with nested `if` expressions).
 
 ---
 

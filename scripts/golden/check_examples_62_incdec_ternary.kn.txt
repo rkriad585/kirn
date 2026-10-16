@@ -1,0 +1,33 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/62_incdec_ternary.kn
+<ROOT>/examples/62_incdec_ternary.kn:16:6: warning[W-nosugar]: `x++` is sugar for `x += 1`
+ 16 |     x++;            # 6
+   |      ^^
+ = note: prefer the explicit form `x += 1`; increment/decrement are not part of the canonical Kirn surface
+ 16 |     x++;            # 6
+ = help: replace with `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn:17:5: warning[W-nosugar]: `x++` is sugar for `x += 1`
+ 17 |     ++x;            # 7
+   |     ^^
+ = note: prefer the explicit form `x += 1`; increment/decrement are not part of the canonical Kirn surface
+ 17 |     ++x;            # 7
+ = help: replace with `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn:18:6: warning[W-nosugar]: `x--` is sugar for `x -= 1`
+ 18 |     x--;            # 6
+   |      ^^
+ = note: prefer the explicit form `x -= 1`; increment/decrement are not part of the canonical Kirn surface
+ 18 |     x--;            # 6
+ = help: replace with `x -= 1`
+<ROOT>/examples/62_incdec_ternary.kn:19:5: warning[W-nosugar]: `x--` is sugar for `x -= 1`
+ 19 |     --x;            # 5
+   |     ^^
+ = note: prefer the explicit form `x -= 1`; increment/decrement are not part of the canonical Kirn surface
+ 19 |     --x;            # 5
+ = help: replace with `x -= 1`
+<ROOT>/examples/62_incdec_ternary.kn:23:12: warning[W-nosugar]: `x++` is sugar for `x += 1`
+ 23 |     print(x++, x);
+   |            ^^
+ = note: prefer the explicit form `x += 1`; increment/decrement are not part of the canonical Kirn surface
+ 23 |     print(x++, x);
+ = help: replace with `x += 1`
+<ROOT>/examples/62_incdec_ternary.kn: 0 error(s), 5 warning(s)
+[exit 0]

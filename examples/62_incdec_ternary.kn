@@ -1,0 +1,31 @@
+# 62 — Increment/decrement and the C-style ternary                       (M13)
+# `x++` / `++x` / `x--` / `--x` are sugar (they desugar to `x += 1` / `x -= 1`)
+# and the checker nudges the explicit form with W-nosugar, which the golden for
+# this file records. `c ? a : b` is right-associative and lower precedence than
+# every binary operator. `None` is the canonical spelling of the unit literal.
+
+fn classify(n: Int) -> Str {
+    if n > 0 {
+        return "pos";
+    }
+    return n < 0 ? "neg" : "zero";
+}
+
+fn main() -> none {
+    var x = 5;
+    x++;            # 6
+    ++x;            # 7
+    x--;            # 6
+    --x;            # 5
+    print(x);
+
+    # postfix/prefix in expression position both yield the updated value
+    print(x++, x);
+
+    # ternary chains and a mixed condition
+    print(classify(3), classify(-2), classify(0));
+    print(x + 1 > 5 ? 10 : 20);
+
+    var nothing = None;
+    print(nothing == None ? "none" : "some");
+}

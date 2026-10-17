@@ -1,0 +1,32 @@
+# 33 — Declaration attributes (`@[...]`)   (POWER_PLAN §1, Tier-1 built-ins)
+#
+# Bracket attributes are compile-time metadata. Their names are validated by
+# the checker (an unknown `@[...]` name is an error; a user decorator is
+# written `@name`, see examples/51_decorators.kn). Hints such as @[inline] and
+# @[pure] do not change a program's result — this example pins that they parse,
+# check, and run.
+
+@[derive(Debug)]
+struct Point {
+    @[doc("horizontal offset")]
+    x: Int;
+    @[doc("vertical offset")]
+    y: Int;
+
+    @[inline]
+    fn sum(self) -> Int { return self.x + self.y; }
+}
+
+@[inline]
+@[pure]
+fn add(a: Int, b: Int) -> Int { return a + b; }
+
+@[must_use]
+fn scale(p: Point, k: Int) -> Point { return Point(x: p.x * k, y: p.y * k); }
+
+@[main]
+fn main() -> none {
+    const p = Point(x: 3, y: 4);
+    const q = scale(p, 2);
+    print(add(q.sum(), p.sum()));   # 14 + 7 = 21
+}

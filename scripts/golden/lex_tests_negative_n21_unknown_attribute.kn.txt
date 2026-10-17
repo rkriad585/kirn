@@ -1,0 +1,18 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n21_unknown_attribute.kn
+Op	2:1	@
+Punct	2:2	[
+Ident	2:3	bogus
+Punct	2:8	]
+Ident	3:1	fn
+Ident	3:4	f
+Punct	3:5	(
+Punct	3:6	)
+Op	3:8	->
+Ident	3:11	none
+Punct	3:16	{
+Punct	3:18	}
+Eof	4:1	
+<ROOT>/tests/negative/n21_unknown_attribute.kn: OK (12 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

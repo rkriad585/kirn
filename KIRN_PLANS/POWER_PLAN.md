@@ -584,3 +584,24 @@ Open decisions needing ratification: (1) `await` prefix vs postfix; `await` hard
 - serde: `rust/serde/serde_core/src/{ser/mod.rs,de/mod.rs}`, `rust/serde/serde/src/lib.rs`, `rust/serde/serde_derive/src/{lib.rs,ser.rs,de.rs}`, `rust/serde/serde_derive_internals/src/{attr.rs,symbol.rs,case.rs}`.
 - anyhow: `rust/anyhow/src/{lib.rs,error.rs,context.rs,macros.rs,ensure.rs}`.
 - thiserror: `rust/thiserror/src/lib.rs`, `rust/thiserror/impl/src/{lib.rs,attr.rs,expand.rs,fmt.rs,valid.rs}`.
+
+---
+
+## Implementation status
+
+### Update (2026-10-17) — Phase 0 & Phase 1: attributes & decorators (shipped)
+
+Delivered:
+- **Grammar** (`grammar/kirn.ebnf`): new `decorators`/`bracket_attrs`/`at_decorator`/`attr`/`decorator_arg` productions; all declaration rules (`func_def`, `struct_def`, `enum_def`, `trait_def`, `impl_def`, `class_def`, `interface_def`, `record_def`, `const_decl`) and members (`field_def`, `variant`, `payload_param`) now carry a leading `decorators`.
+- **AST** (`src/ast/ast.h`): `Decorator { name, args, bracket, span }`; `decorators` on `Stmt`, `FieldDecl`, `Variant`, `VariantPayload`.
+- **Parser** (`src/parser/parser.cpp`): `parseDecorators()`; `@` at declaration start is a decorator list, while `@comptime(...)` stays an expression and pattern `@` stays the alias operator. `@[a, b(c)]` lowers to consecutive `@a`/`@b(c)`. Decorator args accept both `name = value` (Rust) and `name: value` (Kirn).
+- **Dump** (`src/ast/ast_dump.cpp`): `Decorator`/`Arg`/`ArgName` nodes; parse golden pins the decorator list.
+- **Checker** (`src/sema/checker.cpp`): Tier-1 `@[...]` names are validated against the built-in set (unknown ⇒ error). `@[deprecated("…")]` is registered order-independently and warns (`W0110`) at each use (ident and direct call). Tier-2 `@name` names are marked used (no false `W0103`).
+- **Interpreter** (`src/interp/runtime.cpp`): Tier-2 decorators applied once at program collection, bottom-up; `@name` ⇒ `name(target)`, `@name(args)` ⇒ `name(args...)(target)` (Python semantics). Result shadows the raw `funcs_` entry.
+- **Examples/tests**: `examples/33_attributes.kn` (Tier-1), `examples/51_decorators.kn` (Tier-2), `tests/syntax/attributes_ok.kn`, `tests/negative/n21_unknown_attribute.kn`; goldens recorded.
+
+Verification: gates **284/0**, golden **273/0**, crosscheck **621/0**, stdlib **9/0**.
+
+Example-number deviations (low slots are taken by existing examples): the plan's `examples/60_decorators.kn` is delivered as `examples/51_decorators.kn` (60 = `60_reflect.kn`). Later phases will take `63`+ (61/62 are also taken).
+
+Known pre-existing quirk (not introduced here, tracked for later phases): assigning to a module-global from inside a function without the `global name;` declaration binds a fresh local first, so `c = c + 1` reads the unbound local and panics. Examples use `global name;` for global mutation.

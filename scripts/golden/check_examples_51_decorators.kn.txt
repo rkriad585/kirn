@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/51_decorators.kn
+<ROOT>/examples/51_decorators.kn: OK
+[exit 0]

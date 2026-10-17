@@ -1,0 +1,167 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/51_decorators.kn
+FuncDef "logged"
+  Param "prefix" : Str
+  Ret fn(fn(Int) -> Int) -> fn(Int) -> Int
+  Body
+    Return
+      Value 
+        Lambda params=(f: fn(Int) -> Int)
+          Ret fn(Int) -> Int
+          Body
+            Return
+              Value 
+                Lambda params=(x: Int)
+                  Ret Int
+                  Body
+                    ExprStmt
+                      Value 
+                        Call
+                          Callee Ident "print"
+                          Arg
+                            Value Ident "prefix"
+                          Arg
+                            Value Ident "x"
+                    Return
+                      Value 
+                        Call
+                          Callee Ident "f"
+                          Arg
+                            Value Ident "x"
+FuncDef "memoize"
+  Param "f" : fn(Int) -> Int
+  Ret fn(Int) -> Int
+  Body
+    VarDecl
+      Target Ident "cache"
+      Value 
+        Dict len=0
+    Return
+      Value 
+        Lambda params=(x: Int)
+          Ret Int
+          Body
+            If
+              Cond 
+                Binary op="in"
+                  Lhs Ident "x"
+                  Rhs Ident "cache"
+              Then
+                Return
+                  Value 
+                    Index
+                      Obj Ident "cache"
+                      At Ident "x"
+            ConstDecl
+              Target Ident "r"
+              Value 
+                Call
+                  Callee Ident "f"
+                  Arg
+                    Value Ident "x"
+            Assign
+              Target 
+                Index
+                  Obj Ident "cache"
+                  At Ident "x"
+              Value Ident "r"
+            Return
+              Value Ident "r"
+Decorator "logged" bare
+  Arg Str "square"
+FuncDef "square"
+  Param "n" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "n"
+          Rhs Ident "n"
+VarDecl
+  Target Ident "calls"
+  Value Int "0"
+Decorator "memoize" bare
+FuncDef "fib"
+  Param "n" : Int
+  Ret Int
+  Body
+    GlobalDecl 'calls'
+    AugAssign op="+="
+      Target Ident "calls"
+      Value Int "1"
+    If
+      Cond 
+        Binary op="<"
+          Lhs Ident "n"
+          Rhs Int "2"
+      Then
+        Return
+          Value Ident "n"
+    VarDecl
+      Target Ident "a"
+      Value 
+        Call
+          Callee Ident "fib"
+          Arg
+            Value 
+              Binary op="-"
+                Lhs Ident "n"
+                Rhs Int "1"
+    VarDecl
+      Target Ident "b"
+      Value 
+        Call
+          Callee Ident "fib"
+          Arg
+            Value 
+              Binary op="-"
+                Lhs Ident "n"
+                Rhs Int "2"
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "a"
+          Rhs Ident "b"
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "square"
+                Arg
+                  Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "fib"
+                Arg
+                  Value Int "10"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "fib"
+                Arg
+                  Value Int "10"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "evaluations"
+          Arg
+            Value Ident "calls"
+<ROOT>/examples/51_decorators.kn: OK (6 top-level statements)
+[exit 0]

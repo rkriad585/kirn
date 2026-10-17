@@ -1,0 +1,7 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n21_unknown_attribute.kn
+Decorator "bogus" bracket
+FuncDef "f"
+  Ret none
+  Body
+<ROOT>/tests/negative/n21_unknown_attribute.kn: OK (1 top-level statements)
+[exit 0]

@@ -1,0 +1,3 @@
+# expect: unknown attribute 'bogus'
+@[bogus]
+fn f() -> none { }

@@ -165,6 +165,18 @@ private:
 
     // ---- statements ----
     void checkStmt(const ast::Stmt& s);
+    // POWER_PLAN §1: validate `@[...]` Tier-1 attributes (unknown names are
+    // errors) and, for `@[deprecated("…")]`, remember that a use of the
+    // declaration should warn. Tier-2 `@name` decorators are runtime-only and
+    // are not validated here.
+    void checkDecorators(const std::vector<ast::Decorator>& decs,
+                         const std::string& declName, bool declaration);
+    // Validate a declaration's own attributes and those of its members
+    // (struct fields/methods, enum variants/payloads, trait/impl methods).
+    void validateDecoratorsDeep(const ast::Stmt& s);
+    // Pre-pass: register `@[deprecated]` names so a use earlier in the file
+    // still warns (use-site warnings are order-independent).
+    void collectDeprecated(const ast::Stmt& s);
     void checkBlock(const std::vector<ast::StmtP>& body);
     void checkFuncLike(const ast::Stmt& s, TyP selfTy, SymP funcSym);
     void checkAssignTargets(const ast::Stmt& s);
@@ -294,6 +306,9 @@ private:
     std::set<std::pair<std::string, std::string>> impls_;   // trait -> struct
     std::map<std::string, std::set<std::string>> implMethods_;  // struct -> impl-provided method names
     std::map<std::string, SymP> funcs_;                     // top-level funcs
+    // `@[deprecated("msg")]` declarations: name -> message. A use of the name
+    // emits W0110 (POWER_PLAN §1).
+    std::map<std::string, std::string> deprecated_;
     std::map<std::string, TyP> typeVars_;                   // active generics
     std::set<std::string> importRoots_;
     std::set<std::string> builtins_;                        // print/len/sqrt

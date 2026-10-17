@@ -1,0 +1,8 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n21_unknown_attribute.kn
+<ROOT>/tests/negative/n21_unknown_attribute.kn:2:3: error: unknown attribute 'bogus' (built-in attributes use '@[...]'; a user decorator is '@bogus')
+ 2 | @[bogus]
+   |   ^
+<ROOT>/tests/negative/n21_unknown_attribute.kn:0:0: warning[W0103]: unused function 'f'
+ 0 | 
+<ROOT>/tests/negative/n21_unknown_attribute.kn: 1 error(s), 1 warning(s)
+[exit 1]

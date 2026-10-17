@@ -105,6 +105,17 @@ struct CallArg {
     ExprP value;
 };
 
+// A declaration member attribute: `@[...]` (Tier-1 built-in attribute, validated
+// at compile time) or `@name` / `@name(...)` (Tier-2 user decorator, resolved and
+// applied at runtime). POWER_PLAN §1 / DO_FIRST SP-1.
+struct Decorator {
+    std::string name;                // attribute / decorator name
+    std::vector<CallArg> args;       // `@[derive(A, B)]` / `@dec(a, b)`; named
+                                    // args map to `name: value` inside @[...]
+    bool bracket = false;            // true = `@[...]`, false = `@name`
+    Span span;
+};
+
 struct CompClause {                   // `for pat in iter` | `if cond`
     bool isFor = false;
     PatP pat;                         // for-clause
@@ -198,14 +209,17 @@ struct FieldDecl {
     std::string name;
     TypeP type;
     ExprP defaultValue;
+    std::vector<Decorator> decorators;   // field attributes (`@[from]`, …)
     Span span;
 };
 
-struct VariantPayload { std::string name; TypeP type; };
+struct VariantPayload { std::string name; TypeP type;
+                        std::vector<Decorator> decorators; };
 
 struct Variant {
     std::string name;
     std::vector<VariantPayload> payload;   // unit variants: empty
+    std::vector<Decorator> decorators;     // variant attributes (`@[error("…")]`)
     Span span;
 };
 
@@ -226,6 +240,11 @@ struct TypeParam {
 struct Stmt {
     StKind kind{};
     Span span;
+
+    // Decorators/attributes preceding a declaration: `@[...]` (Tier-1 built-ins)
+    // and `@name(...)` (Tier-2 user decorators). Shared by fn/struct/class/enum/
+    // trait/impl/const declarations (POWER_PLAN §1).
+    std::vector<Decorator> decorators;
 
     // FuncDef / TraitDef
     std::string name;

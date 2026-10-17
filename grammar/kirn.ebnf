@@ -241,9 +241,23 @@ decl_body       = func_def | struct_def | enum_def | const_decl
 
 (* ---- Functions ------------------------------------------------------------ *)
 
-func_def        = visibility , [ "const" ] , "fn" IDENTIFIER [ type_params ]
+decorators      = { bracket_attrs | at_decorator } ;
+(* POWER_PLAN §1 / SP-1: declaration attributes precede the declaration and its
+   members. `@[a, b(c)]` is sugar for consecutive `@a`, `@b(c)`. Applied
+   left-to-right / top-to-bottom; Tier-2 decorators run bottom-up at import. *)
+bracket_attrs   = "@" , "[" , attr , { "," , attr } , "]" ;
+at_decorator    = "@" , IDENTIFIER , [ "(" , [ decorator_arg ,
+                    { "," , decorator_arg } ] , ")" ] ;
+attr            = IDENTIFIER , [ "(" , [ decorator_arg ,
+                    { "," , decorator_arg } ] , ")" ] ;
+decorator_arg   = [ IDENTIFIER , ( ":" | "=" ) ] , expr ;
+(* `@` is `Tok::Op`; `@` at declaration start is a decorator, while `@` inside a
+   pattern stays the alias operator (`name @ subpat`). `@comptime(...)` remains
+   an expression, not a decorator. Unknown Tier-1 (`@[...]`) names are errors. *)
+
+func_def        = decorators , visibility , [ "const" ] , "fn" IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] block
-                | visibility , "extern" , "fn" IDENTIFIER [ type_params ]
+                | decorators , visibility , "extern" , "fn" IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] ";" ;
 (* `fn` is the function-declaration keyword (examples/36,44). *)
 visibility      = [ "pub" ] | [ "pr" ] ;
@@ -270,39 +284,39 @@ block           = "{" , { statement } , "}" ;
 
 (* ---- Structs --------------------------------------------------------------- *)
 
-struct_def      = visibility , "struct" IDENTIFIER [ type_params ]
+struct_def      = decorators , visibility , "struct" IDENTIFIER [ type_params ]
                   "{" { struct_member } "}" ;
 struct_member   = field_def | method_def ;
-field_def       = [ "weak" ] , visibility , IDENTIFIER , ":" , type ,
+field_def       = decorators , [ "weak" ] , visibility , IDENTIFIER , ":" , type ,
                   [ "=" expr ] , ";" ;
 method_def      = func_def ;
 
 
 (* ---- Enums ------------------------------------------------------------------ *)
 
-enum_def        = visibility , "enum" IDENTIFIER [ type_params ]
+enum_def        = decorators , visibility , "enum" IDENTIFIER [ type_params ]
                   "{" , variant , { enum_sep , variant } , [ enum_sep ] , "}" ;
 enum_sep        = "," | ";" ;
 (* Phase 5.3: variants may be separated by "," or ";" (C-style); a trailing
    separator is allowed. Each variant carries an implicit discriminant equal to
    its zero-based position; `variant.to_int()` yields that discriminant at run
    time (see §4 notes). *)
-variant         = IDENTIFIER                                            (* unit  *)
-                | IDENTIFIER , "(" [ payload_param ,
+variant         = decorators , IDENTIFIER                            (* unit  *)
+                | decorators , IDENTIFIER , "(" [ payload_param ,
                     { "," , payload_param } ] ")" ;                     (* named *)
-payload_param   = IDENTIFIER , ":" , type ;
+payload_param   = decorators , IDENTIFIER , ":" , type ;
 
 
 (* ---- Traits & impls ---------------------------------------------------------- *)
 
-trait_def       = visibility , "trait" IDENTIFIER [ type_params ]
+trait_def       = decorators , visibility , "trait" IDENTIFIER [ type_params ]
                   "{" { trait_method } "}" ;
 trait_method    = func_sig                       (* signature only, ';'      *)
                 | func_def ;                     (* default body             *)
 func_sig        = visibility , ( "fn" | "fn" ) IDENTIFIER [ type_params ]
                   "(" [ param_list ] ")" [ "->" type ] , ";" ;
 
-impl_def        = "impl" [ type_params ] , type , "for" , type ,
+impl_def        = decorators , "impl" [ type_params ] , type , "for" , type ,
                   block ;
 
 
@@ -313,13 +327,13 @@ impl_def        = "impl" [ type_params ] , type , "for" , type ,
      interface I { fn m(self) -> T; }      ->  trait (Go-style structural bound)
      record Name(f: T, ...)                 ->  immutable field tuple (value type)  *)
 
-class_def       = visibility , "class" IDENTIFIER [ type_params ]
+class_def       = decorators , visibility , "class" IDENTIFIER [ type_params ]
                   [ "implements" type_name , { "," , type_name } ]
                   [ "extends" type_name ]
                   "{" { struct_member } "}" ;
-interface_def   = visibility , "interface" IDENTIFIER [ type_params ]
+interface_def   = decorators , visibility , "interface" IDENTIFIER [ type_params ]
                   "{" { trait_method } "}" ;
-record_def      = visibility , "record" IDENTIFIER
+record_def      = decorators , visibility , "record" IDENTIFIER
                   "(" [ record_field , { "," , record_field } ] [ "," ] ")"
                   block ;
 record_field    = IDENTIFIER , ":" , type ;
@@ -329,7 +343,7 @@ type_args       = "[" type_list "]" ;
 
 (* ---- Constants & variables ---------------------------------------------------- *)
 
-const_decl      = visibility , "const" IDENTIFIER [ ":" type ] , "=" expr , ";" ;
+const_decl      = decorators , visibility , "const" IDENTIFIER [ ":" type ] , "=" expr , ";" ;
 (* `mut` opts into reassignment, `immut` pins read-only (the default when no
    modifier is present), and `var` remains a working alias for `mut`. The sign
    modifiers select a 64-bit type: `signed` -> Int (i64), `unsigned` -> UInt

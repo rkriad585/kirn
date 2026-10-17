@@ -1,0 +1,50 @@
+# 51 — User decorators (`@name`)   (POWER_PLAN §1, Tier-2)
+#
+# Bare `@name` / `@name(...)` are runtime user decorators: ordinary callables
+# applied bottom-up (the decorator nearest `fn` runs first). When `@name(args)`
+# is used, the decorator is the result of calling `name(args...)` (Python
+# semantics: the factory pattern), then applied to the function.
+
+# A decorator factory: `@logged("square")` first calls logged("square"), whose
+# result wraps the function.
+fn logged(prefix: Str) -> fn(fn(Int) -> Int) -> fn(Int) -> Int {
+    return fn (f: fn(Int) -> Int) -> fn(Int) -> Int {
+        return fn (x: Int) -> Int {
+            print(prefix, x);
+            return f(x);
+        };
+    };
+}
+
+# A plain decorator: `@memoize` calls memoize(f) directly.
+fn memoize(f: fn(Int) -> Int) -> fn(Int) -> Int {
+    var cache = {};
+    return fn (x: Int) -> Int {
+        if x in cache { return cache[x]; }
+        const r = f(x);
+        cache[x] = r;
+        return r;
+    };
+}
+
+@logged("square")
+fn square(n: Int) -> Int { return n * n; }
+
+var calls = 0;
+
+@memoize
+fn fib(n: Int) -> Int {
+    global calls;
+    calls += 1;
+    if n < 2 { return n; }
+    var a = fib(n - 1);
+    var b = fib(n - 2);
+    return a + b;
+}
+
+fn main() -> none {
+    print(square(4));           # "square 4" then 16
+    print(fib(10));             # 55
+    print(fib(10));             # 55 — served from the memo cache
+    print("evaluations", calls);  # 11 (each n in 0..10 computed once)
+}

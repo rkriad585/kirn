@@ -410,9 +410,26 @@ void dumpPat(const Pat& p, int d) {
 
 } // namespace
 
+// ---- decorators ------------------------------------------------------------
+
+// Print attribute/decorator lists (`@[...]` and `@name`). Kept deliberately
+// flat so the parse golden pins name order, bracket-vs-bare form, and args.
+static void dumpDecorators(const std::vector<Decorator>& ds, int d) {
+    for (const auto& dec : ds) {
+        std::cout << ind(d) << "Decorator " << quote(dec.name)
+                  << (dec.bracket ? " bracket" : " bare") << '\n';
+        for (const auto& a : dec.args) {
+            if (!a.name.empty())
+                std::cout << ind(d + 1) << "ArgName " << quote(a.name) << '\n';
+            childExpr(a.name.empty() ? "Arg" : "Value", a.value, d + 1);
+        }
+    }
+}
+
 // ---- statements ------------------------------------------------------------
 
 void dump(const Stmt& s, int d) {
+    dumpDecorators(s.decorators, d);
     switch (s.kind) {
         case StKind::FuncDef: {
             std::cout << ind(d) << "FuncDef " << quote(s.name)
@@ -449,6 +466,7 @@ void dump(const Stmt& s, int d) {
             std::cout << ind(d) << "StructDef " << quote(s.name)
                       << (s.pub ? " pub" : "") << '\n';
             for (const auto& f : s.fields) {
+                dumpDecorators(f.decorators, d + 1);
                 std::cout << ind(d + 1) << "Field " << quote(f.name)
                           << (f.pub ? " pub" : "") << (f.mutable_ ? " var" : "")
                           << (f.weak ? " weak" : "")
@@ -461,6 +479,7 @@ void dump(const Stmt& s, int d) {
             std::cout << ind(d) << "EnumDef " << quote(s.name)
                       << (s.pub ? " pub" : "") << '\n';
             for (const auto& v : s.variants) {
+                dumpDecorators(v.decorators, d + 1);
                 std::cout << ind(d + 1) << "Variant " << v.name;
                 if (!v.payload.empty()) {
                     std::cout << " {";
@@ -472,6 +491,8 @@ void dump(const Stmt& s, int d) {
                     std::cout << '}';
                 }
                 std::cout << '\n';
+                for (const auto& pl : v.payload)
+                    dumpDecorators(pl.decorators, d + 2);
             }
             return;
         case StKind::TraitDef:

@@ -382,7 +382,12 @@ void Checker::checkModule(const std::vector<ast::StmtP>& prog) {
     fillNominals(prog);
     registerTopLevel(prog);
 
+    for (const auto& st : prog) collectDeprecated(*st);
+
     for (const auto& st : prog) {
+        // EnumDef is dispatched to checkStmt below (which validates its
+        // decorators); everything else is validated here.
+        if (st->kind != StKind::EnumDef) validateDecoratorsDeep(*st);
         switch (st->kind) {
             case StKind::FuncDef:
                 if (!st->externDef) checkFuncLike(*st, nullptr, funcs_[st->name]);
@@ -2853,7 +2858,112 @@ void Checker::checkPatternBindings(const ast::Pat& p, const TyP& subject) {
     }
 }
 
+void Checker::checkDecorators(const std::vector<ast::Decorator>& decs,
+                              const std::string& declName, bool declaration) {
+    // Tier-1 built-in attributes. `@[...]` names must be one of these; anything
+    // else is a compile error (a Tier-2 decorator is written `@name`, not
+    // `@[name]`). POWER_PLAN §1 / Appendix A.
+    static const std::set<std::string> kBuiltinAttrs = {
+        "derive", "serde", "error", "from", "source", "backtrace",
+        "transparent", "main", "test", "deprecated", "inline", "pure",
+        "par", "extern", "allow", "warn", "deny", "cold", "no_mangle",
+        "track_caller", "must_use", "doc",
+    };
+    for (const auto& d : decs) {
+        if (!d.bracket) {
+            // Tier-2: a runtime decorator. Mark the name used so it does not
+            // trip the unused-declaration lint (it is referenced only by the
+            // decorator application pass in the interpreter).
+            if (scope_) {
+                if (Symbol* sym = scope_->find(d.name)) sym->used = true;
+            }
+            continue;
+        }
+        if (!kBuiltinAttrs.count(d.name)) {
+            diags_.error({d.span.line, d.span.col})
+                .msg("unknown attribute '" + d.name +
+                     "' (built-in attributes use '@[...]'; a user decorator "
+                     "is '@" + d.name + "')")
+                .emit();
+            continue;
+        }
+        if (d.name == "deprecated" && declaration && !declName.empty()) {
+            // Registration is done in collectDeprecated (order-independent);
+            // nothing further to do here.
+        }
+    }
+}
+
+void Checker::collectDeprecated(const ast::Stmt& s) {
+    if (s.kind != StKind::FuncDef && s.kind != StKind::StructDef &&
+        s.kind != StKind::EnumDef && s.kind != StKind::TraitDef &&
+        s.kind != StKind::ImplDef && s.kind != StKind::ConstDecl)
+        return;
+    for (const auto& d : s.decorators) {
+        if (d.bracket && d.name == "deprecated" && !s.name.empty()) {
+            std::string msg = "use of deprecated declaration";
+            if (!d.args.empty() && d.args[0].value &&
+                d.args[0].value->kind == ExKind::Str)
+                msg = "use of deprecated declaration: " + d.args[0].value->text;
+            deprecated_[s.name] = msg;
+        }
+    }
+    // Methods nested in a struct/class/impl may also be deprecated.
+    if (s.kind == StKind::StructDef || s.kind == StKind::TraitDef ||
+        s.kind == StKind::ImplDef) {
+        for (const auto& m : s.body)
+            if (m->kind == StKind::FuncDef) collectDeprecated(*m);
+    }
+}
+
+void Checker::validateDecoratorsDeep(const ast::Stmt& s) {
+    switch (s.kind) {
+        case StKind::FuncDef:
+        case StKind::ConstDecl:
+            checkDecorators(s.decorators, s.name, true);
+            break;
+        case StKind::StructDef:
+            checkDecorators(s.decorators, s.name, true);
+            for (const auto& f : s.fields)
+                checkDecorators(f.decorators, s.name + "." + f.name, false);
+            for (const auto& m : s.body)
+                if (m->kind == StKind::FuncDef)
+                    checkDecorators(m->decorators, s.name + "." + m->name, false);
+            break;
+        case StKind::EnumDef:
+            checkDecorators(s.decorators, s.name, true);
+            for (const auto& v : s.variants) {
+                checkDecorators(v.decorators, s.name + "." + v.name, false);
+                for (const auto& pl : v.payload)
+                    checkDecorators(pl.decorators,
+                                    s.name + "." + v.name + "." + pl.name, false);
+            }
+            break;
+        case StKind::TraitDef:
+        case StKind::ImplDef:
+            checkDecorators(s.decorators, s.name, true);
+            for (const auto& m : s.body)
+                if (m->kind == StKind::FuncDef)
+                    checkDecorators(m->decorators, s.name + "." + m->name, false);
+            break;
+        default:
+            break;
+    }
+}
+
 void Checker::checkStmt(const ast::Stmt& s) {
+    switch (s.kind) {
+        case StKind::EnumDef:
+        case StKind::StructDef:
+        case StKind::FuncDef:
+        case StKind::TraitDef:
+        case StKind::ImplDef:
+        case StKind::ConstDecl:
+            validateDecoratorsDeep(s);
+            break;
+        default:
+            break;
+    }
     switch (s.kind) {
         case StKind::Pass:
             break;
@@ -3555,6 +3665,12 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                                   std::to_string(sym->tempBudget) + " uses)");
             }
             sym->used = true;
+            {
+                auto dit = deprecated_.find(e.text);
+                if (dit != deprecated_.end())
+                    warning(SpanRange::point(e.span.line, e.span.col),
+                            "W0110", dit->second);
+            }
             if (sym->kind == SymK::Func)
                 return fnTy(sym->sig.params, sym->sig.ret);
             if (sym->kind == SymK::EnumName) {
@@ -4645,6 +4761,12 @@ TyP Checker::checkCall(const ast::Expr& e) {
         Symbol* sym = scope_->find(callee->text);
         if (sym && sym->kind == SymK::Func) {
             sym->used = true;
+            {
+                auto dit = deprecated_.find(callee->text);
+                if (dit != deprecated_.end())
+                    warning(SpanRange::point(callee->span.line, callee->span.col),
+                            "W0110", dit->second);
+            }
             const std::string& n = sym->name;
             if (builtins_.count(n)) {
                 if (n == "print") {

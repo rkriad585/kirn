@@ -81,7 +81,7 @@ Deep source review (evidence base in Appendix A) establishes the current surface
 | Statements                        | `if/elif/else`, `while`, `for p in expr`, `match … case …`, `select`, `unsafe`, `spawn`, `defer`, `return`, `raise`, `break`/`continue [label]`, `import`/`from…import`, `export`, `pass`                                                                                                                                                                                                                     |
 | Expressions                       | binary/unary ops, `..`/`..=` ranges, slices `a[1:3]`, `and/or/not/is/in`, ternary-`if`-expr, lambdas `(x)=>e`, list/dict/set literals, f-strings `f"{x:>10}"`, tuple/comprehensions, `new`, `T?`, `.?.`, `?` propagation, `name: value` named args                                                                                                                                                            |
 | Patterns                          | Wild `_`, Bind `x`, `x is T`, alias `x @ pat`, Or `a                                                                                                                                                                                                                                                                                                                                                          | b`, Tuple, Ctor `Point(x: 0)`, Range, Slice `[a,b,..r]`, Rest `..`, guards |
-| Types                             | `Int/i8..u64/f32/f64/Bool/Char/Str/bytes`, `list[T]/dict[K,V]/set[T]/tuple/T?/fn/ptr/ref`, generics `[T is Bound]`, `result[T,E]`                                                                                                                                                                                                                                                                          |
+| Types                             | `Int/i8..u64/f32/f64/Bool/Char/Str/bytes`, `list[T]/dict[K,V]/set[T]/tuple/T?/fn/ptr/ref`, generics `[T is Bound]`, `result[T,E]`                                                                                                                                                                                                                                                                             |
 | Builtin fns (runtime.cpp:485-613) | `print, len, sqrt, ord, chr, assert, assert_eq, range, panic, catch_panic, printf, strlen` **+** the Phase-WHY-1/SP-8 battery `Str, Int, Float, Bool, type, repr, sum, min, max, any, all, sorted, reversed, enumerate, map, filter, reduce, upper, lower, trim, contains, starts_with, ends_with, replace, split, join` (see `EXP_PLAN.md` §9 for the full inventory; `WHY_PLAN.md` WHY-1 for the rationale) |
 | Builtin modules                   | `math, time, io, mem, json, text, os` (stubs) + real `.kn` stdlib                                                                                                                                                                                                                                                                                                                                             |
 | Concurrency                       | `spawn`, `chan`, `select`, real OS threads, channels (mutex/condvar)                                                                                                                                                                                                                                                                                                                                          |
@@ -227,6 +227,13 @@ Phase 2; Tier-2 runtime decorators in Phase 6 (needs reflection).
 ---
 
 ## Phase SP-1 — Dekorator Syntax & Builtin Attributes (`@`)
+
+> **Status (2026-10-17):** the `@` grammar, the AST `decorators` fields, parser
+> disambiguation, AST dumping, and Tier-1 built-in attribute validation shipped as
+> part of `POWER_PLAN.md` Phase 0/1 (see `POWER_PLAN.md` → Implementation status).
+> Tier-2 runtime decorators also shipped (applied once at collection, bottom-up).
+> Remaining here: the lint-toggle / `@test` / `@unsafe` semantics and `reflect`
+> field metadata — those stay owned by this plan.
 
 **Goal:** land the decorated/annotated surface with the `@name` / `@name(...)` spelling and the
 compiler-defined attribute set. Highest-value, most-visible, and the user's explicit ask.

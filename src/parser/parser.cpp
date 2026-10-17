@@ -247,7 +247,75 @@ bool Parser::looksLikeWithStmt() const {
     }
 }
 
+std::vector<ast::Decorator> Parser::parseDecorators() {
+    std::vector<ast::Decorator> out;
+    // Attribute/decorator arguments accept Rust-style `name = value` as well as
+    // Kirn's `name: value` (POWER_PLAN §1: `@[serde(rename_all = "camelCase")]`,
+    // `@retry(attempts = 3)`).
+    auto parseArg = [this]() -> ast::CallArg {
+        ast::CallArg a;
+        if (cur().kind == Tok::Ident && (atPunct(":", 1) || atOp("=", 1))) {
+            a.name = advance().text;
+            advance();                                  // ':' or '='
+        }
+        a.value = parseExpr();
+        return a;
+    };
+    while (atOp("@") && !atIdent("comptime", 1)) {
+        if (atPunct("[", 1)) {                          // Tier-1: `@[a, b(...)]`
+            advance();                                  // '@'
+            advance();                                  // '['
+            while (!atPunct("]")) {
+                if (atPunct(",")) { advance(); continue; }
+                ast::Decorator item;
+                item.bracket = true;
+                item.span = spanHere();
+                item.name = expect(Tok::Ident, "attribute name").text;
+                if (atPunct("(")) {
+                    advance();
+                    while (!atPunct(")")) {
+                        if (atPunct(",")) { advance(); continue; }
+                        item.args.push_back(parseArg());
+                        if (atPunct(",")) advance();
+                        else break;
+                    }
+                    expectPunct(")");
+                }
+                out.push_back(std::move(item));
+            }
+            expectPunct("]");
+            continue;
+        }
+        ast::Decorator d;                               // Tier-2: `@name(...)`
+        d.span = spanHere();
+        advance();                                      // '@'
+        d.name = expect(Tok::Ident, "decorator name").text;
+        if (atPunct("(")) {
+            advance();
+            while (!atPunct(")")) {
+                if (atPunct(",")) { advance(); continue; }
+                d.args.push_back(parseArg());
+                if (atPunct(",")) advance();
+                else break;
+            }
+            expectPunct(")");
+        }
+        out.push_back(std::move(d));
+    }
+    return out;
+}
+
 ast::StmtP Parser::parseTopOrStmt() {
+    // Declaration attributes / decorators: `@[...]` (Tier-1) and `@name(...)`
+    // (Tier-2). `@comptime(...)` is an expression and is left for the
+    // expression parser. Disambiguated by position: a leading `@` here is
+    // always a decorator list (POWER_PLAN §1).
+    if (atOp("@") && !atIdent("comptime", 1)) {
+        auto decs = parseDecorators();
+        auto s = parseTopOrStmt();
+        for (auto& d : decs) s->decorators.push_back(std::move(d));
+        return s;
+    }
     // labeled loop:  label: while ...  |  label: for ...
     if (cur().kind == Tok::Ident && atPunct(":", 1) &&
         (atIdent("while", 2) || atIdent("for", 2))) {
@@ -484,8 +552,11 @@ ast::StmtP Parser::parseStructDef() {
                           "unexpected end of file inside struct body");
             throw Abort("structeof");
         }
+        auto decs = parseDecorators();
         if (atIdent("fn")) {
-            s->body.push_back(parseFuncDef(false));
+            auto m = parseFuncDef(false);
+            for (auto& d : decs) m->decorators.push_back(std::move(d));
+            s->body.push_back(std::move(m));
             continue;
         }
         ast::FieldDecl f;
@@ -503,6 +574,7 @@ ast::StmtP Parser::parseStructDef() {
         f.type = parseType();
         if (atOp("=")) { advance(); f.defaultValue = parseExpr(); }
         expectPunct(";");                               // fields end with ';'
+        f.decorators = std::move(decs);
         s->fields.push_back(std::move(f));
     }
     return s;
@@ -563,8 +635,11 @@ ast::StmtP Parser::parseClassDef(bool pub) {
                           "unexpected end of file inside class body");
             throw Abort("classeof");
         }
+        auto decs = parseDecorators();
         if (atIdent("fn")) {
-            methods.push_back(parseFuncDef(false));
+            auto m = parseFuncDef(false);
+            for (auto& d : decs) m->decorators.push_back(std::move(d));
+            methods.push_back(std::move(m));
             continue;
         }
         ast::FieldDecl f;
@@ -582,6 +657,7 @@ ast::StmtP Parser::parseClassDef(bool pub) {
         f.type = parseType();
         if (atOp("=")) { advance(); f.defaultValue = parseExpr(); }
         expectPunct(";");                               // fields end with ';'
+        f.decorators = std::move(decs);
         s->fields.push_back(std::move(f));
     }
     // Methods stay inherent (direct `x.method()` finds them first at runtime).
@@ -694,12 +770,14 @@ std::vector<ast::Variant> Parser::parseVariants() {
         if (atPunct(";")) { advance(); continue; }      // semicolon separator
         ast::Variant v;
         v.span = spanHere();
+        v.decorators = parseDecorators();               // `@[error("…")]`
         v.name = expect(Tok::Ident, "variant name").text;
         if (atPunct("(")) {
             advance();
             while (!atPunct(")")) {
                 if (atPunct(",")) { advance(); continue; }
                 ast::VariantPayload pl;
+                pl.decorators = parseDecorators();      // `@[from]`
                 pl.name = expect(Tok::Ident, "payload name").text;
                 expectPunct(":");
                 pl.type = parseType();

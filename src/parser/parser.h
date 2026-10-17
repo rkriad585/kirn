@@ -42,6 +42,10 @@ private:
 
     // ---- declarations & statements ----
     ast::StmtP parseTopOrStmt();
+    // `@[...]` / `@name(...)` attribute & decorator lists preceding a
+    // declaration (or a struct field / enum variant). Returns an empty vector
+    // when none are present.
+    std::vector<ast::Decorator> parseDecorators();
     ast::StmtP parseFuncDef(bool pub, bool allowBody = true);
     ast::StmtP parseStructDef();
     ast::StmtP parseClassDef(bool pub);

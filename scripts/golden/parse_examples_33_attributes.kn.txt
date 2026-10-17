@@ -1,0 +1,104 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/33_attributes.kn
+Decorator "derive" bracket
+  Arg Ident "Debug"
+StructDef "Point"
+  Decorator "doc" bracket
+    Arg Str "horizontal offset"
+  Field "x" : Int
+  Decorator "doc" bracket
+    Arg Str "vertical offset"
+  Field "y" : Int
+  Decorator "inline" bracket
+  FuncDef "sum"
+    Param "self" self : <inferred>
+    Ret Int
+    Body
+      Return
+        Value 
+          Binary op="+"
+            Lhs 
+              Member name="x"
+                Obj Ident "self"
+            Rhs 
+              Member name="y"
+                Obj Ident "self"
+Decorator "inline" bracket
+Decorator "pure" bracket
+FuncDef "add"
+  Param "a" : Int
+  Param "b" : Int
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="+"
+          Lhs Ident "a"
+          Rhs Ident "b"
+Decorator "must_use" bracket
+FuncDef "scale"
+  Param "p" : Point
+  Param "k" : Int
+  Ret Point
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value 
+              Binary op="*"
+                Lhs 
+                  Member name="x"
+                    Obj Ident "p"
+                Rhs Ident "k"
+          Arg name=y
+            Value 
+              Binary op="*"
+                Lhs 
+                  Member name="y"
+                    Obj Ident "p"
+                Rhs Ident "k"
+Decorator "main" bracket
+FuncDef "main"
+  Ret none
+  Body
+    ConstDecl
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value Int "3"
+          Arg name=y
+            Value Int "4"
+    ConstDecl
+      Target Ident "q"
+      Value 
+        Call
+          Callee Ident "scale"
+          Arg
+            Value Ident "p"
+          Arg
+            Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "add"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="sum"
+                          Obj Ident "q"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="sum"
+                          Obj Ident "p"
+<ROOT>/examples/33_attributes.kn: OK (4 top-level statements)
+[exit 0]

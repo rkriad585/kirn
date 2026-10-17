@@ -1138,6 +1138,44 @@ void Interpreter::collectProgram(const Stmt& program) {
             default: break;
         }
     }
+    // POWER_PLAN §1: apply Tier-2 (`@name`) decorators to top-level function
+    // declarations once every function is collected. A decorator is an ordinary
+    // callable; `@a @b fn f` applies bottom-up (b(f), then a(b(f))), as in
+    // Python. The final value is bound in globals so it shadows the raw `funcs_`
+    // entry on name lookup.
+    for (const auto& sp : program.body) {
+        const Stmt& s = *sp;
+        if (s.kind != ast::StKind::FuncDef || s.externDef) continue;
+        bool bare = false;
+        for (const auto& d : s.decorators)
+            if (!d.bracket) { bare = true; break; }
+        if (!bare) continue;
+        Value fn;
+        fn.k = VK::Fn;
+        fn.fn = &s;
+        fn.env = globals_;
+        for (auto it = s.decorators.rbegin(); it != s.decorators.rend(); ++it) {
+            if (it->bracket) continue;
+            ast::Expr id;
+            id.kind = ast::ExKind::Ident;
+            id.text = it->name;
+            id.span = it->span;
+            Value dec = eval(id, globals_);
+            // Python semantics: @deco(args...) is deco(args...)(f); @deco is deco(f)
+            if (!it->args.empty()) {
+                std::vector<Value> dargs;
+                for (const auto& a : it->args)
+                    dargs.push_back(eval(*a.value, globals_));
+                dec = callValue(std::move(dec), std::move(dargs), it->span.line,
+                                it->span.col);
+            }
+            std::vector<Value> argv;
+            argv.push_back(std::move(fn));
+            fn = callValue(std::move(dec), std::move(argv), it->span.line,
+                           it->span.col);
+        }
+        globals_->vars[s.name] = std::move(fn);
+    }
     mergeInheritance();
 }
 

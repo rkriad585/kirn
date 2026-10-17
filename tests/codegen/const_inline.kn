@@ -1,0 +1,30 @@
+# M11 const-fn folding: module-level `const` scalars are folded by the checker
+# and inlined at their use sites, so functions that read them lower to native
+# C++ (KIRN_HAS_NATIVE 1) instead of falling back to the interpreter.
+const LIMIT = 100;
+const RATE: Float = 2.5;
+const FLAG = true;
+
+fn clamp(n: Int) -> Int {
+    if n > LIMIT {
+        return LIMIT;
+    }
+    return n;
+}
+
+fn scaled(r: Float) -> Float {
+    return r * RATE;
+}
+
+fn pick() -> Int {
+    if FLAG {
+        return 1;
+    }
+    return 0;
+}
+
+fn main() -> none {
+    print(clamp(50), clamp(150));
+    print(scaled(2.0));
+    print(pick());
+}

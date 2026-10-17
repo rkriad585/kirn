@@ -194,8 +194,9 @@ before the toolchain, and a new `check_codegen` stage in `scripts/golden_linux.s
 `scripts/gates_linux.sh`) snapshots and differentially tests it. Tests added:
 `tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` and `examples/61_native_new_surface.kn`.
 Verified: gates 261, golden 251, crosscheck 579, stdlib 9, all 0 fail. See the M11 phase note for the
-recorded deviations (optional params, `@` matmul, safe-chain, comprehensions, and `const fn` folding
-remain deferred).
+recorded deviations (aggregate/container locals and comprehension bodies, `@` matmul, and safe-chain
+remain interpreter-only by design; `const fn` folding and scalar `??=` were later closed — see the
+M11 `Update (2026-10-17b)` note).
 
 **Implementation progress (2026-10-16).** M12 (rejected features closed) is done as documentation + a
 nudge lint. `docs/FEATURE_GAP_ANALYSIS.md` gains §4.1 recording the permanent rejection of `++`/`--`
@@ -589,6 +590,17 @@ true sets and dict duplicate keys are last-wins on every construction path. Test
 `examples/47_collection_ops.kn`. HIR/MIR/LLVM do not lower the new expression kinds (they emit
 well-formed `Error` nodes); that is deferred to M11, as the interpreter and bytecode VM are the
 execution paths for this surface.
+
+**Update (2026-10-17).** A latent defect in `typeof(expr)` in **type position** was fixed:
+`Checker::resolveType` (`case TyKind::TypeOf`) re-ran `checkExpr` on the `typeof` operand every time
+it was asked for the type, so HIR/MIR lowering (which calls `resolveType` again _after_ `checkModule`
+has torn the function body scope down) reported the operand's variables as `undefined variable` —
+`kirnc rt tests/syntax/typeof_type_ok.kn` failed while `kirnrun`/`kirnc check` passed. `resolveType`
+now returns the type already recorded in `typeCache_` for the operand (the first pass cached it) and
+only falls back to `checkExpr` when the operand was never checked. With that fixed, **every** file in
+`examples/`, `tests/vm_parity/`, and `tests/syntax/*_ok*.kn` lowers through HIR to a verified MIR CFG
+(105 files); gates 8 (HIR) and 9 (MIR) now include `tests/syntax/*_ok*.kn` in their corpus, so this
+regression and the whole M3 surface stay covered on the HIR/MIR path.
 
 ---
 
@@ -1099,23 +1111,43 @@ so a free identifier (module-level `const`/`var`) forces an interpreter fallback
 reference to an undefined `v_NAME` (a fixed build-breaking bug). Codegen tests added:
 `tests/codegen/optional_param.kn` (`KIRN_HAS_NATIVE 1`) and `tests/codegen/global_ref_fallback.kn`
 (`KIRN_HAS_NATIVE 0`); gate 11's spec list covers both.
+**Update (2026-10-17b).** `const fn` folding and elvis-assign now close the last scalar-path gaps.
+`Checker::constValue` exposes the folded value of a module-level `const`, and the native backend
+inlines it (`scalarConst`/`scalarConstLiteral`) when it is a scalar (`Int`/`Float`/`Bool`/`none`) —
+so a function that reads a folded scalar `const` lowers instead of falling back
+(`tests/codegen/const_inline.kn`, `KIRN_HAS_NATIVE 1`). A module-level `var` (mutable) or a non-scalar
+`const` still forces the interpreter fallback (`tests/codegen/global_ref_fallback.kn`, repointed at a
+`var` to keep guarding it). `x ??= v` on a scalar optional lowers to `if (!x) x = v;`
+(`tests/codegen/coalesce_assign.kn`, `KIRN_HAS_NATIVE 1`), matching the VM. Gate 11 gained both
+spec-list entries and native-binary == interpreter differentials for both. Suites: gates 277, golden
+264, crosscheck 603, stdlib 9, all 0 fail. Verified at the same time: M2 (`@` matmul:
+`tests/syntax/matmul_ok.kn`, `matmul_dunder_ok.kn`, `matmul_err_scalar.kn`, `examples/46_matmul.kn`)
+and M3 (dict/set comps + `*`/`**` unpacking, `.?.`/`.?[`/`.?(` safe navigation, `is`-narrowing,
+`typeof`) are **complete** on the tree-walker/VM execution paths — the earlier cross-check that
+marked them missing was a reading of the stale ground-truth table; gate 2b (`tests/syntax/*_ok*.kn` /
+`*_err*.kn`) and crosscheck cover them.
 **Deviations/reality vs the plan's sketch:** (1) the backend stays **scalar-only**: optional
 _parameters_ now lower (`T?` → `std::optional<scalar>`; a `none` argument maps to `std::nullopt` in
 the registration thunk), but aggregate/container locals and comprehension bodies do not — the plan's
 `[i * i for i in 0..N]` example falls back to the interpreter. (2) `@` matmul (P2) and safe-chain
 `?.`/`?[]`/`?!` are non-scalar / optional-aggregate and remain interpreter-only. (3) `const fn`
-folding (R9) is not wired into the native backend; `const` bindings lower as ordinary locals — and a
-function that reads a module-level `const`/`var` is deliberately **not** lowered (the scalar backend
-has no local to reference for a free identifier), so it falls back rather than emitting an undefined
-`v_NAME`. This closes a latent bug where such a function was judged lowerable and the generated C++
-failed to compile. (4)
-`kirn fmt`/`doc` and edition-gated soft keywords (SYNTAX SP-17) were not touched — no `fmt`/`doc`
-surface exists to extend in this tree. (5) The plan's example path `examples/59_native_new_surface.kn`
-is already taken by M9 (`sync`), so the example ships as `examples/61_native_new_surface.kn`. (6) The
-codegen golden harness (`scripts/golden_linux.sh` `check_codegen` + gate 11) is newly added, since no
-codegen-snapshot infrastructure existed before. Codegen tests now include `optional_param.kn`
-(optional-scalar params lower) and `global_ref_fallback.kn` (a module-const read forces the
-interpreter fallback).
+folding (R9) **is now wired into the native backend**: a module-level `const NAME = <evaluable>`
+folded to a scalar (`Int`/`Float`/`Bool`/`none`) by the checker is inlined at its use sites via
+`Checker::constValue` + `scalarConst`/`scalarConstLiteral`, so a function that reads such a constant
+lowers natively (`const_inline.kn` → `KIRN_HAS_NATIVE 1`). A function that reads a module-level
+**`var`** (mutable, not foldable) or a non-scalar `const` is still deliberately **not** lowered (the
+scalar backend has no local to reference for a free identifier), so it falls back rather than
+emitting an undefined `v_NAME`; this closes a latent build-breaking bug. Non-scalar `const`s keep the
+interpreter fallback. (4) elvis-assign `x ??= v` on a scalar optional now lowers to
+`if (!x) x = v;` on the native path (`coalesce_assign.kn` → `KIRN_HAS_NATIVE 1`), matching the VM,
+which already compiled it. (5) `kirn fmt`/`doc` and edition-gated soft keywords (SYNTAX SP-17) were
+not touched — no `fmt`/`doc` surface exists to extend in this tree. (6) The plan's example path
+`examples/59_native_new_surface.kn` is already taken by M9 (`sync`), so the example ships as
+`examples/61_native_new_surface.kn`. (7) The codegen golden harness (`scripts/golden_linux.sh`
+`check_codegen` + gate 11) is newly added, since no codegen-snapshot infrastructure existed before.
+Codegen tests now include `optional_param.kn` (optional-scalar params lower),
+`global_ref_fallback.kn` (a module-`var` read forces the interpreter fallback), `const_inline.kn`
+(module-`const` scalars inline and lower), and `coalesce_assign.kn` (scalar `??=` lowers).
 
 ---
 

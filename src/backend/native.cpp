@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iomanip>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -55,6 +57,41 @@ static bool assignCompatible(const TyP& v, const TyP& t) {
         return in && v->k == in->k;
     }
     return false;
+}
+
+// M11 const-fn folding: a module-level `const NAME = <evaluable>` is folded to a
+// literal by the checker. When the folded value is a scalar we inline it at its
+// use sites, so a function that reads the constant stays in the native subset
+// instead of falling back to the interpreter. Non-scalar (Str/collection/struct)
+// constants are not inlined and keep the interpreter fallback.
+static const sema::ConstVal* scalarConst(const sema::Checker& chk,
+                                         const std::string& name, TyP& out) {
+    const sema::ConstVal* cv = chk.constValue(name);
+    if (!cv) return nullptr;
+    switch (cv->k) {
+        case sema::ConstVal::K::Int:   out = sema::intTy();   return cv;
+        case sema::ConstVal::K::Float: out = sema::floatTy(); return cv;
+        case sema::ConstVal::K::Bool:  out = sema::boolTy();  return cv;
+        case sema::ConstVal::K::None:  out = sema::noneTy();  return cv;
+        default:                       return nullptr;
+    }
+}
+
+static std::string scalarConstLiteral(const sema::ConstVal& cv) {
+    switch (cv.k) {
+        case sema::ConstVal::K::Int:
+            return std::to_string(cv.i);
+        case sema::ConstVal::K::Float: {
+            std::ostringstream os;
+            os << std::setprecision(17) << cv.f;
+            std::string s = os.str();
+            if (s.find_first_of(".eE") == std::string::npos) s += ".0";
+            return s;
+        }
+        case sema::ConstVal::K::Bool:  return cv.b ? "true" : "false";
+        case sema::ConstVal::K::None:  return "std::nullopt";
+        default:                       return "0";
+    }
 }
 
 // C++ scalar type name for a scalar/optional-scalar TyP; "" for anything else.
@@ -299,8 +336,14 @@ private:
                 if (e.text == "true" || e.text == "false") return true;
                 // Only a name the function itself binds can be emitted; a free
                 // name (module-level const/var, etc.) has no local to reference.
-                if (!cur.locals.count(e.text)) return false;
-                return isNativeTy(t);
+                if (cur.locals.count(e.text)) return isNativeTy(t);
+                // M11: a module-level `const` folded to a scalar is inlined at
+                // its use site, so a function that reads it can still lower.
+                {
+                    TyP ct;
+                    if (scalarConst(*chk_, e.text, ct)) return isNativeTy(t);
+                }
+                return false;
             case ExKind::Unary:
                 if (e.rhs && !exprLowerable(*e.rhs, cur)) return false;
                 return (e.op == "-" || e.op == "+" || e.op == "not") &&
@@ -424,6 +467,14 @@ private:
         if (moduleNames_.count(tgt->text)) return false;
         TyP tt = typeOf(*tgt);
         if (!isNativeTy(tt)) return false;
+        // `x ??= v` assigns only when the optional `x` is none; the value must
+        // fit the element type. This is elvis, so it lowers on the scalar path.
+        if (s.kind == StKind::AugAssign && s.augOp == "?" "?=") {
+            if (!isOptScalarTy(tt)) return false;
+            const ast::ExprP& v = s.exprs[1];
+            if (!v || !exprLowerable(*v, cur)) return false;
+            return assignCompatible(typeOf(*v), optInner(tt));
+        }
         // Compound assignment (`+=`) only makes sense on a plain scalar.
         if (s.kind == StKind::AugAssign && !isScalarTy(tt)) return false;
         const ast::ExprP& val = s.exprs[1];
@@ -631,6 +682,15 @@ private:
             case StKind::AugAssign: {
                 const std::string& cname = s.exprs[0]->text;
                 std::string name = cIdent(cname, "v_");
+                // Elvis-assign `x ??= v`: assign only when the optional `x` is
+                // none, so the right-hand side is evaluated lazily.
+                if (s.kind == StKind::AugAssign && s.augOp == "?" "?=") {
+                    if (!localTypes_.count(cname))
+                        localTypes_[cname] = cppTy(typeOf(*s.exprs[0]));
+                    out_ << pad << "if (!" << name << ") " << name << " = "
+                         << emitExpr(*s.exprs[1]) << ";\n";
+                    return;
+                }
                 std::string val;
                 if (s.kind == StKind::AugAssign) {
                     // rebuild target op value with binop semantics.
@@ -739,6 +799,14 @@ private:
                 if (e.text == "true") return "true";
                 if (e.text == "false") return "false";
                 if (e.text == "none") return "std::nullopt";
+                // M11: a non-local scalar `const` is inlined as its folded
+                // literal (a local of the same name shadows it).
+                if (!localTypes_.count(e.text)) {
+                    TyP ct;
+                    if (const sema::ConstVal* cv =
+                            scalarConst(*chk_, e.text, ct))
+                        return scalarConstLiteral(*cv);
+                }
                 return cIdent(e.text, "v_");
             case ExKind::Unary: {
                 std::string r = emitExpr(*e.rhs);

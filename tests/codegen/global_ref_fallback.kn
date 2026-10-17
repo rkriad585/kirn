@@ -1,12 +1,16 @@
-# M11 codegen: a function that reads a module-level `const` must NOT be lowered
-# (the scalar backend has no local to reference for it); it falls back to the
-# interpreter, so `kirn build --native` still succeeds instead of emitting an
-# undefined `v_LIMIT`. This guards a fixed M11 bug.
-const LIMIT = 100;
+# M11 codegen: a function that reads a module-level `var` must NOT be lowered
+# (the scalar backend has no local to reference for a free, mutable identifier);
+# it falls back to the interpreter, so `kirn build --native` still succeeds
+# instead of emitting an undefined `v_TOTAL`. This guards a fixed M11 bug.
+#
+# A module-level `const` is different: it is folded to a literal by the checker
+# and inlined at its use sites, so functions reading one DO lower — see
+# `const_inline.kn`.
+var TOTAL = 100;
 
 fn clamp(n: Int) -> Int {
-    if n > LIMIT {
-        return LIMIT;
+    if n > TOTAL {
+        return TOTAL;
     }
     return n;
 }

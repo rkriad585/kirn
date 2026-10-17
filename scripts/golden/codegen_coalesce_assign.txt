@@ -1,0 +1,37 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/coalesce_assign.kn
+#define KIRN_HAS_NATIVE 1
+#include <cmath>
+#include <optional>
+namespace kirn_native {
+static inline void co_panic(const char* m){ kirn::interp::panicHere(m); }
+static inline int64_t co_floordiv(int64_t a,int64_t b){ if(b==0)co_panic("division by zero"); int64_t q=a/b; if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }
+static inline int64_t co_mod(int64_t a,int64_t b){ if(b==0)co_panic("modulo by zero"); int64_t m=a%b; if(m!=0&&((m<0)!=(b<0)))m+=b; return m; }
+static inline double co_fdiv(double a,double b){ if(b==0.0)co_panic("division by zero"); return a/b; }
+static inline double co_fmodm(double a,double b){ return std::fmod(std::fmod(a,b)+b,b); }
+static inline int64_t co_ipow(int64_t b,int64_t e){ int64_t o=1; while(e>0){ if(e&1)o*=b; e>>=1; if(e)b*=b;} return o; }
+static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return (int64_t)((uint64_t)a<<b); }
+static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return a>>b; }
+static int64_t co_native_1_pick(std::optional<int64_t> v_x) {
+    std::optional<int64_t> v_v = v_x;
+    if (!v_v) v_v = 7;
+    return [&]{ auto __co0 = (v_v); return (__co0) ? (*__co0) : (0); }();
+    return 0;
+}
+static double co_native_2_keep(std::optional<double> v_y) {
+    std::optional<double> v_w = v_y;
+    if (!v_w) v_w = 1.5;
+    return [&]{ auto __co0 = (v_w); return (__co0) ? (*__co0) : (0.0); }();
+    return 0.0;
+}
+}
+inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::vector<kirn::ast::StmtP>& prog) {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "keep") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::optional<double> v_y; { auto __p = interp.nativeEnvVar(e, "y"); if (!__p.isNone()) v_y = __p.d; }
+        return kirn::interp::Value::floating(kirn_native::co_native_2_keep(v_y));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "pick") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::optional<int64_t> v_x; { auto __p = interp.nativeEnvVar(e, "x"); if (!__p.isNone()) v_x = __p.i; }
+        return kirn::interp::Value::integer(kirn_native::co_native_1_pick(v_x));
+    }); }
+}
+[exit 0]

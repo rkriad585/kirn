@@ -69,6 +69,13 @@ public:
     // backend uses to lower statically-typed expressions (PLAN Phase 8.2).
     TyP typeOf(const ast::Expr& e) const;
 
+    // The compile-time value the checker folded for a `const NAME = <evaluable>`
+    // declaration, or nullptr if the name is not a folded constant. The scalar
+    // native backend uses this to inline a module-level `const` at its use sites
+    // (M11), so a function reading a constant lowers instead of falling back to
+    // the interpreter.
+    const ConstVal* constValue(const std::string& name) const;
+
 
     // Every name predeclareBuiltins() put in the root scope, in declaration
     // order. Published rather than re-listed by consumers, because two

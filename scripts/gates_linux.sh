@@ -428,7 +428,7 @@ echo "=== gate 8: HIR structural verification ==="
 HIR_OK=0
 HIR_FAILED=""
 for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn \
-          "$ROOT"/tests/mir/*.kn; do
+          "$ROOT"/tests/syntax/*_ok*.kn "$ROOT"/tests/mir/*.kn; do
     [ -e "$src" ] || continue
     base="$(basename "$src")"
     case " $HIR_KNOWN_UNSUPPORTED " in
@@ -507,7 +507,7 @@ echo "=== gate 9: MIR structural verification ==="
 MIR_OK=0
 MIR_FAILED=""
 for src in "$ROOT"/examples/*.kn "$ROOT"/tests/types/p*.kn "$ROOT"/tests/vm_parity/*.kn \
-          "$ROOT"/tests/mir/*.kn; do
+          "$ROOT"/tests/syntax/*_ok*.kn "$ROOT"/tests/mir/*.kn; do
     [ -e "$src" ] || continue
     if "$KN" rt "$src" >/dev/null 2>&1; then
         MIR_OK=$((MIR_OK+1))
@@ -681,7 +681,7 @@ echo "=== gate 11: native scalar lowering (differential vs interpreter) ==="
 # still lowers the new surface rather than silently falling back, and (b) the
 # compiled binary agrees with the interpreter byte-for-byte.
 G11="$TMP/g11"; mkdir -p "$G11"
-for spec in "scalar_core:1" "new_surface:1" "reject_non_scalar:0" "optional_param:1" "global_ref_fallback:0"; do
+for spec in "scalar_core:1" "new_surface:1" "reject_non_scalar:0" "optional_param:1" "global_ref_fallback:0" "const_inline:1" "coalesce_assign:1"; do
     nm=${spec%%:*}; want=${spec##*:}
     src="$ROOT/tests/codegen/$nm.kn"
     KIRN_DUMP_NATIVE="$G11/$nm.cpp" "$KIRN" build --native "$src" -o "$G11/$nm.out" \
@@ -724,6 +724,41 @@ if timeout 300 "$KIRN" build --native "$ROOT/tests/codegen/optional_param.kn" -o
     fi
 else
     report FAIL "native optional-param build" "$(tail -1 "$G11/op.log")"
+fi
+
+# Const-fn folding: a module-level `const` scalar is inlined at its use sites, so
+# functions reading one lower natively. The compiled binary must agree with the
+# interpreter (the inlined literal must equal the constant's runtime value).
+cinat="$G11/const_inline.bin"
+if timeout 300 "$KIRN" build --native "$ROOT/tests/codegen/const_inline.kn" -o "$cinat" \
+        >"$G11/ci.log" 2>&1; then
+    ci_native=$(timeout "$WATCH" "$cinat" 2>&1); cnr=$?
+    ci_interp=$(timeout "$WATCH" "$CR" "$ROOT/tests/codegen/const_inline.kn" 2>&1); cir=$?
+    if [ "$cnr" = "$cir" ] && [ "$ci_native" = "$ci_interp" ]; then
+        report PASS "native const-inline == interpreter" "$(echo "$ci_native" | tr '\n' ' ')"
+    else
+        report FAIL "native const-inline == interpreter" \
+            "native rc=$cnr: $ci_native | interp rc=$cir: $ci_interp"
+    fi
+else
+    report FAIL "native const-inline build" "$(tail -1 "$G11/ci.log")"
+fi
+
+# Elvis-assign `x ??= v` on a scalar optional lowers to `if (!x) x = v;`. The
+# compiled binary must agree with the interpreter on already-set and none inputs.
+canat="$G11/coalesce_assign.bin"
+if timeout 300 "$KIRN" build --native "$ROOT/tests/codegen/coalesce_assign.kn" -o "$canat" \
+        >"$G11/ca.log" 2>&1; then
+    ca_native=$(timeout "$WATCH" "$canat" 2>&1); car=$?
+    ca_interp=$(timeout "$WATCH" "$CR" "$ROOT/tests/codegen/coalesce_assign.kn" 2>&1); cai=$?
+    if [ "$car" = "$cai" ] && [ "$ca_native" = "$ca_interp" ]; then
+        report PASS "native coalesce-assign == interpreter" "$(echo "$ca_native" | tr '\n' ' ')"
+    else
+        report FAIL "native coalesce-assign == interpreter" \
+            "native rc=$car: $ca_native | interp rc=$cai: $ca_interp"
+    fi
+else
+    report FAIL "native coalesce-assign build" "$(tail -1 "$G11/ca.log")"
 fi
 
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"

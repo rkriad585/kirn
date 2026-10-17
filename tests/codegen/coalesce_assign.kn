@@ -1,0 +1,19 @@
+# M11 codegen: elvis-assign `x ??= v` on a scalar optional lowers to a native
+# `if (!x) x = v;` (the value is assigned only when the optional is none), so a
+# function using `??=` stays on the scalar native path.
+fn pick(x: Int?) -> Int {
+    var v = x;
+    v ??= 7;
+    return v ?? 0;
+}
+
+fn keep(y: Float?) -> Float {
+    var w = y;
+    w ??= 1.5;
+    return w ?? 0.0;
+}
+
+fn main() -> none {
+    print(pick(3), pick(none));
+    print(keep(2.5), keep(none));
+}

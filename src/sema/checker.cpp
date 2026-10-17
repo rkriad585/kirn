@@ -1242,7 +1242,17 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             return errTy();
         }
         case TyKind::TypeOf:
-            return t->typeExpr ? checkExpr(*t->typeExpr) : unkTy();
+            // `typeof(expr)` in type position resolves to the expression's
+            // inferred type. Prefer the type recorded when the node was first
+            // checked (checkModule): re-running checkExpr here (e.g. while HIR/
+            // MIR lowering calls resolveType after the body scope has been
+            // torn down) would wrongly report the expression's variables as
+            // undefined, even though the first pass succeeded and cached them.
+            if (!t->typeExpr) return unkTy();
+            if (auto it = typeCache_.find(t->typeExpr.get());
+                it != typeCache_.end())
+                return it->second;
+            return checkExpr(*t->typeExpr);
         case TyKind::Pointer:
             return ptrTy(resolveType(t->inner));
         case TyKind::Ref:
@@ -3499,6 +3509,11 @@ static bool dynish(const TyP& t) {
 TyP Checker::typeOf(const ast::Expr& e) const {
     auto it = typeCache_.find(&e);
     return it != typeCache_.end() ? it->second : unkTy();
+}
+
+const ConstVal* Checker::constValue(const std::string& name) const {
+    auto it = constVals_.find(name);
+    return it != constVals_.end() ? &it->second : nullptr;
 }
 
 TyP Checker::checkExpr(const ast::Expr& e) {

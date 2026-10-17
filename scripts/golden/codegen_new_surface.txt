@@ -38,9 +38,13 @@ static int64_t co_native_5_walrus(int64_t v_n) {
 }
 }
 inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::vector<kirn::ast::StmtP>& prog) {
-    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "walrus") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "inc") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
-        return kirn::interp::Value::integer(kirn_native::co_native_5_walrus(v_n));
+        return kirn::interp::Value::integer(kirn_native::co_native_1_inc(v_n));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "maybe") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        { auto __r = kirn_native::co_native_2_maybe(v_n); if (!__r) return kirn::interp::Value::none(); return kirn::interp::Value::integer(*__r); }
     }); }
     for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "piped") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
@@ -50,13 +54,9 @@ inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::v
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
         return kirn::interp::Value::integer(kirn_native::co_native_3_score(v_n));
     }); }
-    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "maybe") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "walrus") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
-        { auto __r = kirn_native::co_native_2_maybe(v_n); if (!__r) return kirn::interp::Value::none(); return kirn::interp::Value::integer(*__r); }
-    }); }
-    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "inc") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
-        int64_t v_n = interp.nativeEnvVar(e, "n").i;
-        return kirn::interp::Value::integer(kirn_native::co_native_1_inc(v_n));
+        return kirn::interp::Value::integer(kirn_native::co_native_5_walrus(v_n));
     }); }
 }
 [exit 0]

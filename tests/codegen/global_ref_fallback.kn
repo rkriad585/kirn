@@ -1,0 +1,16 @@
+# M11 codegen: a function that reads a module-level `const` must NOT be lowered
+# (the scalar backend has no local to reference for it); it falls back to the
+# interpreter, so `kirn build --native` still succeeds instead of emitting an
+# undefined `v_LIMIT`. This guards a fixed M11 bug.
+const LIMIT = 100;
+
+fn clamp(n: Int) -> Int {
+    if n > LIMIT {
+        return LIMIT;
+    }
+    return n;
+}
+
+fn main() -> none {
+    print(clamp(50), clamp(150));
+}

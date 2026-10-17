@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -134,8 +135,15 @@ class Analyzer {
 public:
     Analyzer(const std::vector<ast::StmtP>& prog, const sema::Checker& chk)
         : prog_(&prog), chk_(&chk) {
-        for (const auto& s : prog)
+        for (const auto& s : prog) {
             if (s->kind == StKind::FuncDef) topFuncs_[s->name] = s.get();
+            // Module-level bindings: a read of one has no function-local to
+            // reference, and a write to one is not a local declaration, so a
+            // function touching it must fall back to the interpreter.
+            if ((s->kind == StKind::VarDecl || s->kind == StKind::ConstDecl) &&
+                s->target && s->target->kind == ExKind::Ident)
+                moduleNames_.insert(s->target->text);
+        }
     }
 
     std::unordered_map<const ast::Stmt*, NativeFunc> lower() {
@@ -160,6 +168,7 @@ private:
     const sema::Checker* chk_;
     std::unordered_map<std::string, const ast::Stmt*> topFuncs_;
     std::unordered_map<const ast::Stmt*, NativeFunc> lowered_;
+    std::set<std::string> moduleNames_;
 
     TyP typeOf(const ast::Expr& e) const { return chk_->typeOf(e); }
 
@@ -172,12 +181,16 @@ private:
         for (const auto& p : s.params) {
             if (p.variadic || p.selfParam || p.defaultValue || !p.type)
                 return false;
-            if (!isScalarTy(declTy(p.type))) return false;
+            // Plain scalars and optionals of scalars (`T?`) are both lowerable;
+            // an optional scalar becomes `std::optional<scalar>`.
+            if (!isNativeTy(declTy(p.type))) return false;
         }
         // Self-recursion tolerance: an in-progress hook is added so the body
         // walk treats self-calls as lowerable. Non-self calls must already be
         // in `lowered_` (previous fixpoint rounds).
-        CurFn cur{&s, rt};
+        CurFn cur{&s, rt, {}};
+        for (const auto& p : s.params) cur.locals.insert(p.name);
+        collectLocals(s.body, cur.locals);
         bool ok = bodyLowerable(s.body, cur);
         if (!ok) return false;
 
@@ -197,7 +210,60 @@ private:
     struct CurFn {
         const ast::Stmt* fn;
         TyP ret;
+        std::set<std::string> locals;   // params + in-function bindings
     };
+
+    // Every name the function binds itself (params are added by the caller).
+    // A free identifier (module-level `const`/`var`, builtin, or a function
+    // used as a value) is not emit-able by the scalar backend, so such a
+    // function must fall back to the interpreter rather than emit C++ that
+    // references an undefined `v_<name>`.
+    void collectLocals(const std::vector<ast::StmtP>& body,
+                       std::set<std::string>& out) const {
+        for (const auto& s : body) collectLocalsStmt(*s, out);
+    }
+
+    void collectLocalsStmt(const ast::Stmt& s, std::set<std::string>& out) const {
+        if ((s.kind == StKind::VarDecl || s.kind == StKind::ConstDecl) &&
+            s.target && s.target->kind == ExKind::Ident &&
+            !s.target->text.empty())
+            out.insert(s.target->text);
+        // A bare `x = e;` (or `x += e;`) binds `x` as a local unless it names a
+        // module-level binding (which the emitter cannot reference).
+        if ((s.kind == StKind::Assign || s.kind == StKind::AugAssign) &&
+            !s.exprs.empty() && s.exprs[0] &&
+            s.exprs[0]->kind == ExKind::Ident &&
+            !moduleNames_.count(s.exprs[0]->text))
+            out.insert(s.exprs[0]->text);
+        if (s.kind == StKind::For && s.pat &&
+            s.pat->kind == ast::PatKind::Bind && !s.pat->bindName.empty())
+            out.insert(s.pat->bindName);
+        for (const auto& x : s.exprs) if (x) collectLocalsExpr(*x, out);
+        if (s.value) collectLocalsExpr(*s.value, out);
+        if (s.cond) collectLocalsExpr(*s.cond, out);
+        for (const auto& st : s.body) collectLocalsStmt(*st, out);
+        for (const auto& st : s.elseBody) collectLocalsStmt(*st, out);
+    }
+
+    void collectLocalsExpr(const ast::Expr& e, std::set<std::string>& out) const {
+        if (e.kind == ExKind::AssignExpr && e.lhs &&
+            e.lhs->kind == ExKind::Ident && !e.lhs->text.empty())
+            out.insert(e.lhs->text);
+        if (e.lhs) collectLocalsExpr(*e.lhs, out);
+        if (e.rhs) collectLocalsExpr(*e.rhs, out);
+        if (e.value) collectLocalsExpr(*e.value, out);
+        if (e.cond) collectLocalsExpr(*e.cond, out);
+        for (const auto& x : e.elems) if (x) collectLocalsExpr(*x, out);
+        for (const auto& p : e.pairs) {
+            if (p.first) collectLocalsExpr(*p.first, out);
+            if (p.second) collectLocalsExpr(*p.second, out);
+        }
+        for (const auto& a : e.args) if (a.value) collectLocalsExpr(*a.value, out);
+        for (const auto& c : e.clauses) {
+            if (c.iter) collectLocalsExpr(*c.iter, out);
+            if (c.cond) collectLocalsExpr(*c.cond, out);
+        }
+    }
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs || e.lhs->kind != ExKind::Ident) return false;
@@ -231,6 +297,9 @@ private:
                 // surrounding statement/return checks the target type.
                 if (e.text == "none") return isNoneTy(t);
                 if (e.text == "true" || e.text == "false") return true;
+                // Only a name the function itself binds can be emitted; a free
+                // name (module-level const/var, etc.) has no local to reference.
+                if (!cur.locals.count(e.text)) return false;
                 return isNativeTy(t);
             case ExKind::Unary:
                 if (e.rhs && !exprLowerable(*e.rhs, cur)) return false;
@@ -350,6 +419,9 @@ private:
         if (s.exprs.size() != 2) return false;
         const ast::ExprP& tgt = s.exprs[0];
         if (!tgt || tgt->kind != ExKind::Ident) return false;
+        // A write to a module-level binding is not a local declaration; the
+        // scalar backend has nowhere to put it.
+        if (moduleNames_.count(tgt->text)) return false;
         TyP tt = typeOf(*tgt);
         if (!isNativeTy(tt)) return false;
         // Compound assignment (`+=`) only makes sense on a plain scalar.
@@ -812,6 +884,12 @@ NativeProgram funcsFrom(
     NativeProgram np;
     np.any = !lowered.empty();
     for (auto& [fn, nf] : lowered) np.funcs.push_back(nf);
+    // `lowered` is pointer-keyed and iterated in an unspecified order; sort so
+    // callers and codegen goldens are reproducible.
+    std::sort(np.funcs.begin(), np.funcs.end(),
+              [](const NativeFunc& a, const NativeFunc& b) {
+                  return a.name < b.name;
+              });
     return np;
 }
 
@@ -827,7 +905,17 @@ void out_registerAll(
     };
     out << "inline void kirn_native_register(kirn::interp::Interpreter& interp,"
            " const std::vector<kirn::ast::StmtP>& prog) {\n";
-    for (auto& [fn, nf] : lowered) {
+    // Stable order: `lowered` is pointer-keyed (unspecified iteration order), so
+    // emit registration by function name to keep the generated TU reproducible.
+    std::vector<const NativeFunc*> ordered;
+    ordered.reserve(lowered.size());
+    for (auto& [fn, nf] : lowered) ordered.push_back(&nf);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const NativeFunc* a, const NativeFunc* b) {
+                  return a->name < b->name;
+              });
+    for (const NativeFunc* nfp : ordered) {
+        const NativeFunc& nf = *nfp;
         out << "    for (const auto& d : prog) if (d->kind == "
                "kirn::ast::StKind::FuncDef && d->name == \""
             << nf.name
@@ -837,10 +925,19 @@ void out_registerAll(
         for (size_t i = 0; i < nf.params.size(); ++i) {
             std::string v = "v_";
             for (char c : nf.params[i]) v += isalnum((unsigned char)c) ? c : '_';
-            out << "        " << nf.pTypes[i] << " " << v
-                            << " = interp.nativeEnvVar(e, \""
-                            << nf.params[i] << "\")." << envField(nf.pTypes[i])
-                            << ";\n";
+            const std::string& pt = nf.pTypes[i];
+            if (pt.rfind("std::optional<", 0) == 0) {
+                // Optional scalar: map `none` -> nullopt, else the inner value.
+                std::string inner = pt.substr(14, pt.size() - 14 - 1);
+                out << "        " << pt << " " << v << "; { auto __p = "
+                       "interp.nativeEnvVar(e, \""
+                    << nf.params[i] << "\"); if (!__p.isNone()) " << v
+                    << " = __p." << envField(inner) << "; }\n";
+            } else {
+                out << "        " << pt << " " << v
+                    << " = interp.nativeEnvVar(e, \"" << nf.params[i]
+                    << "\")." << envField(pt) << ";\n";
+            }
         }
         std::string call = "kirn_native::" + nf.cName + "(";
         for (size_t i = 0; i < nf.params.size(); ++i) {

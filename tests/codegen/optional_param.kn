@@ -1,0 +1,22 @@
+# M11 codegen: optional-scalar parameters lower to std::optional<scalar>.
+# A native->native call passes a scalar (implicit optional) and `none`
+# (`std::nullopt`) straight through; interpreted callers go via the thunk.
+fn add_or(x: Int?, y: Int?) -> Int {
+    a: Int = x ?? 0;
+    b: Int = y ?? 0;
+    return a + b;
+}
+
+fn bump(x: Int?) -> Int {
+    return (x ?? 0) + 1;
+}
+
+fn combine(n: Int) -> Int {
+    return add_or(n, none) + add_or(none, n);
+}
+
+fn main() -> none {
+    print(add_or(3, 5), add_or(none, 5), add_or(3, none), add_or(none, none));
+    print(bump(9), bump(none));
+    print(combine(4), combine(0));
+}

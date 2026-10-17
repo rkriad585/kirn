@@ -228,6 +228,27 @@ ternary/if-expression chains still fail the MIR `rt` verifier (`block: phi incom
 match predecessors`) — a pre-existing conditional-lowering gap shared with nested `if` expressions,
 not introduced here.
 
+**Implementation progress (2026-10-17).** A post-M13 pass closed several recorded deviations and
+added two feature groups. (1) The lowercase numeric aliases were removed: the constructors
+`rational(...)`/`complex(...)`/`decimal(...)` and lowercase `bigint` are gone, leaving the
+CapCase-only type/constructor surface (`Rational`/`Complex`/`Decimal`; `big_int`/`BigInt` resolve —
+`bigint` still resolves only as a type spelling, not a constructor), so M6's alias deviation is
+retired. (2) `sizeof(T)`/`alignof(T)` are now builtins (returning `Int`), closing M5's "no
+`sizeof`/`alignof`" deviation. (3) The `const`/`@comptime` evaluator now also folds sets, dicts,
+structs (including struct-constructor calls), `len` over set/dict, and pure receiver methods
+(`dict.keys()`, `set.contains()`, `str.upper()`, …), so a `const`/`const fn` body may cover those; the
+tree-walker and bytecode VM agree, closing M5's "scalars/list/tuple only" deviation (external I/O
+stays out of const contexts, and folding still rewrites the AST literal rather than emitting a data
+section). Also landed: a coded driver/tool warning band `W9001–W9008` (rendered `warning[W9001]: …`),
+and Rust-style binding modifiers `mut`/`immut` (mutability) and `signed`/`unsigned` (`Int`/i64 vs
+`UInt`/u64) with immutable-by-default bindings, `var` retained as an alias for `mut`, and a
+compile-time non-negative contract for unsigned targets. A follow-up M11 pass lowered optional-scalar
+parameters (and the registration thunk) to `std::optional<scalar>`, forced interpreter fallback for any
+function that reads or writes a module-level binding (fixing a build-breaking undefined-`v_NAME` bug),
+and made native function registration deterministic (ordered by name) so codegen goldens no longer
+depend on pointer-hashed `unordered_map` iteration order. Suites: gates 273, golden 262, crosscheck
+603, stdlib 9, all 0 fail.
+
 ---
 
 ## 2. Ownership map — the 19 features × the six owner plans
@@ -689,8 +710,11 @@ fallback). Tests: `tests/syntax/const_fn_ok.kn`, `tests/syntax/const_fn_err_impu
 `tests/syntax/comptime_err_impure.kn`, `tests/vm_parity/comptime.kn`, `examples/49_comptime.kn` (+3
 recorded goldens). The plan's `tests/comptime/` path was not used because the gate discovers
 `tests/syntax/*_ok*.kn` / `*_err*.kn`; the tests live there so they are actually run. Deviations
-listed in the progress note above: scalar/list/tuple const-eval only (no dict/set/struct/method/IO),
-no `sizeof`/`alignof`, and folding rewrites the AST literal rather than emitting a data section.
+listed in the progress note above. **Updated 2026-10-17:** the const evaluator now also folds sets,
+dicts, structs (incl. struct ctors), `len` over set/dict, and pure receiver methods (`dict.keys()`,
+`set.contains()`, `str.upper()`, …), and `sizeof`/`alignof` are now builtins — so the remaining
+deviations are only "no external I/O in const contexts" and "folding rewrites the AST literal rather
+than emitting a separate data section".
 
 ---
 
@@ -763,6 +787,12 @@ significant digits. (3) There is no `stdlib/lib` directory in the tree, so the p
 `lib.math` module wrappers were not added; the builtins are globally registered as before. (The plan's
 `tests/numbers/` path was not used because the gate discovers `tests/syntax/*_ok*.kn` / `*_err*.kn`
 and `tests/vm_parity/*.kn`; the tests live there so they are actually run.)
+
+**Update (2026-10-17).** The lowercase constructor aliases were removed: `rational(...)`,
+`complex(...)`, `decimal(...)` and lowercase `bigint` no longer resolve (the checker no longer
+registers them and the runtime globals were dropped), so the numeric surface is CapCase-only
+(`Rational`/`Complex`/`Decimal`, `big_int`/`BigInt`) per §3's "Implemented spelling" note. The M6
+accessor/precision/stdlib deviations above are otherwise unchanged.
 
 ---
 
@@ -1063,16 +1093,29 @@ asserts lowerability (`KIRN_HAS_NATIVE`) plus native-binary == interpreter. Test
 `tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` (3 goldens) and
 `examples/61_native_new_surface.kn` (+3 front-end goldens). Suites: gates 261, golden 251, crosscheck
 579, stdlib 9, all 0 fail.
+**Update (2026-10-17).** Optional-scalar **parameters** now lower (`T?` param → `std::optional<scalar>`
+in the C++ signature and the registration thunk), and the analyzer tracks each function's bound names
+so a free identifier (module-level `const`/`var`) forces an interpreter fallback instead of emitting a
+reference to an undefined `v_NAME` (a fixed build-breaking bug). Codegen tests added:
+`tests/codegen/optional_param.kn` (`KIRN_HAS_NATIVE 1`) and `tests/codegen/global_ref_fallback.kn`
+(`KIRN_HAS_NATIVE 0`); gate 11's spec list covers both.
 **Deviations/reality vs the plan's sketch:** (1) the backend stays **scalar-only**: optional
-_parameters_, aggregate/container locals, and comprehension bodies do not lower — the plan's
+_parameters_ now lower (`T?` → `std::optional<scalar>`; a `none` argument maps to `std::nullopt` in
+the registration thunk), but aggregate/container locals and comprehension bodies do not — the plan's
 `[i * i for i in 0..N]` example falls back to the interpreter. (2) `@` matmul (P2) and safe-chain
 `?.`/`?[]`/`?!` are non-scalar / optional-aggregate and remain interpreter-only. (3) `const fn`
-folding (R9) is not wired into the native backend; `const` bindings lower as ordinary locals. (4)
+folding (R9) is not wired into the native backend; `const` bindings lower as ordinary locals — and a
+function that reads a module-level `const`/`var` is deliberately **not** lowered (the scalar backend
+has no local to reference for a free identifier), so it falls back rather than emitting an undefined
+`v_NAME`. This closes a latent bug where such a function was judged lowerable and the generated C++
+failed to compile. (4)
 `kirn fmt`/`doc` and edition-gated soft keywords (SYNTAX SP-17) were not touched — no `fmt`/`doc`
 surface exists to extend in this tree. (5) The plan's example path `examples/59_native_new_surface.kn`
 is already taken by M9 (`sync`), so the example ships as `examples/61_native_new_surface.kn`. (6) The
 codegen golden harness (`scripts/golden_linux.sh` `check_codegen` + gate 11) is newly added, since no
-codegen-snapshot infrastructure existed before.
+codegen-snapshot infrastructure existed before. Codegen tests now include `optional_param.kn`
+(optional-scalar params lower) and `global_ref_fallback.kn` (a module-const read forces the
+interpreter fallback).
 
 ---
 
@@ -1109,6 +1152,14 @@ flagged. Negative test `tests/negative/n19_nosugar_incdec.kn` (`# expect: W-nosu
 nudge — `c ? a : b` is indistinguishable from postfix `c?` propagation plus a following expression
 until the absent `;`, so the grammar comment + §4.1 note are the contract; no `W-nosugar` is emitted
 for `?:`.
+
+**Superseded (2026-10-16, by M13).** The permanent rejection recorded in this phase was reversed:
+M13 added `++`/`--` to `kOps2` and a C-style ternary `parseTernary()`, so rows 4 and 5 now _implement_
+the sugar rather than reject it (see the M13 progress note above). What remains of M12 is historical
+documentation — `docs/FEATURE_GAP_ANALYSIS.md` §4.1 and `grammar/kirn.ebnf` §9 keep the original
+rationale for the record, and the `W-nosugar` nudge is now emitted on **every** `++`/`--` use (not
+only the adjacent-terminal shapes described above) with a whole-expression `replace with x += 1`
+fix-it. The `?:`-specific nudge is still not emitted (the `c ? a : b` vs `c?` ambiguity is unchanged).
 
 ---
 

@@ -1,0 +1,3 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/global_ref_fallback.kn
+#define KIRN_HAS_NATIVE 0
+[exit 0]

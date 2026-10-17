@@ -681,7 +681,7 @@ echo "=== gate 11: native scalar lowering (differential vs interpreter) ==="
 # still lowers the new surface rather than silently falling back, and (b) the
 # compiled binary agrees with the interpreter byte-for-byte.
 G11="$TMP/g11"; mkdir -p "$G11"
-for spec in "scalar_core:1" "new_surface:1" "reject_non_scalar:0"; do
+for spec in "scalar_core:1" "new_surface:1" "reject_non_scalar:0" "optional_param:1" "global_ref_fallback:0"; do
     nm=${spec%%:*}; want=${spec##*:}
     src="$ROOT/tests/codegen/$nm.kn"
     KIRN_DUMP_NATIVE="$G11/$nm.cpp" "$KIRN" build --native "$src" -o "$G11/$nm.out" \
@@ -706,6 +706,24 @@ if timeout 300 "$KIRN" build --native "$ROOT/examples/61_native_new_surface.kn" 
     fi
 else
     report FAIL "native example build" "$(tail -1 "$G11/build.log")"
+fi
+
+# Optional-scalar parameters lower natively; the compiled binary must agree with
+# the interpreter on both `some` and `none` arguments (including `none` passed
+# from interpreted code through the registration thunk).
+opnat="$G11/optional_param.bin"
+if timeout 300 "$KIRN" build --native "$ROOT/tests/codegen/optional_param.kn" -o "$opnat" \
+        >"$G11/op.log" 2>&1; then
+    op_native=$(timeout "$WATCH" "$opnat" 2>&1); onr=$?
+    op_interp=$(timeout "$WATCH" "$CR" "$ROOT/tests/codegen/optional_param.kn" 2>&1); oir=$?
+    if [ "$onr" = "$oir" ] && [ "$op_native" = "$op_interp" ]; then
+        report PASS "native optional-param == interpreter" "$(echo "$op_native" | tr '\n' ' ')"
+    else
+        report FAIL "native optional-param == interpreter" \
+            "native rc=$onr: $op_native | interp rc=$oir: $op_interp"
+    fi
+else
+    report FAIL "native optional-param build" "$(tail -1 "$G11/op.log")"
 fi
 
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"

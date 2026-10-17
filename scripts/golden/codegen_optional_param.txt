@@ -1,0 +1,44 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/optional_param.kn
+#define KIRN_HAS_NATIVE 1
+#include <cmath>
+#include <optional>
+namespace kirn_native {
+static inline void co_panic(const char* m){ kirn::interp::panicHere(m); }
+static inline int64_t co_floordiv(int64_t a,int64_t b){ if(b==0)co_panic("division by zero"); int64_t q=a/b; if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }
+static inline int64_t co_mod(int64_t a,int64_t b){ if(b==0)co_panic("modulo by zero"); int64_t m=a%b; if(m!=0&&((m<0)!=(b<0)))m+=b; return m; }
+static inline double co_fdiv(double a,double b){ if(b==0.0)co_panic("division by zero"); return a/b; }
+static inline double co_fmodm(double a,double b){ return std::fmod(std::fmod(a,b)+b,b); }
+static inline int64_t co_ipow(int64_t b,int64_t e){ int64_t o=1; while(e>0){ if(e&1)o*=b; e>>=1; if(e)b*=b;} return o; }
+static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return (int64_t)((uint64_t)a<<b); }
+static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return a>>b; }
+static int64_t co_native_1_add_or(std::optional<int64_t> v_x, std::optional<int64_t> v_y) {
+    int64_t v_a = [&]{ auto __co0 = (v_x); return (__co0) ? (*__co0) : (0); }();
+    int64_t v_b = [&]{ auto __co1 = (v_y); return (__co1) ? (*__co1) : (0); }();
+    return (v_a + v_b);
+    return 0;
+}
+static int64_t co_native_2_bump(std::optional<int64_t> v_x) {
+    return ([&]{ auto __co0 = (v_x); return (__co0) ? (*__co0) : (0); }() + 1);
+    return 0;
+}
+static int64_t co_native_3_combine(int64_t v_n) {
+    return (co_native_1_add_or(v_n, std::nullopt) + co_native_1_add_or(std::nullopt, v_n));
+    return 0;
+}
+}
+inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::vector<kirn::ast::StmtP>& prog) {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "add_or") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::optional<int64_t> v_x; { auto __p = interp.nativeEnvVar(e, "x"); if (!__p.isNone()) v_x = __p.i; }
+        std::optional<int64_t> v_y; { auto __p = interp.nativeEnvVar(e, "y"); if (!__p.isNone()) v_y = __p.i; }
+        return kirn::interp::Value::integer(kirn_native::co_native_1_add_or(v_x, v_y));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "bump") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::optional<int64_t> v_x; { auto __p = interp.nativeEnvVar(e, "x"); if (!__p.isNone()) v_x = __p.i; }
+        return kirn::interp::Value::integer(kirn_native::co_native_2_bump(v_x));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "combine") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::integer(kirn_native::co_native_3_combine(v_n));
+    }); }
+}
+[exit 0]

@@ -42,14 +42,14 @@ inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::v
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
         return kirn::interp::Value::integer(kirn_native::co_native_3_classify(v_n));
     }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "is_even") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        int64_t v_n = interp.nativeEnvVar(e, "n").i;
+        return kirn::interp::Value::boolean(kirn_native::co_native_1_is_even(v_n));
+    }); }
     for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "powf") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
         double v_b = interp.nativeEnvVar(e, "b").d;
         int64_t v_n = interp.nativeEnvVar(e, "n").i;
         return kirn::interp::Value::floating(kirn_native::co_native_2_powf(v_b, v_n));
-    }); }
-    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "is_even") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
-        int64_t v_n = interp.nativeEnvVar(e, "n").i;
-        return kirn::interp::Value::boolean(kirn_native::co_native_1_is_even(v_n));
     }); }
 }
 [exit 0]

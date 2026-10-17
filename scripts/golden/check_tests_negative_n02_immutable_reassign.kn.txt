@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirncheck <ROOT>/tests/negative/n02_immutable_reassign.kn
-<ROOT>/tests/negative/n02_immutable_reassign.kn:1:1: error: expected expression, found ';'
- 1 | ﻿; # expect: cannot reassign immutable binding 'x'
+<ROOT>/tests/negative/n02_immutable_reassign.kn:3:1: error: cannot reassign immutable binding 'x' (declare it mutable with 'mut' or 'var')
+ 3 | x += 1;
    | ^
 <ROOT>/tests/negative/n02_immutable_reassign.kn: 1 error(s)
 [exit 1]

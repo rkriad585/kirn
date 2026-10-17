@@ -1,0 +1,4 @@
+# expect: conflicting binding modifiers
+fn main() -> none {
+    mut immut x = 1;
+}

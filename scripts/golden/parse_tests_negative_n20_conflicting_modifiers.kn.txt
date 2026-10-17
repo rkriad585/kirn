@@ -1,0 +1,10 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n20_conflicting_modifiers.kn
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "x"
+      Value Int "1"
+<ROOT>/tests/negative/n20_conflicting_modifiers.kn:3:5: error: conflicting binding modifiers
+<ROOT>/tests/negative/n20_conflicting_modifiers.kn: 1 error(s) (0 lex, 1 parse)
+[exit 1]

@@ -2,8 +2,9 @@
 
 **Status:** Living document · last updated with `kirn build` single-file mode, brace-syntax
 migration (v1), pattern aliases, or-patterns, labeled loops, the CapCase type surface cut,
-`sizeof`/`alignof` builtins, broader `@comptime`/`const` evaluation, and coded `W90xx`
-driver/tool warnings.
+`sizeof`/`alignof` builtins, broader `@comptime`/`const` evaluation, coded `W90xx`
+driver/tool warnings, and Rust-style binding modifiers (`mut`/`immut`/`signed`/
+`unsigned`).
 
 This document compares Kirn against the reference language implementations in
 `C:\Users\rkriad585\Projects\go-rust-source-code` (`go-master`, `rust-main`) and records
@@ -50,6 +51,10 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 - `defer` (Go), `raise`/`?` (Rust error propagation), `panic`/recover analogue
   via `raise`/`catch`.
 - `var` mutable vs immutable bindings; `const`; Rust-style `:` type annotations.
+- **NEW (this pass):** binding modifiers `mut` (mutable), `immut` (read-only),
+  `signed` (→`Int`/i64) and `unsigned` (→`UInt`/u64); `var` remains an alias for
+  `mut`. Bindings default to immutable (reassignment is a compile error), and a
+  negative literal assigned to an `unsigned` binding is rejected statically.
 - f-strings with printf-style format specs (`{x:>10}`, `{x:.2f}`).
 - Ranges `..` / `..=`; slices `a[1:3]`; tuple deconstruction; comprehensions.
 - **NEW (this pass):** pattern aliases `name @ sub-pattern`, or-patterns `p1 | p2`,
@@ -65,43 +70,43 @@ also compiled ahead-of-time to a self-contained native binary (GNU toolchain,
 
 ### 3.1 Expression & statement level
 
-| Feature                            | Go             | Rust                    | Kirn                                 | Priority    |
-| ---------------------------------- | -------------- | ----------------------- | ------------------------------------ | ----------- |
-| `?:`-style conditional expressions | ✗ (if is stmt) | `if/else` expr          | ✅ Rust-form `if c { a } else { b }` | done        |
-| Ternary `a ? b : c`                | ✗              | macro                   | ✅ (sugar §4.1, `W-nosugar` none)    | done        |
-| `++`/`--` inc/dec                  | ✅             | ✗ (via `+=`)            | ✅ (sugar §4.1, live `W-nosugar`)    | done        |
-| Assignment as expression           | ✗              | ✗ (`=` returns `()`)    | ✗ (stmt only)                        | done/intent |
-| Multiple/swap assignment `a,b=b,a` | ✅             | ✅ tuple                | ✅                                   | done        |
-| `defer`                            | ✅             | ✗                       | ✅                                   | done        |
-| `panic`/`recover`                  | ✅             | `panic!`/`catch_unwind` | ✅ `raise`/`catch_panic`             | done        |
-| `go`/goroutines                    | ✅             | ✗ (threads)             | ✅ `spawn`                           | done        |
-| channels                           | ✅             | `mpsc`/`sync`           | ✅ `chan`                            | done        |
-| `select`                           | ✅             | ✗                       | ✅ `select`                          | done        |
-| `?` propagation                    | ✗              | ✅                      | ✅                                   | done        |
-| `for range`                        | ✅             | `for x in`              | ✅ `for pat in expr`                 | done        |
-| C-style `for(;;)`                  | ✅             | `loop`/`while`          | ✗                                    | low         |
-| labeled `break`/`continue`         | ✅             | `'label: loop`          | **NEW** ✅                           | done        |
-| pattern bindings `@`               | ✗              | ✅                      | **NEW** ✅                           | done        |
-| or-patterns `a                     | b`             | ✗                       | ✅                                   | **NEW** ✅  | done |
-| slice patterns `[a,b,..]`          | ✗              | ✅                      | ✗                                    | medium      |
-| `..` rest in patterns              | ✗              | ✅                      | ✗                                    | medium      |
-| range/`..=` patterns               | ✗              | ✅                      | ✅                                   | done        |
-| `@`-combined ranges `n @ 1..=5`    | ✗              | ✅                      | **NEW** ✅                           | done        |
-| closures / lambdas                 | ✅             | ✅                      | ✅ `(x) => e`                        | done        |
-| multi-statement closures           | ✅             | ✅                      | ✗ (single-expr only)                 | medium      |
-| generics                           | ✅             | ✅                      | ✅                                   | done        |
-| const generics                     | ✗              | ✅                      | ✗                                    | low         |
-| associated types / GATs            | ✗              | ✅                      | ✗                                    | low         |
-| trait bounds resolution            | ✅ iface       | ✅                      | partial                              | medium      |
-| `impl Trait for Type`              | ✗              | ✅                      | ✅                                   | done        |
-| auto-derive (`#[derive]`)          | ✗              | ✅                      | ✗                                    | low         |
-| macros `macro_rules!`              | (via generics) | ✅                      | ✗                                    | low         |
-| build tags / cfg                   | ✅             | `#[cfg]`                | `unsafe` only                        | low         |
-| error type `result[T,E]`           | ✗              | ✅                      | ✅                                   | done        |
-| optional `T?`                      | ✗              | ✅ `Option<T>`          | ✅                                   | done        |
-| nil-able `T?` vs `none`            | ✗              | ✗                       | ✅ `is none`                         | done        |
-| `sizeof` / `alignof`              | ✅ `unsafe.Sizeof` | `std::mem::size_of` | ✅ builtins (`size_of`/`align_of`)   | done        |
-| compile-time eval (`@comptime`)   | const-expr     | `const fn`              | ✅ (dict/set/struct/methods)         | done        |
+| Feature                            | Go                 | Rust                    | Kirn                                 | Priority    |
+| ---------------------------------- | ------------------ | ----------------------- | ------------------------------------ | ----------- |
+| `?:`-style conditional expressions | ✗ (if is stmt)     | `if/else` expr          | ✅ Rust-form `if c { a } else { b }` | done        |
+| Ternary `a ? b : c`                | ✗                  | macro                   | ✅ (sugar §4.1, `W-nosugar` none)    | done        |
+| `++`/`--` inc/dec                  | ✅                 | ✗ (via `+=`)            | ✅ (sugar §4.1, live `W-nosugar`)    | done        |
+| Assignment as expression           | ✗                  | ✗ (`=` returns `()`)    | ✗ (stmt only)                        | done/intent |
+| Multiple/swap assignment `a,b=b,a` | ✅                 | ✅ tuple                | ✅                                   | done        |
+| `defer`                            | ✅                 | ✗                       | ✅                                   | done        |
+| `panic`/`recover`                  | ✅                 | `panic!`/`catch_unwind` | ✅ `raise`/`catch_panic`             | done        |
+| `go`/goroutines                    | ✅                 | ✗ (threads)             | ✅ `spawn`                           | done        |
+| channels                           | ✅                 | `mpsc`/`sync`           | ✅ `chan`                            | done        |
+| `select`                           | ✅                 | ✗                       | ✅ `select`                          | done        |
+| `?` propagation                    | ✗                  | ✅                      | ✅                                   | done        |
+| `for range`                        | ✅                 | `for x in`              | ✅ `for pat in expr`                 | done        |
+| C-style `for(;;)`                  | ✅                 | `loop`/`while`          | ✗                                    | low         |
+| labeled `break`/`continue`         | ✅                 | `'label: loop`          | **NEW** ✅                           | done        |
+| pattern bindings `@`               | ✗                  | ✅                      | **NEW** ✅                           | done        |
+| or-patterns `a                     | b`                 | ✗                       | ✅                                   | **NEW** ✅  | done |
+| slice patterns `[a,b,..]`          | ✗                  | ✅                      | ✗                                    | medium      |
+| `..` rest in patterns              | ✗                  | ✅                      | ✗                                    | medium      |
+| range/`..=` patterns               | ✗                  | ✅                      | ✅                                   | done        |
+| `@`-combined ranges `n @ 1..=5`    | ✗                  | ✅                      | **NEW** ✅                           | done        |
+| closures / lambdas                 | ✅                 | ✅                      | ✅ `(x) => e`                        | done        |
+| multi-statement closures           | ✅                 | ✅                      | ✗ (single-expr only)                 | medium      |
+| generics                           | ✅                 | ✅                      | ✅                                   | done        |
+| const generics                     | ✗                  | ✅                      | ✗                                    | low         |
+| associated types / GATs            | ✗                  | ✅                      | ✗                                    | low         |
+| trait bounds resolution            | ✅ iface           | ✅                      | partial                              | medium      |
+| `impl Trait for Type`              | ✗                  | ✅                      | ✅                                   | done        |
+| auto-derive (`#[derive]`)          | ✗                  | ✅                      | ✗                                    | low         |
+| macros `macro_rules!`              | (via generics)     | ✅                      | ✗                                    | low         |
+| build tags / cfg                   | ✅                 | `#[cfg]`                | `unsafe` only                        | low         |
+| error type `result[T,E]`           | ✗                  | ✅                      | ✅                                   | done        |
+| optional `T?`                      | ✗                  | ✅ `Option<T>`          | ✅                                   | done        |
+| nil-able `T?` vs `none`            | ✗                  | ✗                       | ✅ `is none`                         | done        |
+| `sizeof` / `alignof`               | ✅ `unsafe.Sizeof` | `std::mem::size_of`     | ✅ builtins (`size_of`/`align_of`)   | done        |
+| compile-time eval (`@comptime`)    | const-expr         | `const fn`              | ✅ (dict/set/struct/methods)         | done        |
 
 ### 3.2 Pattern-power roadmap (Rust `PatKind` parity)
 

@@ -1,0 +1,4 @@
+# expect: negative value to unsigned
+fn main() -> none {
+    unsigned x = -5;
+}

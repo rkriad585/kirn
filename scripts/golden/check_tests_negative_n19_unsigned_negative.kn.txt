@@ -1,0 +1,9 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n19_unsigned_negative.kn
+<ROOT>/tests/negative/n19_unsigned_negative.kn:3:18: error: cannot assign a negative value to unsigned type 'UInt64'
+ 3 |     unsigned x = -5;
+   |                  ^
+<ROOT>/tests/negative/n19_unsigned_negative.kn:3:5: warning[W0102]: unused variable 'x'
+ 3 |     unsigned x = -5;
+   |     ^
+<ROOT>/tests/negative/n19_unsigned_negative.kn: 1 error(s), 1 warning(s)
+[exit 1]

@@ -192,7 +192,11 @@ the parser via golden files (§15).
 
 ```python
 x = 42              # immutable int (inferred), reassignment = compile error
-var y = 10          # mutable
+var y = 10          # mutable (`var` is an alias for `mut`)
+mut y2 = 10         # mutable
+immut z = 5         # explicitly read-only
+signed s = -5       # declares Int (i64); accepts negative values
+unsigned u = 5      # declares UInt (u64); negative literals are rejected
 y += 1              # ok
 z: f64 = 3.14       # optional explicit type annotation
 const MAX = 1000    # compile-time constant
@@ -200,10 +204,14 @@ const MAX = 1000    # compile-time constant
 
 Rules:
 
-- All bindings are **immutable by default**; mutation requires `var`.
+- All bindings are **immutable by default**; mutation requires `mut` (or its
+  alias `var`); `immut` states the default explicitly. `mut`/`immut` conflict.
   _(This is the single biggest departure from pure-Python feel — justified because
   it enables thread-safety guarantees and aggressive optimization. Formatter/LSP
-  will suggest `var` automatically when you mutate.)_
+  will suggest `mut` automatically when you mutate.)_
+- Binding modifiers may appear in any order and combine with each other, e.g.
+  `mut unsigned n = 0`. The sign modifiers `signed`/`unsigned` select a 64-bit
+  type (`Int`/`UInt`) and may **not** be combined with an explicit `: type`.
 - Types are **statically inferred** (bidirectional Hindley–Milner-flavored local inference).
 - Shadowing in inner scopes allowed; unused variables are warnings, `_` discards.
 

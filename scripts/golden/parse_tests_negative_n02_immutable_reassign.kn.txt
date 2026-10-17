@@ -5,6 +5,5 @@ Assign
 AugAssign op="+="
   Target Ident "x"
   Value Int "1"
-<ROOT>/tests/negative/n02_immutable_reassign.kn:1:1: error: expected expression, found ';'
-<ROOT>/tests/negative/n02_immutable_reassign.kn: 1 error(s) (0 lex, 1 parse)
-[exit 1]
+<ROOT>/tests/negative/n02_immutable_reassign.kn: OK (2 top-level statements)
+[exit 0]

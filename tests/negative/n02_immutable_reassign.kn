@@ -1,3 +1,3 @@
-﻿; # expect: cannot reassign immutable binding 'x'
+﻿# expect: cannot reassign immutable binding 'x'
 x = 42;
 x += 1;

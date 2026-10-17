@@ -423,9 +423,11 @@ std::vector<ast::Param> Parser::parseParamList() {
             if (atPunct(":")) { advance(); p.type = parseType(); }
             out.push_back(std::move(p));
         } else {
-            if (atIdent("var") && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+            if ((atIdent("var") || atIdent("mut") || atIdent("immut")) &&
+                cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+                bool wasMut = atIdent("var") || atIdent("mut");
                 advance();
-                p.mutable_ = true;
+                p.mutable_ = wasMut;
             }
             p.name = expect(Tok::Ident, "parameter name").text;
             if (atPunct(":")) { advance(); p.type = parseType(); }
@@ -489,9 +491,11 @@ ast::StmtP Parser::parseStructDef() {
         ast::FieldDecl f;
         f.span = spanHere();
         if (atIdent("weak")) { advance(); f.weak = true; }
-        if (atIdent("var") && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+        if ((atIdent("var") || atIdent("mut") || atIdent("immut")) &&
+            cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+            bool wasMut = atIdent("var") || atIdent("mut");
             advance();
-            f.mutable_ = true;
+            f.mutable_ = wasMut;
         }
         if (atIdent("pub")) { advance(); f.pub = true; }
         f.name = expect(Tok::Ident, "field name").text;
@@ -566,9 +570,11 @@ ast::StmtP Parser::parseClassDef(bool pub) {
         ast::FieldDecl f;
         f.span = spanHere();
         if (atIdent("weak")) { advance(); f.weak = true; }
-        if (atIdent("var") && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+        if ((atIdent("var") || atIdent("mut") || atIdent("immut")) &&
+            cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+            bool wasMut = atIdent("var") || atIdent("mut");
             advance();
-            f.mutable_ = true;
+            f.mutable_ = wasMut;
         }
         if (atIdent("pub")) { advance(); f.pub = true; }
         f.name = expect(Tok::Ident, "field name").text;
@@ -661,9 +667,11 @@ ast::StmtP Parser::parseRecordDef(bool pub) {
     while (!atPunct(")")) {
         ast::FieldDecl f;
         f.span = spanHere();
-        if (atIdent("var") && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+        if ((atIdent("var") || atIdent("mut") || atIdent("immut")) &&
+            cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
+            bool wasMut = atIdent("var") || atIdent("mut");
             advance();
-            f.mutable_ = true;
+            f.mutable_ = wasMut;
         }
         f.name = expect(Tok::Ident, "field name").text;
         expectPunct(":");
@@ -906,7 +914,7 @@ ast::StmtP Parser::parseIfChain() {
     // existing pattern machinery with no new statement kind. (`Some(n)` in the
     // plan example is Kotlin spelling; Kirn patterns are `ok(v)`, `none`, `_`,
     // enum/struct patterns, etc.)
-    if (atIdent("var")) {
+    if (atIdent("var") || atIdent("mut") || atIdent("immut")) {
         advance();                                      // var
         ast::PatP pat = parsePattern();
         if (!atOp("=")) {
@@ -1291,14 +1299,66 @@ ast::StmtP Parser::parseSimpleStmt() {
                                "expected '=' in 'using' declaration");
             return s;
         }
-        if (w == "var" && cur(1).kind == Tok::Ident && !isKeyword(cur(1).text)) {
-            advance();
-            s->kind = ast::StKind::VarDecl;
-            s->varKw = true;
-            s->target = parseExpr();
-            if (atPunct(":")) { advance(); s->declType = parseType(); }
-            if (atOp("=")) { advance(); s->value = parseExpr(); }
-            return s;
+        if (w == "var" || w == "mut" || w == "immut" || w == "signed" ||
+            w == "unsigned") {
+            // Rust-style binding modifiers, combinable in any order:
+            //   mut / var     -> mutable binding (var is the legacy alias)
+            //   immut         -> explicitly read-only (the default)
+            //   signed        -> Int  (i64, negative and positive)
+            //   unsigned      -> UInt (u64, non-negative)
+            bool sawMut = false, sawImmut = false, conflicting = false;
+            std::string signKw;                 // "Int" | "UInt" | ""
+            while (cur().kind == Tok::Ident &&
+                   (cur().text == "var" || cur().text == "mut" ||
+                    cur().text == "immut" || cur().text == "signed" ||
+                    cur().text == "unsigned")) {
+                const std::string m = advance().text;
+                if (m == "mut" || m == "var") {
+                    if (sawImmut) conflicting = true;
+                    sawMut = true;
+                } else if (m == "immut") {
+                    if (sawMut) conflicting = true;
+                    sawImmut = true;
+                } else if (m == "signed") {
+                    if (!signKw.empty() && signKw != "Int") conflicting = true;
+                    signKw = "Int";
+                } else {                        // unsigned
+                    if (!signKw.empty() && signKw != "UInt") conflicting = true;
+                    signKw = "UInt";
+                }
+            }
+            if (conflicting)
+                diags_.report(s->span.line, s->span.col,
+                              "conflicting binding modifiers");
+            if (cur().kind == Tok::Ident && !isKeyword(cur().text)) {
+                s->kind = ast::StKind::VarDecl;
+                s->varKw = sawMut;
+                s->immutKw = sawImmut && !sawMut;
+                auto name = std::make_unique<ast::Expr>();
+                name->kind = ast::ExKind::Ident;
+                name->span = spanHere();
+                name->text = advance().text;
+                s->target = std::move(name);
+                if (atPunct(":")) {
+                    advance();
+                    s->declType = parseType();
+                    if (!signKw.empty())
+                        diags_.report(s->span.line, s->span.col,
+                                      "'" +
+                                          std::string(signKw == "Int"
+                                                          ? "signed"
+                                                          : "unsigned") +
+                                          "' modifier cannot be combined with "
+                                          "an explicit type annotation");
+                } else if (!signKw.empty()) {
+                    s->declType = ast::Type::makeName(signKw, s->span);
+                }
+                if (atOp("=")) { advance(); s->value = parseExpr(); }
+                return s;
+            }
+            diags_.report(s->span.line, s->span.col,
+                          "expected an identifier after binding modifier");
+            throw Abort("binding-modifier");
         }
     }
 
@@ -1571,7 +1631,8 @@ ast::PatP Parser::parseCtorOrBind() {
 
     // binding [var] name [is type]  |  sub-pat @ name (Rust-style alias)
     auto p = mkPat(ast::PatKind::Bind, sp);
-    if (atIdent("var") && cur(1).kind == Tok::Ident) advance();
+    if ((atIdent("var") || atIdent("mut") || atIdent("immut")) &&
+        cur(1).kind == Tok::Ident) advance();
     p->bindName = expect(Tok::Ident, "binding name").text;
     if (atIdent("is")) { advance(); p->bindType = parseType(); }
     if (atOp("@")) {                                   // name @ sub-pattern

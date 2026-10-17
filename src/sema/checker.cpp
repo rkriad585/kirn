@@ -210,6 +210,30 @@ void collectPatCoverage(const ast::Pat& p, std::set<std::string>& covered,
     return !t || t->isError() || t->isUnknown() || t->is(TyK::Bool);
 }
 
+// True when an integer type spelling denotes an unsigned value: the `UInt`
+// family (UInt, UInt4..UInt256, USize) or the lowercase micro widths
+// (u4/u8/.../u256, usize). resolveType() canonicalises most of these to
+// "UInt64", but raw width names survive as their own spelling.
+bool isUnsignedIntName(const std::string& n) {
+    if (n == "UInt" || n.rfind("UInt", 0) == 0) return true;
+    if (n == "uint" || n == "usize" || n == "USize") return true;
+    if (n.size() >= 2 && n[0] == 'u' && std::isdigit((unsigned char)n[1]))
+        return true;
+    return false;
+}
+
+// A negative numeric literal: `-5` / `-5.0` (unary minus over a literal), or an
+// already-folded literal whose text carries a leading '-'.
+bool isNegativeNumberLiteral(const ast::Expr& e) {
+    if (e.kind == ExKind::Unary && e.op == "-" && e.rhs &&
+        (e.rhs->kind == ExKind::Int || e.rhs->kind == ExKind::Float))
+        return true;
+    if ((e.kind == ExKind::Int || e.kind == ExKind::Float) && !e.text.empty() &&
+        e.text[0] == '-')
+        return true;
+    return false;
+}
+
 } // namespace
 
 // ============================== infrastructure ==============================
@@ -2451,7 +2475,7 @@ void Checker::checkReassignable(const ast::Expr& tgt) {    if (tgt.kind != ExKin
     if (!ex->mut && ex->homeScope == scope_->id)
         error(tgt.span,
               "cannot reassign immutable binding '" + tgt.text +
-                  "' (declare it with var)");
+                  "' (declare it mutable with 'mut' or 'var')");
 }
 
 void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
@@ -2559,6 +2583,18 @@ void Checker::checkAssignTargets(const ast::Stmt& s) {
         return;
     }
     bool multi = nT > 1;                    // parallel assignment: mutable slots
+    // Non-negative contract for unsigned integer targets.
+    for (size_t i = 0; i < nT; ++i) {
+        const ast::Expr& tgt = *s.exprs[i];
+        if (tgt.kind != ExKind::Ident) continue;
+        Symbol* ex = scope_->find(tgt.text);
+        if (!ex || !ex->type) continue;
+        if (ex->type->is(TyK::Int) && isUnsignedIntName(ex->type->name) &&
+            isNegativeNumberLiteral(*s.exprs[nT + i]))
+            error(s.exprs[nT + i]->span,
+                  "cannot assign a negative value to unsigned type '" +
+                      toString(*ex->type) + "'");
+    }
     for (size_t i = 0; i < nT; ++i)
         assignTarget(*s.exprs[i], valTys[i], multi);
 }
@@ -2923,6 +2959,13 @@ void Checker::checkStmt(const ast::Stmt& s) {
                 error(s.span,
                       "'" + n + "' declared as " + toString(*ann) +
                           " but initialized with " + toString(*vt));
+            // Non-negative contract for unsigned integers: reject a negative
+            // literal initializer at compile time.
+            if (ann && ann->is(TyK::Int) && isUnsignedIntName(ann->name) &&
+                s.value && isNegativeNumberLiteral(*s.value))
+                error(s.value->span,
+                      "cannot assign a negative value to unsigned type '" +
+                          toString(*ann) + "'");
             declareLocal(s.kind == StKind::ConstDecl ? SymK::Const : SymK::Var,
                          n, ann ? ann : (vt ? vt : unkTy()),
                          /*mut*/ s.kind == StKind::VarDecl && s.varKw,

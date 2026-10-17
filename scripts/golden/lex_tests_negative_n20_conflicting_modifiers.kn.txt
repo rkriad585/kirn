@@ -1,0 +1,20 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n20_conflicting_modifiers.kn
+Ident	2:1	fn
+Ident	2:4	main
+Punct	2:8	(
+Punct	2:9	)
+Op	2:11	->
+Ident	2:14	none
+Punct	2:19	{
+Ident	3:5	mut
+Ident	3:9	immut
+Ident	3:15	x
+Op	3:17	=
+Int	3:19	1
+Punct	3:20	;
+Punct	4:1	}
+Eof	5:1	
+<ROOT>/tests/negative/n20_conflicting_modifiers.kn: OK (14 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

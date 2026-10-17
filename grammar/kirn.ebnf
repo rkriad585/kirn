@@ -71,7 +71,7 @@ KEYWORD         = "fn"    | "var"   | "if"    | "elif"
                 | "none"   | "pass"  | "class" | "interface" | "record"
                 | "implements" | "extends" | "dynamic" | "None"
                 | "del"    | "pr"    | "local" | "global"| "temp"
-                | "bucket" ;
+                | "bucket" | "mut"   | "immut" | "signed"| "unsigned" ;
 
 (* Contextual (NOT reserved; usable as identifiers):
    "yield" is a statement-start word: at statement position it opens a
@@ -259,7 +259,7 @@ type_param      = IDENTIFIER [ "is" type_bound ] [ "=" type ] ;
 type_bound      = type ;                       (* trait constraint *)
 
 param_list      = param , { "," , param } [ "," ] ;
-param           = [ "var" ] IDENTIFIER [ ":" type ] [ "=" expr ]   (* default *)
+param           = [ "var" | "mut" | "immut" ] IDENTIFIER [ ":" type ] [ "=" expr ]   (* default *)
                 | "*" IDENTIFIER [ ":" type ]                      (* variadic *)
                 | "self" [ ":" type ]                              (* methods *)
                 ;
@@ -330,7 +330,13 @@ type_args       = "[" type_list "]" ;
 (* ---- Constants & variables ---------------------------------------------------- *)
 
 const_decl      = visibility , "const" IDENTIFIER [ ":" type ] , "=" expr , ";" ;
-var_decl        = "var" target [ ":" type ] [ "=" expr ] ;
+(* `mut` opts into reassignment, `immut` pins read-only (the default when no
+   modifier is present), and `var` remains a working alias for `mut`. The sign
+   modifiers select a 64-bit type: `signed` -> Int (i64), `unsigned` -> UInt
+   (u64); they may not be combined with an explicit `: type`. Modifiers may
+   appear in any order, but `mut`/`immut` (and `signed`/`unsigned`) conflict.   *)
+var_decl        = binding_mods , target [ ":" type ] [ "=" expr ] ;
+binding_mods    = { "var" | "mut" | "immut" | "signed" | "unsigned" } ;
 
 
 (* ---- Statements ------------------------------------------------------------------ *)
@@ -436,7 +442,7 @@ if_stmt         = "if" if_head block { "elif" expr block }
                   [ "else" block ] ;
 (* M3: `if var PAT = EXPR { ... }` narrows the binding in the then-branch; it
    desugars to a `match EXPR { case PAT { ... } case _ { else } }`. *)
-if_head         = expr | "var" pattern "=" expr ;
+if_head         = expr | ( "var" | "mut" | "immut" ) pattern "=" expr ;
 (* `elif` is accepted as a legacy alias for `else if` (see §4 note 2).     *)
 
 while_stmt      = "while" expr block ;
@@ -634,7 +640,7 @@ number_lit      = INT_LITERAL | FLOAT_LITERAL ;
 pat_field       = IDENTIFIER ":" pattern        (* named:  Point(x: 0, y)   *)
                 | pattern ;                     (* positional: Circle(r)    *)
 
-binding_pat     = [ "var" ] , IDENTIFIER , [ "is" type ] ;
+binding_pat     = [ "var" | "mut" | "immut" ] , IDENTIFIER , [ "is" type ] ;
 (* Bare `case n:` = irrefutable binding. Exhaustiveness checking applies
    when every arm is refutable except a final wildcard/binding.             *)
 

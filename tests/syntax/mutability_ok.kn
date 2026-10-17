@@ -1,0 +1,29 @@
+# Rust-style binding modifiers: `mut`/`immut` set mutability and
+# `signed`/`unsigned` set the integer sign (Int/i64 vs UInt/u64). `var` remains
+# a working alias for `mut`; unmarked bindings are read-only.
+fn main() -> none {
+    mut a = 1;
+    a = a + 1;
+    assert_eq(a, 2);
+
+    var b = 10;
+    b += 5;
+    assert_eq(b, 15);
+
+    immut c = 3;
+    assert_eq(c, 3);
+
+    signed d = -4;
+    assert_eq(d, -4);
+
+    unsigned e = 4;
+    assert_eq(e, 4);
+
+    mut unsigned f = 0;
+    f = f + 7;
+    assert_eq(f, 7);
+
+    mut signed g = -1;
+    g = g - 1;
+    assert_eq(g, -2);
+}

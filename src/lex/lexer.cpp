@@ -47,6 +47,9 @@ bool isKeyword(std::string_view ident) {
         "None",
         "del", "pr", "local", "global", "temp",
         "bucket",
+        // Binding-declaration modifiers (Rust-style): `mut`/`immut` set
+        // mutability, `signed`/`unsigned` set the integer sign (i64/u64).
+        "mut", "immut", "signed", "unsigned",
     };
     for (std::string_view k : kKeywords)
         if (k == ident) return true;

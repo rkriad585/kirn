@@ -264,6 +264,7 @@ struct Stmt {
     TypeP declType;
     ExprP value;
     bool varKw = false;               // VarDecl written with `var` keyword (mutable)
+    bool immutKw = false;             // VarDecl written with explicit `immut` (read-only)
 
     // TempDecl: `temp <name> <N>[: <Type>] = <value>` — a compile-time usage
     // budget. The binding is usable at most N (1..10) times; use #N+1 is a

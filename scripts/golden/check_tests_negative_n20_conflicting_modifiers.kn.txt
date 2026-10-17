@@ -1,0 +1,6 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n20_conflicting_modifiers.kn
+<ROOT>/tests/negative/n20_conflicting_modifiers.kn:3:5: error: conflicting binding modifiers
+ 3 |     mut immut x = 1;
+   |     ^
+<ROOT>/tests/negative/n20_conflicting_modifiers.kn: 1 error(s)
+[exit 1]

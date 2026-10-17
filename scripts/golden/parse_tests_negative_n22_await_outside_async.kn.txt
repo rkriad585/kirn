@@ -1,0 +1,10 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/tests/negative/n22_await_outside_async.kn
+FuncDef "f"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand Int "1"
+<ROOT>/tests/negative/n22_await_outside_async.kn: OK (1 top-level statements)
+[exit 0]

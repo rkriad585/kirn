@@ -317,6 +317,7 @@ private:
     int loopDepth_ = 0;
     bool inGen_ = false;       // checking a generator function body
     TyP genElem_;              // unified element type of the yields
+    int asyncDepth_ = 0;       // >0 while checking an `async fn` body (POWER_PLAN §2)
     int gatherDepth_ = 0;      // >0 while checking inside a gather { } body
     // Per-block `label name :` maps (label -> statement index), innermost
     // first. `goto` resolves against the top map only (block-local targets).

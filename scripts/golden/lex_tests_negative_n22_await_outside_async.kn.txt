@@ -1,0 +1,17 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/tests/negative/n22_await_outside_async.kn
+Ident	2:1	fn
+Ident	2:4	f
+Punct	2:5	(
+Punct	2:6	)
+Op	2:8	->
+Ident	2:11	none
+Punct	2:16	{
+Ident	3:5	await
+Int	3:11	1
+Punct	3:12	;
+Punct	4:1	}
+Eof	5:1	
+<ROOT>/tests/negative/n22_await_outside_async.kn: OK (11 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

@@ -343,12 +343,12 @@ ast::StmtP Parser::parseTopOrStmt() {
         s->body.push_back(parseTopOrStmt());
         return s;
     }
-    if (atIdent("fn")) return parseFuncDef(false);
+    if (atIdent("fn") || atIdent("async")) return parseFnDecl(false);
 
     if (atIdent("pr")) {
         advance();
-        if (atIdent("fn")) {
-            auto s = parseFuncDef(false);
+        if (atIdent("fn") || atIdent("async")) {
+            auto s = parseFnDecl(false);
             s->privateDecl = true;
             return s;
         }
@@ -365,7 +365,7 @@ ast::StmtP Parser::parseTopOrStmt() {
     }
     if (atIdent("pub")) {
         advance();
-        if (atIdent("fn")) return parseFuncDef(true);       // `pub fn`
+        if (atIdent("fn") || atIdent("async")) return parseFnDecl(true);  // `pub fn`
         if (atIdent("struct")) { auto s = parseStructDef(); s->pub = true; return s; }
         if (atIdent("class"))  return parseClassDef(true);
         if (atIdent("interface")) return parseInterfaceDef(true);
@@ -509,6 +509,21 @@ std::vector<ast::Param> Parser::parseParamList() {
     return out;
 }
 
+ast::StmtP Parser::parseFnDecl(bool pub, bool allowBody) {
+    bool isAsync = false;
+    if (atIdent("async")) {
+        isAsync = true;
+        advance();
+        if (!atIdent("fn")) {
+            diags_.report(cur().line, cur().col, "expected 'fn' after 'async'");
+            throw Abort("asyncfn");
+        }
+    }
+    auto s = parseFuncDef(pub, allowBody);
+    s->isAsync = isAsync;
+    return s;
+}
+
 ast::StmtP Parser::parseFuncDef(bool pub, bool allowBody) {
     auto s = std::make_unique<ast::Stmt>();
     s->kind = ast::StKind::FuncDef;
@@ -553,8 +568,8 @@ ast::StmtP Parser::parseStructDef() {
             throw Abort("structeof");
         }
         auto decs = parseDecorators();
-        if (atIdent("fn")) {
-            auto m = parseFuncDef(false);
+        if (atIdent("fn") || atIdent("async")) {
+            auto m = parseFnDecl(false);
             for (auto& d : decs) m->decorators.push_back(std::move(d));
             s->body.push_back(std::move(m));
             continue;
@@ -636,8 +651,8 @@ ast::StmtP Parser::parseClassDef(bool pub) {
             throw Abort("classeof");
         }
         auto decs = parseDecorators();
-        if (atIdent("fn")) {
-            auto m = parseFuncDef(false);
+        if (atIdent("fn") || atIdent("async")) {
+            auto m = parseFnDecl(false);
             for (auto& d : decs) m->decorators.push_back(std::move(d));
             methods.push_back(std::move(m));
             continue;
@@ -1932,6 +1947,12 @@ ast::ExprP Parser::parseExpr() {
     }
     if (atIdent("if")) return parseCondExpr();
 
+    if (atIdent("async") && atIdent("fn", 1) && atPunct("(", 2)) {
+        advance();                                       // 'async'
+        auto lam = parseFnClosure();
+        lam->isAsync = true;
+        return lam;
+    }
     if (atIdent("fn") && atPunct("(", 1)) return parseFnClosure();
 
     ast::ExprP lam;
@@ -2351,6 +2372,15 @@ ast::ExprP Parser::parseUnary() {
         e->span = sp;
         e->lhs = parseExpr();
         expectPunct(")");
+        return e;
+    }
+    if (atIdent("await")) {                             // await fut (POWER_PLAN §2)
+        auto e = std::make_unique<ast::Expr>();
+        e->kind = ast::ExKind::Unary;
+        e->op = "await";
+        e->span = spanHere();
+        advance();
+        e->rhs = parseUnary();
         return e;
     }
     if (atIdent("try")) {                               // try expr (propagate)

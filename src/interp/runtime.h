@@ -38,6 +38,15 @@ struct ChanImpl {
 struct ThreadImpl {
     std::thread th;
     bool joined = false;
+    // POWER_PLAN §2: a task captures its return value so `await task` can read
+    // it. `done` is set (with the lock held) once the body returns or panics.
+    std::mutex m;
+    std::condition_variable cv;
+    bool done = false;
+    bool panicked = false;
+    std::string panicMsg;
+    std::vector<std::string> panicFrames;
+    Value result;
 };
 
 // Non-local control flow.
@@ -234,8 +243,16 @@ public:
     // caller's Env without exposing the EnvS layout.
     static Value nativeEnvVar(const Env& e, const std::string& name);
 
-    // entry used by spawned threads
-    void threadEntry(Value callee, std::vector<Value> args);
+    // entry used by spawned threads / async tasks. When `t` is non-null the
+    // return value (or panic) is captured for `await`.
+    void threadEntry(Value callee, std::vector<Value> args,
+                     std::shared_ptr<ThreadImpl> t = nullptr);
+    // Spawn an async task running `callee` (a VK::Fn function or `async fn`
+    // closure) with `args` and return a `Task[T]` (a VK::ThreadH) handle
+    // (POWER_PLAN §2).
+    Value spawnTask(Value callee, std::vector<Value> args);
+    // `await task`: block until the task finishes and return its result.
+    Value awaitTask(const Value& task);
     // directories searched for stdlib modules (dotted imports -> files)
     void addStdlibDir(const std::string& dir) { stdlibDirs_.push_back(dir); }
     // sources embedded at build time; win over every disk search path

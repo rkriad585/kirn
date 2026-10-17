@@ -1,0 +1,18 @@
+# stdlib/pet/async_test.kn - tests for pet.async.
+import pet.async as a;
+
+async fn main() -> none {
+    t0 = a.now_ms();
+    await a.sleep(ms: 30);        # must actually wait, not run instantly
+    assert(a.now_ms() - t0 >= 20);
+
+    await a.yield_now();          # must not hang or error
+
+    t = spawn(async fn () -> Int {
+        await a.sleep(ms: 10);
+        return 7;
+    });
+    assert_eq(await t, 7);
+
+    print("async_test ok");
+}

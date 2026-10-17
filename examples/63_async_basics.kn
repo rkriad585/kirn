@@ -1,0 +1,20 @@
+# 63 — Async basics: `async fn` / `await`, concurrency (POWER_PLAN §2)
+#
+# Calling an `async fn` schedules a task and returns its handle; `await` drives
+# the task to completion. Tasks here overlap: three 30ms "requests" finish in
+# roughly 30ms, not 90ms.
+import pet.async as a;
+
+async fn fetch(id: Int) -> Int {
+    await a.sleep(ms: 30);          # simulated I/O; other tasks progress meanwhile
+    return id * 10;
+}
+
+async fn main() -> none {
+    var t1 = fetch(1);
+    var t2 = fetch(2);
+    var t3 = fetch(3);
+    print(await t1);
+    print(await t2);
+    print(await t3);
+}

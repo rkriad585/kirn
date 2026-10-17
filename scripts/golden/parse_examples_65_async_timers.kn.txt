@@ -1,0 +1,115 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/65_async_timers.kn
+Import pet.async as a
+FuncDef "job" async
+  Param "name" : Str
+  Param "ms" : Int
+  Ret Str
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Ident "ms"
+    Return
+      Value Ident "name"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "start"
+      Value 
+        Call
+          Callee 
+            Member name="now_ms"
+              Obj Ident "a"
+    VarDecl
+      Target Ident "t1"
+      Value 
+        Call
+          Callee Ident "job"
+          Arg
+            Value Str "alpha"
+          Arg
+            Value Int "60"
+    VarDecl
+      Target Ident "t2"
+      Value 
+        Call
+          Callee Ident "job"
+          Arg
+            Value Str "beta"
+          Arg
+            Value Int "60"
+    VarDecl
+      Target Ident "t3"
+      Value 
+        Call
+          Callee Ident "job"
+          Arg
+            Value Str "gamma"
+          Arg
+            Value Int "60"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t3"
+    VarDecl
+      Target Ident "elapsed"
+      Value 
+        Binary op="-"
+          Lhs 
+            Call
+              Callee 
+                Member name="now_ms"
+                  Obj Ident "a"
+          Rhs Ident "start"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Binary op="<"
+                Lhs Ident "elapsed"
+                Rhs Int "150"
+    VarDecl
+      Target Ident "t4"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda async params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t4"
+<ROOT>/examples/65_async_timers.kn: OK (3 top-level statements)
+[exit 0]

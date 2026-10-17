@@ -1,0 +1,10 @@
+# Async functions and await (POWER_PLAN §2)
+async fn inc(x: Int) -> Int {
+    return x + 1;
+}
+
+async fn main() -> none {
+    var t = inc(41);
+    print(await t);
+}
+# expect: 42

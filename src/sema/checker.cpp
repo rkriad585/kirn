@@ -2620,6 +2620,8 @@ void Checker::checkFuncLike(const ast::Stmt& s, TyP selfTy, SymP funcSym) {
     Save<int> loopG(loopDepth_);
     Save<bool> genG(inGen_);
     Save<TyP> elemG(genElem_);
+    Save<int> asyncG(asyncDepth_);
+    asyncDepth_ = s.isAsync ? asyncDepth_ + 1 : 0;
     selfTy_ = std::move(selfTy);
 
     const bool gen = (s.isGenerator || containsYieldStmt(s)) && !s.externDef;
@@ -3712,11 +3714,22 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 return unkTy();
             }
             if (op == "spawn") {
-                if (!e.rhs || e.rhs->kind != ExKind::Call)
+                // `spawn f(...)` or `spawn f` / `spawn(async fn () { … })`.
+                if (e.rhs && e.rhs->kind != ExKind::Call &&
+                    e.rhs->kind != ExKind::Lambda)
                     error(e.span,
-                          "spawn expects a function call");
+                          "spawn expects a function call or closure");
                 if (e.rhs) checkExpr(*e.rhs);
                 return nominalWithArgs(TyK::Struct, "thread", {});
+            }
+            if (op == "await") {
+                // POWER_PLAN §2: `await` drives a Task[T] to completion. The
+                // type-level Task wrapper is elided in v1: an async fn call is
+                // typed as its declared return `T`, and `await e` has the type
+                // of `e`. Only valid inside an `async fn` body.
+                if (asyncDepth_ <= 0)
+                    error(e.span, "'await' is only allowed inside an 'async fn' body");
+                return t;                          // t = type of the awaited operand
             }
             return t;
         }
@@ -4067,6 +4080,8 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 // block-bodied closure: `fn (params) [-> T] { stmts }`
                 Save<TyP> retG(currentRet_);
                 Save<int> loopG(loopDepth_);
+                Save<int> asyncG(asyncDepth_);      // POWER_PLAN §2
+                asyncDepth_ = e.isAsync ? asyncDepth_ + 1 : 0;
                 currentRet_ = e.retType ? resolveType(e.retType) : nullptr;
                 loopDepth_ = 0;
                 push();

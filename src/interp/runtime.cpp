@@ -2861,7 +2861,21 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                 const Stmt* fn = &s;
                 Value v;
                 v.k = VK::Builtin;
+                // Carry parameter names so callers can pass named arguments
+                // (`mod.f(x: 1)`); without this, named args are dropped and the
+                // callee panics with "missing argument".
+                v.biParams.reserve(fn->params.size());
+                for (const auto& p : fn->params) v.biParams.push_back(p.name);
                 v.bi = [this, fn, modEnv](std::vector<Value>& a) -> Value {
+                    // POWER_PLAN §2: an `async fn` exported from a module
+                    // schedules a task and returns its handle.
+                    if (fn->isAsync) {
+                        Value callee;
+                        callee.k = VK::Fn;
+                        callee.fn = fn;
+                        callee.env = modEnv;
+                        return spawnTask(std::move(callee), std::move(a));
+                    }
                     CallFrameGuard guard(fn->name, fn->span.line, fn->span.col);
                     return runFunc(fn, a, {}, modEnv, nullptr);
                 };
@@ -4095,6 +4109,25 @@ Value Interpreter::eval(const Expr& e, Env env) {
 
         case ast::ExKind::Unary: {
             if (e.op == "spawn") return spawnCall(*e.rhs, env);
+            if (e.op == "await") {
+                // POWER_PLAN §2: awaiting a Task (ThreadH) joins it and yields
+                // its return value; awaiting a Timer sleeps until its deadline;
+                // awaiting any other value is the identity (a completed future).
+                Value fut = eval(*e.rhs, env);
+                if (fut.k == VK::ThreadH) {
+                    Value r = awaitTask(fut);
+                    if (r.k == VK::None) return Value::none();
+                    return r;
+                }
+                if (fut.k == VK::Timer) {
+                    int64_t now = nowMs();
+                    if (fut.deadlineMs > now)
+                        std::this_thread::sleep_for(
+                            std::chrono::milliseconds(fut.deadlineMs - now));
+                    return Value::none();
+                }
+                return fut;
+            }
             if (e.op == "try") {
                 Value t = eval(*e.rhs, env);
                 if (t.k == VK::Result) {
@@ -4352,6 +4385,20 @@ Value Interpreter::eval(const Expr& e, Env env) {
                 }
 auto fi = funcs_.find(name);
                 if (fi != funcs_.end()) {
+                    // POWER_PLAN §2: calling an `async fn` schedules a task.
+                    if (fi->second->isAsync && !fi->second->externDef) {
+                        if (!named.empty()) {
+                            std::vector<std::string> slots;
+                            for (const auto& p : fi->second->params)
+                                slots.push_back(p.name);
+                            mapNamedIntoPos(slots, pos, named);
+                        }
+                        Value fv;
+                        fv.k = VK::Fn;
+                        fv.fn = fi->second;
+                        fv.env = globals_;
+                        return spawnTask(std::move(fv), std::move(pos));
+                    }
                     CallFrameGuard guard(fi->second->name, e.span.line,
                                          e.span.col);
                     return runFunc(fi->second, std::move(pos), std::move(named),
@@ -4364,6 +4411,14 @@ auto fi = funcs_.find(name);
 
 Value cv = eval(*e.lhs, env);
             if (cv.k == VK::Fn && cv.fn) {
+                if (cv.fn->isAsync && !cv.fn->externDef) {
+                    if (!named.empty()) {
+                        std::vector<std::string> slots;
+                        for (const auto& p : cv.fn->params) slots.push_back(p.name);
+                        mapNamedIntoPos(slots, pos, named);
+                    }
+                    return spawnTask(cv, std::move(pos));
+                }
                 CallFrameGuard guard(cv.fn->name, e.span.line, e.span.col);
                 return runFunc(cv.fn, std::move(pos), std::move(named),
                                cv.env ? cv.env : globals_);
@@ -4965,6 +5020,12 @@ Value Interpreter::callValue(Value callee, std::vector<Value> args, int line,
 case VK::Fn: {
             std::string name = callee.lam ? "<lambda>"
                               : (callee.fn ? callee.fn->name : "?");
+            // POWER_PLAN §2: calling an `async fn` schedules a task and returns
+            // its handle; `await` drives it to completion.
+            if (callee.fn && callee.fn->isAsync && !callee.fn->externDef)
+                return spawnTask(callee, std::move(args));
+            if (callee.lam && callee.lam->isAsync)
+                return spawnTask(callee, std::move(args));
             CallFrameGuard guard(std::move(name),
                                  line > 0 ? (uint32_t)line : 0,
                                  col > 0 ? (uint32_t)col : 0);
@@ -5070,7 +5131,11 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
     const bool isGen = fn->isGenerator;
     if (isGen) yieldSinks_.push_back(&genOut);
     try {
-        if (const NativeBody* nb = nativeFuncFor(fn))
+        // `async fn` bodies may contain `await`, which only the tree-walker
+        // understands; never lower them to the VM/native fast paths.
+        if (fn->isAsync)
+            execBlock(fn->body, fenv);
+        else if (const NativeBody* nb = nativeFuncFor(fn))
             ret = nativeRunBody(*nb, fenv, fn);
         else if (const vm::VmFunction* vf = vmFuncFor(fn))
             ret = vmRunBody(*vf, fenv);
@@ -5191,6 +5256,14 @@ std::vector<Value> full;
         full.reserve(1 + pos.size());
         full.push_back(obj);
         for (auto& v : pos) full.push_back(std::move(v));
+        // POWER_PLAN §2: an async method schedules a task (self is arg 0).
+        if (method->isAsync && !method->externDef) {
+            Value fv;
+            fv.k = VK::Fn;
+            fv.fn = method;
+            fv.env = globals_;
+            return spawnTask(std::move(fv), std::move(full));
+        }
         CallFrameGuard guard(method->name, line, col);
         return runFunc(method, std::move(full), std::move(named), globals_,
                        selfOut);
@@ -8641,8 +8714,8 @@ Value Interpreter::spawnCall(const Expr& callExpr, Env env) {
         threads_.push_back(t);
     }
     Value calleeCopy = callee;
-    t->th = std::thread([this, calleeCopy, args]() {
-        threadEntry(calleeCopy, args);
+    t->th = std::thread([this, calleeCopy, args, t]() {
+        threadEntry(calleeCopy, args, t);
     });
 
     Value h;
@@ -8651,14 +8724,85 @@ Value Interpreter::spawnCall(const Expr& callExpr, Env env) {
     return h;
 }
 
-void Interpreter::threadEntry(Value callee, std::vector<Value> args) {
+Value Interpreter::spawnTask(Value callee, std::vector<Value> args) {
+    auto t = std::make_shared<ThreadImpl>();
+    {
+        std::lock_guard<std::mutex> lk(threadsM_);
+        threads_.push_back(t);
+    }
+    if (!callee.env) callee.env = globals_;
+    t->th = std::thread([this, callee, args, t]() {
+        threadEntry(callee, args, t);
+    });
+    Value h;
+    h.k = VK::ThreadH;
+    h.thread = t;
+    return h;
+}
+
+Value Interpreter::awaitTask(const Value& task) {
+    auto t = task.thread;
+    if (!t) return Value::none();
+    if (!t->done) {
+        std::unique_lock<std::mutex> lk(t->m);
+        t->cv.wait(lk, [&] { return t->done; });
+    }
+    // Join the OS thread unless we are awaiting our own task.
+    if (!t->joined && t->th.joinable()) {
+        if (std::this_thread::get_id() == t->th.get_id())
+            t->th.detach();
+        else
+            t->th.join();
+        t->joined = true;
+    }
+    if (t->panicked) panicHere(t->panicMsg);
+    return t->result;
+}
+
+void Interpreter::threadEntry(Value callee, std::vector<Value> args,
+                              std::shared_ptr<ThreadImpl> t) {
+    Value ret = Value::none();
+    bool panicked = false;
+    std::string msg;
+    std::vector<std::string> frames;
     try {
-        callValue(std::move(callee), std::move(args), 0, 0);
-} catch (const PanicSignal& p) {
-        std::string msg = "panic in spawned thread: " + p.msg;
-        for (const auto& f : p.frames) msg += "\n  " + f;
-        fputs((msg + "\n").c_str(), stderr);
+        // Invoke the callee directly. Going through `callValue` would re-enter
+        // the async dispatch and spawn a nested task forever for `async fn`.
+        if (callee.k == VK::Fn && callee.lam)
+            ret = runLambda(callee.lam, std::move(args),
+                            callee.env ? callee.env : globals_);
+        else if (callee.k == VK::Fn && callee.fn)
+            ret = runFunc(callee.fn, std::move(args), {},
+                          callee.env ? callee.env : globals_);
+        else
+            ret = callValue(std::move(callee), std::move(args), 0, 0);
+    } catch (const PanicSignal& p) {
+        panicked = true;
+        msg = p.msg;
+        frames = p.frames;
     } catch (...) {
+        panicked = true;
+        msg = "unknown error in task";
+    }
+    if (t) {
+        {
+            std::lock_guard<std::mutex> lk(t->m);
+            t->result = std::move(ret);
+            t->panicked = panicked;
+            t->panicMsg = msg;
+            t->panicFrames = frames;
+            t->done = true;
+        }
+        t->cv.notify_all();
+        if (panicked) {
+            std::string full = "panic in spawned thread: " + msg;
+            for (const auto& f : frames) full += "\n  " + f;
+            fputs((full + "\n").c_str(), stderr);
+        }
+    } else if (panicked) {
+        std::string full = "panic in spawned thread: " + msg;
+        for (const auto& f : frames) full += "\n  " + f;
+        fputs((full + "\n").c_str(), stderr);
     }
 }
 

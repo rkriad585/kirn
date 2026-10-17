@@ -1,0 +1,85 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/64_async_channels.kn
+Import pet.async as a
+FuncDef "producer" async
+  Param "out" : chan[Int]
+  Param "n" : Int
+  Ret none
+  Body
+    For
+      PatBind i
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Ident "n"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="send"
+                  Obj Ident "out"
+              Arg
+                Value Ident "i"
+        ExprStmt
+          Value 
+            Unary op="await"
+              Operand 
+                Call
+                  Callee 
+                    Member name="yield_now"
+                      Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "out"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "ch"
+      Value 
+        Call
+          Callee 
+            New type=chan[Int]
+          Arg name=cap
+            Value Int "4"
+    VarDecl
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "producer"
+          Arg
+            Value Ident "ch"
+          Arg
+            Value Int "5"
+    VarDecl
+      Target Ident "total"
+      Value Int "0"
+    For
+      PatWild
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "5"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value 
+            Call
+              Callee 
+                Member name="recv"
+                  Obj Ident "ch"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "total"
+<ROOT>/examples/64_async_channels.kn: OK (3 top-level statements)
+[exit 0]

@@ -1,0 +1,4 @@
+# expect: 'await' is only allowed inside an 'async fn' body
+fn f() -> none {
+    await 1;
+}

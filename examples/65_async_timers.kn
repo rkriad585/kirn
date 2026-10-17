@@ -1,0 +1,30 @@
+# 65 — Async timers & concurrency (POWER_PLAN §2)
+#
+# Tasks overlap: three 60ms "jobs" finish in well under their 180ms sum. Timer
+# futures (awaitable) cooperate; a spawned `async fn` closure is joined by
+# awaiting its handle.
+import pet.async as a;
+
+async fn job(name: Str, ms: Int) -> Str {
+    await a.sleep(ms: ms);
+    return name;
+}
+
+async fn main() -> none {
+    var start = a.now_ms();
+    var t1 = job("alpha", 60);
+    var t2 = job("beta", 60);
+    var t3 = job("gamma", 60);
+    print(await t1);
+    print(await t2);
+    print(await t3);
+    var elapsed = a.now_ms() - start;
+    print(elapsed < 150);           # overlapped, not ~180ms
+
+    # spawn a task from an `async fn` closure and await its handle
+    var t4 = spawn(async fn () -> Int {
+        await a.sleep(ms: 10);
+        return 99;
+    });
+    print(await t4);
+}

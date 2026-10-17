@@ -1,0 +1,25 @@
+# 64 — Async channels: tasks + channels (POWER_PLAN §2)
+#
+# An `async fn` task can send into a channel; the awaiting task receives. This
+# is the async/await analogue of examples 22–23, but the producer runs as a task
+# and is joined with `await` instead of a thread handle.
+import pet.async as a;
+
+async fn producer(out: chan[Int], n: Int) -> none {
+    for i in 1..=n {
+        out.send(i);
+        await a.yield_now();        # let the consumer run
+    }
+    out.close();                    # end-of-stream
+}
+
+async fn main() -> none {
+    var ch = chan[Int](cap: 4);
+    var p = producer(ch, 5);
+    var total = 0;
+    for _ in 1..=5 {
+        total += ch.recv();
+    }
+    await p;
+    print(total);                   # 1+2+3+4+5
+}

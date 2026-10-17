@@ -255,7 +255,8 @@ void dumpExpr(const Expr& e, int d) {
             childExpr("Operand", e.lhs, d + 1);
             return;
         case ExKind::Lambda: {
-            std::cout << ind(d) << "Lambda params=(";
+            std::cout << ind(d) << "Lambda"
+                      << (e.isAsync ? " async" : "") << " params=(";
             if (!e.closureParams.empty()) {
                 for (size_t i = 0; i < e.closureParams.size(); ++i) {
                     if (i) std::cout << ", ";
@@ -434,6 +435,7 @@ void dump(const Stmt& s, int d) {
         case StKind::FuncDef: {
             std::cout << ind(d) << "FuncDef " << quote(s.name)
                       << (s.pub ? " pub" : "")
+                      << (s.isAsync ? " async" : "")
                       << (s.externDef ? " extern" : "");
             if (!s.typeParams.empty()) {
                 std::cout << " generics=[";

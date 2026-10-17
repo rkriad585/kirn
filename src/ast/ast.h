@@ -179,6 +179,8 @@ struct Expr {
     std::vector<Param> closureParams;
     std::vector<StmtP> lambdaBody;
     TypeP retType;                    // declared closure return type (may be null)
+    // POWER_PLAN §2: `async fn (…) { … }` closure — calling it schedules a task.
+    bool isAsync = false;
     ExprP cond;                       // Cond / ListComp element guard base
     std::vector<ExprP> elems;         // List/Set/Tuple
     std::vector<std::pair<ExprP, ExprP>> pairs;   // Dict
@@ -257,6 +259,10 @@ struct Stmt {
     bool externDef = false;           // `extern fn f(...) -> T` (no body)
     bool isGenerator = false;         // body contains a `yield` statement
     bool isConstFn = false;           // `const fn f(...)` — pure, const-evaluable
+    // POWER_PLAN §2: `async fn f(...)` — calling it schedules a task and returns
+    // a `Task[T]`; `await task` drives it to completion. `await` is only valid
+    // inside an async function body.
+    bool isAsync = false;
 
     // Import
     std::string moduleName;           // dotted as written

@@ -1,0 +1,71 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/63_async_basics.kn
+Import pet.async as a
+FuncDef "fetch" async
+  Param "id" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Int "30"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "id"
+          Rhs Int "10"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "t1"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "1"
+    VarDecl
+      Target Ident "t2"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "2"
+    VarDecl
+      Target Ident "t3"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t3"
+<ROOT>/examples/63_async_basics.kn: OK (3 top-level statements)
+[exit 0]

@@ -41,6 +41,8 @@ bool isKeyword(std::string_view ident) {
         "return", "break", "continue", "match", "case", "struct", "enum",
         "trait", "impl", "import", "export", "pub", "defer", "spawn", "chan",
         "select", "try", "raise", "catch", "unsafe", "extern", "new", "box", "self",
+        // POWER_PLAN §2: async runtime keywords.
+        "async", "await",
         "Self", "and", "or", "not", "is", "as", "true", "false", "None", "none",
         "pass", "class", "interface", "record", "implements", "extends",
         "dynamic",

@@ -592,6 +592,7 @@ Open decisions needing ratification: (1) `await` prefix vs postfix; `await` hard
 ### Update (2026-10-17) — Phase 0 & Phase 1: attributes & decorators (shipped)
 
 Delivered:
+
 - **Grammar** (`grammar/kirn.ebnf`): new `decorators`/`bracket_attrs`/`at_decorator`/`attr`/`decorator_arg` productions; all declaration rules (`func_def`, `struct_def`, `enum_def`, `trait_def`, `impl_def`, `class_def`, `interface_def`, `record_def`, `const_decl`) and members (`field_def`, `variant`, `payload_param`) now carry a leading `decorators`.
 - **AST** (`src/ast/ast.h`): `Decorator { name, args, bracket, span }`; `decorators` on `Stmt`, `FieldDecl`, `Variant`, `VariantPayload`.
 - **Parser** (`src/parser/parser.cpp`): `parseDecorators()`; `@` at declaration start is a decorator list, while `@comptime(...)` stays an expression and pattern `@` stays the alias operator. `@[a, b(c)]` lowers to consecutive `@a`/`@b(c)`. Decorator args accept both `name = value` (Rust) and `name: value` (Kirn).
@@ -605,3 +606,23 @@ Verification: gates **284/0**, golden **273/0**, crosscheck **621/0**, stdlib **
 Example-number deviations (low slots are taken by existing examples): the plan's `examples/60_decorators.kn` is delivered as `examples/51_decorators.kn` (60 = `60_reflect.kn`). Later phases will take `63`+ (61/62 are also taken).
 
 Known pre-existing quirk (not introduced here, tracked for later phases): assigning to a module-global from inside a function without the `global name;` declaration binds a fresh local first, so `c = c + 1` reads the unbound local and panics. Examples use `global name;` for global mutation.
+
+### Update (2026-10-17) — Phase 2: `pet.async` core (shipped)
+
+Delivered:
+
+- **Lexer** (`src/lex/lexer.cpp`): `async`/`await` are hard keywords (verified no prior use in examples/stdlib/tests).
+- **AST** (`src/ast/ast.h`): `Stmt::isAsync` (for `async fn`) and `Expr::isAsync` (for `async fn (…) {…}` closures).
+- **Parser** (`src/parser/parser.cpp`): `parseFnDecl(pub, allowBody)` consumes an optional `async` before `fn` and is wired into `parseTopOrStmt`, `pub`, struct bodies and class bodies (interface/trait signatures unchanged). `await` parses in `parseUnary` (tight binding) as `Unary op="await"`. `async fn (…) {…}` closures are recognized in the expression parser.
+- **Dump** (`src/ast/ast_dump.cpp`): `async` marker on `FuncDef` and `Lambda`; `await` shows as `Unary op="await"`.
+- **Checker** (`src/sema/checker.cpp`): `asyncDepth_` is set for `async fn` bodies and `async` closures (saved/restored). `await` outside an async body ⇒ error `'await' is only allowed inside an 'async fn' body`; otherwise `await e` has the type of `e`. `spawn` accepts a call **or** an `async` closure. **v1 type-level deviation:** an async call is typed as its declared return `T` (the `Task[T]` wrapper is elided); `await` is identity on types.
+- **Interpreter** (`src/interp/runtime.{h,cpp}`): runtime grows a task handle (`ThreadImpl` with result/panic capture). `spawnTask`/`awaitTask` run a task on an OS thread and join it; `threadEntry` captures the result and re-panics on a task panic. `callValue` and the top-level call sites spawn for async fns/methods/closures; `invokeMethod` spawns async methods (self is arg 0); module-exported `pub fn`s that are `async` also spawn. `runFunc` forces the tree-walker for `async` bodies (never VM/native). `await` on a task joins it, on a `time.after` timer sleeps to its deadline, else is identity. `async fn main` runs synchronously on the main thread (deterministic) and drives its tasks.
+- **Stdlib** (`stdlib/pet/async.kn`): `sleep(ms)`, `yield_now()`, `now_ms()` over the built-in `time` pseudo-module. Because `async` is a keyword the module must be imported under a name (`import pet.async as a;`).
+- **Bug fixed along the way**: module-exported functions were wrapped as `VK::Builtin` with empty `biParams`, so **named arguments to module functions** (`mod.f(x: 1)`) were silently dropped and the callee panicked with "missing argument". The export now carries parameter names.
+- **Examples/tests**: `examples/63_async_basics.kn`, `examples/64_async_channels.kn`, `examples/65_async_timers.kn`; `tests/syntax/async_ok.kn`; `tests/negative/n22_await_outside_async.kn`; `stdlib/pet/async_test.kn`.
+
+Verification: gates **293/0**, golden **285/0**, crosscheck **651/0**, stdlib **10/0**.
+
+Example-number deviations: the plan's Phase 2 exits named `61_async_io`/`62_async_channels`/`63_async_net`, but 61/62 are taken (`native_new_surface`, `incdec_ternary`), so async basics/channels/timers ship as `63/64/65`. Async **net/fs/io** and the full tokio sync-primitive set are deferred (documented): the v1 runtime is thread-per-task over the existing `spawn`/`chan`/`select` layer. Because `async`/`await` are keywords, the runtime API is exposed via `stdlib/pet/async.kn` under an alias rather than a `pet.async` member named `async`.
+
+Known pre-existing flake (not introduced here): `stdlib/pet/io_test.kn` appends to `.io_tmp_test.txt` without truncating, so a leftover artifact from an earlier run makes `assert(s == "hello")` fail; delete the file before a suite run.

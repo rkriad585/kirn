@@ -1,0 +1,26 @@
+# stdlib/pet/async.kn — async runtime helpers (POWER_PLAN §2).
+#
+# The async runtime itself is part of the language: `async fn` declares a task
+# and `await` drives it to completion. Import this module for the helpers built
+# on top of the built-in `time` pseudo-module. Because `async` is a keyword, bind
+# the module under another name:
+#
+#   import pet.async as a;
+#   var t = a.sleep(ms: 100);   # a timer future
+#   await t;
+
+# Sleep for `ms` milliseconds. Returns an awaitable timer, so `await sleep(..)`
+# cooperates with other tasks instead of blocking a worker thread.
+pub fn sleep(ms: Int) -> any {
+    return time.after(ms);
+}
+
+# Cooperatively yield the current task. A zero-length timer is awaitable.
+pub fn yield_now() -> any {
+    return time.after(ms: 0);
+}
+
+# Epoch milliseconds (same clock as `time.after`).
+pub fn now_ms() -> Int {
+    return time.now();
+}

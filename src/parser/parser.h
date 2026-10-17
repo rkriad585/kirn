@@ -46,6 +46,9 @@ private:
     // declaration (or a struct field / enum variant). Returns an empty vector
     // when none are present.
     std::vector<ast::Decorator> parseDecorators();
+    // `[async] fn ...` — consumes an optional leading `async` and sets
+    // `isAsync` on the resulting FuncDef (POWER_PLAN §2).
+    ast::StmtP parseFnDecl(bool pub, bool allowBody = true);
     ast::StmtP parseFuncDef(bool pub, bool allowBody = true);
     ast::StmtP parseStructDef();
     ast::StmtP parseClassDef(bool pub);

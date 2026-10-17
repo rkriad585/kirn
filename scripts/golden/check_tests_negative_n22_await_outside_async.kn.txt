@@ -1,0 +1,8 @@
+$ <ROOT>/build/kirncheck <ROOT>/tests/negative/n22_await_outside_async.kn
+<ROOT>/tests/negative/n22_await_outside_async.kn:3:5: error: 'await' is only allowed inside an 'async fn' body
+ 3 |     await 1;
+   |     ^^^^^
+<ROOT>/tests/negative/n22_await_outside_async.kn:0:0: warning[W0103]: unused function 'f'
+ 0 | 
+<ROOT>/tests/negative/n22_await_outside_async.kn: 1 error(s), 1 warning(s)
+[exit 1]

@@ -626,3 +626,27 @@ Verification: gates **293/0**, golden **285/0**, crosscheck **651/0**, stdlib **
 Example-number deviations: the plan's Phase 2 exits named `61_async_io`/`62_async_channels`/`63_async_net`, but 61/62 are taken (`native_new_surface`, `incdec_ternary`), so async basics/channels/timers ship as `63/64/65`. Async **net/fs/io** and the full tokio sync-primitive set are deferred (documented): the v1 runtime is thread-per-task over the existing `spawn`/`chan`/`select` layer. Because `async`/`await` are keywords, the runtime API is exposed via `stdlib/pet/async.kn` under an alias rather than a `pet.async` member named `async`.
 
 Known pre-existing flake (not introduced here): `stdlib/pet/io_test.kn` appends to `.io_tmp_test.txt` without truncating, so a leftover artifact from an earlier run makes `assert(s == "hello")` fail; delete the file before a suite run.
+
+### Update (2026-10-17) — Phase 3: `pet.serde` (shipped, reflection-based)
+
+**Path chosen:** after exploring the front end, Phase 3 shipped the **Tier-2 dynamic (reflection-based) serde** rather than the trait + derive design written in §3.1/§3.2. Reasons (checked, not assumed):
+
+- `@[derive(...)]` is **inert**: recognized and validated against `kBuiltinAttrs` (`src/sema/checker.cpp:2868`) but generates no code.
+- The language cannot express §3.1's `trait Serialize[S is Encoder]`: **no generic impls** (`impl[T]` params are discarded, `src/parser/parser.cpp:884`), **no generic signature-only trait methods** (`src/parser/parser.cpp:863`), no `static fn`, and no call-site type arguments (`f[Int](...)`). Generic *free* functions work inference-only.
+
+So serde works without any derive: it walks structs/enums structurally via the existing `reflect` pseudo-module.
+
+Delivered:
+
+- **Runtime reflect additions** (`src/interp/runtime.cpp`): `reflect.variant`, `reflect.payload`, `reflect.variants(T)`, `reflect.enum_payload_names(T, v)`, `reflect.enum_payload_type_names(T, v)`, `reflect.enum_new(T, v, payloadList)`, `reflect.type_ref(name)`, `reflect.field_type_names(T)`, `reflect.field_generics(T)`; static helpers `typeBaseName(const ast::Type&)` and `typeGenericNames(const ast::Type&)`. `reflect.new(T, fields)` now takes an optional field dict so a decoded struct can be rebuilt field-by-field.
+- **Latent crash fixed**: printing a module/type-ref value infinitely recursed `toStr`↔`repr` (both `default:` arms call each other) and segfaulted. `toStr` now has a `VK::Module` arm that strips the `__struct__:`/`__enum__:`/`__trait__:`/`__loaded__:` prefixes.
+- **Stdlib** (`stdlib/pet/serde.kn`): `to_json`/`encode` (Kirn-side encoder — the native `json.dumps` returns `null` for struct/enum values), `from_json`/`decode` (dynamic tree), `from_json_as(T, s)`/`decode(T, s)` (typed rebuild + coercion). Encoding: struct → object, enum → externally tagged `{"Variant": payload}` (`null` for unit, array otherwise), list/dict/scalars per JSON. Decoding coerces scalars back to declared types (JSON has one number type), recurses nested structs/enums via `field_type_names`/`field_generics`, and rebuilds with `reflect.new` / `reflect.enum_new`.
+- **`stdlib/pet/json.kn` fixes** (the `STD_LIBS_PLAN.md:62` Phase 1a item): a `depth` guard on `parse_value` (a pathological `[[[[…]]]]` now raises instead of overflowing the C++ stack), **integer preservation** (no `.`/`e` ⇒ `Int`, was always `Float`), and `skip_ws` now skips `\n`/`\t`/`\r`.
+- **Examples/tests**: `examples/66_serde_basic.kn`, `examples/67_serde_enum.kn`, `tests/syntax/serde_ok.kn`, `stdlib/pet/serde_test.kn` (round-trip + int coercion + escaping + list-of-enum); goldens recorded.
+- **Gate hygiene**: `scripts/gates_linux.sh` gate 6 hardcoded `'9 passed, 0 failed'`, which was stale after Phase 2 added `async_test.kn`; updated to `'11 passed, 0 failed'` (Phase 2's own `kirn_test_no_args` golden was likewise stale at 9).
+
+Verification: gates **298/0**, golden **291/0**, crosscheck **681/0**, stdlib **11/0**.
+
+Example-number deviation: the plan's Phase 3 exits named `64_serde_derive`/`65_serde_formats`, but 64/65 are taken by async, so serde ships as `66/67`.
+
+Not shipped (documented deviation, blocked on the front end above): `trait Serialize`/`Deserialize`, `@[derive(Serialize, Deserialize)]`, `@[serde(...)]` field options (`rename`/`skip`/`flatten`/`tag`/…), the `Encoder`/`Decoder`/`Visitor` trio, and the `toml`/`yaml`/`cbor` formats (JSON only for now). These are gated behind generic impls, signature-only generic trait methods, `static fn`, and call-site type arguments.

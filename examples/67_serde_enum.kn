@@ -1,0 +1,29 @@
+# 67 — Serialization: data-carrying enums (POWER_PLAN §3)
+#
+# Enums are encoded externally tagged: `{"Variant": payload}`, where payload is
+# `null` for unit variants and a JSON array otherwise. The target type is known
+# at decode time, so the decoder can recover the variant and coerce payloads.
+import pet.serde as serde;
+import reflect;
+
+enum Shape {
+    Circle(r: Float);
+    Rect(w: Float, h: Float);
+    Empty;
+}
+
+fn main() -> none {
+    print(serde.to_json(Shape.Circle(r: 3.5)));
+    print(serde.to_json(Shape.Rect(w: 2.0, h: 4.0)));
+    print(serde.to_json(Shape.Empty));
+    print(serde.to_json([Shape.Circle(r: 1.0), Shape.Empty]));
+
+    a = serde.from_json_as(Shape, "{\"Circle\": [9.0]}");
+    print(reflect.variant(a), reflect.payload(a));
+
+    b = serde.from_json_as(Shape, "{\"Rect\": [2.0, 4.0]}");
+    print(reflect.variant(b), reflect.payload(b));
+
+    c = serde.from_json_as(Shape, "{\"Empty\": null}");
+    print(reflect.variant(c), reflect.payload(c).len());
+}

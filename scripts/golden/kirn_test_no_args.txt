@@ -1,14 +1,16 @@
 $ <ROOT>/build/kirn test
+test ./stdlib/pet/async_test.kn ... async_test ok
+PASS
 test ./stdlib/pet/collections_test.kn ... collections_test ok
 PASS
 test ./stdlib/pet/io_test.kn ... io_test ok
 PASS
 test ./stdlib/pet/json_test.kn ... N1 kirn
-N2 42.0
+N2 42
 N3 true
 N4 v
 N5 3
-N6 3.0
+N6 3
 json_test ok
 PASS
 test ./stdlib/pet/math_test.kn ... math_test ok
@@ -19,9 +21,11 @@ test ./stdlib/pet/path_test.kn ... path_test ok
 PASS
 test ./stdlib/pet/regexp_test.kn ... regexp_test ok
 PASS
+test ./stdlib/pet/serde_test.kn ... serde_test ok
+PASS
 test ./stdlib/pet/strings_test.kn ... strings_test ok
 PASS
 test ./stdlib/pet/time_test.kn ... time_test ok
 PASS
-9 passed, 0 failed
+11 passed, 0 failed
 [exit 0]

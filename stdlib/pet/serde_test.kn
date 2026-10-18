@@ -1,0 +1,42 @@
+import pet.serde as serde;
+import reflect;
+
+struct Point { x: Int; y: Int; }
+struct Line { a: Point; b: Point; label: Str; }
+
+enum Shape { Circle(r: Float); Rect(w: Float, h: Float); Empty; }
+
+fn main() -> none {
+    p = Point(x: 3, y: 4);
+    assert(serde.to_json(p) == "{\"x\":3,\"y\":4}");
+
+    line = Line(a: Point(x: 0, y: 0), b: Point(x: 1, y: 1), label: "diag");
+    text = serde.to_json(line);
+    assert(text == "{\"a\":{\"x\":0,\"y\":0},\"b\":{\"x\":1,\"y\":1},\"label\":\"diag\"}");
+    rt = serde.from_json_as(Line, text);
+    assert(reflect.get_field(reflect.get_field(rt, "a"), "x") == 0);
+    assert(reflect.get_field(reflect.get_field(rt, "b"), "y") == 1);
+    assert(reflect.get_field(rt, "label") == "diag");
+
+    # Integer-valued JSON must come back as Int, not Float.
+    q = serde.from_json_as(Point, "{\"x\": 7, \"y\": 8}");
+    assert(reflect.kind_of(reflect.get_field(q, "x")) == "int");
+
+    # Float field accepts an integer JSON literal (coerced).
+    f = serde.from_json_as(Shape, "{\"Circle\": [2]}");
+    assert(reflect.variant(f) == "Circle");
+    assert(reflect.payload(f)[0] == 2.0);
+
+    # Round-trip through a list of enums.
+    src = [Shape.Circle(r: 1.0), Shape.Empty, Shape.Rect(w: 2.0, h: 3.0)];
+    encoded = serde.to_json(src);
+    assert(encoded == "[{\"Circle\":[1.0]},{\"Empty\":null},{\"Rect\":[2.0,3.0]}]");
+
+    # Strings are escaped correctly.
+    assert(serde.to_json("a\"b\n") == "\"a\\\"b\\n\"");
+
+    # Maps and dynamic values.
+    assert(serde.to_json({"k": 1, "v": none}) == "{\"k\":1,\"v\":null}");
+
+    print("serde_test ok");
+}

@@ -685,6 +685,18 @@ std::string toStr(const Value& v) {
         case VK::Complex: return fmtComplex(v);
         case VK::Decimal: return decToString(v);
         case VK::Str:    return v.s;
+        case VK::Module: {
+            // A module / type-reference value. `toStr` and `repr` would call
+            // each other forever on this kind, so name it here (POWER_PLAN §3
+            // exposes type references via `reflect.type_ref`).
+            static const char* prefixes[] = {"__struct__:", "__enum__:",
+                                             "__trait__:", "__loaded__:"};
+            for (const char* p : prefixes) {
+                size_t n = std::strlen(p);
+                if (v.typeName.rfind(p, 0) == 0) return v.typeName.substr(n);
+            }
+            return v.typeName;
+        }
         default:         return repr(v);
     }
 }
@@ -919,6 +931,33 @@ static std::string typeRefName(const Value& v) {
         return v.typeName.substr(9);
     if (v.k == VK::Str) return v.s;
     return typeName(v);
+}
+
+// POWER_PLAN §3: base name of a declared type as written in source. Containers
+// are Name nodes ("list", "dict", "chan", ...) carrying generic args; optional
+// (`T?`) unwraps to the underlying name. Returns "" for structural types.
+static std::string typeBaseName(const ast::Type& t) {
+    switch (t.kind) {
+        case ast::TyKind::Name: return t.name;
+        case ast::TyKind::Optional:
+            return t.inner ? typeBaseName(*t.inner) : "";
+        case ast::TyKind::Pointer:
+        case ast::TyKind::Ref:
+            return t.inner ? typeBaseName(*t.inner) : "";
+        default: return "";
+    }
+}
+
+// POWER_PLAN §3: first-level generic argument base names (`list[User]` ->
+// ["User"], `dict[Str, Int]` -> ["Str", "Int"]).
+static std::vector<std::string> typeGenericNames(const ast::Type& t) {
+    std::vector<std::string> out;
+    const ast::Type* cur = &t;
+    if (cur->kind == ast::TyKind::Optional && cur->inner)
+        cur = cur->inner.get();
+    for (const auto& g : cur->generics)
+        if (g) out.push_back(typeBaseName(*g));
+    return out;
 }
 
 // Accumulate numeric addition (int + int -> int; float involved -> float).
@@ -3135,7 +3174,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::boolean(valEq(a[0], a[1]));
             });
         if (name == "new")
-            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+            return biFn({"t", "fields"}, [this](std::vector<Value>& a) -> Value {
                 if (a.empty())
                     panicHere("reflect.new expects a type reference");
                 std::string tn = typeRefName(a[0]);
@@ -3167,6 +3206,13 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     } else
                         v.fields.emplace_back(fd.name, Value::none());
                 }
+                // POWER_PLAN §3: optional overrides for reflection serde —
+                // `reflect.new(T, {field: value, ...})`.
+                if (a.size() > 1 && a[1].k == VK::Dict && a[1].map)
+                    for (auto& f : v.fields)
+                        for (const auto& kv : *a[1].map)
+                            if (kv.first.k == VK::Str && kv.first.s == f.first)
+                                f.second = kv.second;
                 return v;
             });
         if (name == "sizeof" || name == "size_of")
@@ -3180,6 +3226,123 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     return Value::integer(x.map ? (int64_t)x.map->size() : 0);
                 if (x.k == VK::Str) return Value::integer((int64_t)x.s.size());
                 return Value::integer(0);
+            });
+        // POWER_PLAN §3: enum introspection + construction for reflection-based
+        // serde.
+        if (name == "variant")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                if (a.empty() || a[0].k != VK::EnumV)
+                    panicHere("reflect.variant expects an enum value");
+                return Value::str(a[0].variant);
+            });
+        if (name == "payload")
+            return biFn({"x"}, [](std::vector<Value>& a) -> Value {
+                Value out = Value::list();
+                if (!a.empty() && a[0].k == VK::EnumV)
+                    for (const auto& p : a[0].payload) out.vec->push_back(p);
+                return out;
+            });
+        if (name == "variants")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                std::vector<Value> out;
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    for (const auto& var : ei->second->variants)
+                        out.push_back(Value::str(var.name));
+                return Value::list(std::move(out));
+            });
+        if (name == "enum_payload_names")
+            return biFn({"t", "variant"}, [this](std::vector<Value>& a) -> Value {
+                std::vector<Value> out;
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                std::string var = a.size() > 1 && a[1].k == VK::Str ? a[1].s : "";
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    for (const auto& v : ei->second->variants)
+                        if (v.name == var) {
+                            for (const auto& pd : v.payload)
+                                out.push_back(Value::str(pd.name));
+                            break;
+                        }
+                return Value::list(std::move(out));
+            });
+        if (name == "enum_payload_type_names")
+            return biFn({"t", "variant"}, [this](std::vector<Value>& a) -> Value {
+                std::vector<Value> out;
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                std::string var = a.size() > 1 && a[1].k == VK::Str ? a[1].s : "";
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    for (const auto& v : ei->second->variants)
+                        if (v.name == var) {
+                            for (const auto& pd : v.payload)
+                                out.push_back(Value::str(
+                                    pd.type ? typeBaseName(*pd.type) : ""));
+                            break;
+                        }
+                return Value::list(std::move(out));
+            });
+        if (name == "enum_new")
+            return biFn({"t", "variant", "payload"},
+                        [this](std::vector<Value>& a) -> Value {
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                std::string var =
+                    a.size() > 1 && a[1].k == VK::Str ? a[1].s : "";
+                auto ei = enums_.find(tn);
+                if (ei == enums_.end())
+                    panicHere("reflect.enum_new: unknown enum '" + tn + "'");
+                const ast::Variant* vd = nullptr;
+                for (const auto& v : ei->second->variants)
+                    if (v.name == var) { vd = &v; break; }
+                if (!vd)
+                    panicHere("reflect.enum_new: enum '" + tn +
+                              "' has no variant '" + var + "'");
+                Value ev = Value::enumV(tn, var);
+                std::vector<Value> pls;
+                if (a.size() > 2 && a[2].k == VK::List && a[2].vec)
+                    pls = *a[2].vec;
+                for (size_t i = 0; i < vd->payload.size(); ++i)
+                    ev.payload.push_back(i < pls.size() ? pls[i] : Value::none());
+                return ev;
+            });
+        // POWER_PLAN §3: resolve a struct/enum name to a type reference value.
+        if (name == "type_ref")
+            return biFn({"name"}, [this](std::vector<Value>& a) -> Value {
+                std::string n = (!a.empty() && a[0].k == VK::Str) ? a[0].s : "";
+                if (structs_.count(n)) return Value::module("__struct__:" + n);
+                if (enums_.count(n)) return Value::module("__enum__:" + n);
+                return Value::none();
+            });
+        // POWER_PLAN §3: declared field type names for a struct type reference.
+        if (name == "field_type_names")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                Value out = Value::dict();
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    for (const auto& fd : si->second->fields)
+                        out.map->push_back(
+                            {Value::str(fd.name),
+                             Value::str(fd.type ? typeBaseName(*fd.type) : "")});
+                return out;
+            });
+        // POWER_PLAN §3: first-level generic arg names per field
+        // (`tags: list[Str]` -> tags => ["Str"]).
+        if (name == "field_generics")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                Value out = Value::dict();
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    for (const auto& fd : si->second->fields) {
+                        Value g = Value::list();
+                        if (fd.type)
+                            for (const auto& gn : typeGenericNames(*fd.type))
+                                g.vec->push_back(Value::str(gn));
+                        out.map->push_back({Value::str(fd.name), std::move(g)});
+                    }
+                return out;
             });
         panicHere("reflect has no member '" + name + "'");
     }

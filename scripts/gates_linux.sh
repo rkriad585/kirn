@@ -11,8 +11,8 @@
 #                    examples matching '^[0-9]' (code + combined output).
 #   5. conventions - rules/convention matrix for the `kirn` driver (run-entry
 #                    resolution + pin.kn package initializer).
-#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (9
-#                    tests, must report '9 passed, 0 failed').
+#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (11
+#                    tests, must report '11 passed, 0 failed').
 #   7. pets        - .pet bundle round-trip: pack a lib, install the bundle
 #                    into a consuming project's pets/ dir, consume it at run.
 # Exit 0 iff every gate passes, else 1.
@@ -185,7 +185,7 @@ echo "=== gate 6: test (stdlib via kirn driver) ==="
 rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
 out6=$(cd "$ROOT" && timeout "$WATCH" "$KIRN" test . 2>&1); c6=$?
 rm -f "$ROOT/.io_tmp_test.txt"
-if [ "$c6" = 0 ] && echo "$out6" | grep -q "9 passed, 0 failed"; then
+if [ "$c6" = 0 ] && echo "$out6" | grep -q "11 passed, 0 failed"; then
     report PASS "kirn test stdlib/pet" "$(echo "$out6" | grep -c 'PASS') tests"
 else
     report FAIL "kirn test stdlib/pet" "rc=$c6: $(echo "$out6" | tail -1)"

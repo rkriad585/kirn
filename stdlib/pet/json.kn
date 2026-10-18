@@ -20,17 +20,26 @@ pub fn loads(s: Str) -> none {
     return p.parse_value();
 }
 
-# Minimal JSON parser.
+# Minimal JSON parser. `depth` guards against stack overflow on deeply nested
+# input (a pathological `[[[[...]]]]` otherwise recurses one C++ frame per
+# level).
 struct Parser {
     var src: Str;
     var i: Int;
+    var depth: Int;
     fn init(self, s: Str) -> none {
         self.src = s;
         self.i = 0;
+        self.depth = 0;
     }
     fn skip_ws(self) -> none {
-        while self.i < self.src.len() and self.peek() == " " {
-            self.i = self.i + 1;
+        while self.i < self.src.len() {
+            c = self.peek();
+            if c == " " or c == "\n" or c == "\t" or c == "\r" {
+                self.i = self.i + 1;
+            } else {
+                break;
+            }
         }
     }
     fn peek(self) -> Str {
@@ -41,15 +50,21 @@ struct Parser {
         self.i = self.i + 1;
     }
     fn parse_value(self) -> none {
+        self.depth = self.depth + 1;
+        if self.depth > 128 { raise("json: nested too deep"); }
         self.skip_ws();
         c = self.peek();
-        if c == "{" { return self.parse_object(); }
-        if c == "[" { return self.parse_array(); }
-        if c == "\"" { return self.parse_string(); }
-        if c == "t" { self.expect_lit("true"); return true; }
-        if c == "f" { self.expect_lit("false"); return false; }
-        if c == "n" { self.expect_lit("null"); return nil; }
-        return self.parse_number();
+        var out = nil;
+        var matched = false;
+        if c == "{" { out = self.parse_object(); matched = true; }
+        if c == "[" { out = self.parse_array(); matched = true; }
+        if c == "\"" { out = self.parse_string(); matched = true; }
+        if c == "t" { self.expect_lit("true"); out = true; matched = true; }
+        if c == "f" { self.expect_lit("false"); out = false; matched = true; }
+        if c == "n" { self.expect_lit("null"); out = nil; matched = true; }
+        if not matched { out = self.parse_number(); }
+        self.depth = self.depth - 1;
+        return out;
     }
     fn parse_object(self) -> dict {
         self.advance();
@@ -114,15 +129,18 @@ struct Parser {
         }
         return out;
     }
-    fn parse_number(self) -> Float {
+    fn parse_number(self) -> any {
         start = self.i;
+        var is_float = false;
         while self.i < self.src.len() {
             c = self.src[self.i..self.i + 1];
             if c == " " or c == "," or c == "}" or c == "]" { break; }
+            if c == "." or c == "e" or c == "E" { is_float = true; }
             self.advance();
         }
         tok = self.src[start..self.i];
-        return Float(tok);
+        if is_float { return Float(tok); }
+        return Int(tok);
     }
     fn expect_lit(self, lit: Str) -> none {
         if self.src[self.i..self.i + lit.len()] == lit {

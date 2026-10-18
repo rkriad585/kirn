@@ -1,0 +1,184 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/67_serde_enum.kn
+Import pet.serde as serde
+Import reflect
+EnumDef "Shape"
+  Variant Circle {r: Float}
+  Variant Rect {w: Float, h: Float}
+  Variant Empty
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="Circle"
+                          Obj Ident "Shape"
+                      Arg name=r
+                        Value Float "3.5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="Rect"
+                          Obj Ident "Shape"
+                      Arg name=w
+                        Value Float "2.0"
+                      Arg name=h
+                        Value Float "4.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    Member name="Empty"
+                      Obj Ident "Shape"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    List len=2
+                      Item 
+                        Call
+                          Callee 
+                            Member name="Circle"
+                              Obj Ident "Shape"
+                          Arg name=r
+                            Value Float "1.0"
+                      Item 
+                        Member name="Empty"
+                          Obj Ident "Shape"
+    Assign
+      Target Ident "a"
+      Value 
+        Call
+          Callee 
+            Member name="from_json_as"
+              Obj Ident "serde"
+          Arg
+            Value Ident "Shape"
+          Arg
+            Value Str "{\\\"Circle\\\": [9.0]}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="payload"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "a"
+    Assign
+      Target Ident "b"
+      Value 
+        Call
+          Callee 
+            Member name="from_json_as"
+              Obj Ident "serde"
+          Arg
+            Value Ident "Shape"
+          Arg
+            Value Str "{\\\"Rect\\\": [2.0, 4.0]}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "b"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="payload"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "b"
+    Assign
+      Target Ident "c"
+      Value 
+        Call
+          Callee 
+            Member name="from_json_as"
+              Obj Ident "serde"
+          Arg
+            Value Ident "Shape"
+          Arg
+            Value Str "{\\\"Empty\\\": null}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "c"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="payload"
+                            Obj Ident "reflect"
+                        Arg
+                          Value Ident "c"
+<ROOT>/examples/67_serde_enum.kn: OK (4 top-level statements)
+[exit 0]

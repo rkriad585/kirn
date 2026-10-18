@@ -1,0 +1,176 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/66_serde_basic.kn
+Import pet.serde as serde
+Import reflect
+StructDef "Address"
+  Field "city" : Str
+  Field "zip" : Int
+StructDef "User"
+  Field "name" : Str
+  Field "age" : Int
+  Field "score" : Float
+  Field "tags" : list[Str]
+  Field "home" : Address
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "u"
+      Value 
+        Call
+          Callee Ident "User"
+          Arg name=name
+            Value Str "ada"
+          Arg name=age
+            Value Int "36"
+          Arg name=score
+            Value Float "9.5"
+          Arg name=tags
+            Value 
+              List len=2
+                Item Str "admin"
+                Item Str "eng"
+          Arg name=home
+            Value 
+              Call
+                Callee Ident "Address"
+                Arg name=city
+                  Value Str "London"
+                Arg name=zip
+                  Value Int "12345"
+    Assign
+      Target Ident "text"
+      Value 
+        Call
+          Callee 
+            Member name="to_json"
+              Obj Ident "serde"
+          Arg
+            Value Ident "u"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "text"
+    Assign
+      Target Ident "back"
+      Value 
+        Call
+          Callee 
+            Member name="from_json_as"
+              Obj Ident "serde"
+          Arg
+            Value Ident "User"
+          Arg
+            Value Ident "text"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="type"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "back"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "back"
+                Arg
+                  Value Str "name"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "back"
+                Arg
+                  Value Str "age"
+    Assign
+      Target Ident "home"
+      Value 
+        Call
+          Callee 
+            Member name="get_field"
+              Obj Ident "reflect"
+          Arg
+            Value Ident "back"
+          Arg
+            Value Str "home"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "home"
+                Arg
+                  Value Str "city"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get_field"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "home"
+                Arg
+                  Value Str "zip"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    List len=3
+                      Item Int "1"
+                      Item Int "2"
+                      Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_json"
+                    Obj Ident "serde"
+                Arg
+                  Value 
+                    Dict len=3
+                      Pair
+                        Key Str "pi"
+                        Val Float "3.14"
+                      Pair
+                        Key Str "ok"
+                        Val Ident "true"
+                      Pair
+                        Key Str "none"
+                        Val Ident "none"
+<ROOT>/examples/66_serde_basic.kn: OK (5 top-level statements)
+[exit 0]

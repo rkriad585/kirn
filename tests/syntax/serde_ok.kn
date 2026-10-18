@@ -1,0 +1,17 @@
+# Reflection-based serialization (POWER_PLAN §3)
+import pet.serde as serde;
+
+struct Point { x: Int; y: Int; }
+
+enum Ev { Tick; Key(code: Int); }
+
+fn main() -> none {
+    p = Point(x: 1, y: 2);
+    text = serde.to_json(p);
+    print(text);
+    back = serde.from_json_as(Point, text);
+    print(back);
+    print(serde.to_json(Ev.Key(code: 65)));
+    print(serde.to_json(Ev.Tick));
+}
+# expect: {"x":1,"y":2}

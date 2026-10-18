@@ -1,0 +1,228 @@
+# stdlib/pet/serde.kn — reflection-based serialization framework (POWER_PLAN §3).
+#
+# This is the "Tier-2 dynamic serde" path: it uses the `reflect` module to walk
+# structs and enums structurally, so it works without `@[derive(...)]` codegen.
+# The JSON format is implemented here end-to-end (the native `json.dumps` cannot
+# see struct fields, and `json.loads` is reused for the dynamic tree).
+#
+#   import pet.serde as serde;
+#   s = serde.to_json(user);
+#   back = serde.from_json_as(User, s);
+#
+# Enum encoding is externally tagged with a single key: `{"Variant": payload}`
+# where payload is `null` (unit variant) or a JSON array (all others).
+
+import reflect;
+import pet.json as json;
+
+# ---- Encoding --------------------------------------------------------------
+
+pub fn to_json(v: any) -> Str {
+    return enc(v);
+}
+
+pub fn encode(v: any) -> Str {
+    return enc(v);
+}
+
+fn enc(v: any) -> Str {
+    k = reflect.kind_of(v);
+    if k == "none" { return "null"; }
+    if k == "bool" {
+        if v { return "true"; }
+        return "false";
+    }
+    if k == "int" { return Str(v); }
+    if k == "float" { return enc_float(v); }
+    if k == "string" { return quote(v); }
+    if k == "char" { return quote(Str(v)); }
+    if k == "list" or k == "tuple" or k == "set" or k == "deque" {
+        return enc_seq(v);
+    }
+    if k == "dict" or k == "counter" { return enc_map(v); }
+    if k == "struct" { return enc_struct(v); }
+    if k == "enum" { return enc_enum(v); }
+    return "null";
+}
+
+fn enc_float(v: any) -> Str {
+    s = Str(v);
+    if s == "inf" or s == "-inf" or s == "nan" { return "null"; }
+    return s;
+}
+
+fn enc_seq(v: any) -> Str {
+    out = "[";
+    var first = true;
+    for e in v {
+        if not first { out = out + ","; }
+        first = false;
+        out = out + enc(e);
+    }
+    return out + "]";
+}
+
+fn enc_map(v: any) -> Str {
+    out = "{";
+    var first = true;
+    for key in v {
+        if not first { out = out + ","; }
+        first = false;
+        ks = key;
+        if reflect.kind_of(key) != "string" { ks = Str(key); }
+        out = out + quote(ks) + ":" + enc(v[key]);
+    }
+    return out + "}";
+}
+
+fn enc_struct(v: any) -> Str {
+    names = reflect.field_names(v);
+    out = "{";
+    var first = true;
+    for name in names {
+        if not first { out = out + ","; }
+        first = false;
+        out = out + quote(name) + ":" + enc(reflect.get_field(v, name));
+    }
+    return out + "}";
+}
+
+fn enc_enum(v: any) -> Str {
+    name = reflect.variant(v);
+    payload = reflect.payload(v);
+    pj = "null";
+    if payload.len() > 0 { pj = enc_seq(payload); }
+    return "{" + quote(name) + ":" + pj + "}";
+}
+
+fn quote(s: Str) -> Str {
+    out = "\"";
+    var i = 0;
+    while i < s.len() {
+        c = s[i..i + 1];
+        matched = false;
+        if c == "\"" { out = out + "\\\""; matched = true; }
+        if c == "\\" { out = out + "\\\\"; matched = true; }
+        if c == "\n" { out = out + "\\n"; matched = true; }
+        if c == "\t" { out = out + "\\t"; matched = true; }
+        if c == "\r" { out = out + "\\r"; matched = true; }
+        if not matched { out = out + c; }
+        i = i + 1;
+    }
+    return out + "\"";
+}
+
+# ---- Decoding --------------------------------------------------------------
+
+# Parse JSON into a dynamic tree (dict/list/str/int/float/bool/none).
+pub fn from_json(s: Str) -> any {
+    return json.loads(s);
+}
+
+pub fn decode(s: Str) -> any {
+    return json.loads(s);
+}
+
+# Parse JSON and coerce it into `T` (a struct or enum type reference).
+pub fn from_json_as(T: any, s: Str) -> any {
+    return coerce_type(T, json.loads(s));
+}
+
+fn coerce_type(T: any, data: any) -> any {
+    if reflect.field_type_names(T).len() > 0 { return decode_struct(T, data); }
+    if reflect.variants(T).len() > 0 { return decode_enum(T, data); }
+    return data;
+}
+
+fn decode_struct(T: any, data: any) -> any {
+    if reflect.kind_of(data) != "dict" {
+        raise("serde: expected a JSON object for struct " + Str(T));
+    }
+    types = reflect.field_type_names(T);
+    generics = reflect.field_generics(T);
+    fields = {};
+    for fname in types {
+        if has_key(data, fname) {
+            gen = generics[fname];
+            fields[fname] = coerce(types[fname], gen, data[fname]);
+        }
+    }
+    return reflect.new(T, fields);
+}
+
+fn decode_enum(T: any, data: any) -> any {
+    if reflect.kind_of(data) != "dict" {
+        raise("serde: expected an object for enum " + Str(T));
+    }
+    keys = [];
+    for k in data { keys.append(k); }
+    if keys.len() != 1 {
+        raise("serde: enum object must have exactly one variant key");
+    }
+    variant = keys[0];
+    pj = data[variant];
+    var payload = [];
+    if reflect.kind_of(pj) == "list" { payload = pj; }
+    if reflect.kind_of(pj) != "none" and reflect.kind_of(pj) != "list" {
+        payload = [pj];
+    }
+    ptys = reflect.enum_payload_type_names(T, variant);
+    coerced = [];
+    var i = 0;
+    while i < payload.len() {
+        var pt = "";
+        if i < ptys.len() { pt = ptys[i]; }
+        coerced.append(coerce(pt, [], payload[i]));
+        i = i + 1;
+    }
+    return reflect.enum_new(T, variant, coerced);
+}
+
+# Coerce a decoded JSON value to the declared type named `ft`, using the
+# first-level generic argument names in `gen` for list/dict element types.
+fn coerce(ft: Str, gen: list, raw: any) -> any {
+    if ft == "Int" or ft == "int" or ft == "i64" or ft == "i32" or ft == "i16" or ft == "i8" or ft == "u64" or ft == "u32" or ft == "u16" or ft == "u8" {
+        if reflect.kind_of(raw) == "float" { return Int(raw); }
+        return raw;
+    }
+    if ft == "Float" or ft == "float" or ft == "f64" or ft == "f32" {
+        if reflect.kind_of(raw) == "int" { return Float(raw); }
+        return raw;
+    }
+    if ft == "Bool" or ft == "bool" {
+        if reflect.kind_of(raw) != "bool" { return Bool(raw); }
+        return raw;
+    }
+    if ft == "Str" or ft == "str" or ft == "String" or ft == "string" {
+        if reflect.kind_of(raw) != "string" { return Str(raw); }
+        return raw;
+    }
+    if ft == "list" or ft == "List" {
+        if reflect.kind_of(raw) != "list" { return raw; }
+        var et = "";
+        if gen.len() > 0 { et = gen[0]; }
+        out = [];
+        for e in raw { out.append(coerce(et, [], e)); }
+        return out;
+    }
+    if ft == "dict" or ft == "Dict" {
+        if reflect.kind_of(raw) != "dict" { return raw; }
+        var vt = "";
+        if gen.len() >= 2 { vt = gen[1]; }
+        if vt == "" { return raw; }
+        out = {};
+        for kk in raw { out[kk] = coerce(vt, [], raw[kk]); }
+        return out;
+    }
+    var tr = reflect.type_ref(ft);
+    if tr != none { return coerce_type(tr, raw); }
+    return raw;
+}
+
+fn has_key(d: any, k: Str) -> Bool {
+    if reflect.kind_of(d) != "dict" { return false; }
+    for kk in d {
+        if kk == k { return true; }
+    }
+    return false;
+}

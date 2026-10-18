@@ -1,0 +1,43 @@
+# 66 — Serialization: struct -> JSON -> struct round trip (POWER_PLAN §3)
+#
+# `serde` walks declared fields via the `reflect` module, so plain structs work
+# without any derive attribute. `from_json_as` rebuilds the typed value,
+# coercing scalars (JSON has a single number type) back to the declared types.
+import pet.serde as serde;
+import reflect;
+
+struct Address {
+    city: Str;
+    zip: Int;
+}
+
+struct User {
+    name: Str;
+    age: Int;
+    score: Float;
+    tags: list[Str];
+    home: Address;
+}
+
+fn main() -> none {
+    u = User(
+        name: "ada",
+        age: 36,
+        score: 9.5,
+        tags: ["admin", "eng"],
+        home: Address(city: "London", zip: 12345),
+    );
+
+    text = serde.to_json(u);
+    print(text);
+
+    back = serde.from_json_as(User, text);
+    print(reflect.type(back));
+    print(reflect.get_field(back, "name"), reflect.get_field(back, "age"));
+
+    home = reflect.get_field(back, "home");
+    print(reflect.get_field(home, "city"), reflect.get_field(home, "zip"));
+
+    print(serde.to_json([1, 2, 3]));
+    print(serde.to_json({"pi": 3.14, "ok": true, "none": none}));
+}

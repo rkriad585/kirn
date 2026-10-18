@@ -17,6 +17,8 @@ test ./stdlib/pet/math_test.kn ... math_test ok
 PASS
 test ./stdlib/pet/os_test.kn ... os_test ok
 PASS
+test ./stdlib/pet/parallel_test.kn ... parallel_test ok
+PASS
 test ./stdlib/pet/path_test.kn ... path_test ok
 PASS
 test ./stdlib/pet/regexp_test.kn ... regexp_test ok
@@ -27,5 +29,5 @@ test ./stdlib/pet/strings_test.kn ... strings_test ok
 PASS
 test ./stdlib/pet/time_test.kn ... time_test ok
 PASS
-11 passed, 0 failed
+12 passed, 0 failed
 [exit 0]

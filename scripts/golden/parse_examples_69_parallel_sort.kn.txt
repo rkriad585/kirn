@@ -1,0 +1,175 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/69_parallel_sort.kn
+Import pet.parallel as parallel
+StructDef "Row"
+  Field "name" : Str
+  Field "score" : Int
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="par_sort"
+                    Obj Ident "parallel"
+                Arg
+                  Value 
+                    List len=6
+                      Item Int "5"
+                      Item Int "3"
+                      Item Int "9"
+                      Item Int "1"
+                      Item Int "7"
+                      Item Int "2"
+    VarDecl
+      Target Ident "rows"
+      Value 
+        List len=3
+          Item 
+            Call
+              Callee Ident "Row"
+              Arg name=name
+                Value Str "a"
+              Arg name=score
+                Value Int "3"
+          Item 
+            Call
+              Callee Ident "Row"
+              Arg name=name
+                Value Str "b"
+              Arg name=score
+                Value Int "1"
+          Item 
+            Call
+              Callee Ident "Row"
+              Arg name=name
+                Value Str "c"
+              Arg name=score
+                Value Int "2"
+    VarDecl
+      Target Ident "by_score"
+      Value 
+        Call
+          Callee 
+            Member name="par_sort_by_key"
+              Obj Ident "parallel"
+          Arg
+            Value Ident "rows"
+          Arg
+            Value 
+              Lambda params=(r: <inferred>)
+                Body
+                  Return
+                    Value 
+                      Member name="score"
+                        Obj Ident "r"
+    For
+      PatBind r
+      Iter Ident "by_score"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value 
+                  Member name="name"
+                    Obj Ident "r"
+              Arg
+                Value 
+                  Member name="score"
+                    Obj Ident "r"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="par_sort_by_key"
+                    Obj Ident "parallel"
+                Arg
+                  Value 
+                    List len=6
+                      Item Int "3"
+                      Item Int "1"
+                      Item Int "2"
+                      Item Int "1"
+                      Item Int "3"
+                      Item Int "2"
+                Arg
+                  Value 
+                    Lambda params=(x: <inferred>)
+                      Body
+                        Return
+                          Value Ident "x"
+    VarDecl
+      Target Ident "big"
+      Value 
+        List len=0
+    VarDecl
+      Target Ident "i"
+      Value Int "20000"
+    While
+      Cond 
+        Binary op=">"
+          Lhs Ident "i"
+          Rhs Int "0"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "big"
+              Arg
+                Value Ident "i"
+        Assign
+          Target Ident "i"
+          Value 
+            Binary op="-"
+              Lhs Ident "i"
+              Rhs Int "1"
+    VarDecl
+      Target Ident "s"
+      Value 
+        Call
+          Callee 
+            Member name="par_sort"
+              Obj Ident "parallel"
+          Arg
+            Value Ident "big"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Index
+                Obj Ident "s"
+                At Int "0"
+          Arg
+            Value 
+              Index
+                Obj Ident "s"
+                At 
+                  Binary op="-"
+                    Lhs 
+                      Call
+                        Callee 
+                          Member name="len"
+                            Obj Ident "s"
+                    Rhs Int "1"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "s"
+<ROOT>/examples/69_parallel_sort.kn: OK (3 top-level statements)
+[exit 0]

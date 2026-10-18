@@ -699,7 +699,7 @@ void Checker::predeclareBuiltins() {
     // Not declared into scope: user `import time` etc. must not clash; the
     // importRoots_ set alone makes bare references resolve dynamically.
     for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync",
-                            "reflect"})
+                            "reflect", "parallel"})
         importRoots_.insert(mod);
 
     // Publish every name that resolves at top level without a user declaration,
@@ -1607,7 +1607,9 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
         // builtin struct protocols
         if (recv->name == "thread") {
             FuncSig s;
-            s.ret = noneTy();
+            // POWER_PLAN §4: a task handle's `join()` now yields the task's
+            // return value (previously none).
+            s.ret = unkTy();
             if (name == "join") return s;
             return std::nullopt;
         }

@@ -1,0 +1,27 @@
+# 68 — Data parallelism: parallel iterators (POWER_PLAN §4)
+#
+# `par_iter` splits work across the worker pool; `map`/`filter` run their
+# closures concurrently while `collect`/`sum` reassemble results in order, so
+# output is deterministic even though execution is parallel.
+import pet.parallel as parallel;
+
+fn main() -> none {
+    var n = parallel.current_num_threads();
+    print("threads", n > 0);
+
+    var xs = parallel.par_iter([1, 2, 3, 4, 5, 6, 7, 8]);
+    print(xs.map(fn (x) { return x * x; }).collect());
+    print(xs.filter(fn (x) { return x % 2 == 0; }).collect());
+    print(parallel.par_iter([1, 2, 3, 4]).sum());
+
+    print(parallel.join(fn () -> Int { return 21; }, fn () -> Int { return 42; }));
+
+    # A large enough range to actually fan out across the pool: sum of the
+    # squares of the even numbers in 1..=10000.
+    var big = parallel
+        .par_iter(1..=10000)
+        .filter(fn (x) { return x % 2 == 0; })
+        .map(fn (x) { return x * x; })
+        .sum();
+    print(big);
+}

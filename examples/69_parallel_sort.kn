@@ -1,0 +1,32 @@
+# 69 — Data parallelism: parallel sort (POWER_PLAN §4)
+#
+# `par_sort` and `par_sort_by_key` are stable mergesorts that sort halves
+# concurrently on large inputs; results are deterministic.
+import pet.parallel as parallel;
+
+struct Row {
+    name: Str;
+    score: Int;
+}
+
+fn main() -> none {
+    print(parallel.par_sort([5, 3, 9, 1, 7, 2]));
+
+    var rows = [
+        Row(name: "a", score: 3),
+        Row(name: "b", score: 1),
+        Row(name: "c", score: 2),
+    ];
+    var by_score = parallel.par_sort_by_key(rows, fn (r) { return r.score; });
+    for r in by_score { print(r.name, r.score); }
+
+    # Stability: equal keys keep their original relative order.
+    print(parallel.par_sort_by_key([3, 1, 2, 1, 3, 2], fn (x) { return x; }));
+
+    # A large sort to exercise the concurrent halves.
+    var big = [];
+    var i = 20000;
+    while i > 0 { big.append(i); i = i - 1; }
+    var s = parallel.par_sort(big);
+    print(s[0], s[s.len() - 1], s.len());
+}

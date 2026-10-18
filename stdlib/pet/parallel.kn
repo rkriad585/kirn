@@ -1,0 +1,263 @@
+# stdlib/pet/parallel.kn — rayon-like data parallelism (POWER_PLAN §4).
+#
+# Backed by the native `parallel` module (which runs Kirn closures on OS
+# threads via the task machinery that also powers `spawn`/`await`). Combinators
+# split work into per-thread chunks, run the chunks concurrently, and reassemble
+# the results in order. Like rayon, parallel closures must not mutate shared
+# state (there is no sendability checker yet); keep them pure.
+#
+#   import pet.parallel as parallel;
+#   var total = parallel.par_iter([1,2,3,4]).map(fn (x) { return x * x; }).sum();
+
+import parallel;
+
+# ---- pool / thread info ----------------------------------------------------
+
+pub fn current_num_threads() -> Int {
+    return parallel.current_num_threads();
+}
+
+pub fn current_thread_index() -> Int {
+    return parallel.current_thread_index();
+}
+
+# ---- low-level combinators -------------------------------------------------
+
+# Run two closures concurrently on separate threads; return `[ra, rb]`.
+pub fn join(a: fn() -> any, b: fn() -> any) -> list {
+    return parallel.join(a, b);
+}
+
+# Run every closure in `fns` concurrently; return their results in order.
+pub fn invoke(fns: list) -> list {
+    return parallel.invoke(fns);
+}
+
+# ---- parallel iterators ----------------------------------------------------
+
+struct ParIter {
+    xs: list;
+    fn init(self, xs: list) -> none { self.xs = xs; }
+
+    fn map(self, f) -> ParIter {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < 4096 or n <= 1 {
+            out = [];
+            for e in xs { out.append(f(e)); }
+            return ParIter(xs: out);
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> list {
+                part = [];
+                for e in c { part.append(f(e)); }
+                return part;
+            });
+            i = end;
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out);
+    }
+
+    fn filter(self, f) -> ParIter {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < 4096 or n <= 1 {
+            out = [];
+            for e in xs {
+                if f(e) { out.append(e); }
+            }
+            return ParIter(xs: out);
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    if f(e) { part.append(e); }
+                }
+                return part;
+            });
+            i = end;
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out);
+    }
+
+    fn collect(self) -> list { return self.xs; }
+
+    fn count(self) -> Int { return self.xs.len(); }
+
+    fn sum(self) -> Int {
+        var total = 0;
+        for e in self.xs { total += e; }
+        return total;
+    }
+
+    fn product(self) -> Int {
+        var total = 1;
+        for e in self.xs { total *= e; }
+        return total;
+    }
+
+    fn for_each(self, f) -> none {
+        for e in self.xs { f(e); }
+    }
+
+    fn reduce(self, init, f) -> any {
+        var acc = init;
+        for e in self.xs { acc = f(acc, e); }
+        return acc;
+    }
+
+    fn min(self) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and e < best { best = e; }
+        }
+        return best;
+    }
+
+    fn max(self) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and e > best { best = e; }
+        }
+        return best;
+    }
+
+    fn any(self, f) -> Bool {
+        for e in self.xs {
+            if f(e) { return true; }
+        }
+        return false;
+    }
+
+    fn all(self, f) -> Bool {
+        for e in self.xs {
+            if not f(e) { return false; }
+        }
+        return true;
+    }
+}
+
+# Build a parallel iterator over a list or a range (`1..=n`).
+pub fn par_iter(xs) -> ParIter {
+    list_xs = [];
+    for e in xs { list_xs.append(e); }
+    return ParIter(xs: list_xs);
+}
+
+# ---- parallel sort ---------------------------------------------------------
+
+fn merge(a, b) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if b[j] < a[i] { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort(xs: list, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort(left, depth + 1);
+        var r = merge_sort(right, depth + 1);
+        var l = h.join();
+        return merge(l, r);
+    }
+    return merge(merge_sort(left, depth + 1), merge_sort(right, depth + 1));
+}
+
+# Stable parallel sort (ascending).
+pub fn par_sort(xs: list) -> list {
+    return merge_sort(xs, 0);
+}
+
+fn merge_key(a, b, key) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if key(b[j]) < key(a[i]) { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort_key(xs: list, key, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort_key(left, key, depth + 1);
+        var r = merge_sort_key(right, key, depth + 1);
+        var l = h.join();
+        return merge_key(l, r, key);
+    }
+    return merge_key(merge_sort_key(left, key, depth + 1),
+                     merge_sort_key(right, key, depth + 1), key);
+}
+
+# Stable parallel sort by a key function.
+pub fn par_sort_by_key(xs: list, key) -> list {
+    return merge_sort_key(xs, key, 0);
+}
+
+# ---- higher-level shapes ---------------------------------------------------
+
+# Run `f` once per thread, returning the list of results.
+pub fn broadcast(f) -> list {
+    n = current_num_threads();
+    fns = [];
+    var i = 0;
+    while i < n {
+        fns.append(f);
+        i = i + 1;
+    }
+    return invoke(fns);
+}

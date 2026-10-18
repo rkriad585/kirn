@@ -1,0 +1,9 @@
+# Parallel iterators and sort (POWER_PLAN §4)
+import pet.parallel as parallel;
+
+fn main() -> none {
+    print(parallel.par_iter([1, 2, 3]).map(fn (x) { return x + 1; }).collect());
+    print(parallel.par_sort([3, 1, 2]));
+    print(parallel.join(fn () -> Int { return 5; }, fn () -> Int { return 6; }));
+}
+# expect: [2, 3, 4]

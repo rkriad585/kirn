@@ -2733,7 +2733,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
 
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
-         {"math", "time", "io", "mem", "json", "text", "os"})
+         {"math", "time", "io", "mem", "json", "text", "os", "parallel"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -3480,6 +3480,59 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::integer(nowMs());
             });
         panicHere("time has no member '" + name + "'");
+    }
+
+    // POWER_PLAN §4: rayon-like data parallelism. `join`/`invoke` run Kirn
+    // closures on OS threads and block until the results are ready (reusing the
+    // task machinery that backs `spawn`/`await`), and the thread-info queries
+    // back `pet.parallel`'s pool sizing.
+    if (mod == "parallel") {
+        if (name == "join")
+            return biFn({"a", "b"}, [this](std::vector<Value>& a) -> Value {
+                if (a.size() < 2)
+                    panicHere("parallel.join expects (fn, fn)");
+                Value h = spawnTask(a[0], {});
+                Value rb = callValue(a[1], {}, 0, 0);
+                Value ra = awaitTask(h);
+                Value out = Value::list();
+                out.vec->push_back(ra);
+                out.vec->push_back(rb);
+                return out;
+            });
+        if (name == "invoke")
+            return biFn({"fns"}, [this](std::vector<Value>& a) -> Value {
+                Value out = Value::list();
+                if (a.empty() || a[0].k != VK::List) return out;
+                const auto& fns = *a[0].vec;
+                std::vector<Value> handles;
+                for (size_t i = 0; i + 1 < fns.size(); ++i)
+                    handles.push_back(spawnTask(fns[i], {}));
+                Value last = Value::none();
+                if (!fns.empty()) last = callValue(fns.back(), {}, 0, 0);
+                for (auto& h : handles)
+                    out.vec->push_back(awaitTask(h));
+                out.vec->push_back(last);
+                return out;
+            });
+        if (name == "current_num_threads")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                const char* e = envGet("KIRN_NUM_THREADS");
+                if (e && *e) {
+                    char* end = nullptr;
+                    long n = std::strtol(e, &end, 10);
+                    if (end != e && n >= 1 && n <= 4096)
+                        return Value::integer((int64_t)n);
+                }
+                unsigned n = std::thread::hardware_concurrency();
+                return Value::integer(n ? (int64_t)n : 1);
+            });
+        if (name == "current_thread_index")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                static std::atomic<int> next{0};
+                static thread_local int idx = next.fetch_add(1);
+                return Value::integer(idx);
+            });
+        panicHere("parallel has no member '" + name + "'");
     }
 
     if (mod == "io") {
@@ -5565,14 +5618,10 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         case VK::ThreadH:
             if (name == "join")
                 return bind({}, [this](std::vector<Value>& a) -> Value {
-                    auto t = a[0].thread;
-                    if (t && t->th.joinable() &&
-                        std::this_thread::get_id() != t->th.get_id()) {
-                        t->th.join();
-                    } else if (t && t->th.joinable()) {
-                        t->th.detach();     // joining self: detach instead
-                    }
-                    return Value::none();
+                    // POWER_PLAN §4: a task handle's `join()` now yields the
+                    // task's return value (previously `none`), which lets
+                    // `pet.parallel` collect parallel results without `await`.
+                    return awaitTask(a[0]);
                 });
             break;
 

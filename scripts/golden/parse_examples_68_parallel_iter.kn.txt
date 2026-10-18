@@ -1,0 +1,180 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/68_parallel_iter.kn
+Import pet.parallel as parallel
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "n"
+      Value 
+        Call
+          Callee 
+            Member name="current_num_threads"
+              Obj Ident "parallel"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "threads"
+          Arg
+            Value 
+              Binary op=">"
+                Lhs Ident "n"
+                Rhs Int "0"
+    VarDecl
+      Target Ident "xs"
+      Value 
+        Call
+          Callee 
+            Member name="par_iter"
+              Obj Ident "parallel"
+          Arg
+            Value 
+              List len=8
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+                Item Int "4"
+                Item Int "5"
+                Item Int "6"
+                Item Int "7"
+                Item Int "8"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="map"
+                            Obj Ident "xs"
+                        Arg
+                          Value 
+                            Lambda params=(x: <inferred>)
+                              Body
+                                Return
+                                  Value 
+                                    Binary op="*"
+                                      Lhs Ident "x"
+                                      Rhs Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="filter"
+                            Obj Ident "xs"
+                        Arg
+                          Value 
+                            Lambda params=(x: <inferred>)
+                              Body
+                                Return
+                                  Value 
+                                    Binary op="=="
+                                      Lhs 
+                                        Binary op="%"
+                                          Lhs Ident "x"
+                                          Rhs Int "2"
+                                      Rhs Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="sum"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=4
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                              Item Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="join"
+                    Obj Ident "parallel"
+                Arg
+                  Value 
+                    Lambda params=()
+                Arg
+                  Value 
+                    Lambda params=()
+    VarDecl
+      Target Ident "big"
+      Value 
+        Call
+          Callee 
+            Member name="sum"
+              Obj 
+                Call
+                  Callee 
+                    Member name="map"
+                      Obj 
+                        Call
+                          Callee 
+                            Member name="filter"
+                              Obj 
+                                Call
+                                  Callee 
+                                    Member name="par_iter"
+                                      Obj Ident "parallel"
+                                  Arg
+                                    Value 
+                                      Binary op="..="
+                                        Lhs Int "1"
+                                        Rhs Int "10000"
+                          Arg
+                            Value 
+                              Lambda params=(x: <inferred>)
+                                Body
+                                  Return
+                                    Value 
+                                      Binary op="=="
+                                        Lhs 
+                                          Binary op="%"
+                                            Lhs Ident "x"
+                                            Rhs Int "2"
+                                        Rhs Int "0"
+                  Arg
+                    Value 
+                      Lambda params=(x: <inferred>)
+                        Body
+                          Return
+                            Value 
+                              Binary op="*"
+                                Lhs Ident "x"
+                                Rhs Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "big"
+<ROOT>/examples/68_parallel_iter.kn: OK (2 top-level statements)
+[exit 0]

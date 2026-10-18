@@ -668,3 +668,31 @@ Verification: gates **303/0** (13 gates, run individually), golden **297/0**, cr
 Example-number deviation: the plan's Phase 4 exits named `66_par_iter`/`67_par_sort`, but 66/67 are taken by serde, so parallel ships as `68/69`.
 
 Deviations (documented): the pool is **spawn-based** (one OS thread per task), not work-stealing; `par_iter(xs)` is a **function**, not a `.par_iter()` method (no `.into_par_iter()`/`.par_iter_mut()`); `@[par] for ...` sugar parses (`parseTopOrStmt` attaches the decorator) but the interpreter does not lower statement decorators, so it is **not wired**; side-effecting `for_each` runs **sequentially** (loop vars capture by value, no sendability check), so `par_each` was dropped — the safe manual form is `parallel.par_iter(...).for_each(f)`.
+
+### Update (2026-10-18) — Phase 5: `pet.error` (shipped, anyhow/thiserror-style)
+
+**Path chosen:** Phase 5 ships §5's ergonomic layer as **native runtime support** — a type-erased `error.Error` value, `.context`/`chain`/`root_cause`/`downcast`, `bail`/`ensure`, `?` auto-conversion at the result boundary, and a **minimal `@[derive(Error)]` Display generator** — rather than the thiserror derive/codegen design, because the front end still generates no code from `@[derive(...)]` (documented since Phase 3) and has no `From` impls. §5.4's conversion is implemented in the **runtime's `runFunc` result boundary**, not `checker.cpp:2978`, because every `raise`/`?` already funnels through `SignalRaise` there.
+
+Delivered:
+
+- **Dynamic `Error`** (`src/interp/runtime.cpp`): `kErrorType = "error.Error"` struct with `msg`/`source`/`origin`; helpers `mkError`, `isErrorStruct`, `isPetError`, `errorFieldStr`, `errorChainStr` (anyhow `{:#}` → `"top: cause1: cause2"`), `errorWithContext`. `print(e)`/`toStr` on an Error shows the Display chain (`toStr`'s `VK::Struct` arm), not the raw struct.
+- **Module API** (`moduleMember`, `mod == "error"`): `msg`, `new`, `context(r, c)`, `chain`, `root_cause`, `is(e, T)`/`downcast(e, T)`, `display`, `bail(msg)`, `ensure(cond, msg)`. Registered in `checker.cpp`'s `importRoots_` and the runtime prebound-module list.
+- **Context on `result`** (`memberRead` `VK::Result`): `.context(c)` / `.with_context(f)` are native bound builtins — `ok` passes through unchanged, `err` pushes a layer onto the source chain (`with_context` captures `[this]` to call the closure). Added to `checker.cpp`'s `methodLookup` result protocol (params **and** names must be pushed together or `matchArgs` reads `names[]` out of bounds).
+- **Error methods** (`invokeMethod`, `VK::Struct` + `isErrorStruct`, before the user-method lookup): `chain()`, `root_cause()` (returns the deepest **Error value** so `is`/`downcast` still work on it), `is(T)`, `downcast(T)` (matched over the `origin` field, with namespace-tolerant type comparison), `backtrace()` (returns `none` — not captured yet).
+- **§5.4 `?`/`raise` auto-conversion** (`runFunc`'s `catch (SignalRaise&)`): when the function's declared return is a single-argument `result[T]` (E defaults to `error.Error`) and the payload is not already a `pet.error` Error, it is wrapped as `mkError(toStr(payload), none, payload)` — the original stays reachable as `origin`, so `error.is`/`error.downcast` recover it. Two-argument `result[T, E]` fns propagate the payload unchanged, so existing typed-error examples (`19`) are untouched.
+- **§5.3 `@[derive(Error)]` Display (minimal)**: a file-level `g_errDerivedEnums` registry filled by `registerEnumDerive(s)` at the three enum-registration sites; `toStr`'s new `VK::EnumV` arm renders the variant's `@[error("…")]` template with `{field}` / `{0}` / `{field:?}` / `{{`/`}}` interpolation, and `@[error(transparent)]` delegates to the sole payload. Enums without the derive keep the `repr` form (no regression — the repo had no `@[derive(Error)]` enums before this change).
+- **Lexer bug fixed along the way** (`src/lex/lexer.cpp`): `Lexer::fill()` ran `skipInlineWs()`/comment handling **before** dispatching to the f-string literal scanner, so whitespace/`#` right after a `}` was eaten (`f"a {u} b"` → `a 0b`; `examples/01` printed `Kirnsays hi`). `FsMode::Text` is now dispatched at the top of the loop; six goldens (lex/parse 01/04/31) re-recorded.
+- **Examples/tests**: `examples/70_error_derive.kn` (§5.3 Display + §5.4 `?` + `is`/`downcast` round-trip), `examples/71_error_context.kn` (§5.1 context/chain/root_cause + §5.2 ensure/bail), `tests/syntax/error_ok.kn` (warning-free, tree==VM), `stdlib/pet/error_test.kn` (13th test); goldens recorded; gate 6 count `12` → `13` (`scripts/gates/6_test.sh`, `scripts/gates_linux.sh` header).
+
+Verification: gates **308/0** (13 gates), golden **303/0**, crosscheck **723/0**, stdlib **13/0**.
+
+Example-number deviation: the plan's Phase 5 exits named `68_error_derive`/`69_error_context`, but 68/69 are taken by Phase 4 parallel, so error ships as `70/71`.
+
+Deviations / not shipped (documented):
+
+- **`@[from]` / `@[source]` / `@[backtrace]` derive codegen and `From[E2, E]` impls are not implemented** — there is still no derive-codegen phase (see Phase 3), so `?` auto-converts only to `E = error.Error`; a typed-error enum is reached via `origin` + `downcast`, not `From`.
+- **§5.4's conversion lives in the runtime result boundary, not the checker.**
+- **`.context()` on `option` is not wired** (only `result`).
+- **`error.result[T]` type alias is not implemented** (dotted type names do not parse); use `result[T]` (E defaults) or `result[T, ConcreteEnum]`.
+- **`backtrace()` returns `none`** (backtraces are not captured).
+- Front-end limits hit while writing the examples/tests (all pre-existing, verified by probe): enum payload variants need **named** fields (`Disconnect(reason: Str)`, not `Disconnect(Str)`); struct-style variant payloads (`Variant { … }`) do not parse; `ok(x)`/`err(x)` are not expressions (get err values via `raise` or `.context`/methods); `match` uses `case ok(v) { … }` (not `=>`); string interpolation is **f-strings** (`f"…"`), plain strings do not interpolate; `main` needs `-> none`.

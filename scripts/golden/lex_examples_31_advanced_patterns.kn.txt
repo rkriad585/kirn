@@ -177,7 +177,7 @@ FStrTxt	32:39	tuple alias even=
 FStr{	32:38	{
 Ident	32:39	even
 FStr}	32:43	}
-FStrTxt	32:52	whole=
+FStrTxt	32:52	 whole=
 FStr{	32:51	{
 Ident	32:52	t
 FStr}	32:53	}
@@ -221,7 +221,7 @@ FStrTxt	42:27	head=
 FStr{	42:26	{
 Ident	42:27	head
 FStr}	42:31	}
-FStrTxt	42:39	tail=
+FStrTxt	42:39	 tail=
 FStr{	42:38	{
 Ident	42:39	tail
 FStr}	42:43	}
@@ -258,11 +258,11 @@ FStrTxt	49:24	a=
 FStr{	49:23	{
 Ident	49:24	a
 FStr}	49:25	}
-FStrTxt	49:30	b=
+FStrTxt	49:30	 b=
 FStr{	49:29	{
 Ident	49:30	b
 FStr}	49:31	}
-FStrTxt	49:39	rest=
+FStrTxt	49:39	 rest=
 FStr{	49:38	{
 Ident	49:39	rest
 FStr}	49:43	}

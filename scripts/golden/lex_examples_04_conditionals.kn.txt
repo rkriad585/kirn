@@ -81,11 +81,11 @@ FStr#	21:11	f"
 FStr{	21:13	{
 Ident	21:14	score
 FStr}	21:19	}
-FStrTxt	21:25	-> 
+FStrTxt	21:25	 -> 
 FStr{	21:24	{
 Ident	21:25	letter
 FStr}	21:31	}
-FStrTxt	21:35	(
+FStrTxt	21:35	 (
 FStr{	21:34	{
 Ident	21:35	verdict
 FStr}	21:42	}

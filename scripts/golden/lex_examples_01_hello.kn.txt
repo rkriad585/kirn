@@ -33,7 +33,7 @@ Ident	8:14	lang
 FStr:	8:18	:
 FStrSpec	8:22	>10
 FStr}	8:22	}
-FStrTxt	8:32	says hi
+FStrTxt	8:32	 says hi
 FStrEnd	8:32	"
 Punct	8:32	)
 Punct	8:33	;

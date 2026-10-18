@@ -62,10 +62,10 @@ FuncDef "main"
               FString
                 Interp
                   Value Ident "score"
-                Text "-> "
+                Text " -> "
                 Interp
                   Value Ident "letter"
-                Text "("
+                Text " ("
                 Interp
                   Value Ident "verdict"
                 Text ")"

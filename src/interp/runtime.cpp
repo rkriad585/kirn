@@ -644,6 +644,158 @@ static std::string fmtDouble(double d) {
     return std::to_string(d);
 }
 
+// POWER_PLAN §5: `pet.error` dynamic error (anyhow-style). An Error is a
+// struct value with fields:
+//   msg    (Str) - this layer's Display message
+//   source (any) - the next cause (an Error struct) or none
+//   origin (any) - the wrapped concrete value for downcast/is, or none
+std::string toStr(const Value& v);   // forward decl (defined below)
+static const char* kErrorType = "error.Error";
+static bool isErrorStruct(const std::string& tn) {
+    return tn == kErrorType || tn == "error.Error" || tn == "Error";
+}
+static Value mkError(std::string msg, Value source, Value origin) {
+    Value v = Value::structV(kErrorType);
+    v.fields.emplace_back("msg", Value::str(std::move(msg)));
+    v.fields.emplace_back("source", std::move(source));
+    v.fields.emplace_back("origin", std::move(origin));
+    return v;
+}
+// True when v is a pet.error Error built by mkError (precise: not a user
+// struct that merely happens to be named "Error").
+static bool isPetError(const Value& v) {
+    if (v.k == VK::Struct) return v.typeName == kErrorType;
+    if (v.k == VK::Heap && v.heap) return v.heap->typeName == kErrorType;
+    return false;
+}
+
+// POWER_PLAN §5.3: enums annotated `@[derive(Error)]`, registered at load time
+// so the free function toStr() can render their Display without Interpreter
+// state. Value: enum type name -> its EnumDef AST (for variant @[error("…")]).
+static std::unordered_map<std::string, const ast::Stmt*> g_errDerivedEnums;
+
+static bool decoratorDerivesError(const ast::Decorator& d) {
+    if (d.name != "derive") return false;
+    for (const auto& a : d.args)
+        if (a.value && a.value->kind == ast::ExKind::Ident && a.value->text == "Error")
+            return true;
+    return false;
+}
+static void registerEnumDerive(const ast::Stmt& s) {
+    for (const auto& d : s.decorators)
+        if (decoratorDerivesError(d)) { g_errDerivedEnums[s.name] = &s; return; }
+}
+
+// Minimal `@[derive(Error)]` Display (thiserror): render the variant's
+// `@[error("…")]` template — `{field}`, `{0}`, `{field:?}`, `{{`/`}}` — or, for
+// `@[error(transparent)]`, delegate to the sole field's Display.
+static std::string deriveErrorDisplay(const Value& v, const ast::Stmt* en) {
+    const ast::Variant* var = nullptr;
+    for (const auto& vr : en->variants)
+        if (vr.name == v.variant) { var = &vr; break; }
+    if (!var) return repr(v);
+    std::string tmpl;
+    bool transparent = false, found = false;
+    for (const auto& d : var->decorators) {
+        if (d.name != "error") continue;
+        for (const auto& a : d.args)
+            if (a.value && a.value->kind == ast::ExKind::Ident &&
+                a.value->text == "transparent")
+                transparent = true;
+        if (!d.args.empty() && d.args[0].value &&
+            d.args[0].value->kind == ast::ExKind::Str) {
+            tmpl = d.args[0].value->text;
+            found = true;
+        }
+    }
+    if (transparent) return v.payload.empty() ? repr(v) : toStr(v.payload[0]);
+    if (!found) return repr(v);
+
+    auto fieldAt = [&](const std::string& spec, bool& dbg) -> const Value* {
+        dbg = false;
+        std::string key = spec;
+        if (key.size() > 2 && key[key.size() - 2] == ':' && key.back() == '?') {
+            dbg = true;
+            key = key.substr(0, key.size() - 2);
+        }
+        if (key.empty()) return nullptr;
+        long idx = -1;
+        bool numeric = key.find_first_not_of("0123456789") == std::string::npos;
+        if (numeric) idx = std::stol(key);
+        else {
+            for (size_t i = 0; i < var->payload.size(); ++i)
+                if (var->payload[i].name == key) { idx = (long)i; break; }
+        }
+        if (idx < 0 || (size_t)idx >= v.payload.size()) return nullptr;
+        return &v.payload[(size_t)idx];
+    };
+
+    std::string out;
+    for (size_t i = 0; i < tmpl.size();) {
+        if (tmpl[i] == '{' && i + 1 < tmpl.size() && tmpl[i + 1] == '{') {
+            out += '{'; i += 2; continue;
+        }
+        if (tmpl[i] == '}' && i + 1 < tmpl.size() && tmpl[i + 1] == '}') {
+            out += '}'; i += 2; continue;
+        }
+        if (tmpl[i] == '{') {
+            size_t close = tmpl.find('}', i);
+            if (close == std::string::npos) { out += tmpl[i]; ++i; continue; }
+            bool dbg = false;
+            const Value* fv = fieldAt(tmpl.substr(i + 1, close - i - 1), dbg);
+            if (fv) out += dbg ? repr(*fv) : toStr(*fv);
+            i = close + 1;
+            continue;
+        }
+        out += tmpl[i];
+        ++i;
+    }
+    return out;
+}
+static const Value* structField(const Value& v, const std::string& n) {
+    const std::vector<std::pair<std::string, Value>>* fs = nullptr;
+    if (v.k == VK::Struct) fs = &v.fields;
+    else if (v.k == VK::Heap && v.heap) fs = &v.heap->fields;
+    if (fs)
+        for (const auto& f : *fs)
+            if (f.first == n) return &f.second;
+    return nullptr;
+}
+static std::string errorFieldStr(const Value& v, const std::string& n) {
+    const Value* f = structField(v, n);
+    return f ? toStr(*f) : std::string();
+}
+// anyhow `{:#}` Display: "top: cause1: cause2" walking the source chain.
+static std::string errorChainStr(const Value& v) {
+    std::string out;
+    const Value* cur = &v;
+    bool first = true;
+    while (cur && isErrorStruct(cur->typeName)) {
+        if (!first) out += ": ";
+        out += errorFieldStr(*cur, "msg");
+        first = false;
+        const Value* src = structField(*cur, "source");
+        cur = (src && isErrorStruct(src->typeName)) ? src : nullptr;
+    }
+    return out;
+}
+
+// `.context(c)` on a result: ok passes through; err gets `c` pushed on top of
+// the cause chain as a new Error layer (anyhow Context). A raw (non-Error) err
+// payload is first wrapped in an Error so it can be a source.
+static Value errorWithContext(const Value& r, const std::string& ctx) {
+    if (r.k != VK::Result) return r;
+    if (r.variant == "ok") return r;
+    Value payload = r.payload.empty() ? Value::none() : r.payload[0];
+    if (payload.k == VK::Struct && isErrorStruct(payload.typeName)) {
+        const Value* origin = structField(payload, "origin");
+        return Value::resultErr(
+            mkError(ctx, payload, origin ? *origin : Value::none()));
+    }
+    Value inner = mkError(toStr(payload), Value::none(), payload);
+    return Value::resultErr(mkError(ctx, inner, payload));
+}
+
 std::string toStr(const Value& v) {
     switch (v.k) {
         case VK::None:   return "none";
@@ -696,6 +848,17 @@ std::string toStr(const Value& v) {
                 if (v.typeName.rfind(p, 0) == 0) return v.typeName.substr(n);
             }
             return v.typeName;
+        }
+        case VK::Struct:
+            // pet.error: print(e) shows the Display chain, not the raw struct.
+            if (isErrorStruct(v.typeName)) return errorChainStr(v);
+            return repr(v);
+        case VK::EnumV: {
+            // POWER_PLAN §5.3: `@[derive(Error)]` enums print their @[error(…)]
+            // Display; every other enum keeps the repr form.
+            auto it = g_errDerivedEnums.find(v.typeName);
+            if (it != g_errDerivedEnums.end()) return deriveErrorDisplay(v, it->second);
+            return repr(v);
         }
         default:         return repr(v);
     }
@@ -1107,7 +1270,7 @@ void Interpreter::collectProgram(const Stmt& program) {
                 }
                 break;
             case ast::StKind::StructDef: structs_[s.name] = &s; break;
-            case ast::StKind::EnumDef:   enums_[s.name] = &s;   break;
+            case ast::StKind::EnumDef:   enums_[s.name] = &s;   registerEnumDerive(s); break;
             case ast::StKind::TraitDef:  traits_[s.name] = &s;  break;
             case ast::StKind::ImplDef: {
                 ImplEntry ent;
@@ -2733,7 +2896,8 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
 
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
-         {"math", "time", "io", "mem", "json", "text", "os", "parallel"})
+         {"math", "time", "io", "mem", "json", "text", "os", "parallel",
+          "error"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -2940,6 +3104,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                 break;
             case ast::StKind::EnumDef:
                 enums_[s.name] = &s;
+                registerEnumDerive(s);
                 if (s.pub && !s.privateDecl)
                     modEnv->vars[s.name] = Value::module("__enum__:" + s.name);
                 break;
@@ -3590,6 +3755,80 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         panicHere("os has no member '" + name + "'");
     }
 
+    // POWER_PLAN §5.1/5.2: anyhow-style dynamic error. `error` is the import
+    // root for `pet.error` (importRootOf gives "error"); the prebound module
+    // value is Value::module("error").
+    if (mod == "error" || mod == "pet.error") {
+        if (name == "msg")
+            return biFn({"msg"}, [](std::vector<Value>& a) -> Value {
+                return mkError(toStr(a[0]), Value::none(), Value::none());
+            });
+        if (name == "new")
+            return biFn({"e"}, [](std::vector<Value>& a) -> Value {
+                return mkError(toStr(a[0]), Value::none(), a[0]);
+            });
+        if (name == "context")   // error.context(r, c) — same as r.context(c)
+            return biFn({"r", "ctx"}, [](std::vector<Value>& a) -> Value {
+                return errorWithContext(a[0], toStr(a[1]));
+            });
+        if (name == "chain")
+            return biFn({"e"}, [](std::vector<Value>& a) -> Value {
+                std::vector<Value> out;
+                const Value* cur = a.empty() ? nullptr : &a[0];
+                while (cur && isErrorStruct(cur->typeName)) {
+                    out.push_back(Value::str(errorFieldStr(*cur, "msg")));
+                    const Value* src = structField(*cur, "source");
+                    cur = (src && isErrorStruct(src->typeName)) ? src : nullptr;
+                }
+                return Value::list(std::move(out));
+            });
+        if (name == "root_cause")
+            return biFn({"e"}, [](std::vector<Value>& a) -> Value {
+                if (a.empty()) return Value::none();
+                const Value* cur = &a[0];
+                while (cur && isErrorStruct(cur->typeName)) {
+                    const Value* src = structField(*cur, "source");
+                    if (src && isErrorStruct(src->typeName)) { cur = src; continue; }
+                    break;
+                }
+                return (cur && isErrorStruct(cur->typeName)) ? *cur : a[0];
+            });
+        if (name == "is" || name == "downcast") {
+            bool down = (name == "downcast");
+            return biFn({"e", "name"}, [down](std::vector<Value>& a) -> Value {
+                const Value* e = a.size() > 0 ? &a[0] : nullptr;
+                std::string want = a.size() > 1 ? toStr(a[1]) : "";
+                // origin's runtime type name must match `want` (dot or plain).
+                const Value* origin = e ? structField(*e, "origin") : nullptr;
+                if (!origin) return Value::boolean(!down ? false : false);
+                std::string tn = typeName(*origin);
+                bool match = (tn == want) ||
+                             (tn.rfind(want + ".", 0) == 0) ||
+                             (want.rfind(tn, 0) == 0);
+                if (down) return match ? *origin : Value::none();
+                return Value::boolean(match);
+            });
+        }
+        if (name == "display")
+            return biFn({"e"}, [](std::vector<Value>& a) -> Value {
+                return Value::str(a.empty() ? "" : toStr(a[0]));
+            });
+        if (name == "bail")
+            return biFn({"msg"}, [](std::vector<Value>& a) -> Value {
+                throw SignalRaise{Value::resultErr(
+                    mkError(toStr(a[0]), Value::none(), Value::none()))};
+            });
+        if (name == "ensure")
+            return biFn({"cond", "msg"}, [](std::vector<Value>& a) -> Value {
+                if (a.size() < 2 || !truthy(a[0]))
+                    throw SignalRaise{Value::resultErr(
+                        mkError(toStr(a.size() > 1 ? a[1] : a[0]),
+                                Value::none(), Value::none()))};
+                return Value::none();
+            });
+        panicHere("error has no member '" + name + "'");
+    }
+
     panicHere("unknown module '" + mod + "'");
 }
 
@@ -3821,6 +4060,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
 
         case ast::StKind::EnumDef: {
             enums_[s.name] = &s;
+            registerEnumDerive(s);
             env->vars[s.name] = Value::module("__enum__:" + s.name);
             return;
         }
@@ -5363,7 +5603,20 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
     } catch (SignalRaise& sraise) {
         runDefers();
         if (isGen) yieldSinks_.pop_back();
-        if (isResultRet(*fn)) return sraise.errResult;
+        if (isResultRet(*fn)) {
+            // POWER_PLAN §5.4: a single-arg `result[T]` defaults E to
+            // error.Error, so a non-Error payload reached via `raise`/`?` is
+            // wrapped into an Error (caller can .context()/.chain() it, and the
+            // raw value stays reachable as origin for downcast). Explicit-E
+            // `result[T, E]` functions propagate E2 unchanged.
+            if (fn->ret->generics.size() == 1 && sraise.errResult.k == VK::Result &&
+                !sraise.errResult.payload.empty() &&
+                !isPetError(sraise.errResult.payload[0])) {
+                Value& p = sraise.errResult.payload[0];
+                p = mkError(toStr(p), Value::none(), p);
+            }
+            return sraise.errResult;
+        }
         throw;
     } catch (...) {
         runDefers();
@@ -5450,6 +5703,41 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
     if (obj.k == VK::Struct || obj.k == VK::Heap) {
         const std::string& tn =
             obj.k == VK::Heap ? obj.heap->typeName : obj.typeName;
+        // POWER_PLAN §5: pet.error's Error methods are native (no AST decl).
+        if (isErrorStruct(tn)) {
+            if (name == "chain") {
+                std::vector<Value> out;
+                const Value* cur = &obj;
+                while (cur && isErrorStruct(cur->typeName)) {
+                    out.push_back(Value::str(errorFieldStr(*cur, "msg")));
+                    const Value* src = structField(*cur, "source");
+                    cur = (src && isErrorStruct(src->typeName)) ? src : nullptr;
+                }
+                return Value::list(std::move(out));
+            }
+            if (name == "root_cause") {
+                const Value* cur = &obj;
+                while (cur && isErrorStruct(cur->typeName)) {
+                    const Value* src = structField(*cur, "source");
+                    if (src && isErrorStruct(src->typeName)) { cur = src; continue; }
+                    break;
+                }
+                return (cur && isErrorStruct(cur->typeName)) ? *cur : obj;
+            }
+            if (name == "is" || name == "downcast") {
+                bool down = (name == "downcast");
+                std::string want = pos.empty() ? "" : toStr(pos[0]);
+                const Value* origin = structField(obj, "origin");
+                if (!origin) return down ? Value::none() : Value::boolean(false);
+                std::string tn2 = typeName(*origin);
+                bool match = tn2 == want || tn2.rfind(want + ".", 0) == 0 ||
+                             want.rfind(tn2, 0) == 0;
+                if (down) return match ? *origin : Value::none();
+                return Value::boolean(match);
+            }
+            if (name == "backtrace") return Value::none();  // not captured yet
+            panicHere("type '" + tn + "' has no method '" + name + "'");
+        }
         const Stmt* method = nullptr;
         auto si = structs_.find(tn);
         if (si != structs_.end()) {
@@ -5568,6 +5856,18 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 Value p = obj.payload.empty() ? Value::none() : obj.payload[0];
                 return bind({}, [p](std::vector<Value>&) { return p; });
             }
+            // POWER_PLAN §5.1: `.context(c)` / `.with_context(f)` push a cause
+            // layer onto an err payload; ok passes through (anyhow Context).
+            if (name == "context")
+                return bind({"ctx"}, [](std::vector<Value>& a) {
+                    return errorWithContext(a[0], a.size() > 1 ? toStr(a[1]) : "");
+                });
+            if (name == "with_context")
+                return bind({"f"}, [this](std::vector<Value>& a) {
+                    Value c = Value::none();
+                    if (a.size() > 1) c = callValue(a[1], {}, 0, 0);
+                    return errorWithContext(a[0], toStr(c));
+                });
             break;
         }
 

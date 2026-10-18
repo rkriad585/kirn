@@ -1,0 +1,34 @@
+# Typed errors, context and Display (POWER_PLAN §5)
+import pet.error;
+
+fn boom() -> result[Int] {
+    raise error.msg("boom");
+}
+fn stopped() -> result[none] {
+    error.bail("stopped");
+    return none;
+}
+fn guarded(v: Int) -> result[Int] {
+    error.ensure(v == 0, "must be zero");
+    return v;
+}
+
+fn main() -> none {
+    var r = boom().context("ctx");
+    match r {
+        case err(e) {
+            print(error.chain(e).len());
+            print(error.display(e));
+            print(error.display(error.root_cause(e)));
+        }
+        case ok(v) { print(v); }
+    }
+    match stopped() {
+        case err(e) { print(error.display(e)); }
+        case ok(_) { print("ok"); }
+    }
+    match guarded(5) {
+        case err(e) { print(error.display(e)); }
+        case ok(v) { print(v); }
+    }
+}

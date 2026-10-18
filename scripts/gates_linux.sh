@@ -11,8 +11,8 @@
 #                    examples matching '^[0-9]' (code + combined output).
 #   5. conventions - rules/convention matrix for the `kirn` driver (run-entry
 #                    resolution + pin.kn package initializer).
-#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (12
-#                    tests, must report '12 passed, 0 failed').
+#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (13
+#                    tests, must report '13 passed, 0 failed').
 #   7. pets        - .pet bundle round-trip: pack a lib, install the bundle
 #                    into a consuming project's pets/ dir, consume it at run.
 # Exit 0 iff every gate passes, else 1.

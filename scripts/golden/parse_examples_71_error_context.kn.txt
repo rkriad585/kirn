@@ -1,0 +1,355 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/71_error_context.kn
+Import pet.error
+FuncDef "read_setting"
+  Param "name" : Str
+  Ret result[Str]
+  Body
+    If
+      Cond 
+        Binary op="=="
+          Lhs Ident "name"
+          Rhs Str "missing"
+      Then
+        Raise
+          Value 
+            Call
+              Callee 
+                Member name="msg"
+                  Obj Ident "error"
+              Arg
+                Value Str "no such setting"
+    If
+      Cond 
+        Binary op="=="
+          Lhs Ident "name"
+          Rhs Str ""
+      Then
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="bail"
+                  Obj Ident "error"
+              Arg
+                Value Str "empty setting name"
+    Return
+      Value 
+        FString
+          Text "value-"
+          Interp
+            Value Ident "name"
+FuncDef "load_config"
+  Ret result[Str]
+  Body
+    VarDecl
+      Target Ident "v"
+      Value 
+        Try '?'
+          Operand 
+            Call
+              Callee 
+                Member name="context"
+                  Obj 
+                    Call
+                      Callee Ident "read_setting"
+                      Arg
+                        Value Str "missing"
+              Arg
+                Value Str "loading config"
+    Return
+      Value Ident "v"
+FuncDef "load_env"
+  Ret result[Str]
+  Body
+    VarDecl
+      Target Ident "v"
+      Value 
+        Try '?'
+          Operand 
+            Call
+              Callee 
+                Member name="with_context"
+                  Obj 
+                    Call
+                      Callee Ident "read_setting"
+                      Arg
+                        Value Str "missing"
+              Arg
+                Value 
+                  Lambda params=()
+    Return
+      Value Ident "v"
+FuncDef "only_admin"
+  Param "uid" : Int
+  Ret result[Int]
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="ensure"
+              Obj Ident "error"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs Ident "uid"
+                Rhs Int "0"
+          Arg
+            Value 
+              FString
+                Text "user "
+                Interp
+                  Value Ident "uid"
+                Text " is not admin"
+    Return
+      Value Ident "uid"
+FuncDef "main"
+  Ret none
+  Body
+    Match
+      Subject 
+        Call
+          Callee Ident "load_config"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "loaded "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "failed: "
+                      Interp
+                        Value Ident "e"
+    Match
+      Subject 
+        Call
+          Callee Ident "load_env"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "loaded "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "failed: "
+                      Interp
+                        Value Ident "e"
+    VarDecl
+      Target Ident "r"
+      Value 
+        Call
+          Callee 
+            Member name="context"
+              Obj 
+                Call
+                  Callee 
+                    Member name="context"
+                      Obj 
+                        Call
+                          Callee Ident "read_setting"
+                          Arg
+                            Value Str "missing"
+                  Arg
+                    Value Str "top"
+          Arg
+            Value Str "above top"
+    Match
+      Subject Ident "r"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "chain: "
+                      Interp
+                        Value 
+                          Call
+                            Callee 
+                              Member name="chain"
+                                Obj Ident "error"
+                            Arg
+                              Value Ident "e"
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "root: "
+                      Interp
+                        Value 
+                          Call
+                            Callee 
+                              Member name="root_cause"
+                                Obj Ident "error"
+                            Arg
+                              Value Ident "e"
+      Arm
+        PatCtor ok
+          Field
+            PatWild
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "unexpected ok"
+    Match
+      Subject 
+        Call
+          Callee Ident "only_admin"
+          Arg
+            Value Int "5"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "ok "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "err: "
+                      Interp
+                        Value Ident "e"
+    Match
+      Subject 
+        Call
+          Callee Ident "only_admin"
+          Arg
+            Value Int "0"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "ok "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "err: "
+                      Interp
+                        Value Ident "e"
+    Match
+      Subject 
+        Call
+          Callee Ident "read_setting"
+          Arg
+            Value Str ""
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "ok "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "err: "
+                      Interp
+                        Value Ident "e"
+<ROOT>/examples/71_error_context.kn: OK (6 top-level statements)
+[exit 0]

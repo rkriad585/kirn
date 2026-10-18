@@ -28,6 +28,6 @@ FuncDef "main"
               FString
                 Interp spec=>10
                   Value Ident "lang"
-                Text "says hi"
+                Text " says hi"
 <ROOT>/examples/01_hello.kn: OK (1 top-level statements)
 [exit 0]

@@ -1,0 +1,61 @@
+# 70 — typed errors via @[derive(Error)]   (POWER_PLAN §5.3 / §5.4)
+import pet.error;
+
+@[derive(Error, Debug)]
+enum DataStoreError {
+    @[error("data store disconnected")]
+    Disconnect(reason: Str),
+
+    @[error("invalid header (expected {expected:?}, found {found:?})")]
+    InvalidHeader(expected: Str, found: Str),
+
+    @[error(transparent)]
+    Other(detail: Str),
+}
+
+# Explicit E: the error stays the raw enum, matched like any other value.
+fn open_header(h: Str) -> result[Str, DataStoreError] {
+    if h == "" { raise DataStoreError.Disconnect(reason: "eof"); }
+    if h != "HTTP/1.1" {
+        raise DataStoreError.InvalidHeader(expected: "HTTP/1.1", found: h);
+    }
+    return h;
+}
+
+# E defaults to error.Error: `?` auto-converts the payload (§5.4).
+fn open_or_default(h: Str) -> result[Str] {
+    var v = open_header(h)?;   # DataStoreError -> pet.error Error
+    return v;
+}
+
+fn main() -> none {
+    # @[derive(Error)] renders Display from @[error("…")] (fields, {0}, {:?}).
+    print(DataStoreError.Disconnect(reason: "net"));
+    print(DataStoreError.InvalidHeader(expected: "HTTP/1.1", found: "FTP"));
+    print(DataStoreError.Other(detail: "wrapped cause"));
+
+    # a typed error, matched directly on its variants
+    match open_header("FTP") {
+        case ok(v) { print(f"opened {v}"); }
+        case err(e) {
+            print(f"typed error: {e}");
+            match e {
+                case Disconnect(reason) { print(f"  dropped: {reason}"); }
+                case InvalidHeader(expected, found) {
+                    print(f"  got {found}, wanted {expected}");
+                }
+                case Other(detail) { print(f"  other: {detail}"); }
+            }
+        }
+    }
+
+    # `?` converts E2 -> error.Error; the enum is still reachable via origin
+    match open_or_default("FTP") {
+        case ok(v) { print(f"opened {v}"); }
+        case err(e) {
+            print(f"as Error: {e}");
+            print(f"is DataStoreError: {error.is(e, "DataStoreError")}");
+            print(f"downcast: {error.downcast(e, "DataStoreError")}");
+        }
+    }
+}

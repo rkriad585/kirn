@@ -699,7 +699,7 @@ void Checker::predeclareBuiltins() {
     // Not declared into scope: user `import time` etc. must not clash; the
     // importRoots_ set alone makes bare references resolve dynamically.
     for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync",
-                            "reflect", "parallel"})
+                            "reflect", "parallel", "error"})
         importRoots_.insert(mod);
 
     // Publish every name that resolves at top level without a user declaration,
@@ -1618,6 +1618,16 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             if (name == "is_err" || name == "is_ok") { s.ret = boolTy(); return s; }
             if (name == "unwrap")     { s.ret = argAt(recv, 0); return s; }
             if (name == "unwrap_err") { s.ret = argAt(recv, 1); return s; }
+            // POWER_PLAN §5.1: `.context`/`.with_context` (anyhow Context) keep
+            // the result shape but the err becomes a pet.error Error. Typing it
+            // here (rather than unknown) stops "no method on result".
+            if (name == "context" || name == "with_context") {
+                s.ret = recv;
+                s.params.push_back(name == "context" ? strTy() : unkTy());
+                s.names.push_back(name == "context" ? "ctx" : "f");
+                s.required = 1;
+                return s;
+            }
             return std::nullopt;
         }
         return std::nullopt;

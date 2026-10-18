@@ -1,0 +1,115 @@
+import pet.error;
+
+fn boom() -> result[Int] {
+    raise error.msg("boom");
+}
+fn fine() -> result[Int] {
+    return 7;
+}
+fn ensure_admin(uid: Int) -> result[Int] {
+    error.ensure(uid == 0, f"user {uid} not admin");
+    return uid;
+}
+fn stopped() -> result[none] {
+    error.bail("stopped");
+    return none;
+}
+
+@[derive(Error, Debug)]
+enum StoreErr {
+    @[error("store gone ({code})")]
+    Gone(code: Int),
+    @[error("header {expected} != {found:?}")]
+    BadHeader(expected: Str, found: Str),
+    @[error(transparent)]
+    Plain(detail: Str),
+}
+fn typed(h: Str) -> result[Str, StoreErr] {
+    if h == "" { raise StoreErr.Gone(code: 503); }
+    return h;
+}
+fn typed_to_err(h: Str) -> result[Str] {
+    var v = typed(h)?;
+    return v;
+}
+
+fn main() -> none {
+    # --- §5.1 dynamic Error: msg / Display / chain ---
+    var e = error.msg("boom");
+    assert(error.chain(e).len() == 1);
+    assert(error.chain(e)[0] == "boom");
+    assert(error.display(e) == "boom");
+
+    # --- .context layers an err ---
+    var r = boom().context("outer");
+    match r {
+        case err(er) {
+            assert(error.chain(er).len() == 2);
+            assert(error.chain(er)[0] == "outer");
+            assert(error.chain(er)[1] == "boom");
+            assert(error.display(error.root_cause(er)) == "boom");
+            assert(error.display(er) == "outer: boom");
+        }
+        case ok(_) { assert(false); }
+    }
+
+    # --- .with_context builds the layer from a closure ---
+    var r2 = boom().with_context(fn () -> Str { return "wc"; });
+    match r2 {
+        case err(er) { assert(error.chain(er).len() == 2 and error.chain(er)[0] == "wc"); }
+        case ok(_) { assert(false); }
+    }
+
+    # --- context passes ok through unchanged ---
+    var r3 = fine().context("ignored");
+    match r3 { case ok(v) { assert(v == 7); } case err(_) { assert(false); } }
+
+    # --- method forms on the Error ---
+    var r4 = boom().context("mid");
+    match r4 {
+        case err(er) {
+            assert(er.chain().len() == 2 and er.chain()[0] == "mid");
+            assert(error.display(er.root_cause()) == "boom");
+        }
+        case ok(_) { assert(false); }
+    }
+
+    # --- §5.2 ensure / bail ---
+    match ensure_admin(0) { case ok(v) { assert(v == 0); } case err(_) { assert(false); } }
+    match ensure_admin(3) {
+        case err(er) { assert(error.chain(er)[0] == "user 3 not admin"); }
+        case ok(_) { assert(false); }
+    }
+    match stopped() {
+        case err(er) { assert(error.chain(er)[0] == "stopped"); }
+        case ok(_) { assert(false); }
+    }
+
+    # --- §5.3 derive Display (fields, {0}/{:?}, transparent) ---
+    assert(error.display(StoreErr.Gone(code: 503)) == "store gone (503)");
+    assert(error.display(StoreErr.BadHeader(expected: "A", found: "B")) == "header A != 'B'");
+    assert(error.display(StoreErr.Plain(detail: "wrapped")) == "wrapped");
+
+    # explicit-E: the raw enum is reached; Display still works
+    match typed("") {
+        case err(er) { assert(error.display(er) == "store gone (503)"); }
+        case ok(_) { assert(false); }
+    }
+
+    # --- §5.4 ? auto-converts E2 -> error.Error; downcast recovers it ---
+    match typed_to_err("") {
+        case err(er) {
+            assert(error.is(er, "StoreErr"));
+            assert(er.is("StoreErr"));
+            assert(error.chain(er)[0] == "store gone (503)");
+            assert(error.display(error.downcast(er, "StoreErr")) == "store gone (503)");
+            assert(error.display(er.downcast("StoreErr")) == "store gone (503)");
+        }
+        case ok(_) { assert(false); }
+    }
+
+    # ? propagates ok unchanged
+    match typed_to_err("HTTP") { case ok(v) { assert(v == "HTTP"); } case err(_) { assert(false); } }
+
+    print("error_test ok");
+}

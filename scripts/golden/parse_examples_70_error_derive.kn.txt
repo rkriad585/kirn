@@ -1,0 +1,269 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/70_error_derive.kn
+Import pet.error
+Decorator "derive" bracket
+  Arg Ident "Error"
+  Arg Ident "Debug"
+EnumDef "DataStoreError"
+  Decorator "error" bracket
+    Arg Str "data store disconnected"
+  Variant Disconnect {reason: Str}
+  Decorator "error" bracket
+    Arg Str "invalid header (expected {expected:?}, found {found:?})"
+  Variant InvalidHeader {expected: Str, found: Str}
+  Decorator "error" bracket
+    Arg Ident "transparent"
+  Variant Other {detail: Str}
+FuncDef "open_header"
+  Param "h" : Str
+  Ret result[Str, DataStoreError]
+  Body
+    If
+      Cond 
+        Binary op="=="
+          Lhs Ident "h"
+          Rhs Str ""
+      Then
+        Raise
+          Value 
+            Call
+              Callee 
+                Member name="Disconnect"
+                  Obj Ident "DataStoreError"
+              Arg name=reason
+                Value Str "eof"
+    If
+      Cond 
+        Binary op="!="
+          Lhs Ident "h"
+          Rhs Str "HTTP/1.1"
+      Then
+        Raise
+          Value 
+            Call
+              Callee 
+                Member name="InvalidHeader"
+                  Obj Ident "DataStoreError"
+              Arg name=expected
+                Value Str "HTTP/1.1"
+              Arg name=found
+                Value Ident "h"
+    Return
+      Value Ident "h"
+FuncDef "open_or_default"
+  Param "h" : Str
+  Ret result[Str]
+  Body
+    VarDecl
+      Target Ident "v"
+      Value 
+        Try '?'
+          Operand 
+            Call
+              Callee Ident "open_header"
+              Arg
+                Value Ident "h"
+    Return
+      Value Ident "v"
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="Disconnect"
+                    Obj Ident "DataStoreError"
+                Arg name=reason
+                  Value Str "net"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="InvalidHeader"
+                    Obj Ident "DataStoreError"
+                Arg name=expected
+                  Value Str "HTTP/1.1"
+                Arg name=found
+                  Value Str "FTP"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="Other"
+                    Obj Ident "DataStoreError"
+                Arg name=detail
+                  Value Str "wrapped cause"
+    Match
+      Subject 
+        Call
+          Callee Ident "open_header"
+          Arg
+            Value Str "FTP"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "opened "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "typed error: "
+                      Interp
+                        Value Ident "e"
+          Match
+            Subject Ident "e"
+            Arm
+              PatCtor Disconnect
+                Field
+                  PatBind reason
+              Body
+                ExprStmt
+                  Value 
+                    Call
+                      Callee Ident "print"
+                      Arg
+                        Value 
+                          FString
+                            Text "  dropped: "
+                            Interp
+                              Value Ident "reason"
+            Arm
+              PatCtor InvalidHeader
+                Field
+                  PatBind expected
+                Field
+                  PatBind found
+              Body
+                ExprStmt
+                  Value 
+                    Call
+                      Callee Ident "print"
+                      Arg
+                        Value 
+                          FString
+                            Text "  got "
+                            Interp
+                              Value Ident "found"
+                            Text ", wanted "
+                            Interp
+                              Value Ident "expected"
+            Arm
+              PatCtor Other
+                Field
+                  PatBind detail
+              Body
+                ExprStmt
+                  Value 
+                    Call
+                      Callee Ident "print"
+                      Arg
+                        Value 
+                          FString
+                            Text "  other: "
+                            Interp
+                              Value Ident "detail"
+    Match
+      Subject 
+        Call
+          Callee Ident "open_or_default"
+          Arg
+            Value Str "FTP"
+      Arm
+        PatCtor ok
+          Field
+            PatBind v
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "opened "
+                      Interp
+                        Value Ident "v"
+      Arm
+        PatCtor err
+          Field
+            PatBind e
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "as Error: "
+                      Interp
+                        Value Ident "e"
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "is DataStoreError: "
+                      Interp
+                        Value 
+                          Call
+                            Callee 
+                              Member name="is"
+                                Obj Ident "error"
+                            Arg
+                              Value Ident "e"
+                            Arg
+                              Value Str "DataStoreError"
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value 
+                    FString
+                      Text "downcast: "
+                      Interp
+                        Value 
+                          Call
+                            Callee 
+                              Member name="downcast"
+                                Obj Ident "error"
+                            Arg
+                              Value Ident "e"
+                            Arg
+                              Value Str "DataStoreError"
+<ROOT>/examples/70_error_derive.kn: OK (5 top-level statements)
+[exit 0]

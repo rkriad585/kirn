@@ -134,7 +134,7 @@ FuncDef "main" pub
                       Text "tuple alias even="
                       Interp
                         Value Ident "even"
-                      Text "whole="
+                      Text " whole="
                       Interp
                         Value Ident "t"
       Arm
@@ -167,7 +167,7 @@ FuncDef "main" pub
                       Text "head="
                       Interp
                         Value Ident "head"
-                      Text "tail="
+                      Text " tail="
                       Interp
                         Value Ident "tail"
     Match
@@ -192,10 +192,10 @@ FuncDef "main" pub
                       Text "a="
                       Interp
                         Value Ident "a"
-                      Text "b="
+                      Text " b="
                       Interp
                         Value Ident "b"
-                      Text "rest="
+                      Text " rest="
                       Interp
                         Value Ident "rest"
     For

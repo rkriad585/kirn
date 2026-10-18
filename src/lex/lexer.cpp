@@ -175,6 +175,16 @@ void Lexer::fill() {
             finishFile();
             continue;
         }
+        // Literal f-string text (after `f"` or after a `}`) is copied verbatim;
+        // it must bypass indentation/whitespace/comment handling so that a space
+        // or '#' immediately following an interpolation stays literal text.
+        if (fsMode_ == FsMode::Text) {
+            Token t = lexToken();          // -> scanFText()
+            stampExtent(t);
+            queue_.push_back(std::move(t));
+            lineHasToken_ = true;
+            continue;
+        }
         if (atLineStart_ && parenDepth_ == 0) {
             processIndentation();
             continue;

@@ -1,0 +1,54 @@
+# 71 — pet.error: dynamic Error, context, bail/ensure   (POWER_PLAN §5.1 / §5.2)
+import pet.error;
+
+fn read_setting(name: Str) -> result[Str] {
+    if name == "missing" { raise error.msg("no such setting"); }
+    if name == "" { error.bail("empty setting name"); }
+    return f"value-{name}";
+}
+
+fn load_config() -> result[Str] {
+    var v = read_setting("missing").context("loading config")?;
+    return v;
+}
+
+fn load_env() -> result[Str] {
+    var v = read_setting("missing").with_context(fn () -> Str {
+        return "reading environment";
+    })?;
+    return v;
+}
+
+fn only_admin(uid: Int) -> result[Int] {
+    error.ensure(uid == 0, f"user {uid} is not admin");
+    return uid;
+}
+
+fn main() -> none {
+    # .context(c) pushes a cause layer; print(e) shows the anyhow `{:#}` chain.
+    match load_config() {
+        case ok(v) { print(f"loaded {v}"); }
+        case err(e) { print(f"failed: {e}"); }
+    }
+
+    # .with_context(f) builds the layer from a closure.
+    match load_env() {
+        case ok(v) { print(f"loaded {v}"); }
+        case err(e) { print(f"failed: {e}"); }
+    }
+
+    # error.chain() lists every message top-down; root_cause() is the deepest.
+    var r = read_setting("missing").context("top").context("above top");
+    match r {
+        case err(e) {
+            print(f"chain: {error.chain(e)}");
+            print(f"root: {error.root_cause(e)}");
+        }
+        case ok(_) { print("unexpected ok"); }
+    }
+
+    # error.ensure / error.bail (Rust anyhow! / bail! / ensure!).
+    match only_admin(5) { case ok(v) { print(f"ok {v}"); } case err(e) { print(f"err: {e}"); } }
+    match only_admin(0) { case ok(v) { print(f"ok {v}"); } case err(e) { print(f"err: {e}"); } }
+    match read_setting("") { case ok(v) { print(f"ok {v}"); } case err(e) { print(f"err: {e}"); } }
+}

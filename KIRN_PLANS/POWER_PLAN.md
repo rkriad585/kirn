@@ -632,7 +632,7 @@ Known pre-existing flake (not introduced here): `stdlib/pet/io_test.kn` appends 
 **Path chosen:** after exploring the front end, Phase 3 shipped the **Tier-2 dynamic (reflection-based) serde** rather than the trait + derive design written in §3.1/§3.2. Reasons (checked, not assumed):
 
 - `@[derive(...)]` is **inert**: recognized and validated against `kBuiltinAttrs` (`src/sema/checker.cpp:2868`) but generates no code.
-- The language cannot express §3.1's `trait Serialize[S is Encoder]`: **no generic impls** (`impl[T]` params are discarded, `src/parser/parser.cpp:884`), **no generic signature-only trait methods** (`src/parser/parser.cpp:863`), no `static fn`, and no call-site type arguments (`f[Int](...)`). Generic *free* functions work inference-only.
+- The language cannot express §3.1's `trait Serialize[S is Encoder]`: **no generic impls** (`impl[T]` params are discarded, `src/parser/parser.cpp:884`), **no generic signature-only trait methods** (`src/parser/parser.cpp:863`), no `static fn`, and no call-site type arguments (`f[Int](...)`). Generic _free_ functions work inference-only.
 
 So serde works without any derive: it walks structs/enums structurally via the existing `reflect` pseudo-module.
 
@@ -650,3 +650,21 @@ Verification: gates **298/0**, golden **291/0**, crosscheck **681/0**, stdlib **
 Example-number deviation: the plan's Phase 3 exits named `64_serde_derive`/`65_serde_formats`, but 64/65 are taken by async, so serde ships as `66/67`.
 
 Not shipped (documented deviation, blocked on the front end above): `trait Serialize`/`Deserialize`, `@[derive(Serialize, Deserialize)]`, `@[serde(...)]` field options (`rename`/`skip`/`flatten`/`tag`/…), the `Encoder`/`Decoder`/`Visitor` trio, and the `toml`/`yaml`/`cbor` formats (JSON only for now). These are gated behind generic impls, signature-only generic trait methods, `static fn`, and call-site type arguments.
+
+### Update (2026-10-18) — Phase 4: `pet.parallel` (shipped, spawn-based)
+
+**Path chosen:** Phase 4 shipped a **spawn-based parallel stdlib** rather than the work-stealing rayon-mirror design in §4 — there is no task scheduler in the runtime to build a stealing pool on. Primitives were verified before committing: `spawn` + `h.join()` gives real parallelism (measured ~2x on a compute example), closures capture loop variables **by value**, and `/` on ints yields `Float` (so chunk math must use `//`).
+
+Delivered:
+
+- **Native `parallel` module** (`src/interp/runtime.cpp`, after the `time` block): `join(a, b)` (spawn both, run one inline, `awaitTask` → `[ra, rb]`), `invoke(fns)` (spawn N−1, run the last inline, await all, results in order), `current_num_threads()` (`KIRN_NUM_THREADS` via `strtol`, else `hardware_concurrency`, min 1), `current_thread_index()` (static atomic + thread-local). `ThreadH .join()` now returns `awaitTask(...)` instead of `none`, so `spawn`ed tasks can yield results. Registered in `checker.cpp`'s `importRoots_` and the runtime prebound list; **not** added to the VM mod set (works under the VM anyway, like `reflect`).
+- **`src/sema/checker.cpp`**: thread-struct `.join()` retyped `noneTy()` → `unkTy()` (it now yields a value).
+- **Stdlib** (`stdlib/pet/parallel.kn`): `ParIter` whose `map`/`filter` inline the chunk+`invoke` pool logic — struct methods run with `globals_`, so they cannot see module-private helpers, which forced prebinding `parallel` in `globals_` and inlining the pool calls; plus `collect`/`count`/`sum`/`product`/`for_each`/`reduce`/`min`/`max`/`any`/`all`; `par_iter(xs)` (materializes any iterable); `par_sort`/`par_sort_by_key` (merge sort with a spawn+`h.join()` parallel branch above 8192 elements); `broadcast`.
+- **Examples/tests**: `examples/68_parallel_iter.kn`, `examples/69_parallel_sort.kn`, `tests/syntax/parallel_ok.kn`, `stdlib/pet/parallel_test.kn` (12th test); goldens recorded; gate 6 count `11` → `12`.
+- **Gate harness split** (separate `chore` commit): `scripts/gates_linux.sh` became a thin driver over `scripts/gates/_common.sh` + one file per gate in `scripts/gates/`, because the monolith forced a full run (gate 11 native alone takes ~15m). No args runs every gate (unchanged behaviour); `gates_linux.sh 6 2b` runs a subset.
+
+Verification: gates **303/0** (13 gates, run individually), golden **297/0**, crosscheck **705/0**, stdlib **12/0**.
+
+Example-number deviation: the plan's Phase 4 exits named `66_par_iter`/`67_par_sort`, but 66/67 are taken by serde, so parallel ships as `68/69`.
+
+Deviations (documented): the pool is **spawn-based** (one OS thread per task), not work-stealing; `par_iter(xs)` is a **function**, not a `.par_iter()` method (no `.into_par_iter()`/`.par_iter_mut()`); `@[par] for ...` sugar parses (`parseTopOrStmt` attaches the decorator) but the interpreter does not lower statement decorators, so it is **not wired**; side-effecting `for_each` runs **sequentially** (loop vars capture by value, no sendability check), so `par_each` was dropped — the safe manual form is `parallel.par_iter(...).for_each(f)`.

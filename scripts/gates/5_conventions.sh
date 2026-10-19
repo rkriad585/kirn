@@ -38,3 +38,17 @@ printf 'pub fn poke() -> Str { return "poked"; }\n' > "$P/proj2/pets/nomanifest/
 printf 'import nomanifest;\nfn main() -> none { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
 r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
+# 7. kirn new (app scaffold): bare `kirn run` + `kirn test .` — the prelude
+#    batteries (bail/ensure/ok/err/Error/Result) must need no import.
+(cd "$P" && timeout "$WATCH" "$KIRN" new gapp) >/dev/null 2>&1
+r=$(kirn_run "$P/gapp" run); c=${r%%|*}; out=${r#*|}
+[ "$c" = 0 ] && echo "$out" | grep -q "hello from gapp, world!" && report PASS "kirn new app: bare run" || report FAIL "kirn new app: bare run" "$out"
+r=$(kirn_run "$P/gapp" test .); c=${r%%|*}; out=${r#*|}
+echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new app: test" || report FAIL "kirn new app: test" "$out"
+# 8. kirn new pet: pin.kn must compile under `kirn test`, and the
+#    README-advertised `kirn build` must pack a .pet.
+(cd "$P" && timeout "$WATCH" "$KIRN" new pet gpk) >/dev/null 2>&1
+r=$(kirn_run "$P/gpk" test .); c=${r%%|*}; out=${r#*|}
+echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new pet: test" || report FAIL "kirn new pet: test" "$out"
+r=$(kirn_run "$P/gpk" build); c=${r%%|*}; out=${r#*|}
+echo "$out" | grep -q "gpk-.*\.pet" && report PASS "kirn new pet: build packs" || report FAIL "kirn new pet: build packs" "$out"

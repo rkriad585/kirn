@@ -1,6 +1,4 @@
 # 71 — pet.error: dynamic Error, context, bail/ensure   (POWER_PLAN §5.1 / §5.2)
-import pet.error;
-
 fn read_setting(name: Str) -> result[Str] {
     if name == "missing" { raise error.msg("no such setting"); }
     if name == "" { error.bail("empty setting name"); }

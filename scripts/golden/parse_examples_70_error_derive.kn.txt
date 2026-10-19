@@ -1,5 +1,4 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/70_error_derive.kn
-Import pet.error
 Decorator "derive" bracket
   Arg Ident "Error"
   Arg Ident "Debug"
@@ -265,5 +264,5 @@ FuncDef "main"
                               Value Ident "e"
                             Arg
                               Value Str "DataStoreError"
-<ROOT>/examples/70_error_derive.kn: OK (5 top-level statements)
+<ROOT>/examples/70_error_derive.kn: OK (4 top-level statements)
 [exit 0]

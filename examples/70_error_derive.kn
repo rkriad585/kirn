@@ -1,6 +1,4 @@
 # 70 — typed errors via @[derive(Error)]   (POWER_PLAN §5.3 / §5.4)
-import pet.error;
-
 @[derive(Error, Debug)]
 enum DataStoreError {
     @[error("data store disconnected")]

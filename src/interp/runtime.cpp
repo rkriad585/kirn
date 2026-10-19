@@ -860,6 +860,28 @@ std::string toStr(const Value& v) {
             if (it != g_errDerivedEnums.end()) return deriveErrorDisplay(v, it->second);
             return repr(v);
         }
+        // `toStr`'s default delegates to `repr`, whose default delegates back
+        // here, so a kind neither enumerates recursed until the stack blew
+        // (`print(<fn|chan|task|timer|…>)` segfaulted). Every remaining value
+        // kind is listed below, which makes both delegations terminate.
+        case VK::Fn:
+            return v.lam ? "<lambda>"
+                         : (v.fn && !v.fn->name.empty() ? "<fn " + v.fn->name + ">"
+                                                        : "<fn>");
+        case VK::Builtin:   return "<builtin>";
+        case VK::Chan:      return "<chan>";
+        case VK::ThreadH:   return "<task>";
+        case VK::Timer:     return "<timer>";
+        case VK::File:      return "<file>";
+        case VK::Arena:     return "<arena>";
+        case VK::Ptr:       return "<ptr>";
+        case VK::Mutex:     return "<mutex>";
+        case VK::RwMutex:   return "<rwmutex>";
+        case VK::WaitGroup: return "<waitgroup>";
+        case VK::Once:      return "<once>";
+        case VK::Cond:      return "<cond>";
+        case VK::Atomic:    return "<atomic>";
+        case VK::Weak:      return "<weak>";
         default:         return repr(v);
     }
 }
@@ -2099,6 +2121,30 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
     });
 
+    // POWER_PLAN §6 prelude: reachable with no `import pet.error;`. bail/ensure
+    // mirror error.bail / error.ensure exactly (same SignalRaise payload), and
+    // ok/err make the checker's predeclared `result` variants constructible.
+    globals_->vars["bail"] = biFn({"msg"}, [](std::vector<Value>& a) -> Value {
+        throw SignalRaise{Value::resultErr(
+            mkError(toStr(a.empty() ? Value::none() : a[0]),
+                    Value::none(), Value::none()))};
+    });
+    globals_->vars["ensure"] = biFn({"cond", "msg"},
+                                    [](std::vector<Value>& a) -> Value {
+        if (a.size() < 2 || !truthy(a[0]))
+            throw SignalRaise{Value::resultErr(
+                mkError(toStr(a.size() > 1 ? a[1]
+                                           : (a.empty() ? Value::none() : a[0])),
+                        Value::none(), Value::none()))};
+        return Value::none();
+    });
+    globals_->vars["ok"] = biFn({"v"}, [](std::vector<Value>& a) -> Value {
+        return Value::resultOk(a.empty() ? Value::none() : a[0]);
+    });
+    globals_->vars["err"] = biFn({"v"}, [](std::vector<Value>& a) -> Value {
+        return Value::resultErr(a.empty() ? Value::none() : a[0]);
+    });
+
     // extern printf/strlen resolve here (extern FuncDefs are never registered)
     globals_->vars["printf"] = biFn({"fmt"}, [](std::vector<Value>& a) -> Value {
         const Value& fv = a[0];
@@ -2897,7 +2943,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error"})
+          "error", "sync", "reflect"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -3837,7 +3883,10 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
 // ---------------------------------------------------------------------------
 
 static bool isResultRet(const Stmt& fn) {
-    return fn.ret && fn.ret->kind == ast::TyKind::Name && fn.ret->name == "result";
+    // `Result[T]` is the prelude spelling of `result[T]` (POWER_PLAN §6); both
+    // must drive the raise-catch and ok-wrap paths identically.
+    return fn.ret && fn.ret->kind == ast::TyKind::Name &&
+           (fn.ret->name == "result" || fn.ret->name == "Result");
 }
 
 void Interpreter::registerUsing(const Value& v) {
@@ -4498,7 +4547,7 @@ static bool typeTestMatches(const Value& v, const std::string& t) {
     if (t == "dict") return v.k == VK::Dict;
     if (t == "set")  return v.k == VK::Set;
     if (t == "tuple") return v.k == VK::Tuple;
-    if (t == "result") return v.k == VK::Result;
+    if (t == "result" || t == "Result") return v.k == VK::Result;
     if (v.k == VK::Struct && v.typeName == t) return true;
     if (v.k == VK::Heap && v.heap->typeName == t) return true;
     if (v.k == VK::EnumV && v.typeName == t) return true;
@@ -5635,7 +5684,13 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
     }
 
     if (isGen) return Value::gen(std::move(genOut));
-    if (isResultRet(*fn)) return Value::resultOk(std::move(ret));
+    if (isResultRet(*fn))
+        // A result fn yields either a plain value (wrap it in ok) or an
+        // already-constructed result -- `return ok(v)` / `return err(e)` /
+        // `return inner()` -- which must pass through untouched, else the wrap
+        // would nest as ok(ok(v)) / ok(err(e)).
+        return ret.k == VK::Result ? std::move(ret)
+                                   : Value::resultOk(std::move(ret));
     return ret;
 }
 
@@ -9390,8 +9445,14 @@ void Interpreter::shutdownThreads() {
         std::lock_guard<std::mutex> lk(threadsM_);
         local.swap(threads_);
     }
+    // Join (never detach) outstanding tasks. A detached thread outlives this
+    // Interpreter and keeps touching globals_/env while they are destroyed,
+    // which segfaulted intermittently when main exited with a live task
+    // (`var h = spawn f;` and not awaiting it). threadEntry catches every
+    // panic and never rethrows, so joining cannot abort the process; tasks
+    // that never complete simply block here rather than crash.
     for (auto& t : local)
-        if (t && t->th.joinable()) t->th.detach();
+        if (t && t->th.joinable()) t->th.join();
 }
 
 // ---------------------------------------------------------------------------
@@ -9489,7 +9550,8 @@ const Interpreter::NativeBody* Interpreter::nativeFuncFor(const Stmt* fn) const 
 Value Interpreter::nativeRunBody(const NativeBody& nb, Env fenv,
                                  const Stmt* fn) {
     Value r = nb(fenv);
-    if (isResultRet(*fn)) return Value::resultOk(std::move(r));
+    if (isResultRet(*fn))
+        return r.k == VK::Result ? std::move(r) : Value::resultOk(std::move(r));
     return r;
 }
 

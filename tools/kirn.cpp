@@ -330,20 +330,11 @@ int cmdNew(const std::string& name, bool lib) {
                   "## `kirn doc " + name + "` turns them into a browsable API\n"
                   "## reference.\n\n"
                   "## Say hello to someone.\n"
-                  "pub fn hello(who: string) -> string {\n"
+                  "pub fn hello(who: Str) -> Str {\n"
                   "    return \"hello from " + name + ", \" + who + \"!\";\n}\n\n"
                   "## Shout it louder.\n"
-                  "pub fn shout(who: string) -> string {\n"
-                  "    s = hello(who);\n"
-                  "    out = \"\";\n"
-                  "    for ch in s {\n"
-                  "        c = ord(ch);\n"
-                  "        if c >= 97 and c <= 122 {\n"
-                  "            c = c - 32;\n"
-                  "        }\n"
-                  "        out = out + chr(c);\n"
-                  "    }\n"
-                  "    return out;\n}\n");
+                  "pub fn shout(who: Str) -> Str {\n"
+                  "    return upper(hello(who));\n}\n");
 
         writeFile(root / "tests" / (name + "_test.kn"),
                   "# tests live in tests/ and are named <file>_test.kn\n"
@@ -351,7 +342,7 @@ int cmdNew(const std::string& name, bool lib) {
                   "# (import the package's pin.kn initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
                   "import \"code/pin.kn\" as " + name + ";\n\n"
-                  "fn main() {\n"
+                  "fn main() -> none {\n"
                   "    assert_eq(" + name + ".hello(\"no one\"),\n"
                   "              \"hello from " + name + ", no one!\");\n"
                   "    print(\"all tests passed\");\n}\n");
@@ -390,13 +381,31 @@ int cmdNew(const std::string& name, bool lib) {
 
         writeFile(root / "code" / "main.kn",
                   "# " + name + " - a Kirn application.\n\n"
-                  "fn main() {\n"
-                  "    print(\"hello from " + name + "\");\n}\n");
+                  "# The error batteries ship in the prelude: bail/ensure,\n"
+                  "# ok/err, and the type-erased error need no import.\n"
+                  "fn greeting(user: Str) -> result[Str] {\n"
+                  "    ensure(user != \"\", \"a user is required\");\n"
+                  "    if user == \"root\" { bail(\"root is not allowed\"); }\n"
+                  "    return f\"hello from " + name + ", {user}!\";\n"
+                  "}\n\n"
+                  "fn main() -> none {\n"
+                  "    print(\"hello from " + name + "\");\n"
+                  "    match greeting(\"world\") {\n"
+                  "        case ok(msg) { print(msg); }\n"
+                  "        case err(e) { print(error.display(e)); }\n"
+                  "    }\n"
+                  "}\n");
 
         writeFile(root / "tests" / "main_test.kn",
-                  "# tests live in tests/ and are named <file>_test.kn\n\n"
-                  "fn main() {\n"
+                  "# tests live in tests/ and are named <file>_test.kn\n"
+                  "# run them all with:  kirn test .\n\n"
+                  "fn main() -> none {\n"
                   "    assert_eq(2 + 2, 4);\n"
+                  "    # prelude error batteries need no import here either\n"
+                  "    match ok(7) {\n"
+                  "        case ok(v) { assert_eq(v, 7); }\n"
+                  "        case err(_) { assert(false); }\n"
+                  "    }\n"
                   "    print(\"all tests passed\");\n}\n");
 
         writeFile(root / "docs" / "index.md",
@@ -1465,9 +1474,13 @@ int main(int argc, char** argv) {
         return i < args.size() ? args[i] : std::string();
     };
 
-    if ((cmd == "run" || cmd == "r") && args.size() >= 2) {
-        std::string target = args[1];
-        std::vector<std::string> progArgs(args.begin() + 2, args.end());
+    if ((cmd == "run" || cmd == "r") && !args.empty()) {
+        // bare `kirn run` targets the current directory (the scaffold hint
+        // tells users to `cd <project> && kirn run`).
+        bool hasTarget = args.size() >= 2;
+        std::string target = hasTarget ? args[1] : std::string(".");
+        std::vector<std::string> progArgs(args.begin() + (hasTarget ? 2 : 1),
+                                          args.end());
         fs::path file(target);
         if (fs::is_directory(file)) {
             Manifest m = readManifest(file);

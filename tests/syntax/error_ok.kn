@@ -1,6 +1,4 @@
 # Typed errors, context and Display (POWER_PLAN §5)
-import pet.error;
-
 fn boom() -> result[Int] {
     raise error.msg("boom");
 }

@@ -1,5 +1,4 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/71_error_context.kn
-Import pet.error
 FuncDef "read_setting"
   Param "name" : Str
   Ret result[Str]
@@ -351,5 +350,5 @@ FuncDef "main"
                       Text "err: "
                       Interp
                         Value Ident "e"
-<ROOT>/examples/71_error_context.kn: OK (6 top-level statements)
+<ROOT>/examples/71_error_context.kn: OK (5 top-level statements)
 [exit 0]

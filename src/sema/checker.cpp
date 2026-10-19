@@ -492,6 +492,11 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("assert", {boolTy()}, {"cond"}, noneTy(), false, 1);
     makeBuiltinFunc("assert_eq", {unkTy(), unkTy()}, {"a", "b"}, noneTy(),
                     false, 2);
+    // POWER_PLAN §6 prelude: dynamic-error helpers are reachable without an
+    // import (they mirror error.bail / error.ensure exactly).
+    makeBuiltinFunc("bail", {unkTy()}, {"msg"}, unkTy(), false, 1);
+    makeBuiltinFunc("ensure", {boolTy(), unkTy()}, {"cond", "msg"}, noneTy(),
+                    false, 2);
     // Rational and float builtins (Phase 2)
     makeBuiltinFunc("Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
     makeBuiltinFunc("__Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
@@ -699,7 +704,7 @@ void Checker::predeclareBuiltins() {
     // Not declared into scope: user `import time` etc. must not clash; the
     // importRoots_ set alone makes bare references resolve dynamically.
     for (const char* mod : {"time", "mem", "io", "os", "json", "math", "sync",
-                            "reflect", "parallel", "error"})
+                            "reflect", "parallel", "error", "text"})
         importRoots_.insert(mod);
 
     // Publish every name that resolves at top level without a user declaration,
@@ -1243,6 +1248,22 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 return nominalWithArgs(TyK::TraitObj, n, std::move(args));
             }
 
+            // POWER_PLAN §6 prelude: bare type names that need no import.
+            // Placed after the user-type lookups so a declared type of the
+            // same name still wins.
+            //   `Result[T, E]` aliases the lowercase `result` nominal, so the
+            //   result return/`?`/raise machinery sees one type.
+            //   `Error` is pet.error's type-erased error. It resolves to the
+            //   dynamic type rather than a nominal: the runtime erases types,
+            //   and an unregistered nominal would reject `.context()`/`.chain()`.
+            if (n == "Error") return unkTy();
+            if (n == "Result") {
+                std::vector<TyP> args;
+                args.push_back(ngens >= 1 ? resolveType(t->generics[0]) : unkTy());
+                args.push_back(ngens >= 2 ? resolveType(t->generics[1]) : unkTy());
+                return nominalWithArgs(TyK::Struct, "result", std::move(args));
+            }
+
             error(t->span.line, t->span.col, "unknown type '" + n + "'");
             return errTy();
         }
@@ -1377,6 +1398,13 @@ bool Checker::assignable(const TyP& from, const TyP& to) const {
     // enum variant instance into its enum name
     if (kFrom == TyK::EnumVal && kTo == TyK::EnumName)
         return from->name == to->name;
+
+    // `result` is declared nominal-as-struct with `ok`/`err` as its variants,
+    // so the EnumVal -> EnumName rule above never fires for it: allow the
+    // constructed variant (`ok(v)` / `err(e)`) to bind to `result` directly.
+    if (kFrom == TyK::EnumVal && kTo == TyK::Struct &&
+        from->name == "result" && to->name == "result")
+        return true;
 
     switch (kTo) {
         case TyK::Opt: {

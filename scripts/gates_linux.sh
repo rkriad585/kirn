@@ -10,7 +10,8 @@
 #   4. vm_diff     - tree-walker (--no-vm) vs bytecode VM parity on
 #                    examples matching '^[0-9]' (code + combined output).
 #   5. conventions - rules/convention matrix for the `kirn` driver (run-entry
-#                    resolution + pin.kn package initializer).
+#                    resolution, pin.kn package initializer, and `kirn new`
+#                    app/pet scaffolds: bare run, test, pack).
 #   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (13
 #                    tests, must report '13 passed, 0 failed').
 #   7. pets        - .pet bundle round-trip: pack a lib, install the bundle

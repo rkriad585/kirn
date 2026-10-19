@@ -1217,7 +1217,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
                   "# (import the package's pin.kn initializer; installed\n"
                   "#  consumers import it by name: `import \"" + name + "\"`)\n\n"
                   "import \"code/pin.kn\" as " + name + ";\n\n"
-                  "fn main() {\n"
+                  "fn main() -> none {\n"
                   "    assert_eq(" + name + ".hello(\"no one\"),\n"
                   "              \"hello from " + name + ", no one!\");\n"
                   "    print(\"all tests passed\");\n}\n");
@@ -1256,13 +1256,31 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
 
         writeFile(root / "code" / "main.kn",
                   "# " + name + " - a Kirn application.\n\n"
-                  "fn main() {\n"
-                  "    print(\"hello from " + name + "\");\n}\n");
+                  "# The error batteries ship in the prelude: bail/ensure,\n"
+                  "# ok/err, and the type-erased error need no import.\n"
+                  "fn greeting(user: Str) -> result[Str] {\n"
+                  "    ensure(user != \"\", \"a user is required\");\n"
+                  "    if user == \"root\" { bail(\"root is not allowed\"); }\n"
+                  "    return f\"hello from " + name + ", {user}!\";\n"
+                  "}\n\n"
+                  "fn main() -> none {\n"
+                  "    print(\"hello from " + name + "\");\n"
+                  "    match greeting(\"world\") {\n"
+                  "        case ok(msg) { print(msg); }\n"
+                  "        case err(e) { print(error.display(e)); }\n"
+                  "    }\n"
+                  "}\n");
 
         writeFile(root / "tests" / "main_test.kn",
-                  "# tests live in tests/ and are named <file>_test.kn\n\n"
-                  "fn main() {\n"
+                  "# tests live in tests/ and are named <file>_test.kn\n"
+                  "# run them all with:  kirn test .\n\n"
+                  "fn main() -> none {\n"
                   "    assert_eq(2 + 2, 4);\n"
+                  "    # prelude error batteries need no import here either\n"
+                  "    match ok(7) {\n"
+                  "        case ok(v) { assert_eq(v, 7); }\n"
+                  "        case err(_) { assert(false); }\n"
+                  "    }\n"
                   "    print(\"all tests passed\");\n}\n");
 
         writeFile(root / "docs" / "index.md",

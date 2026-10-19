@@ -1,6 +1,17 @@
 # stdlib/pet/async_test.kn - tests for pet.async.
 import pet.async as a;
 
+async fn addup(id: Int) -> Int {
+    await a.sleep(ms: 2);
+    return id * 10;
+}
+
+async fn afail(n: Int) -> Int {
+    await a.sleep(ms: 2);
+    if n < 0 { raise("neg"); }
+    return n;
+}
+
 async fn main() -> none {
     t0 = a.now_ms();
     await a.sleep(ms: 30);        # must actually wait, not run instantly
@@ -13,6 +24,31 @@ async fn main() -> none {
         return 7;
     });
     assert_eq(await t, 7);
+
+    # join awaits every task and returns the results in order
+    var jr = await a.join([addup(1), addup(2), addup(3)]);
+    assert_eq(jr[0], 10);
+    assert_eq(jr[1], 20);
+    assert_eq(jr[2], 30);
+
+    # try_join short-circuits: the first raised error propagates
+    var caught = "none";
+    try {
+        await a.try_join([addup(4), afail(-1), addup(5)]);
+    } catch e {
+        caught = Str(e);
+    }
+    assert_eq(caught, "neg");
+
+    # join waits for all tasks, then re-raises the first error, so the error
+    # from a task that is not first in the list is not lost
+    var jcaught = "none";
+    try {
+        await a.join([afail(-7), addup(6)]);
+    } catch e {
+        jcaught = Str(e);
+    }
+    assert_eq(jcaught, "neg");
 
     print("async_test ok");
 }

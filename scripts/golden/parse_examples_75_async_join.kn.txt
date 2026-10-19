@@ -1,0 +1,139 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/75_async_join.kn
+Import pet.async as a
+FuncDef "fetch" async
+  Param "id" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Int "5"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "id"
+          Rhs Int "10"
+FuncDef "load" async
+  Param "name" : Str
+  Param "good" : Bool
+  Ret Str
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Int "5"
+    If
+      Cond 
+        Unary op="not"
+          Operand Ident "good"
+      Then
+        Raise
+          Value 
+            Binary op="+"
+              Lhs Str "load failed: "
+              Rhs Ident "name"
+    Return
+      Value Ident "name"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "rs"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="join"
+                  Obj Ident "a"
+              Arg
+                Value 
+                  List len=3
+                    Item 
+                      Call
+                        Callee Ident "fetch"
+                        Arg
+                          Value Int "1"
+                    Item 
+                      Call
+                        Callee Ident "fetch"
+                        Arg
+                          Value Int "2"
+                    Item 
+                      Call
+                        Callee Ident "fetch"
+                        Arg
+                          Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "joined:"
+          Arg
+            Value Ident "rs"
+    Try
+      VarDecl
+        Target Ident "loaded"
+        Value 
+          Unary op="await"
+            Operand 
+              Call
+                Callee 
+                  Member name="try_join"
+                    Obj Ident "a"
+                Arg
+                  Value 
+                    List len=3
+                      Item 
+                        Call
+                          Callee Ident "load"
+                          Arg
+                            Value Str "a"
+                          Arg
+                            Value Ident "true"
+                      Item 
+                        Call
+                          Callee Ident "load"
+                          Arg
+                            Value Str "b"
+                          Arg
+                            Value Ident "false"
+                      Item 
+                        Call
+                          Callee Ident "load"
+                          Arg
+                            Value Str "c"
+                          Arg
+                            Value Ident "true"
+      ExprStmt
+        Value 
+          Call
+            Callee Ident "print"
+            Arg
+              Value Str "try_join:"
+            Arg
+              Value Ident "loaded"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "try_join error:"
+              Arg
+                Value Ident "e"
+<ROOT>/examples/75_async_join.kn: OK (4 top-level statements)
+[exit 0]

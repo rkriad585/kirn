@@ -24,3 +24,41 @@ pub fn yield_now() -> any {
 pub fn now_ms() -> Int {
     return time.now();
 }
+
+# Await every task in `ts`, returning their results in order (POWER_PLAN §2.10).
+# Tasks are scheduled when their `async fn` is called, so they already run
+# concurrently; `join` waits for all of them, then re-raises the first error (if
+# any) once every task has finished - so a failure never leaves a task unjoined.
+# Usage: `var rs = await a.join([t1, t2, t3]);`
+pub async fn join(ts: list) -> list {
+    var out = [];
+    var first = none;
+    var failed = false;
+    for t in ts {
+        try {
+            out.append(await t);
+        } catch e {
+            if not failed {
+                failed = true;
+                first = e;
+            }
+            out.append(none);
+        }
+    }
+    if failed {
+        raise(first);
+    }
+    return out;
+}
+
+# Await tasks in order, short-circuiting on the first raise (POWER_PLAN §2.10):
+# the error propagates immediately and the remaining tasks are not awaited.
+# Because calling an `async fn` already started the task, a skipped task keeps
+# running detached - `try_join` cancels the wait, not the work.
+pub async fn try_join(ts: list) -> list {
+    var out = [];
+    for t in ts {
+        out.append(await t);
+    }
+    return out;
+}

@@ -1,0 +1,33 @@
+# examples/75_async_join.kn - pet.async: join / try_join (POWER_PLAN §2.10)
+#
+# Calling an `async fn` schedules the task; `join` awaits a whole batch and
+# returns the results in list order, while `try_join` stops waiting at the first
+# task that raised. A task's `raise` is re-raised at the await site, so a plain
+# `try/catch` recovers it with the original message.
+
+import pet.async as a;
+
+async fn fetch(id: Int) -> Int {
+    await a.sleep(ms: 5);
+    return id * 10;
+}
+
+async fn load(name: Str, good: Bool) -> Str {
+    await a.sleep(ms: 5);
+    if not good { raise("load failed: " + name); }
+    return name;
+}
+
+async fn main() -> none {
+    # join: await three tasks at once; results come back in order.
+    var rs = await a.join([fetch(1), fetch(2), fetch(3)]);
+    print("joined:", rs);
+
+    # try_join: the first failing task aborts the wait and propagates.
+    try {
+        var loaded = await a.try_join([load("a", true), load("b", false), load("c", true)]);
+        print("try_join:", loaded);
+    } catch e {
+        print("try_join error:", e);
+    }
+}

@@ -795,3 +795,23 @@ Deviations / not shipped (documented):
 - **`Broadcast` capacity is exact, not rounded up** to a power of two, and lag is reported via the queryable `lagged()` counter rather than a `RecvError::Lagged`; lost values are never buffered past `capacity`. No `WeakSender`, `try_recv` error distinction, or sender garbage-collection bookkeeping.
 - **`Watch` `send_modify`/`send_if_modified`** are not shipped; `send` and `send_replace` cover the publishing cases.
 - **Timed variants** (`recv_timeout`, `changed_timeout`) are absent for the same reason as Phase 8: the runtime `Cond` has no timed wait.
+
+### Update (2026-10-19) — Phase 10 (plan P5): `pet.async` join / try_join (shipped)
+
+**Path chosen:** §2.10's `join`/`try_join` build directly on the existing async runtime — calling an `async fn` already schedules the task and `await` drives it — so the combinators are two `async fn`s in `pet.async` over a list of task handles. `select { await … }` needed grammar/runtime work and is not extended (the existing channel/timer `select` in `examples/23` covers multiplexing); documented below.
+
+Delivered:
+
+- **Runtime fix (prerequisite, own commit `c4051a5`)**: a task body that called `raise(...)` previously fell into `threadEntry`'s `catch(...)`, becoming the generic panic `"unknown error in task"` — the payload was lost and `try/catch` could not recover it. `threadEntry` now catches `SignalRaise` separately and stores the payload on the `ThreadImpl` (`raised`/`raiseValue`); `awaitTask` (also reached via `ThreadH.join()`) re-throws it, so a task's `raise` surfaces at the await site as an ordinary catchable exception. No corpus file spawns a raising task, so no golden was affected.
+- **`stdlib/pet/async.kn`**: `join(ts: list) -> list` awaits every task and returns results in list order — if any task raised, the **first** error is re-raised only after all tasks have finished (so `join` never returns with a task still unjoined). `try_join(ts: list) -> list` awaits in order and short-circuits on the first raise. Both are `async fn`s, called as `await a.join([t1, t2, …])`.
+- **`stdlib/pet/async_test.kn`**: join ordering (`[10, 20, 30]`), try_join short-circuit, and the join-waits-all-then-raises-first-error case.
+- **`examples/75_async_join.kn`** + three goldens; the examples gate now reports **72** files. Deterministic across runs.
+
+Verification: gates **320/0/0 hung** (1_runall 72, 4_vm_diff 90, 8_bundle 15, 11_native 11, …), golden **315/0**, crosscheck **801/0** (131 `.kn` files), stdlib **18/0**; `kirnc check` clean.
+
+Deviations / not shipped (documented):
+
+- **List argument and list result**, not the plan's varargs + tuple (`join(f1, f2, …) -> (T1, T2, …)`), because Kirn has no variadic free functions and a tuple return is awkward to destructure here; pass `[h1, h2, …]` and index the result.
+- **`select` is not extended to `await` arms.** The existing `select { case v = ch.recv() … / case <-time.after(…) … }` covers channel/timer multiplexing; awaiting async sources in an arm needs parser + `selectExec` work and is deferred.
+- **No cancellation.** `try_join` stops _awaiting_ after the first error, but a skipped task keeps running detached, because Kirn tasks are eager OS threads with no cancellation token.
+- **`join` re-raises rather than returning errors as values.** Kirn has no `Result` in this position; the plan's `try_join` `?`-style short-circuit is expressed as the raise propagating to the caller's `try/catch`.

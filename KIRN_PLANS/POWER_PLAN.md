@@ -725,3 +725,29 @@ Deviations / not shipped (documented):
 - **`ok(x)`/`err(x)` _are_ expressions now** — this supersedes the Phase 5 front-end note above.
 - **`kirn run` on a library still exits through the runtime's `panic: no main() defined`** rather than a tailored _"this project has no `fn main`"_ fix-it.
 - **`ord`/`chr` remain unimplemented** (the pet scaffold no longer needs them); if they land later, the manual-char-loop example style in the scaffold could return.
+
+### Update (2026-10-19) — Phase 7 (plan P7): default formats json/toml/yaml/cbor (shipped)
+
+**Path chosen:** one shared reflection core plus per-format parse/render. `pet.codec` owns `enc_tree` (any → tree) and `coerce_type` (tree → `T`), both extracted verbatim from `pet.serde`; every format module is then a thin renderer/parser over that tree. Dependencies stay acyclic: `codec` ← `{json, toml, yaml, cbor}`, `serde` → `json`, never in reverse (the runtime has no cyclic-import support — the module cache is written only after execution, so a cycle recurses forever).
+
+Delivered:
+
+- **`stdlib/pet/codec.kn`**: `enc_tree` (struct → field dict, enum → externally-tagged `{variant: payload-list|none}`, seqs → list, maps → dict with string keys, inf/nan float → none) + `coerce_type`/`decode_struct`/`decode_enum`/`coerce` with `list`/`dict` generic element coercion — moved out of `pet.serde` so four formats share one implementation.
+- **`pet.json`**: gains `render` (tree → JSON text; the old serde quote/enc logic moved here), serde-aware `to_string(v)` and `from_string(T, s)`; `dumps`/`loads` and the pure-Kirn parser untouched. `pet.serde` slimmed to `to_json = json.render(codec.enc_tree(v))` / `from_json_as = codec.coerce_type(T, json.loads(s))` — byte-for-byte identical output (serde_test's exact-string assertions stayed green through the refactor).
+- **`pet.toml`**: subset parser (bare/quoted/dotted keys, `[table]` and `[[array-of-tables]]`, inline tables, arrays with comments/trailing commas, basic/literal/multiline strings, `0x`/`0o`/`0b`, `_` separators, inf/nan, `#` comments, date/time tokens kept as strings, 128-level depth guard) and a block renderer; tree round-trip verified both directions.
+- **`pet.cbor`**: RFC 8949 major types 0/1/3/4/5/7 (uint, negative int, text, array, map, false/true/null, float64/float32) over `bytearray`; encodings are **byte-exact against the appendix A vectors** (`00 01 0a 17 1818 1819 1864 1903e8 20 29 3863 f5 f4 f6 fb3ff8000000000000 626869 83010203 a1616101 …`). Floats use a hand-rolled IEEE754 binary64 codec (no `struct.pack` in the language); normal/subnormal decode, exact round-trips at both ends of the magnitude range.
+- **`pet.yaml`**: block-style parser (indentation, `- key: value` items with continuation lines, `- - 1` nested sequences via line rewriting, minimal flow `{a: 1}`/`[2, 3]`, single/double-quoted scalars incl. `''` escapes, `#` comment stripping that is quote-aware, tabs rejected) and a renderer that quotes number-like/keyword strings so `"42"` and `42` round-trip distinctly.
+- **`examples/72_formats.kn`**: a `Profile` struct + `Shape` enum round-tripped through all four formats; three goldens recorded (`check`/`lex`/`parse`); plan-named `65_serde_formats.kn` remains taken by async (serde-phase example-number deviation).
+- **Tests**: `toml_test.kn` (44 assertions incl. AoT, dotted keys, multiline strings, bases, dates-as-strings, struct/enum/generic-list round-trips), `cbor_test.kn` (RFC vectors, float/int boundary matrix, struct/enum incl. unit variant), `yaml_test.kn` (block/flow/quoting/round-trip) — `kirn test .` now **16/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header, and `scripts/golden/kirn_test_no_args.txt` bump 13 → 16.
+- **Language quirks hit while writing the parsers (no compiler changes made)**: struct methods cannot see module-level free functions (so all parser helpers are methods — renderer helpers stay free, free→free works); implicit local bindings may only be *reassigned* inside loops (outside → "cannot reassign immutable binding"); parameters are immutable; struct fields must be declared after the types they reference; `import math` binds a namespace *different* from the prebound `math` global (bare `math.floor_div`/`math.pow` work, imported do not).
+
+Verification: gates **314/0/0 hung**, golden **306/0**, crosscheck **771/0**, stdlib **16/0**, `kirnc check` clean on all six new/changed modules.
+
+Deviations / not shipped (documented):
+
+- **Type-as-value parameter instead of call-site generics**: `from_string(T, s)` / `from_bytes(T, b)` take the type as a first value argument, matching serde's `from_json_as` convention — Kirn has no `f[T](x)` generic call syntax on module members (the spec's `from_string[User](s)` shape).
+- **`to_writer` / `from_reader` (json)**: not shipped — v1 stdlib has no writer/reader handles.
+- **TOML subset edges**: `\b`/`\f`/`\uXXXX` escapes (no `chr`/`ord` in Kirn), the space-separated datetime form, and native datetime values are out of scope; **unit enum variants cannot survive TOML** (it has no null, so `none` is omitted and the empty table decodes as an ambiguous enum — JSON/YAML/CBOR keep them). This supersedes the Phase 6 deviation row that listed `toml`/`yaml`/`cbor` as unshipped.
+- **CBOR subset edges**: byte strings (major 2), tags (major 6), indefinite-length items, and float16 decode raise.
+- **YAML subset edges**: anchors/aliases, tags, directives, block scalars (`|`/`>`), multi-document streams, and complex (`?`) keys.
+- **`pet.sync` (Barrier/Semaphore over the native primitives) remains deferred** to the next phase.

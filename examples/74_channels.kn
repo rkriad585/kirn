@@ -1,0 +1,50 @@
+# examples/74_channels.kn - pet.sync channels (POWER_PLAN §6)
+#
+# Oneshot, Broadcast and Watch mirror tokio::sync. Everything is deterministic:
+# a value sent before recv() is stored, a broadcast receiver created later
+# starts after the messages already sent, and the watch worker is joined before
+# its slot is read.
+
+import pet.sync as sync;
+
+fn main() -> none {
+    # Oneshot: exactly one value, delivered at most once. send does not block
+    # and the value is retained until recv consumes it.
+    var o = sync.Oneshot();
+    o.send(42);
+    print("oneshot:", o.try_recv());
+
+    # Broadcast: every subscriber sees every value sent after it subscribed.
+    var news = sync.Broadcast(4);
+    var a = news.subscribe();
+    var b = news.subscribe();
+    news.send("alpha");
+    news.send("beta");
+    print("broadcast a:", a.try_recv(), a.try_recv());
+    print("broadcast b:", b.try_recv());
+    print("receivers:", news.receiver_count());
+
+    # A slow receiver on a small channel lags: it skips the overwritten values
+    # and resumes at the oldest one still retained.
+    var ticks = sync.Broadcast(2);
+    var slow = ticks.subscribe();
+    ticks.send(1);
+    ticks.send(2);
+    ticks.send(3);
+    ticks.send(4);
+    print("lagged:", slow.lagged(), "resumes at:", slow.try_recv());
+
+    # Watch: the latest value plus a per-receiver seen version. The worker
+    # blocks in changed() until main publishes a new value.
+    var config = sync.Watch("idle");
+    var worker = config.subscribe();
+    var seen = [""];
+    var h = spawn fn () -> none {
+        worker.changed();
+        seen[0] = worker.borrow();
+    };
+    config.send("running");
+    h.join();
+    print("watch:", seen[0]);
+    print("send_replace returned:", config.send_replace("stopped"));
+}

@@ -39,6 +39,16 @@ semaphore release n wakes two: ok
 semaphore limits concurrency: ok
 notify stores permit: ok
 notify two waiters: ok
+oneshot roundtrip: ok
+oneshot close: ok
+broadcast fanout: ok
+broadcast subscribe future only: ok
+broadcast lag: ok
+broadcast close drains: ok
+watch changed: ok
+watch borrow vs update: ok
+watch mark: ok
+watch close: ok
 PASS
 test ./stdlib/pet/time_test.kn ... time_test ok
 PASS

@@ -26,10 +26,35 @@
 # and the counters all live there, and list element writes are immediately
 # visible to every thread no matter which copy of the receiver is running.
 #
+# Channels (tokio::sync parity) are also built from Mutex + Cond and store all
+# mutable state in a list, so the receiver-copy rule above never bites:
+#
+#   import pet.sync as sync;
+#   var ch = sync.Broadcast(8);
+#   var rx = ch.subscribe();
+#   ch.send(42);
+#   print(rx.recv());
+#
+#   Oneshot()        single-use channel: send once, recv once
+#   Broadcast(cap)   multi-producer/multi-consumer ring buffer, loses oldest
+#                    on overflow and reports per-receiver lag
+#   Watch(init)      retains the latest value; receivers track a seen-version
+#
+# Values are passed by reference (Kirn has no implicit deep copy), unlike
+# tokio which clones T per receiver: for Int/Str/Bool/Float payloads this is
+# identical, but a broadcast of a mutable list hands every receiver the same
+# list. Receivers are never garbage-collected, so `receiver_count` only grows;
+# `send` therefore only raises when no `subscribe` has happened at all.
+#
 # State layout (tokio semantics on top of native primitives):
 #   BarrierState.st   = [mutex, cond, parties, count, generation]
 #   SemaphoreState.st = [mutex, cond, permits]
 #   NotifyState.st    = [mutex, cond, generation, waiters, pending]
+#   OneshotState.st   = [mutex, cond, value, has_value, closed]
+#   BroadcastState.st = [mutex, cond, capacity, total, messages, closed, rx_count]
+#   BroadcastRx.st    = [state, [cursor, lagged]]
+#   WatchState.st     = [mutex, cond, value, version, closed, rx_count]
+#   WatchRx.st        = [state, [seen]]
 
 # ---- Barrier ----------------------------------------------------------------
 
@@ -204,4 +229,406 @@ pub fn Notify() -> NotifyState {
     n = NotifyState();
     n.st = [Mutex(), Cond(), 0, 0, false];
     return n;
+}
+
+# ---- Oneshot ----------------------------------------------------------------
+
+# Single-use channel (tokio::sync::oneshot). `send` may run on any thread and
+# does not block; `recv` blocks until a value is sent or the channel is closed.
+# The value is delivered at most once. Because Kirn has no Result channel, a
+# `recv`/`try_recv` on a closed-or-empty channel returns `none` (so `none` is
+# not distinguishable from "nothing arrived" - documented widening).
+struct OneshotState {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[3] { m.unlock(); raise("sync: Oneshot value already sent"); }
+        if self.st[4] { m.unlock(); raise("sync: Oneshot send on closed channel"); }
+        self.st[2] = v;
+        self.st[3] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn recv(self) -> any {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        while not self.st[3] and not self.st[4] {
+            c.wait(m);
+        }
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn try_recv(self) -> any {
+        var m = self.st[0];
+        m.lock();
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_empty(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var e: Bool = not self.st[3];
+        m.unlock();
+        return e;
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[4];
+        m.unlock();
+        return c;
+    }
+}
+
+pub fn Oneshot() -> OneshotState {
+    o = OneshotState();
+    o.st = [Mutex(), Cond(), none, false, false];
+    return o;
+}
+
+# ---- Broadcast --------------------------------------------------------------
+
+# Multi-producer/multi-consumer broadcast queue (tokio::sync::broadcast). The
+# channel retains the last `capacity` messages in a ring; `subscribe` returns a
+# receiver that sees only messages sent after it was created. A receiver that
+# falls more than `capacity` behind is "lagged": its cursor jumps to the oldest
+# retained message and the number skipped is accumulated, readable via
+# `lagged()`. Sending on a closed channel raises.
+struct BroadcastState {
+    var st: list;
+
+    fn send(self, v: any) -> Int {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[5] { m.unlock(); raise("sync: broadcast send on closed channel"); }
+        if self.st[6] < 1 { m.unlock(); raise("sync: broadcast send with no receivers"); }
+        self.st[4].append(v);
+        self.st[3] = self.st[3] + 1;
+        while self.st[4].len() > self.st[2] {
+            self.st[4].shift();
+        }
+        c.broadcast();
+        var n: Int = self.st[6];
+        m.unlock();
+        return n;
+    }
+
+    fn subscribe(self) -> BroadcastRx {
+        var m = self.st[0];
+        m.lock();
+        var rx = BroadcastRx();
+        rx.st = [self.st, [self.st[3], 0]];
+        self.st[6] = self.st[6] + 1;
+        m.unlock();
+        return rx;
+    }
+
+    fn receiver_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[6];
+        m.unlock();
+        return n;
+    }
+
+    fn len(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[4].len();
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[5] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[5];
+        m.unlock();
+        return c;
+    }
+}
+
+struct BroadcastRx {
+    var st: list;
+
+    fn recv(self) -> any {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while true {
+            var total: Int = s[3];
+            var head: Int = total - s[4].len();
+            if inner[0] < head {
+                inner[1] = inner[1] + (head - inner[0]);
+                inner[0] = head;
+            }
+            if inner[0] < total {
+                var v = s[4][inner[0] - head];
+                inner[0] = inner[0] + 1;
+                m.unlock();
+                return v;
+            }
+            if s[5] { m.unlock(); return none; }
+            c.wait(m);
+        }
+    }
+
+    fn try_recv(self) -> any {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var total: Int = s[3];
+        var head: Int = total - s[4].len();
+        if inner[0] < head {
+            inner[1] = inner[1] + (head - inner[0]);
+            inner[0] = head;
+        }
+        if inner[0] < total {
+            var v = s[4][inner[0] - head];
+            inner[0] = inner[0] + 1;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn len(self) -> Int {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var n: Int = s[3] - inner[0];
+        if n < 0 { n = 0; }
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+
+    fn lagged(self) -> Int {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var head: Int = s[3] - s[4].len();
+        var pending = 0;
+        if inner[0] < head { pending = head - inner[0]; }
+        var n: Int = inner[1] + pending;
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Broadcast(capacity: Int) -> BroadcastState {
+    if capacity < 1 { raise("sync: Broadcast capacity must be at least 1"); }
+    b = BroadcastState();
+    b.st = [Mutex(), Cond(), capacity, 0, [], false, 0];
+    return b;
+}
+
+# ---- Watch ------------------------------------------------------------------
+
+# Single-value change tracker (tokio::sync::watch). The channel holds one value;
+# every receiver tracks a version it has "seen". `changed` blocks until an
+# unseen value is published (or the channel closes while already seen, in which
+# case it returns false). `borrow`/`has_changed` never mark a value seen;
+# `borrow_and_update` and `changed` do. Sending on a closed channel raises.
+struct WatchState {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        self.st[2] = v;
+        self.st[3] = self.st[3] + 1;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn send_replace(self, v: any) -> any {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        var old = self.st[2];
+        self.st[2] = v;
+        self.st[3] = self.st[3] + 1;
+        c.broadcast();
+        m.unlock();
+        return old;
+    }
+
+    fn borrow(self) -> any {
+        var m = self.st[0];
+        m.lock();
+        var v = self.st[2];
+        m.unlock();
+        return v;
+    }
+
+    fn subscribe(self) -> WatchRx {
+        var m = self.st[0];
+        m.lock();
+        var rx = WatchRx();
+        rx.st = [self.st, [self.st[3]]];
+        self.st[5] = self.st[5] + 1;
+        m.unlock();
+        return rx;
+    }
+
+    fn receiver_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[5];
+        m.unlock();
+        return n;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[4];
+        m.unlock();
+        return c;
+    }
+}
+
+struct WatchRx {
+    var st: list;
+
+    fn borrow(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var v = s[2];
+        m.unlock();
+        return v;
+    }
+
+    fn borrow_and_update(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3];
+        var v = s[2];
+        m.unlock();
+        return v;
+    }
+
+    fn has_changed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var r: Bool = self.st[1][0] != s[3];
+        m.unlock();
+        return r;
+    }
+
+    fn changed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while self.st[1][0] == s[3] and not s[4] {
+            c.wait(m);
+        }
+        if self.st[1][0] != s[3] {
+            self.st[1][0] = s[3];
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn mark_changed(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3] - 1;
+        m.unlock();
+    }
+
+    fn mark_unchanged(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3];
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var c: Bool = s[4];
+        m.unlock();
+        return c;
+    }
+}
+
+pub fn Watch(initial: any) -> WatchState {
+    w = WatchState();
+    w.st = [Mutex(), Cond(), initial, 0, false, 0];
+    return w;
 }

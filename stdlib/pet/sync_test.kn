@@ -1,4 +1,5 @@
-# stdlib/pet/sync_test.kn - tests for the pet.sync primitives (POWER_PLAN §6).
+# stdlib/pet/sync_test.kn - tests for the pet.sync primitives and channels
+# (Barrier, Semaphore, Notify, Oneshot, Broadcast, Watch - POWER_PLAN §6).
 #
 # Every test is deterministic: blocking waits are paired either with a stored
 # permit/notification (signal-before-wait is safe by design) or with an
@@ -206,6 +207,153 @@ fn test_notify_two_waiters() -> none {
     print("notify two waiters: ok");
 }
 
+# ---- Oneshot ----------------------------------------------------------------
+
+fn test_oneshot_roundtrip() -> none {
+    var o = sync.Oneshot();
+    assert(o.is_empty());
+    o.send(11);
+    assert(not o.is_empty());
+    assert(o.try_recv() == 11);
+    assert(o.is_empty());
+    assert(o.try_recv() == none);
+    # a value sent before recv is called is stored and delivered on recv
+    var slot = [0];
+    var h = spawn fn () -> none {
+        slot[0] = o.recv();
+    };
+    o.send(22);
+    h.join();
+    assert(slot[0] == 22);
+    print("oneshot roundtrip: ok");
+}
+
+fn test_oneshot_close() -> none {
+    var o = sync.Oneshot();
+    o.close();
+    assert(o.is_closed());
+    # closed and empty -> recv does not block, yields none
+    assert(o.recv() == none);
+    print("oneshot close: ok");
+}
+
+# ---- Broadcast --------------------------------------------------------------
+
+fn test_broadcast_fanout() -> none {
+    var b = sync.Broadcast(4);
+    var r1 = b.subscribe();
+    var r2 = b.subscribe();
+    assert(b.receiver_count() == 2);
+    assert(b.send(5) == 2);
+    assert(r1.try_recv() == 5);
+    assert(r2.try_recv() == 5);
+    assert(r1.try_recv() == none);
+    assert(b.len() == 1);
+    print("broadcast fanout: ok");
+}
+
+fn test_broadcast_subscribe_sees_future_only() -> none {
+    var b = sync.Broadcast(4);
+    var r0 = b.subscribe();
+    b.send(1);
+    var r1 = b.subscribe();
+    # r1 must not observe the value sent before it subscribed
+    assert(r1.try_recv() == none);
+    assert(r0.try_recv() == 1);
+    print("broadcast subscribe future only: ok");
+}
+
+fn test_broadcast_lag() -> none {
+    var b = sync.Broadcast(2);
+    var r = b.subscribe();
+    b.send(1);
+    b.send(2);
+    b.send(3);
+    b.send(4);
+    # capacity 2 retains [3, 4]; r missed 1 and 2
+    assert(r.lagged() == 2);
+    # the receiver resumes at the oldest retained message
+    assert(r.try_recv() == 3);
+    assert(r.try_recv() == 4);
+    assert(r.try_recv() == none);
+    assert(r.lagged() == 2);
+    print("broadcast lag: ok");
+}
+
+fn test_broadcast_close_drains() -> none {
+    var b = sync.Broadcast(2);
+    var r = b.subscribe();
+    b.send(9);
+    b.close();
+    assert(b.is_closed());
+    # retained values are still readable after close
+    assert(r.recv() == 9);
+    assert(r.recv() == none);
+    print("broadcast close drains: ok");
+}
+
+# ---- Watch ------------------------------------------------------------------
+
+fn test_watch_changed() -> none {
+    var w = sync.Watch(1);
+    var rx = w.subscribe();
+    assert(rx.borrow() == 1);
+    assert(not rx.has_changed());
+    var slot = [0];
+    var h = spawn fn () -> none {
+        if rx.changed() {
+            slot[0] = rx.borrow();
+        }
+    };
+    w.send(2);
+    h.join();
+    assert(slot[0] == 2);
+    # changed() marked the new version as seen
+    assert(not rx.has_changed());
+    print("watch changed: ok");
+}
+
+fn test_watch_borrow_vs_update() -> none {
+    var w = sync.Watch(1);
+    var rx = w.subscribe();
+    w.send(5);
+    assert(rx.has_changed());
+    # borrow reads without marking seen
+    assert(rx.borrow() == 5);
+    assert(rx.has_changed());
+    # borrow_and_update marks the value seen
+    assert(rx.borrow_and_update() == 5);
+    assert(not rx.has_changed());
+    assert(w.send_replace(6) == 5);
+    assert(rx.has_changed());
+    print("watch borrow vs update: ok");
+}
+
+fn test_watch_mark() -> none {
+    var w = sync.Watch(0);
+    var rx = w.subscribe();
+    w.send(3);
+    assert(rx.has_changed());
+    rx.mark_unchanged();
+    assert(not rx.has_changed());
+    rx.mark_changed();
+    assert(rx.has_changed());
+    print("watch mark: ok");
+}
+
+fn test_watch_close() -> none {
+    var w = sync.Watch(0);
+    var rx = w.subscribe();
+    w.send(1);
+    w.close();
+    assert(w.is_closed());
+    # unseen value + closed -> changed() still returns true once
+    assert(rx.changed());
+    # seen value + closed -> changed() returns false
+    assert(not rx.changed());
+    print("watch close: ok");
+}
+
 fn main() -> none {
     test_barrier_single_party();
     test_barrier_four_parties();
@@ -215,4 +363,14 @@ fn main() -> none {
     test_semaphore_limits_concurrency();
     test_notify_stores_permit();
     test_notify_two_waiters();
+    test_oneshot_roundtrip();
+    test_oneshot_close();
+    test_broadcast_fanout();
+    test_broadcast_subscribe_sees_future_only();
+    test_broadcast_lag();
+    test_broadcast_close_drains();
+    test_watch_changed();
+    test_watch_borrow_vs_update();
+    test_watch_mark();
+    test_watch_close();
 }

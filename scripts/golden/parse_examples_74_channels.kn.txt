@@ -1,0 +1,249 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/74_channels.kn
+Import pet.sync as sync
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "o"
+      Value 
+        Call
+          Callee 
+            Member name="Oneshot"
+              Obj Ident "sync"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "o"
+          Arg
+            Value Int "42"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "oneshot:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_recv"
+                    Obj Ident "o"
+    VarDecl
+      Target Ident "news"
+      Value 
+        Call
+          Callee 
+            Member name="Broadcast"
+              Obj Ident "sync"
+          Arg
+            Value Int "4"
+    VarDecl
+      Target Ident "a"
+      Value 
+        Call
+          Callee 
+            Member name="subscribe"
+              Obj Ident "news"
+    VarDecl
+      Target Ident "b"
+      Value 
+        Call
+          Callee 
+            Member name="subscribe"
+              Obj Ident "news"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "news"
+          Arg
+            Value Str "alpha"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "news"
+          Arg
+            Value Str "beta"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "broadcast a:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_recv"
+                    Obj Ident "a"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_recv"
+                    Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "broadcast b:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_recv"
+                    Obj Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "receivers:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="receiver_count"
+                    Obj Ident "news"
+    VarDecl
+      Target Ident "ticks"
+      Value 
+        Call
+          Callee 
+            Member name="Broadcast"
+              Obj Ident "sync"
+          Arg
+            Value Int "2"
+    VarDecl
+      Target Ident "slow"
+      Value 
+        Call
+          Callee 
+            Member name="subscribe"
+              Obj Ident "ticks"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ticks"
+          Arg
+            Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ticks"
+          Arg
+            Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ticks"
+          Arg
+            Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ticks"
+          Arg
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "lagged:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="lagged"
+                    Obj Ident "slow"
+          Arg
+            Value Str "resumes at:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_recv"
+                    Obj Ident "slow"
+    VarDecl
+      Target Ident "config"
+      Value 
+        Call
+          Callee 
+            Member name="Watch"
+              Obj Ident "sync"
+          Arg
+            Value Str "idle"
+    VarDecl
+      Target Ident "worker"
+      Value 
+        Call
+          Callee 
+            Member name="subscribe"
+              Obj Ident "config"
+    VarDecl
+      Target Ident "seen"
+      Value 
+        List len=1
+          Item Str ""
+    VarDecl
+      Target Ident "h"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "config"
+          Arg
+            Value Str "running"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="join"
+              Obj Ident "h"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "watch:"
+          Arg
+            Value 
+              Index
+                Obj Ident "seen"
+                At Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "send_replace returned:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="send_replace"
+                    Obj Ident "config"
+                Arg
+                  Value Str "stopped"
+<ROOT>/examples/74_channels.kn: OK (2 top-level statements)
+[exit 0]

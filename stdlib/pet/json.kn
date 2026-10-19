@@ -1,20 +1,96 @@
 # stdlib/pet/json.kn - JSON encode/decode (Kirn-written, Phase 6).
 # `dumps` delegates to the native serializer; `loads` is a pure-Kirn recursive
-# descent parser producing dict/list/str/float/bool/nil. Import with:
+# descent parser producing dict/list/str/float/bool/nil. `to_string` /
+# `from_string` are the serde-aware pair (POWER_PLAN §3.3): they walk structs
+# and enums through `pet.codec`. Import with:
 #   import pet.json;
+
+import pet.codec as codec;
+import reflect;
 
 # The native dumper is captured at load time (the module's own namespace is
 # bound under the same name `json` in the consumer, which shadows it inside).
 priv_dumps = json.dumps;
 
-# Serialize a value to a JSON string (native dumper).
+# Serialize a value to a JSON string (native dumper; structs/enums -> null).
 pub fn dumps(v) -> Str {
     return priv_dumps(v);
 }
 
+# Serialize any value, struct/enum fields included, to a JSON string.
+pub fn to_string(v: any) -> Str {
+    return render(codec.enc_tree(v));
+}
+
+# Parse JSON and rebuild `T` (struct/enum type reference) from it.
+pub fn from_string(T: any, s: Str) -> any {
+    return codec.coerce_type(T, loads(s));
+}
+
+# Render a decoded tree (from loads/codec.enc_tree) as JSON text.
+pub fn render(v: any) -> Str {
+    k = reflect.kind_of(v);
+    if k == "none" { return "null"; }
+    if k == "bool" {
+        if v { return "true"; }
+        return "false";
+    }
+    if k == "int" { return Str(v); }
+    if k == "float" { return render_float(v); }
+    if k == "string" { return quote(v); }
+    if k == "list" { return render_seq(v); }
+    if k == "dict" { return render_map(v); }
+    return "null";
+}
+
+fn render_float(v: any) -> Str {
+    s = Str(v);
+    if s == "inf" or s == "-inf" or s == "nan" { return "null"; }
+    return s;
+}
+
+fn render_seq(v: list) -> Str {
+    out = "[";
+    var first = true;
+    for e in v {
+        if not first { out = out + ","; }
+        first = false;
+        out = out + render(e);
+    }
+    return out + "]";
+}
+
+fn render_map(v: dict) -> Str {
+    out = "{";
+    var first = true;
+    for key in v {
+        if not first { out = out + ","; }
+        first = false;
+        out = out + quote(Str(key)) + ":" + render(v[key]);
+    }
+    return out + "}";
+}
+
+fn quote(s: Str) -> Str {
+    out = "\"";
+    var i = 0;
+    while i < s.len() {
+        c = s[i..i + 1];
+        matched = false;
+        if c == "\"" { out = out + "\\\""; matched = true; }
+        if c == "\\" { out = out + "\\\\"; matched = true; }
+        if c == "\n" { out = out + "\\n"; matched = true; }
+        if c == "\t" { out = out + "\\t"; matched = true; }
+        if c == "\r" { out = out + "\\r"; matched = true; }
+        if not matched { out = out + c; }
+        i = i + 1;
+    }
+    return out + "\"";
+}
+
 # Parse a JSON string into Kirn values. Parses objects, arrays, strings,
 # numbers, true/false/null. Raises on malformed input.
-pub fn loads(s: Str) -> none {
+pub fn loads(s: Str) -> any {
     p = Parser();
     p.init(s);
     return p.parse_value();

@@ -1,0 +1,410 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/72_formats.kn
+Import pet.json as json
+Import pet.toml as toml
+Import pet.yaml as yaml
+Import pet.cbor as cbor
+StructDef "Point"
+  Field "x" : Int
+  Field "y" : Int
+StructDef "Profile"
+  Field "name" : Str
+  Field "age" : Int
+  Field "home" : Point
+  Field "tags" : list[Str]
+  Field "score" : Float
+  Field "active" : Bool
+EnumDef "Shape"
+  Variant Circle {r: Float}
+  Variant Rect {w: Float, h: Float}
+  Variant Empty
+FuncDef "show_back"
+  Param "label" : Str
+  Param "back" : Profile
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Interp
+                  Value Ident "label"
+                Text ": "
+                Interp
+                  Value 
+                    Member name="name"
+                      Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Member name="age"
+                      Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Member name="x"
+                      Obj 
+                        Member name="home"
+                          Obj Ident "back"
+                Text ","
+                Interp
+                  Value 
+                    Member name="y"
+                      Obj 
+                        Member name="home"
+                          Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Member name="score"
+                      Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Member name="active"
+                      Obj Ident "back"
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "Profile"
+          Arg name=name
+            Value Str "ada"
+          Arg name=age
+            Value Int "36"
+          Arg name=home
+            Value 
+              Call
+                Callee Ident "Point"
+                Arg name=x
+                  Value Int "1"
+                Arg name=y
+                  Value Int "2"
+          Arg name=tags
+            Value 
+              List len=2
+                Item Str "math"
+                Item Str "code"
+          Arg name=score
+            Value Float "9.5"
+          Arg name=active
+            Value Ident "true"
+    VarDecl
+      Target Ident "js"
+      Value 
+        Call
+          Callee 
+            Member name="to_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "json: "
+                Interp
+                  Value Ident "js"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show_back"
+          Arg
+            Value Str "json roundtrip"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="from_string"
+                    Obj Ident "json"
+                Arg
+                  Value Ident "Profile"
+                Arg
+                  Value Ident "js"
+    VarDecl
+      Target Ident "ts"
+      Value 
+        Call
+          Callee 
+            Member name="to_string"
+              Obj Ident "toml"
+          Arg
+            Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "toml:"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "ts"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show_back"
+          Arg
+            Value Str "toml roundtrip"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="from_string"
+                    Obj Ident "toml"
+                Arg
+                  Value Ident "Profile"
+                Arg
+                  Value Ident "ts"
+    VarDecl
+      Target Ident "ys"
+      Value 
+        Call
+          Callee 
+            Member name="to_string"
+              Obj Ident "yaml"
+          Arg
+            Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "yaml:"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "ys"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "show_back"
+          Arg
+            Value Str "yaml roundtrip"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="from_string"
+                    Obj Ident "yaml"
+                Arg
+                  Value Ident "Profile"
+                Arg
+                  Value Ident "ys"
+    VarDecl
+      Target Ident "b"
+      Value 
+        Call
+          Callee 
+            Member name="to_bytes"
+              Obj Ident "cbor"
+          Arg
+            Value Ident "p"
+    VarDecl
+      Target Ident "back"
+      Value 
+        Call
+          Callee 
+            Member name="from_bytes"
+              Obj Ident "cbor"
+          Arg
+            Value Ident "Profile"
+          Arg
+            Value Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "cbor: "
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="len"
+                          Obj Ident "b"
+                Text " bytes hex="
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="hex"
+                          Obj Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "cbor roundtrip: "
+                Interp
+                  Value 
+                    Member name="name"
+                      Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Member name="y"
+                      Obj 
+                        Member name="home"
+                          Obj Ident "back"
+                Text " "
+                Interp
+                  Value 
+                    Index
+                      Obj 
+                        Member name="tags"
+                          Obj Ident "back"
+                      At Int "1"
+                Text " "
+                Interp
+                  Value 
+                    Member name="active"
+                      Obj Ident "back"
+    VarDecl
+      Target Ident "shape"
+      Value 
+        Call
+          Callee 
+            Member name="Rect"
+              Obj Ident "Shape"
+          Arg name=w
+            Value Float "3.0"
+          Arg name=h
+            Value Float "4.0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "json enum: "
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="to_string"
+                          Obj Ident "json"
+                      Arg
+                        Value Ident "shape"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "toml enum: "
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="to_string"
+                          Obj Ident "toml"
+                      Arg
+                        Value Ident "shape"
+    VarDecl
+      Target Ident "via_yaml"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "yaml"
+          Arg
+            Value Ident "Shape"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "yaml"
+                Arg
+                  Value Ident "shape"
+    VarDecl
+      Target Ident "via_cbor"
+      Value 
+        Call
+          Callee 
+            Member name="from_bytes"
+              Obj Ident "cbor"
+          Arg
+            Value Ident "Shape"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_bytes"
+                    Obj Ident "cbor"
+                Arg
+                  Value Ident "shape"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "yaml enum: "
+                Interp
+                  Value Ident "via_yaml"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "cbor enum: "
+                Interp
+                  Value Ident "via_cbor"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              FString
+                Text "unit: "
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="to_string"
+                          Obj Ident "json"
+                      Arg
+                        Value 
+                          Member name="Empty"
+                            Obj Ident "Shape"
+                Text " "
+                Interp
+                  Value 
+                    Call
+                      Callee 
+                        Member name="hex"
+                          Obj 
+                            Call
+                              Callee 
+                                Member name="to_bytes"
+                                  Obj Ident "cbor"
+                              Arg
+                                Value 
+                                  Member name="Empty"
+                                    Obj Ident "Shape"
+<ROOT>/examples/72_formats.kn: OK (9 top-level statements)
+[exit 0]

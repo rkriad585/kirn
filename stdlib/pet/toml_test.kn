@@ -1,0 +1,98 @@
+import pet.toml as toml;
+import reflect;
+
+struct Point { x: Int; y: Int; }
+struct Line { a: Point; b: Point; label: Str; }
+enum Shape { Circle(r: Float); Rect(w: Float, h: Float); Empty; }
+struct Bag { items: list[Shape]; }
+
+fn main() -> none {
+    # Scalars keep their types (int stays int, float stays float).
+    t = toml.loads("n = 42\ns = \"hi\"\nb = true\nf = 1.5\n");
+    assert(t["n"] == 42);
+    assert(reflect.kind_of(t["n"]) == "int");
+    assert(t["s"] == "hi");
+    assert(t["b"]);
+    assert(t["f"] == 1.5);
+
+    # Dotted keys, [table] headers, and nested tables.
+    t2 = toml.loads("a.b.c = 1\n[t]\nx = 2\n[t.inner]\ny = 3\n");
+    assert(t2["a"]["b"]["c"] == 1);
+    assert(t2["t"]["x"] == 2);
+    assert(t2["t"]["inner"]["y"] == 3);
+
+    # Arrays (trailing comma, comments), nested arrays, inline tables.
+    t3 = toml.loads("arr = [1, 2, 3,] # comment\nnested = [[1], [2, 3]]\nit = { k = \"v\", n = 7 }\n");
+    assert(t3["arr"].len() == 3);
+    assert(t3["arr"][2] == 3);
+    assert(t3["nested"][1][0] == 2);
+    assert(t3["nested"][1][1] == 3);
+    assert(t3["it"]["k"] == "v");
+    assert(t3["it"]["n"] == 7);
+
+    # Basic escapes, literal strings, and both multiline forms.
+    t4 = toml.loads("esc = \"a\\tb\\n\"\nlit = 'raw\\n'\nml = \"\"\"line1\nline2\"\"\"\nmllit = '''x\ny'''\n");
+    assert(t4["esc"] == "a\tb\n");
+    assert(t4["lit"] == "raw\\n");
+    assert(t4["ml"] == "line1\nline2");
+    assert(t4["mllit"] == "x\ny");
+
+    # Number bases, underscores, exponents, inf.
+    t5 = toml.loads("hex = 0xFF\noct = 0o17\nbin = 0b1010\nus = 1_000\ne = 1.5e3\ninf1 = inf\ninf2 = -inf\n");
+    assert(t5["hex"] == 255);
+    assert(t5["oct"] == 15);
+    assert(t5["bin"] == 10);
+    assert(t5["us"] == 1000);
+    assert(t5["e"] == 1500.0);
+    assert(Str(t5["inf1"]) == "inf");
+    assert(Str(t5["inf2"]) == "-inf");
+
+    # Array-of-tables headers accumulate tables.
+    t6 = toml.loads("[[products]]\nname = \"Hammer\"\n\n[[products]]\nname = \"Nail\"\nsku = 2\n");
+    assert(t6["products"].len() == 2);
+    assert(t6["products"][0]["name"] == "Hammer");
+    assert(t6["products"][1]["sku"] == 2);
+
+    # Date/time tokens stay strings (TOML subset choice).
+    t7 = toml.loads("d = 1979-05-27\ndt = 1979-05-27T07:32:00Z\ntm = 07:32:00\n");
+    assert(t7["d"] == "1979-05-27");
+    assert(t7["dt"] == "1979-05-27T07:32:00Z");
+    assert(t7["tm"] == "07:32:00");
+
+    # Render -> parse round-trip preserves the tree.
+    rt = toml.loads(toml.dumps(t6));
+    assert(rt["products"][1]["name"] == "Nail");
+    rt2 = toml.loads(toml.dumps(t));
+    assert(rt2["n"] == 42 and rt2["s"] == "hi");
+
+    # to_string/from_string rebuild nested structs.
+    line = Line(a: Point(x: 0, y: 0), b: Point(x: 1, y: 1), label: "diag");
+    s = toml.to_string(line);
+    back = toml.from_string(Line, s);
+    assert(reflect.get_field(reflect.get_field(back, "a"), "x") == 0);
+    assert(reflect.get_field(reflect.get_field(back, "b"), "y") == 1);
+    assert(reflect.get_field(back, "label") == "diag");
+
+    # Enums: externally tagged in the tree, tables/arrays in TOML.
+    f = toml.from_string(Shape, "Circle = [2.5]\n");
+    assert(reflect.variant(f) == "Circle");
+    assert(reflect.payload(f)[0] == 2.5);
+
+    # A list-of-struct field holding enums exercises AoT + generic coercion.
+    # (Unit variants have no TOML representation - none is omitted - so the
+    # list test uses payload variants only; JSON keeps unit variants.)
+    bag = Bag(items: [Shape.Circle(r: 1.0), Shape.Rect(w: 2.0, h: 3.0)]);
+    bs = toml.to_string(bag);
+    bag2 = toml.from_string(Bag, bs);
+    assert(reflect.variant(bag2.items[0]) == "Circle");
+    assert(reflect.payload(bag2.items[0])[0] == 1.0);
+    assert(reflect.variant(bag2.items[1]) == "Rect");
+    assert(reflect.payload(bag2.items[1])[0] == 2.0);
+    assert(reflect.payload(bag2.items[1])[1] == 3.0);
+
+    # Empty / comment-only documents parse to empty tables.
+    assert(toml.loads("").len() == 0);
+    assert(toml.loads("# just a comment\n").len() == 0);
+
+    print("toml_test ok");
+}

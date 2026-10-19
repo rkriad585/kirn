@@ -1,0 +1,60 @@
+# 72 — default formats: json / toml / yaml / cbor    (POWER_PLAN §3.3)
+import pet.json as json;
+import pet.toml as toml;
+import pet.yaml as yaml;
+import pet.cbor as cbor;
+
+struct Point { x: Int; y: Int; }
+struct Profile {
+    name: Str;
+    age: Int;
+    home: Point;
+    tags: list[Str];
+    score: Float;
+    active: Bool;
+}
+enum Shape { Circle(r: Float); Rect(w: Float, h: Float); Empty; }
+
+fn show_back(label: Str, back: Profile) -> none {
+    print(f"{label}: {back.name} {back.age} {back.home.x},{back.home.y} {back.score} {back.active}");
+}
+
+fn main() -> none {
+    var p = Profile(name: "ada", age: 36, home: Point(x: 1, y: 2),
+                    tags: ["math", "code"], score: 9.5, active: true);
+
+    # JSON — serde-aware to_string / from_string (structs and enums included).
+    var js = json.to_string(p);
+    print(f"json: {js}");
+    show_back("json roundtrip", json.from_string(Profile, js));
+
+    # TOML — tables for nested structs, arrays for lists.
+    var ts = toml.to_string(p);
+    print("toml:");
+    print(ts);
+    show_back("toml roundtrip", toml.from_string(Profile, ts));
+
+    # YAML — block mappings/sequences.
+    var ys = yaml.to_string(p);
+    print("yaml:");
+    print(ys);
+    show_back("yaml roundtrip", yaml.from_string(Profile, ys));
+
+    # CBOR — binary; from_bytes rebuilds the struct from bytes.
+    var b = cbor.to_bytes(p);
+    var back = cbor.from_bytes(Profile, b);
+    print(f"cbor: {b.len()} bytes hex={b.hex()}");
+    print(f"cbor roundtrip: {back.name} {back.home.y} {back.tags[1]} {back.active}");
+
+    # Enums work across all four formats (externally tagged).
+    var shape = Shape.Rect(w: 3.0, h: 4.0);
+    print(f"json enum: {json.to_string(shape)}");
+    print(f"toml enum: {toml.to_string(shape)}");
+    var via_yaml = yaml.from_string(Shape, yaml.to_string(shape));
+    var via_cbor = cbor.from_bytes(Shape, cbor.to_bytes(shape));
+    print(f"yaml enum: {via_yaml}");
+    print(f"cbor enum: {via_cbor}");
+
+    # Unit variants survive in json/yaml/cbor (null-preserving formats).
+    print(f"unit: {json.to_string(Shape.Empty)} {cbor.to_bytes(Shape.Empty).hex()}");
+}

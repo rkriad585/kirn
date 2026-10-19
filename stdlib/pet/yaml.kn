@@ -1,0 +1,734 @@
+# stdlib/pet/yaml.kn - YAML subset encode/decode (POWER_PLAN §3.3).
+#
+# A block-style recursive parser and renderer over the `pet.codec` tree.
+# Import with:
+#   import pet.yaml as yaml;
+#   var s = yaml.to_string(v);
+#   var back = yaml.from_string(User, s);
+#
+# Supported subset: block mappings and sequences by indentation (spaces only),
+# `- key: value` sequence items with continuation lines, minimal flow
+# collections ({a: 1} / [1, 2]), plain/single-quoted/double-quoted scalars
+# (\n \t \" \\ escapes), ints (with _), floats (.inf -.inf .nan exponents),
+# booleans, null (null / ~ / empty), and # comments. Out of scope: anchors,
+# tags, directives, block scalars (| >), multi-document streams, and the
+# complex-key (?) form. Strings that look like numbers/keywords are quoted
+# on render so types survive a round-trip.
+
+import pet.codec as codec;
+import reflect;
+
+# ---- serde-facing API (POWER_PLAN §3.3) ------------------------------------
+
+# Serialize any value, struct/enum fields included, to YAML text.
+pub fn to_string(v: any) -> Str {
+    return dumps(codec.enc_tree(v));
+}
+
+# Parse YAML and rebuild `T` (a struct/enum type reference) from it.
+pub fn from_string(T: any, s: Str) -> any {
+    return codec.coerce_type(T, loads(s));
+}
+
+# ---- tree API --------------------------------------------------------------
+
+# Parse YAML text into a tree (dict/list/str/int/float/bool/none). Raises on
+# malformed input.
+pub fn loads(s: Str) -> any {
+    y = Yaml();
+    y.init(s);
+    return y.parse_doc();
+}
+
+# Render a tree as YAML text.
+pub fn dumps(tree: any) -> Str {
+    return render_doc(tree);
+}
+
+# ---- parser (struct of methods) --------------------------------------------
+
+struct Yaml {
+    var texts: list;
+    var indents: list;
+    var pos: Int;
+    var fsrc: Str;
+    var fi: Int;
+
+    fn init(self, s: Str) -> none {
+        self.texts = [];
+        self.indents = [];
+        self.pos = 0;
+        self.fsrc = "";
+        self.fi = 0;
+        for raw in s.split("\n") {
+            var j = 0;
+            while j < raw.len() and raw[j..j + 1] == " " { j = j + 1; }
+            body = raw[j..raw.len()];
+            if body.len() > 0 and body[0..1] == "\t" {
+                raise("yaml: tabs are not allowed for indentation");
+            }
+            content = self.strip_comment(body).strip();
+            if content == "" { continue; }
+            self.texts.append(content);
+            self.indents.append(j);
+        }
+    }
+
+    fn strip_comment(self, s: Str) -> Str {
+        var in_s = false;
+        var in_d = false;
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c == "'" and not in_d { in_s = not in_s; }
+            if c == "\"" and not in_s { in_d = not in_d; }
+            if c == "#" and not in_s and not in_d {
+                if i == 0 { return ""; }
+                prev = s[i - 1..i];
+                if prev == " " or prev == "\t" { return s[0..i]; }
+            }
+            i = i + 1;
+        }
+        return s;
+    }
+
+    fn parse_doc(self) -> any {
+        if self.texts.len() == 0 { return {}; }
+        return self.parse_block(self.indents[0]);
+    }
+
+    fn parse_block(self, indent: Int) -> any {
+        line = self.texts[self.pos];
+        if line == "-" or line[0..2] == "- " { return self.parse_seq(indent); }
+        return self.parse_map(indent);
+    }
+
+    fn parse_map(self, indent: Int) -> dict {
+        out = {};
+        while self.pos < self.texts.len() {
+            if self.indents[self.pos] < indent { break; }
+            if self.indents[self.pos] > indent { raise("yaml: bad indentation"); }
+            line = self.texts[self.pos];
+            if line == "-" or line[0..2] == "- " { break; }
+            self.pos = self.pos + 1;
+            self.parse_entry_into(out, line, indent);
+        }
+        return out;
+    }
+
+    fn parse_entry_into(self, out: any, line: Str, indent: Int) -> none {
+        kv = self.split_key(line);
+        key = kv[0];
+        rest = kv[1];
+        if rest != "" {
+            out[key] = self.parse_flow_or_scalar(rest);
+        } else {
+            if self.pos < self.texts.len() and self.indents[self.pos] > indent {
+                out[key] = self.parse_block(self.indents[self.pos]);
+            } else {
+                out[key] = none;
+            }
+        }
+    }
+
+    fn parse_seq(self, indent: Int) -> list {
+        out = [];
+        while self.pos < self.texts.len() {
+            if self.indents[self.pos] < indent { break; }
+            if self.indents[self.pos] > indent { raise("yaml: bad indentation"); }
+            line = self.texts[self.pos];
+            if not (line == "-" or line[0..2] == "- ") { break; }
+            var col = 2;
+            while col < line.len() and line[col..col + 1] == " " { col = col + 1; }
+            var rest = "";
+            if line != "-" { rest = line[col..line.len()].strip(); }
+            if rest == "-" or (rest.len() >= 2 and rest[0..2] == "- ") {
+                # Nested sequence on the same line: "- - 1". Rewrite this
+                # line at the inner dash column and let parse_block recurse.
+                self.texts[self.pos] = rest;
+                self.indents[self.pos] = indent + col;
+                out.append(self.parse_block(indent + col));
+                continue;
+            }
+            self.pos = self.pos + 1;
+            if rest == "" {
+                if self.pos < self.texts.len() and self.indents[self.pos] > indent {
+                    out.append(self.parse_block(self.indents[self.pos]));
+                } else {
+                    out.append(none);
+                }
+            } else {
+                if self.has_key_colon(rest) {
+                    out.append(self.parse_inline_map_item(rest, indent + 2));
+                } else {
+                    out.append(self.parse_flow_or_scalar(rest));
+                }
+            }
+        }
+        return out;
+    }
+
+    fn parse_inline_map_item(self, first: Str, sub_indent: Int) -> dict {
+        out = {};
+        self.parse_entry_into(out, first, sub_indent);
+        while self.pos < self.texts.len() and self.indents[self.pos] == sub_indent {
+            line = self.texts[self.pos];
+            if line == "-" or line[0..2] == "- " { break; }
+            self.pos = self.pos + 1;
+            self.parse_entry_into(out, line, sub_indent);
+        }
+        return out;
+    }
+
+    # Split "key: rest" at the first unquoted colon followed by space/EOL.
+    fn split_key(self, line: Str) -> list {
+        var in_s = false;
+        var in_d = false;
+        var i = 0;
+        while i < line.len() {
+            c = line[i..i + 1];
+            if c == "'" and not in_d { in_s = not in_s; }
+            if c == "\"" and not in_s { in_d = not in_d; }
+            if c == ":" and not in_s and not in_d {
+                var after = "";
+                if i + 1 < line.len() { after = line[i + 1..i + 2]; }
+                if after == "" or after == " " {
+                    var key = line[0..i].strip();
+                    key = self.unquote_key(key);
+                    var rest = "";
+                    if i + 1 < line.len() { rest = line[i + 1..line.len()].strip(); }
+                    return [key, rest];
+                }
+            }
+            i = i + 1;
+        }
+        raise("yaml: expected 'key: value' but got: " + line);
+    }
+
+    fn unquote_key(self, key: Str) -> Str {
+        if key.len() >= 2 and key[0..1] == "\"" and key[key.len() - 1..key.len()] == "\"" {
+            return self.parse_dq(key[1..key.len() - 1]);
+        }
+        if key.len() >= 2 and key[0..1] == "'" and key[key.len() - 1..key.len()] == "'" {
+            return self.un_sq(key[1..key.len() - 1]);
+        }
+        return key;
+    }
+
+    fn has_key_colon(self, s: Str) -> Bool {
+        var in_s = false;
+        var in_d = false;
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c == "'" and not in_d { in_s = not in_s; }
+            if c == "\"" and not in_s { in_d = not in_d; }
+            if c == ":" and not in_s and not in_d {
+                var after = "";
+                if i + 1 < s.len() { after = s[i + 1..i + 2]; }
+                if after == "" or after == " " { return true; }
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    # ---- flow collections (cursor in fsrc/fi) ----
+
+    fn parse_flow_or_scalar(self, s: Str) -> any {
+        var is_flow = false;
+        if s.len() > 0 and s[0..1] == "{" { is_flow = true; }
+        if s.len() > 0 and s[0..1] == "[" { is_flow = true; }
+        if not is_flow { return self.parse_scalar(s); }
+        self.fsrc = s;
+        self.fi = 0;
+        v = self.flow_value();
+        self.skip_fw();
+        if self.fi < self.fsrc.len() {
+            raise("yaml: trailing content after value: " + self.fsrc[self.fi..self.fsrc.len()]);
+        }
+        return v;
+    }
+
+    fn skip_fw(self) -> none {
+        while self.fi < self.fsrc.len() and self.fsrc[self.fi..self.fi + 1] == " " {
+            self.fi = self.fi + 1;
+        }
+    }
+
+    fn fpeek(self) -> Str {
+        if self.fi >= self.fsrc.len() { return ""; }
+        return self.fsrc[self.fi..self.fi + 1];
+    }
+
+    fn flow_value(self) -> any {
+        self.skip_fw();
+        c = self.fpeek();
+        if c == "{" { return self.flow_map_body(); }
+        if c == "[" { return self.flow_seq_body(); }
+        return self.parse_scalar(self.flow_token());
+    }
+
+    fn flow_map_body(self) -> dict {
+        self.fi = self.fi + 1;
+        out = {};
+        self.skip_fw();
+        if self.fpeek() == "}" { self.fi = self.fi + 1; return out; }
+        while true {
+            self.skip_fw();
+            if self.fpeek() == "}" { self.fi = self.fi + 1; break; }
+            k = self.flow_key();
+            self.skip_fw();
+            if self.fpeek() != ":" { raise("yaml: expected ':' in flow mapping"); }
+            self.fi = self.fi + 1;
+            v = self.flow_value();
+            out[k] = v;
+            self.skip_fw();
+            c = self.fpeek();
+            if c == "," { self.fi = self.fi + 1; }
+            if c == "}" { self.fi = self.fi + 1; break; }
+            if c == "" { raise("yaml: unterminated flow mapping"); }
+        }
+        return out;
+    }
+
+    fn flow_seq_body(self) -> list {
+        self.fi = self.fi + 1;
+        out = [];
+        self.skip_fw();
+        if self.fpeek() == "]" { self.fi = self.fi + 1; return out; }
+        while true {
+            self.skip_fw();
+            if self.fpeek() == "]" { self.fi = self.fi + 1; break; }
+            out.append(self.flow_value());
+            self.skip_fw();
+            c = self.fpeek();
+            if c == "," { self.fi = self.fi + 1; }
+            if c == "]" { self.fi = self.fi + 1; break; }
+            if c == "" { raise("yaml: unterminated flow sequence"); }
+        }
+        return out;
+    }
+
+    fn flow_key(self) -> Str {
+        self.skip_fw();
+        c = self.fpeek();
+        if c == "'" {
+            out = "";
+            self.fi = self.fi + 1;
+            while self.fi < self.fsrc.len() {
+                if self.fsrc[self.fi..self.fi + 1] == "'" {
+                    if self.fi + 1 < self.fsrc.len() and self.fsrc[self.fi + 1..self.fi + 2] == "'" {
+                        out = out + "''";
+                        self.fi = self.fi + 2;
+                        continue;
+                    }
+                    self.fi = self.fi + 1;
+                    return self.un_sq(out);
+                }
+                out = out + self.fsrc[self.fi..self.fi + 1];
+                self.fi = self.fi + 1;
+            }
+            raise("yaml: unterminated quoted key");
+        }
+        if c == "\"" {
+            start = self.fi + 1;
+            self.fi = self.fi + 1;
+            while self.fi < self.fsrc.len() {
+                if self.fsrc[self.fi..self.fi + 1] == "\\" {
+                    self.fi = self.fi + 2;
+                    continue;
+                }
+                if self.fsrc[self.fi..self.fi + 1] == "\"" {
+                    out = self.fsrc[start..self.fi];
+                    self.fi = self.fi + 1;
+                    return self.parse_dq(out);
+                }
+                self.fi = self.fi + 1;
+            }
+            raise("yaml: unterminated quoted key");
+        }
+        start = self.fi;
+        while self.fi < self.fsrc.len() {
+            c2 = self.fsrc[self.fi..self.fi + 1];
+            if c2 == "," or c2 == "}" or c2 == "]" or c2 == ":" { break; }
+            self.fi = self.fi + 1;
+        }
+        return self.fsrc[start..self.fi].strip();
+    }
+
+    fn flow_token(self) -> Str {
+        self.skip_fw();
+        c = self.fpeek();
+        if c == "'" {
+            out = "";
+            self.fi = self.fi + 1;
+            while self.fi < self.fsrc.len() {
+                if self.fsrc[self.fi..self.fi + 1] == "'" {
+                    if self.fi + 1 < self.fsrc.len() and self.fsrc[self.fi + 1..self.fi + 2] == "'" {
+                        out = out + "''";
+                        self.fi = self.fi + 2;
+                        continue;
+                    }
+                    self.fi = self.fi + 1;
+                    return "'" + out + "'";
+                }
+                out = out + self.fsrc[self.fi..self.fi + 1];
+                self.fi = self.fi + 1;
+            }
+            raise("yaml: unterminated single-quoted scalar");
+        }
+        if c == "\"" {
+            start = self.fi + 1;
+            self.fi = self.fi + 1;
+            while self.fi < self.fsrc.len() {
+                if self.fsrc[self.fi..self.fi + 1] == "\\" {
+                    self.fi = self.fi + 2;
+                    continue;
+                }
+                if self.fsrc[self.fi..self.fi + 1] == "\"" {
+                    out = self.fsrc[start..self.fi];
+                    self.fi = self.fi + 1;
+                    return "\"" + out + "\"";
+                }
+                self.fi = self.fi + 1;
+            }
+            raise("yaml: unterminated double-quoted scalar");
+        }
+        start = self.fi;
+        while self.fi < self.fsrc.len() {
+            c2 = self.fsrc[self.fi..self.fi + 1];
+            if c2 == "," or c2 == "}" or c2 == "]" { break; }
+            self.fi = self.fi + 1;
+        }
+        return self.fsrc[start..self.fi].strip();
+    }
+
+    # ---- scalars ----
+
+    fn parse_scalar(self, s: Str) -> any {
+        if s == "" or s == "null" or s == "~" { return none; }
+        if s == "true" { return true; }
+        if s == "false" { return false; }
+        if s.len() >= 2 and s[0..1] == "'" and s[s.len() - 1..s.len()] == "'" {
+            return self.un_sq(s[1..s.len() - 1]);
+        }
+        if s.len() >= 2 and s[0..1] == "\"" and s[s.len() - 1..s.len()] == "\"" {
+            return self.parse_dq(s[1..s.len() - 1]);
+        }
+        n = self.as_number(s);
+        if n != none { return n; }
+        return s;
+    }
+
+    fn as_number(self, s: Str) -> any {
+        if s == ".inf" { return math.inf; }
+        if s == "-.inf" { return math.inf * -1.0; }
+        if s == ".nan" { return math.nan; }
+        var body = s;
+        var neg = false;
+        if body[0..1] == "-" { neg = true; body = body[1..body.len()]; }
+        if body.len() > 0 and body[0..1] == "+" { body = body[1..body.len()]; }
+        body = self.strip_us(body);
+        if body == "" { return none; }
+        var all_digit = true;
+        var has_dot = false;
+        var has_e = false;
+        var i = 0;
+        while i < body.len() {
+            c = body[i..i + 1];
+            if "0123456789".find(c) < 0 {
+                if c == "." and not has_dot and not has_e { has_dot = true; }
+                else {
+                    if (c == "e" or c == "E") and not has_e and i > 0 { has_e = true; }
+                    else { all_digit = false; }
+                }
+            }
+            i = i + 1;
+        }
+        if not all_digit { return none; }
+        if not has_dot and not has_e {
+            if neg { return 0 - Int(body); }
+            return Int(body);
+        }
+        if neg { return Float("-" + body); }
+        return Float(body);
+    }
+
+    fn strip_us(self, s: Str) -> Str {
+        out = "";
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c != "_" { out = out + c; }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn un_sq(self, s: Str) -> Str {
+        out = "";
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c == "'" and i + 1 < s.len() and s[i + 1..i + 2] == "'" {
+                out = out + "'";
+                i = i + 2;
+            } else {
+                out = out + c;
+                i = i + 1;
+            }
+        }
+        return out;
+    }
+
+    fn parse_dq(self, s: Str) -> Str {
+        out = "";
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c == "\\" and i + 1 < s.len() {
+                esc = s[i + 1..i + 2];
+                if esc == "n" { out = out + "\n"; }
+                if esc == "t" { out = out + "\t"; }
+                if esc == "r" { out = out + "\r"; }
+                if esc == "\"" { out = out + "\""; }
+                if esc == "\\" { out = out + "\\"; }
+                if esc != "n" and esc != "t" and esc != "r" and esc != "\"" and esc != "\\" {
+                    out = out + esc;
+                }
+                i = i + 2;
+            } else {
+                out = out + c;
+                i = i + 1;
+            }
+        }
+        return out;
+    }
+}
+
+# ---- renderer (free functions; free -> free calls work) --------------------
+
+fn spaces(n: Int) -> Str {
+    out = "";
+    var i = 0;
+    while i < n {
+        out = out + " ";
+        i = i + 1;
+    }
+    return out;
+}
+
+fn looks_numeric(s: Str) -> Bool {
+    if s == "" { return false; }
+    var body = s;
+    if body[0..1] == "-" { body = body[1..body.len()]; }
+    if body.len() > 0 and body[0..1] == "+" { body = body[1..body.len()]; }
+    if body == ".inf" or body == "inf" { return true; }
+    if body == "" { return false; }
+    var all_ok = true;
+    var has_dot = false;
+    var has_e = false;
+    var digits = 0;
+    var i = 0;
+    while i < body.len() {
+        c = body[i..i + 1];
+        if "0123456789".find(c) < 0 {
+            if c == "." and not has_dot and not has_e { has_dot = true; }
+            else {
+                if (c == "e" or c == "E") and not has_e and i > 0 { has_e = true; }
+                else { all_ok = false; }
+            }
+        } else {
+            digits = digits + 1;
+        }
+        i = i + 1;
+    }
+    return all_ok and digits > 0;
+}
+
+fn needs_quote(s: Str) -> Bool {
+    if s == "" { return true; }
+    if s.strip() != s { return true; }
+    if s == "true" or s == "false" or s == "null" or s == "~" { return true; }
+    if s == ".inf" or s == "-.inf" or s == ".nan" { return true; }
+    if looks_numeric(s) { return true; }
+    if s.find(": ") >= 0 { return true; }
+    if s.find(" #") >= 0 { return true; }
+    c0 = s[0..1];
+    specials = "-?:,[]{}#&*!|>'\"%@`";
+    if specials.find(c0) >= 0 { return true; }
+    if s[s.len() - 1..s.len()] == ":" { return true; }
+    var i = 0;
+    while i < s.len() {
+        c = s[i..i + 1];
+        if c == "\n" or c == "\t" or c == "\r" { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn render_dq(s: Str) -> Str {
+    out = "\"";
+    var i = 0;
+    while i < s.len() {
+        c = s[i..i + 1];
+        matched = false;
+        if c == "\"" { out = out + "\\\""; matched = true; }
+        if c == "\\" { out = out + "\\\\"; matched = true; }
+        if c == "\n" { out = out + "\\n"; matched = true; }
+        if c == "\t" { out = out + "\\t"; matched = true; }
+        if c == "\r" { out = out + "\\r"; matched = true; }
+        if not matched { out = out + c; }
+        i = i + 1;
+    }
+    return out + "\"";
+}
+
+fn is_bare_key(k: Str) -> Bool {
+    if k.len() == 0 { return false; }
+    if looks_numeric(k) { return false; }
+    if k == "true" or k == "false" or k == "null" { return false; }
+    var i = 0;
+    while i < k.len() {
+        c = k[i..i + 1];
+        var ok = false;
+        if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".find(c) >= 0 { ok = true; }
+        if c == "_" or c == "-" or c == "." or c == "/" { ok = true; }
+        if not ok { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn render_key(k: Str) -> Str {
+    if is_bare_key(k) { return k; }
+    return render_dq(k);
+}
+
+fn render_scalar(v: any) -> Str {
+    k = reflect.kind_of(v);
+    if k == "none" { return "null"; }
+    if k == "bool" {
+        if v { return "true"; }
+        return "false";
+    }
+    if k == "int" { return Str(v); }
+    if k == "float" { return render_float(v); }
+    if k == "string" {
+        if needs_quote(v) { return render_dq(v); }
+        return v;
+    }
+    if k == "dict" { return "{}"; }
+    if k == "list" { return "[]"; }
+    return render_dq(Str(v));
+}
+
+fn render_float(v: any) -> Str {
+    s = Str(v);
+    if s == "inf" { return ".inf"; }
+    if s == "-inf" { return "-.inf"; }
+    if s == "nan" { return ".nan"; }
+    return s;
+}
+
+fn render_doc(tree: any) -> Str {
+    k = reflect.kind_of(tree);
+    if k == "dict" {
+        if tree.len() == 0 { return "{}\n"; }
+        return render_map(tree, 0);
+    }
+    if k == "list" {
+        if tree.len() == 0 { return "[]\n"; }
+        return render_seq(tree, 0);
+    }
+    return render_scalar(tree) + "\n";
+}
+
+fn render_map(d: dict, indent: Int) -> Str {
+    var out = "";
+    pad = spaces(indent);
+    for k in d {
+        v = d[k];
+        if v == none { continue; }
+        vk = reflect.kind_of(v);
+        if vk == "dict" {
+            if v.len() == 0 {
+                out = out + pad + render_key(k) + ": {}\n";
+            } else {
+                out = out + pad + render_key(k) + ":\n" + render_map(v, indent + 2);
+            }
+        } else {
+            if vk == "list" {
+                if v.len() == 0 {
+                    out = out + pad + render_key(k) + ": []\n";
+                } else {
+                    out = out + pad + render_key(k) + ":\n" + render_seq(v, indent + 2);
+                }
+            } else {
+                out = out + pad + render_key(k) + ": " + render_scalar(v) + "\n";
+            }
+        }
+    }
+    return out;
+}
+
+fn render_seq(l: list, indent: Int) -> Str {
+    var out = "";
+    pad = spaces(indent);
+    for e in l {
+        ek = reflect.kind_of(e);
+        if ek == "dict" {
+            if e.len() == 0 {
+                out = out + pad + "- {}\n";
+            } else {
+                out = out + render_seq_item_map(e, indent);
+            }
+        } else {
+            if ek == "list" {
+                if e.len() == 0 {
+                    out = out + pad + "- []\n";
+                } else {
+                    out = out + pad + "-\n" + render_seq(e, indent + 2);
+                }
+            } else {
+                out = out + pad + "- " + render_scalar(e) + "\n";
+            }
+        }
+    }
+    return out;
+}
+
+# A mapping inside a sequence item: first key shares the "- " line, the rest
+# align two columns in.
+fn render_seq_item_map(e: dict, indent: Int) -> Str {
+    var out = "";
+    pad = spaces(indent);
+    var first = true;
+    for k in e {
+        v = e[k];
+        if v == none { continue; }
+        var lead = pad + "  ";
+        if first { lead = pad + "- "; }
+        first = false;
+        vk = reflect.kind_of(v);
+        if vk == "dict" {
+            if v.len() == 0 {
+                out = out + lead + render_key(k) + ": {}\n";
+            } else {
+                out = out + lead + render_key(k) + ":\n" + render_map(v, indent + 4);
+            }
+        } else {
+            if vk == "list" {
+                if v.len() == 0 {
+                    out = out + lead + render_key(k) + ": []\n";
+                } else {
+                    out = out + lead + render_key(k) + ":\n" + render_seq(v, indent + 4);
+                }
+            } else {
+                out = out + lead + render_key(k) + ": " + render_scalar(v) + "\n";
+            }
+        }
+    }
+    return out;
+}

@@ -1,0 +1,336 @@
+# stdlib/pet/cbor.kn - CBOR subset encode/decode (POWER_PLAN §3.3).
+#
+# RFC 8949 binary format over the `pet.codec` tree: major types 0 (uint),
+# 1 (negative int), 3 (text), 4 (array), 5 (map), and 7 (false/true/null,
+# float64). Byte strings (major 2) and tags (major 6) are out of scope -
+# the codec tree has no bytes kind, and tags are application-specific.
+# Floats are written as float64 doubles with a hand-rolled IEEE754 codec
+# (no struct.pack in Kirn v1); subnormals decode correctly and encode via
+# the same normalization path. Import with:
+#   import pet.cbor as cbor;
+#   var b = cbor.to_bytes(user);
+#   var back = cbor.from_bytes(User, b);
+
+import pet.codec as codec;
+import reflect;
+
+# ---- serde-facing API (POWER_PLAN §3.3) ------------------------------------
+
+# Serialize any value, struct/enum fields included, to CBOR bytes.
+pub fn to_bytes(v: any) -> bytes {
+    out = bytearray([]);
+    enc_into(out, codec.enc_tree(v));
+    return bytes(out);
+}
+
+# Parse CBOR bytes and rebuild `T` (a struct/enum type reference) from them.
+pub fn from_bytes(T: any, b: bytes) -> any {
+    return codec.coerce_type(T, loads(b));
+}
+
+# ---- tree API --------------------------------------------------------------
+
+# Parse CBOR bytes into a tree (dict/list/str/int/float/bool/none).
+pub fn loads(b: bytes) -> any {
+    c = Cbor();
+    c.init(b);
+    return c.parse_value();
+}
+
+# Render a tree as CBOR bytes.
+pub fn dumps(tree: any) -> bytes {
+    out = bytearray([]);
+    enc_into(out, tree);
+    return bytes(out);
+}
+
+# ---- encoder (free functions over a bytearray sink) ------------------------
+
+fn enc_head(out: any, major: Int, arg: Int) -> none {
+    m = major * 32;
+    if arg < 24 { out.append(m + arg); return; }
+    if arg < 256 { out.append(m + 24); out.append(arg); return; }
+    if arg < 65536 {
+        out.append(m + 25);
+        out.append(math.floor_div(arg, 256));
+        out.append(arg - math.floor_div(arg, 256) * 256);
+        return;
+    }
+    if arg < 4294967296 {
+        out.append(m + 26);
+        enc_be(out, arg, 4);
+        return;
+    }
+    out.append(m + 27);
+    enc_be(out, arg, 8);
+}
+
+fn enc_be(out: any, v: Int, n: Int) -> none {
+    var bytes_out = [];
+    var cur = v;
+    var i = 0;
+    while i < n {
+        bytes_out.append(cur - math.floor_div(cur, 256) * 256);
+        cur = math.floor_div(cur, 256);
+        i = i + 1;
+    }
+    var j = n - 1;
+    while j >= 0 {
+        out.append(bytes_out[j]);
+        j = j - 1;
+    }
+}
+
+fn enc_int(out: any, v: Int) -> none {
+    if v >= 0 {
+        enc_head(out, 0, v);
+    } else {
+        enc_head(out, 1, -1 - v);
+    }
+}
+
+fn enc_f64(out: any, v: Float) -> none {
+    out.append(251);
+    for b in f64_be(v) { out.append(b); }
+}
+
+# IEEE754 binary64 big-endian bytes for v (hand-rolled: no struct.pack).
+fn f64_be(v: Float) -> list {
+    if v != v { return [127, 248, 0, 0, 0, 0, 0, 1]; }
+    var sign = 0;
+    var x = v;
+    if x < 0.0 { sign = 128; x = -x; }
+    if x == 0.0 { return [sign, 0, 0, 0, 0, 0, 0, 0]; }
+    if x == math.inf { return [sign + 127, 240, 0, 0, 0, 0, 0, 0]; }
+    var exp = 0;
+    while x >= 2.0 { x = x / 2.0; exp = exp + 1; }
+    while x < 1.0 { x = x * 2.0; exp = exp - 1; }
+    var biased = exp + 1023;
+    var mant = Int((x - 1.0) * 4503599627370496.0 + 0.5);
+    if mant == 4503599627370496 {
+        mant = 0;
+        biased = biased + 1;
+    }
+    var low = biased * 4503599627370496 + mant;
+    var outb = [0, 0, 0, 0, 0, 0, 0, 0];
+    var i = 7;
+    while i >= 0 {
+        outb[i] = low - math.floor_div(low, 256) * 256;
+        low = math.floor_div(low, 256);
+        i = i - 1;
+    }
+    outb[0] = outb[0] + sign;
+    return outb;
+}
+
+fn enc_str(out: any, s: Str) -> none {
+    bs = bytes(s);
+    enc_head(out, 3, bs.len());
+    var i = 0;
+    while i < bs.len() {
+        out.append(bs[i]);
+        i = i + 1;
+    }
+}
+
+fn enc_into(out: any, v: any) -> none {
+    k = reflect.kind_of(v);
+    if k == "none" { out.append(246); return; }
+    if k == "bool" {
+        if v { out.append(245); } else { out.append(244); }
+        return;
+    }
+    if k == "int" { enc_int(out, v); return; }
+    if k == "float" { enc_f64(out, v); return; }
+    if k == "string" { enc_str(out, v); return; }
+    if k == "list" {
+        enc_head(out, 4, v.len());
+        for e in v { enc_into(out, e); }
+        return;
+    }
+    if k == "dict" {
+        enc_head(out, 5, v.len());
+        for key in v {
+            enc_str(out, Str(key));
+            enc_into(out, v[key]);
+        }
+        return;
+    }
+    enc_str(out, Str(v));
+}
+
+# ---- decoder (struct of methods - methods cannot see module free fns) ------
+
+struct Cbor {
+    var src: bytes;
+    var i: Int;
+
+    fn init(self, b: bytes) -> none {
+        self.src = b;
+        self.i = 0;
+    }
+
+    fn byte_at(self) -> Int {
+        if self.i >= self.src.len() { raise("cbor: unexpected end of input"); }
+        return self.src[self.i];
+    }
+
+    fn parse_value(self) -> any {
+        ib = self.byte_at();
+        self.i = self.i + 1;
+        major = math.floor_div(ib, 32);
+        ai = ib - major * 32;
+        if major == 0 { return self.take_uint(ai); }
+        if major == 1 { return -1 - self.take_uint(ai); }
+        if major == 2 { raise("cbor: byte strings are not supported"); }
+        if major == 3 { return self.take_text(ai); }
+        if major == 4 { return self.take_array(ai); }
+        if major == 5 { return self.take_map(ai); }
+        if major == 6 { raise("cbor: tags are not supported"); }
+        return self.take_simple(ai);
+    }
+
+    fn take_uint(self, ai: Int) -> Int {
+        if ai < 24 { return ai; }
+        if ai == 24 {
+            v = self.byte_at();
+            self.i = self.i + 1;
+            return v;
+        }
+        if ai == 25 {
+            var v = self.byte_at() * 256;
+            self.i = self.i + 1;
+            v = v + self.byte_at();
+            self.i = self.i + 1;
+            return v;
+        }
+        if ai == 26 {
+            var v = 0;
+            var n = 0;
+            while n < 4 {
+                v = v * 256 + self.byte_at();
+                self.i = self.i + 1;
+                n = n + 1;
+            }
+            return v;
+        }
+        if ai == 27 {
+            var v = 0;
+            var n = 0;
+            while n < 8 {
+                v = v * 256 + self.byte_at();
+                self.i = self.i + 1;
+                n = n + 1;
+            }
+            return v;
+        }
+        raise("cbor: indefinite-length or reserved argument");
+    }
+
+    fn take_text(self, ai: Int) -> Str {
+        n = self.take_uint(ai);
+        if self.i + n > self.src.len() { raise("cbor: text past end of input"); }
+        bs = self.src[self.i..self.i + n];
+        self.i = self.i + n;
+        return bs.decode();
+    }
+
+    fn take_array(self, ai: Int) -> list {
+        n = self.take_uint(ai);
+        out = [];
+        var i = 0;
+        while i < n {
+            out.append(self.parse_value());
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn take_map(self, ai: Int) -> dict {
+        n = self.take_uint(ai);
+        out = {};
+        var i = 0;
+        while i < n {
+            k = self.parse_value();
+            v = self.parse_value();
+            out[Str(k)] = v;
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn take_simple(self, ai: Int) -> any {
+        if ai == 20 { return false; }
+        if ai == 21 { return true; }
+        if ai == 22 { return none; }
+        if ai == 23 { raise("cbor: undefined has no Kirn value"); }
+        if ai == 25 { raise("cbor: float16 not supported"); }
+        if ai == 26 { return self.take_f32(); }
+        if ai == 27 { return self.take_f64(); }
+        raise("cbor: unsupported simple value " + Str(ai));
+    }
+
+    fn take_f64(self) -> Float {
+        if self.i + 8 > self.src.len() { raise("cbor: float64 past end of input"); }
+        var hi = 0;
+        var n = 0;
+        while n < 4 {
+            hi = hi * 256 + self.src[self.i];
+            self.i = self.i + 1;
+            n = n + 1;
+        }
+        var lo = 0;
+        n = 0;
+        while n < 4 {
+            lo = lo * 256 + self.src[self.i];
+            self.i = self.i + 1;
+            n = n + 1;
+        }
+        var sign = 1.0;
+        if hi >= 2147483648 {
+            sign = -1.0;
+            hi = hi - 2147483648;
+        }
+        biased = math.floor_div(hi, 1048576);
+        mant_hi = hi - biased * 1048576;
+        mant = mant_hi * 4294967296 + lo;
+        if biased == 0 {
+            if mant == 0 { return sign * 0.0; }
+            return sign * Float(mant) * math.pow(2.0, -1074.0);
+        }
+        if biased == 2047 {
+            if mant == 0 { return sign * math.inf; }
+            return math.nan;
+        }
+        var x = 1.0 + Float(mant) * math.pow(2.0, -52.0);
+        return sign * x * math.pow(2.0, Float(biased - 1023));
+    }
+
+    fn take_f32(self) -> Float {
+        if self.i + 4 > self.src.len() { raise("cbor: float32 past end of input"); }
+        var w = 0;
+        var n = 0;
+        while n < 4 {
+            w = w * 256 + self.src[self.i];
+            self.i = self.i + 1;
+            n = n + 1;
+        }
+        var sign = 1.0;
+        if w >= 2147483648 {
+            sign = -1.0;
+            w = w - 2147483648;
+        }
+        biased = math.floor_div(w, 8388608);
+        mant = w - biased * 8388608;
+        if biased == 0 {
+            if mant == 0 { return sign * 0.0; }
+            return sign * Float(mant) * math.pow(2.0, -149.0);
+        }
+        if biased == 255 {
+            if mant == 0 { return sign * math.inf; }
+            return math.nan;
+        }
+        var x = 1.0 + Float(mant) * math.pow(2.0, -23.0);
+        return sign * x * math.pow(2.0, Float(biased - 127));
+    }
+}

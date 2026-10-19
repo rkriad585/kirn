@@ -1,0 +1,179 @@
+# stdlib/pet/codec.kn - format-agnostic serialization core (POWER_PLAN §3.3).
+#
+# The reflection-based tree encoder and the typed coercion extracted from
+# `pet.serde` so every default format module (json/toml/yaml/cbor) shares ONE
+# implementation instead of carrying its own copy:
+#
+#   import pet.codec as codec;
+#   var tree = codec.enc_tree(v);           # any -> dict/list/scalars
+#   var v    = codec.coerce_type(T, tree);  # tree -> T (struct/enum aware)
+#
+# Encoding (mirrors the original serde encoder exactly, as a tree rather than
+# JSON text): struct -> dict of fields, enum -> {variant: payload-list|none}
+# (externally tagged), list/tuple/set/deque -> list, dict/counter -> dict with
+# string keys, scalars as-is (inf/nan float -> none, which every renderer
+# prints as null).
+
+import reflect;
+
+# ---- Encoding: any -> tree -------------------------------------------------
+
+pub fn enc_tree(v: any) -> any {
+    k = reflect.kind_of(v);
+    if k == "none" { return none; }
+    if k == "bool" { return v; }
+    if k == "int" { return v; }
+    if k == "float" { return enc_float(v); }
+    if k == "string" { return v; }
+    if k == "char" { return Str(v); }
+    if k == "list" or k == "tuple" or k == "set" or k == "deque" {
+        return enc_seq(v);
+    }
+    if k == "dict" or k == "counter" { return enc_map(v); }
+    if k == "struct" { return enc_struct(v); }
+    if k == "enum" { return enc_enum(v); }
+    return none;
+}
+
+fn enc_float(v: any) -> any {
+    s = Str(v);
+    if s == "inf" or s == "-inf" or s == "nan" { return none; }
+    return v;
+}
+
+fn enc_seq(v: any) -> list {
+    out = [];
+    for e in v { out.append(enc_tree(e)); }
+    return out;
+}
+
+fn enc_map(v: any) -> any {
+    out = {};
+    for key in v {
+        ks = key;
+        if reflect.kind_of(key) != "string" { ks = Str(key); }
+        out[ks] = enc_tree(v[key]);
+    }
+    return out;
+}
+
+fn enc_struct(v: any) -> any {
+    out = {};
+    for name in reflect.field_names(v) {
+        out[name] = enc_tree(reflect.get_field(v, name));
+    }
+    return out;
+}
+
+fn enc_enum(v: any) -> any {
+    name = reflect.variant(v);
+    payload = reflect.payload(v);
+    var pj = none;
+    if payload.len() > 0 { pj = enc_seq(payload); }
+    out = {};
+    out[name] = pj;
+    return out;
+}
+
+# ---- Decoding: tree -> T ---------------------------------------------------
+
+# Rebuild `T` (a struct or enum type reference) from a decoded tree. Non-
+# struct/enum targets pass the tree through unchanged.
+pub fn coerce_type(T: any, data: any) -> any {
+    if reflect.field_type_names(T).len() > 0 { return decode_struct(T, data); }
+    if reflect.variants(T).len() > 0 { return decode_enum(T, data); }
+    return data;
+}
+
+fn decode_struct(T: any, data: any) -> any {
+    if reflect.kind_of(data) != "dict" {
+        raise("serde: expected an object for struct " + Str(T));
+    }
+    types = reflect.field_type_names(T);
+    generics = reflect.field_generics(T);
+    fields = {};
+    for fname in types {
+        if has_key(data, fname) {
+            gen = generics[fname];
+            fields[fname] = coerce(types[fname], gen, data[fname]);
+        }
+    }
+    return reflect.new(T, fields);
+}
+
+fn decode_enum(T: any, data: any) -> any {
+    if reflect.kind_of(data) != "dict" {
+        raise("serde: expected an object for enum " + Str(T));
+    }
+    keys = [];
+    for k in data { keys.append(k); }
+    if keys.len() != 1 {
+        raise("serde: enum object must have exactly one variant key");
+    }
+    variant = keys[0];
+    pj = data[variant];
+    var payload = [];
+    if reflect.kind_of(pj) == "list" { payload = pj; }
+    if reflect.kind_of(pj) != "none" and reflect.kind_of(pj) != "list" {
+        payload = [pj];
+    }
+    ptys = reflect.enum_payload_type_names(T, variant);
+    coerced = [];
+    var i = 0;
+    while i < payload.len() {
+        var pt = "";
+        if i < ptys.len() { pt = ptys[i]; }
+        coerced.append(coerce(pt, [], payload[i]));
+        i = i + 1;
+    }
+    return reflect.enum_new(T, variant, coerced);
+}
+
+# Coerce a decoded value to the declared type named `ft`, using the
+# first-level generic argument names in `gen` for list/dict element types.
+fn coerce(ft: Str, gen: list, raw: any) -> any {
+    if ft == "Int" or ft == "int" or ft == "i64" or ft == "i32" or ft == "i16" or ft == "i8" or ft == "u64" or ft == "u32" or ft == "u16" or ft == "u8" {
+        if reflect.kind_of(raw) == "float" { return Int(raw); }
+        return raw;
+    }
+    if ft == "Float" or ft == "float" or ft == "f64" or ft == "f32" {
+        if reflect.kind_of(raw) == "int" { return Float(raw); }
+        return raw;
+    }
+    if ft == "Bool" or ft == "bool" {
+        if reflect.kind_of(raw) != "bool" { return Bool(raw); }
+        return raw;
+    }
+    if ft == "Str" or ft == "str" or ft == "String" or ft == "string" {
+        if reflect.kind_of(raw) != "string" { return Str(raw); }
+        return raw;
+    }
+    if ft == "list" or ft == "List" {
+        if reflect.kind_of(raw) != "list" { return raw; }
+        var et = "";
+        if gen.len() > 0 { et = gen[0]; }
+        out = [];
+        for e in raw { out.append(coerce(et, [], e)); }
+        return out;
+    }
+    if ft == "dict" or ft == "Dict" {
+        if reflect.kind_of(raw) != "dict" { return raw; }
+        var vt = "";
+        if gen.len() >= 2 { vt = gen[1]; }
+        if vt == "" { return raw; }
+        out = {};
+        for kk in raw { out[kk] = coerce(vt, [], raw[kk]); }
+        return out;
+    }
+    tr = reflect.type_ref(ft);
+    if tr != none { return coerce_type(tr, raw); }
+    return raw;
+}
+
+fn has_key(d: any, k: Str) -> Bool {
+    if reflect.kind_of(d) != "dict" { return false; }
+    for kk in d {
+        if kk == k { return true; }
+    }
+    return false;
+}

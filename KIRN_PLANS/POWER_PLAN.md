@@ -667,7 +667,7 @@ Verification: gates **303/0** (13 gates, run individually), golden **297/0**, cr
 
 Example-number deviation: the plan's Phase 4 exits named `66_par_iter`/`67_par_sort`, but 66/67 are taken by serde, so parallel ships as `68/69`.
 
-Deviations (documented): the pool is **spawn-based** (one OS thread per task), not work-stealing; `par_iter(xs)` is a **function**, not a `.par_iter()` method (no `.into_par_iter()`/`.par_iter_mut()`); `@[par] for ...` sugar parses (`parseTopOrStmt` attaches the decorator) but the interpreter does not lower statement decorators, so it is **not wired**; side-effecting `for_each` runs **sequentially** (loop vars capture by value, no sendability check), so `par_each` was dropped — the safe manual form is `parallel.par_iter(...).for_each(f)`.
+Deviations (documented): the pool is **spawn-based** (one OS thread per task), not work-stealing; `par_iter(xs)` is a **function**, not a `.par_iter()` method (no `.into_par_iter()`/`.par_iter_mut()`). Two items here were fixed on 2026-10-19 (see the §4.4 update below): `@[par] for …` now **is** wired (the tree-walker lowers it, and the bytecode VM hands the enclosing function back to the tree-walker when it sees the decorator), and `for_each` now **fans out across the pool** (it was sequential). Sendability is still unchecked, so a parallel closure must not race on shared state — `par_each` stays dropped.
 
 ### Update (2026-10-18) — Phase 5: `pet.error` (shipped, anyhow/thiserror-style)
 
@@ -815,3 +815,23 @@ Deviations / not shipped (documented):
 - **`select` is not extended to `await` arms.** The existing `select { case v = ch.recv() … / case <-time.after(…) … }` covers channel/timer multiplexing; awaiting async sources in an arm needs parser + `selectExec` work and is deferred.
 - **No cancellation.** `try_join` stops _awaiting_ after the first error, but a skipped task keeps running detached, because Kirn tasks are eager OS threads with no cancellation token.
 - **`join` re-raises rather than returning errors as values.** Kirn has no `Result` in this position; the plan's `try_join` `?`-style short-circuit is expressed as the raise propagating to the caller's `try/catch`.
+
+### Update (2026-10-19) — §4.4: `@[par] for` (shipped)
+
+**Path chosen:** `@[par]` on a `for` loop lowers to the hand-written parallel form, `pet.parallel.par_iter(xs).for_each(fn (it) { … })`. Because the bytecode VM is now the default runner and only compiles simple `for x in …` loops, the two executors needed coordinating: the **tree-walker** does the lowering, and the **VM compiler** hands the enclosing function back to the tree-walker (sets `em.f.interpreted = true`) when it sees a `@[par]` decorator — the same policy it already uses for `Try`/`Match`/`Select` and non-bind loop patterns. This is the only part of §4.4 shipped; `@[par]` on map/fold and on a `fn` (marking it pool-safe) are not shipped.
+
+Delivered:
+
+- **Tree-walker lowering** (`src/interp/runtime.cpp`, `case StKind::For`): when the statement carries a `@[par]` decorator, it evaluates the iterable, builds a synthetic native closure (`biFn`) that re-binds the original loop pattern (`matchPat`) against each element and runs the body in a child env, then dispatches it through `par_iter` (resolved from `pet.parallel`, loaded on demand) and `invokeMethod(…, "for_each", …)`. A struct method must go through `invokeMethod`, not `memberRead` — `memberRead` on a struct only sees fields. The lowering mirrors a serial `for` (per-iteration child env; `break`/`continue` inside a `@[par]` body are unsupported because the body runs as a closure).
+- **VM hand-off** (`src/vm/compiler.cpp`, `case StKind::For`): a `@[par]` decorator marks the whole function interpreted so the default VM path and the `--no-vm` tree-walker produce identical results (gate 4_vm_diff and the syntax test both assert tree == VM).
+- **`for_each` is now parallel** (`stdlib/pet/parallel.kn`): it previously ran `for e in xs { f(e); }` sequentially, which would have made `@[par]` a no-op. It now uses the same chunk-and-`parallel.invoke` shape as `map`/`filter` (threshold 4096, honoring `KIRN_NUM_THREADS`), so `@[par]` — and the manual `par_iter(...).for_each(f)` — genuinely fan out. A 5000×1ms body on 4 threads dropped from ~5s to ~1.5s.
+- **`examples/76_par_decorator.kn`** + three goldens; the examples gate now reports **73** files. The example is deterministic: small inputs (sequential path) plus a `sync.Atomic` accumulator over `1..=20000` (parallel path, order-independent integer sum = `200010000`). **`tests/syntax/par_decorator_ok.kn`** pins tree == VM for the list, tuple-pattern, and parallel-atomic cases.
+
+Verification: gates **323/0/0 hung** (1_runall 73, 2b_syntax 47, 4_vm_diff 91, 8_bundle 15, 11_native 11, …), golden **318/0**, crosscheck **807/0** (132 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
+
+Deviations / not shipped (documented):
+
+- **`@[par]` only on `for`.** The plan also describes `@[par]` on a map/fold and on a `fn` (marking it pool-safe); neither is shipped — a `fn` decorator would need the checker to bless a body it cannot prove race-free.
+- **No result collection.** `for_each` returns `none`, so `@[par] for` yields nothing; the body must reach a result through an order-independent effect (`sync.Atomic`, or a `Mutex`-guarded structure). A shared plain `+=` over a large parallel input races and is the documented anti-pattern.
+- **`break`/`continue` unsupported in the body.** The body runs as a closure handed to `for_each`, so those signals have no enclosing loop to unwind to.
+- **The 4096-element threshold** (shared with `map`/`filter`) means small loops run on the calling thread — identical output to a serial `for`, which is what keeps the example and test deterministic.

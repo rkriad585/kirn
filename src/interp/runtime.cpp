@@ -9322,6 +9322,8 @@ Value Interpreter::awaitTask(const Value& task) {
             t->th.join();
         t->joined = true;
     }
+    // A raised error is catchable at the await site; a panic is not.
+    if (t->raised) throw SignalRaise{t->raiseValue};
     if (t->panicked) panicHere(t->panicMsg);
     return t->result;
 }
@@ -9330,6 +9332,8 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
                               std::shared_ptr<ThreadImpl> t) {
     Value ret = Value::none();
     bool panicked = false;
+    bool raised = false;
+    Value raiseValue;
     std::string msg;
     std::vector<std::string> frames;
     try {
@@ -9347,6 +9351,11 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
         panicked = true;
         msg = p.msg;
         frames = p.frames;
+    } catch (const SignalRaise& r) {
+        // `raise` in a task is a value to be propagated, not a panic: capture
+        // it and let awaitTask re-raise it in the awaiting context.
+        raised = true;
+        raiseValue = r.errResult;
     } catch (...) {
         panicked = true;
         msg = "unknown error in task";
@@ -9358,6 +9367,8 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
             t->panicked = panicked;
             t->panicMsg = msg;
             t->panicFrames = frames;
+            t->raised = raised;
+            t->raiseValue = raiseValue;
             t->done = true;
         }
         t->cv.notify_all();

@@ -46,6 +46,12 @@ struct ThreadImpl {
     bool panicked = false;
     std::string panicMsg;
     std::vector<std::string> panicFrames;
+    // POWER_PLAN §2.10: a task body that `raise`s is not a panic. Capture the
+    // payload so `await task` (and `ThreadH.join()`) can re-raise it as a
+    // catchable exception, preserving the message instead of losing it to the
+    // generic "unknown error in task" panic.
+    bool raised = false;
+    Value raiseValue;
     Value result;
 };
 

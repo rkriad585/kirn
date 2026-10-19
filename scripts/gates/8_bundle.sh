@@ -4,6 +4,8 @@
 # There is no aggregate driver - loading the shared setup (ROOT, binaries,
 # report(), TMP) is done here unconditionally.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+GATE_START=${GATE_START:-$(date +%s)}
+GATE_FILES=0
 
 echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
 T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
@@ -195,6 +197,19 @@ fi
 #     nine places -- it was caught only because it ran against real input. So the
 #     gate pins that a mutation of a known-good dump is still rejected, which is
 #     the only way to know the checks have teeth.
-echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+GATE_END=$(date +%s)
+GATE_DUR=$((GATE_END - GATE_START))
+GATE_M=$((GATE_DUR / 60))
+GATE_S=$((GATE_DUR % 60))
+GATE_PARFILE=0
+if [ "${GATE_FILES:-0}" -gt 0 ]; then
+  GATE_PARFILE=$(awk -v d="$GATE_DUR" -v f="$GATE_FILES" "BEGIN{printf \"%.2f\", d*1000.0/f}")
+else
+  GATE_FALLBACK=$((pass + fail))
+  if [ "$GATE_FALLBACK" -gt 0 ]; then
+    GATE_PARFILE=$(awk -v d="$GATE_DUR" -v f="$GATE_FALLBACK" "BEGIN{printf \"%.2f\", d*1000.0/f}")
+  fi
+fi
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung, ${GATE_PARFILE}ms par file, ${GATE_M}m:${GATE_S}s took"
 [ "$fail" -eq 0 ] || exit 1
 exit 0

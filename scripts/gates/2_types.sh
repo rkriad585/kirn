@@ -4,10 +4,12 @@
 # There is no aggregate driver - loading the shared setup (ROOT, binaries,
 # report(), TMP) is done here unconditionally.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+GATE_START=${GATE_START:-$(date +%s)}
+GATE_FILES=0
 
 echo "=== gate 2: types (tests/types) ==="
 for t in "$ROOT"/tests/types/p*.kn; do
-    name="$(basename "$t")"; err="$("$CC" "$t" 2>&1)"; [ $? -eq 0 ] || { report FAIL "$name" "kirncheck rejected: $(echo "$err" | head -1)"; continue; }
+    name="$(basename "$t")"; GATE_FILES=$((GATE_FILES+1)); err="$("$CC" "$t" 2>&1)"; [ $? -eq 0 ] || { report FAIL "$name" "kirncheck rejected: $(echo "$err" | head -1)"; continue; }
     err="$("$CR" "$t" 2>&1)"; [ $? -eq 0 ] || { report FAIL "$name" "kirnrun exit nonzero: $(echo "$err" | head -1)"; continue; }
     report PASS "$name" "check + run clean"
 done
@@ -22,6 +24,19 @@ for t in "$ROOT"/tests/types/n*.kn "$ROOT"/tests/negative/n*.kn; do
     fi
 done
 
-echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+GATE_END=$(date +%s)
+GATE_DUR=$((GATE_END - GATE_START))
+GATE_M=$((GATE_DUR / 60))
+GATE_S=$((GATE_DUR % 60))
+GATE_PARFILE=0
+if [ "${GATE_FILES:-0}" -gt 0 ]; then
+  GATE_PARFILE=$(awk -v d="$GATE_DUR" -v f="$GATE_FILES" "BEGIN{printf \"%.2f\", d*1000.0/f}")
+else
+  GATE_FALLBACK=$((pass + fail))
+  if [ "$GATE_FALLBACK" -gt 0 ]; then
+    GATE_PARFILE=$(awk -v d="$GATE_DUR" -v f="$GATE_FALLBACK" "BEGIN{printf \"%.2f\", d*1000.0/f}")
+  fi
+fi
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung, ${GATE_PARFILE}ms par file, ${GATE_M}m:${GATE_S}s took"
 [ "$fail" -eq 0 ] || exit 1
 exit 0

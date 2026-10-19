@@ -1,3 +1,5 @@
+GATE_START=${GATE_START:-$(date +%s)}
+GATE_FILES=0
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CC="$ROOT/build/kirncheck"

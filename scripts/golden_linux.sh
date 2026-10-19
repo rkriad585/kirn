@@ -2,7 +2,7 @@
 # golden_linux.sh - capture (--record) or verify (default) the observable
 # behavior of every driver/tool against scripts/golden/.
 #
-# Why this exists: gates_linux.sh asserts only exit codes, substring greps, and
+# Why this exists: the gate scripts (scripts/gates/*.sh) assert only exit codes,
 # one stdout==stdout comparison. It stays green while whitespace, ordering,
 # stderr wording, and the kirnrun-vs-`kirn run` resolver divergence all change
 # freely. Phase 0 (driver-core extraction) is a behavior-preserving refactor,
@@ -42,7 +42,7 @@ fail=0
 # installed. The TARGET and BINARY columns stay pinned, because those ARE the
 # contract. This is a deliberate split: a snapshot records behaviour, and
 # "the host toolchain actually works" is an environment assertion -- that one
-# belongs in gates_linux.sh, which really does compile.
+# belongs in the compile gate (scripts/gates/8_bundle.sh), which really does build.
 normalize() {
   sed -e "s#$ROOT#<ROOT>#g" \
       -e "s#${TMPDIR:-/nonexistent}#<TMP>#g" \
@@ -263,7 +263,7 @@ check "kirn_run_no_entry"       "$BIN/kirn" run "$TMP"
 # the real stdlib suite -- and stdlib/pet/io_test.kn writes .io_tmp_test.txt
 # into the CWD. Left behind, that file makes the next run's discovery differ, so
 # the snapshot would flap. Run it from a scratch directory and clean up, the same
-# way scripts/gates_linux.sh does.
+# way the gate scripts do.
 rm -f "$ROOT/.io_tmp_test.txt"
 GOLD_BODY=$(cd "$ROOT" && snapshot "$BIN/kirn" test)
 rm -f "$ROOT/.io_tmp_test.txt"

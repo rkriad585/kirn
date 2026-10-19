@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/3_negative.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 3: negative (tests/negative) ==="
 for t in "$ROOT"/tests/negative/n*.kn; do
     name="$(basename "$t")"
@@ -9,3 +16,7 @@ for t in "$ROOT"/tests/negative/n*.kn; do
         report FAIL "$name" "missing '$exp'; got: $(echo "$out" | head -1)"
     fi
 done
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

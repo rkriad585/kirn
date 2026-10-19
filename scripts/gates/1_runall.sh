@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/1_runall.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 1: runall (examples/*.kn) ==="
 for f in "$ROOT"/examples/*.kn; do
     name="$(basename "$f")"
@@ -19,3 +26,7 @@ for f in "$ROOT"/examples/*.kn; do
         report FAIL "$name" "exit $code; stderr: $se_txt"
     fi
 done
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

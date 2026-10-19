@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/11_native.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 11: native scalar lowering (differential vs interpreter) ==="
 # M11. Two properties a snapshot alone cannot assert: (a) the --native backend
 # still lowers the new surface rather than silently falling back, and (b) the
@@ -82,3 +89,7 @@ if timeout 300 "$KIRN" build --native "$ROOT/tests/codegen/coalesce_assign.kn" -
 else
     report FAIL "native coalesce-assign build" "$(tail -1 "$G11/ca.log")"
 fi
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

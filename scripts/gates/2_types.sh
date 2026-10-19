@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/2_types.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 2: types (tests/types) ==="
 for t in "$ROOT"/tests/types/p*.kn; do
     name="$(basename "$t")"; err="$("$CC" "$t" 2>&1)"; [ $? -eq 0 ] || { report FAIL "$name" "kirncheck rejected: $(echo "$err" | head -1)"; continue; }
@@ -14,3 +21,7 @@ for t in "$ROOT"/tests/types/n*.kn "$ROOT"/tests/negative/n*.kn; do
         report FAIL "$name" "missing '$exp'; got: $(echo "$out" | head -1)"
     fi
 done
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

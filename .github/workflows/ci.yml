@@ -25,12 +25,21 @@ jobs:
       - name: Build
         run: cmake --build build -j "$(nproc)"
 
-      - name: Full corpus matrix
-        run: bash scripts/gates_linux.sh
+      # Each gate is an independent script under scripts/gates/ (no aggregate
+      # driver): run them all, one process per gate, and fail on the first one
+      # that reports a failure.
+      - name: Corpus gates
+        run: |
+          set -e
+          for g in scripts/gates/[0-9]*.sh; do
+            echo "::group::$g"
+            bash "$g"
+            echo "::endgroup::"
+          done
 
       # Phase 1 verification. These two were the missing oracles until now:
-      # gates_linux.sh asserts exit codes and substring greps, so it stays green
-      # while whitespace, ordering and stderr wording change freely -- and
+      # the gate scripts assert exit codes and substring greps, so they stay
+      # green while whitespace, ordering and stderr wording change freely -- and
       # kirnlex/kirnparse/kirnrun were exercised by NO ci job at all before
       # this. The golden suite is the absolute byte oracle; the cross-check is
       # the differential one proving `kirnc <verb>` and the legacy binaries are

@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/8b_HIR.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 8: HIR structural verification ==="
 HIR_OK=0
 HIR_FAILED=""
@@ -77,3 +84,7 @@ fi
 # ---- MIR (phase 3) ----------------------------------------------------------
 # `kirnc rt` lowers through HIR to a CFG, verifies it, and prints the dump. Four
 # properties, mirroring the HIR gate above.
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

@@ -21,24 +21,16 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# --- shared result reporting ----------------------------------------------
+# Each gate is a standalone script: it sources this file, runs its checks,
+# then prints its own "GATE RESULT" and exits non-zero on failure. There is no
+# aggregate driver, so no cross-gate pass/fail counters are kept here beyond
+# the ones every gate reports itself.
 fail=0
 pass=0
+hung=0
 report() { # status name detail
     if [ "$1" = PASS ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
     printf '%4s  %s\n' "$1" "$2"
     [ -z "${3:-}" ] || printf '        %s\n' "$3"
-}
-
-# --- gate selector (POWER_PLAN phase tooling) ---------------------------
-# Optional args narrow which gates run, e.g.:  gates_linux.sh 6 2b
-# No args runs every gate (identical to the original behaviour). Sourcing a
-# file without args keeps the caller's positional parameters, so $#/$* here
-# are the driver's arguments.
-SELECTORS=""
-if [ "$#" -gt 0 ]; then SELECTORS=" $* "; fi
-hung=0   # normally re-zeroed inside gate 5; bound here so any subset works
-want() {
-    [ -z "$SELECTORS" ] && return 0
-    case "$SELECTORS" in *" $1 "*) return 0 ;; esac
-    return 1
 }

@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/7_pets.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
 T7="$TMP/rt"; mkdir -p "$T7"
 (cd "$T7" && "$KIRN" new pet mypet >/dev/null 2>&1)
@@ -19,3 +26,7 @@ if (cd "$T7/mypet" && "$KIRN" build) >/dev/null 2>&1; then
         else report FAIL "install .pet" "kirn install failed"; fi
     fi
 else report FAIL "pack .pet" "kirn build pet failed"; fi
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

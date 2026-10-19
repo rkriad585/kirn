@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/10_LLVM.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 10: LLVM backend (kirnc llvm) ==="
 # Phase-4 scalar-subset backend. Only meaningful in an LLVM-enabled build: the
 # default build (no -DKIRN_WITH_LLVM) reports "no LLVM backend" and the gate
@@ -41,3 +48,7 @@ elif command -v opt >/dev/null 2>&1 && command -v lli >/dev/null 2>&1; then
 else
     report FAIL "gate 10: LLVM backend" "LLVM build enabled but opt/lli not on PATH"
 fi
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

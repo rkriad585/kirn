@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/9_MIR.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 9: MIR structural verification ==="
 MIR_OK=0
 MIR_FAILED=""
@@ -126,3 +133,7 @@ if cmp -s "$TMP/h1" "$TMP/h2"; then
 else
     report FAIL "HIR dump is deterministic" "dump differs between runs"
 fi
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

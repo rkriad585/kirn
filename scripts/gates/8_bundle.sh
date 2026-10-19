@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/8_bundle.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
 T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
 printf 'pub fn hey(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
@@ -209,3 +216,7 @@ fi
 # and `a, b = b, a` have flattened exprs from which the target/value split is
 # not recoverable.
 HIR_KNOWN_UNSUPPORTED=""
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/5_conventions.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 5: conventions (kirn driver) ==="
 kirn_run() { # dir -> prints "$code|$out"
     local d="$1"; shift
@@ -52,3 +59,7 @@ r=$(kirn_run "$P/gpk" test .); c=${r%%|*}; out=${r#*|}
 echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new pet: test" || report FAIL "kirn new pet: test" "$out"
 r=$(kirn_run "$P/gpk" build); c=${r%%|*}; out=${r#*|}
 echo "$out" | grep -q "gpk-.*\.pet" && report PASS "kirn new pet: build packs" || report FAIL "kirn new pet: build packs" "$out"
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

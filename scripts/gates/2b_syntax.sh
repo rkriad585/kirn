@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+# Standalone gate script. Every gate in this directory runs on its own:
+#     bash scripts/gates/2b_syntax.sh
+# There is no aggregate driver - loading the shared setup (ROOT, binaries,
+# report(), TMP) is done here unconditionally.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 echo "=== gate 2b: syntax (tests/syntax) ==="
 for t in "$ROOT"/tests/syntax/*_ok*.kn; do
     [ -e "$t" ] || continue
@@ -26,3 +33,7 @@ for t in "$ROOT"/tests/syntax/*_err*.kn; do
         report FAIL "$name" "missing '$exp'; got: $(echo "$out" | head -1)"
     fi
 done
+
+echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
+[ "$fail" -eq 0 ] || exit 1
+exit 0

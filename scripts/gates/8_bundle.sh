@@ -195,28 +195,6 @@ fi
 #     nine places -- it was caught only because it ran against real input. So the
 #     gate pins that a mutation of a known-good dump is still rejected, which is
 #     the only way to know the checks have teeth.
-# Constructs HIR does not lower yet, named explicitly rather than globbed, so
-# that a NEW failure is visible and shrinking this list is a deliberate edit.
-#
-# EMPTY as of the HIR gap-closing pass. It previously held 9 files, and closing
-# them found seven more defects rather than seven missing cases:
-#   - `from mod import a as b` binds each item, not the module;
-#   - select arm and catch bindings are declarations;
-#   - `t @ pat` and `..name` bind names that live outside `elems`;
-#   - `temp`/`bucket` bind usable names (and a bucket's name is in
-#     `tempVarName`, not `name` -- the parser reuses the field);
-#   - pseudo-modules live in the Checker's importRoots_, not its scope, so
-#     `io.open(...)` resolved against nothing;
-#   - `cmdHir` gated on diags.count(), so a W0105 shadowing warning stopped the
-#     lowering before it ran -- the scoping fixture exited 1 having lowered
-#     nothing;
-#   - an open-ended range `a..` is a Binary with a null rhs and is legal
-#     (OP_UNARANGE), so flagging every null rhs rejected examples/30.
-# The parser now also records ast::Stmt::assignTargets, because `x, y = point`
-# and `a, b = b, a` have flattened exprs from which the target/value split is
-# not recoverable.
-HIR_KNOWN_UNSUPPORTED=""
-
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung"
 [ "$fail" -eq 0 ] || exit 1
 exit 0

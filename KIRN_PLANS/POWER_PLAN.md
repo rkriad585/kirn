@@ -739,7 +739,7 @@ Delivered:
 - **`pet.yaml`**: block-style parser (indentation, `- key: value` items with continuation lines, `- - 1` nested sequences via line rewriting, minimal flow `{a: 1}`/`[2, 3]`, single/double-quoted scalars incl. `''` escapes, `#` comment stripping that is quote-aware, tabs rejected) and a renderer that quotes number-like/keyword strings so `"42"` and `42` round-trip distinctly.
 - **`examples/72_formats.kn`**: a `Profile` struct + `Shape` enum round-tripped through all four formats; three goldens recorded (`check`/`lex`/`parse`); plan-named `65_serde_formats.kn` remains taken by async (serde-phase example-number deviation).
 - **Tests**: `toml_test.kn` (44 assertions incl. AoT, dotted keys, multiline strings, bases, dates-as-strings, struct/enum/generic-list round-trips), `cbor_test.kn` (RFC vectors, float/int boundary matrix, struct/enum incl. unit variant), `yaml_test.kn` (block/flow/quoting/round-trip) — `kirn test .` now **16/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header, and `scripts/golden/kirn_test_no_args.txt` bump 13 → 16.
-- **Language quirks hit while writing the parsers (no compiler changes made)**: struct methods cannot see module-level free functions (so all parser helpers are methods — renderer helpers stay free, free→free works); implicit local bindings may only be *reassigned* inside loops (outside → "cannot reassign immutable binding"); parameters are immutable; struct fields must be declared after the types they reference; `import math` binds a namespace *different* from the prebound `math` global (bare `math.floor_div`/`math.pow` work, imported do not).
+- **Language quirks hit while writing the parsers (no compiler changes made)**: struct methods cannot see module-level free functions (so all parser helpers are methods — renderer helpers stay free, free→free works); implicit local bindings may only be _reassigned_ inside loops (outside → "cannot reassign immutable binding"); parameters are immutable; struct fields must be declared after the types they reference; `import math` binds a namespace _different_ from the prebound `math` global (bare `math.floor_div`/`math.pow` work, imported do not).
 
 Verification: gates **314/0/0 hung**, golden **306/0**, crosscheck **771/0**, stdlib **16/0**, `kirnc check` clean on all six new/changed modules.
 
@@ -751,3 +751,24 @@ Deviations / not shipped (documented):
 - **CBOR subset edges**: byte strings (major 2), tags (major 6), indefinite-length items, and float16 decode raise.
 - **YAML subset edges**: anchors/aliases, tags, directives, block scalars (`|`/`>`), multi-document streams, and complex (`?`) keys.
 - **`pet.sync` (Barrier/Semaphore over the native primitives) remains deferred** to the next phase.
+
+### Update (2026-10-19) — Phase 8 (plan P6/P7 follow-up): `pet.sync` (shipped)
+
+**Path chosen:** the native runtime already exposes `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond` and `Atomic` (globals and the prebound `sync` namespace), so `pet.sync` only adds the three tokio::sync primitives that were missing — `Barrier`, `Semaphore` and `Notify` — each a factory `fn` over a small state struct built from `Mutex` + `Cond`. No compiler changes.
+
+Delivered:
+
+- **`stdlib/pet/sync.kn`**: `Barrier(parties)` (`wait() -> Int` returns the generation, reusable across rounds), `Semaphore(permits)` (`acquire`/`acquire_n`/`try_acquire`/`try_acquire_n`/`release`/`release_n`/`available`), `Notify()` (`notify_one` stores one permit when no waiter is registered, `notify_waiters` wakes every current waiter without storing a permit, `wait` consumes one notification, `waiter_count` for deterministic tests). All waits are condition checks under the lock, so signal-before-wait never loses a wakeup.
+- **`stdlib/pet/sync_test.kn`**: 8 tests — barrier single-party reuse and a four-party two-round barrier, semaphore counter/try/limits, semaphore release waking two waiters, permit stored before the waiter arrives, and notify one/two waiters (polls `waiter_count` before broadcasting so the wakeup can never fire into an empty waiter set). `kirn test .` now **17/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header and `scripts/golden/kirn_test_no_args.txt` bump 16 → 17.
+- **`examples/73_sync.kn`**: a three-worker reusable barrier, a two-permit semaphore, and a pre-arrival notification; deterministic output across runs; three goldens recorded.
+- **The design constraint that shaped the module (no compiler changes)**: **a method receives `self` as a _copy_ of the receiver, and scalar fields are written back only when the call returns** (`fn bump(self)` twice yields 2 — copy-out works — while a method that increments an `Int` field and then blocks inside `Cond.wait` publishes nothing to other threads and deadlocks the primitive). Reference fields — **lists and sync values — are shared through that copy** (verified: a list element written under a receiver copy is visible to another thread mid-call; a `Mutex` stored inside a list still serializes two threads, 501 ms for two serialized 250 ms holds). So every piece of mutable state lives in one list per primitive (`st = [mutex, cond, …counters]`); receiver copies then share the lock, the condition and the counters. This also resolved the initial deadlock where each party operated on its own snapshot.
+
+Verification: gates **316/0/0 hung**, golden **309/0**, crosscheck **789/0** (129 `.kn` files), stdlib **17/0**, `kirnc check` clean on both new modules.
+
+Deviations / not shipped (documented):
+
+- **`oneshot` / `broadcast` / `watch` channels**: not shipped — the native `chan` already covers the channel use cases; the notification/rendezvous cases are `Notify`.
+- **Timed waits**: `acquire`/`wait` have no timeout/millis variant — the runtime `Cond` exposes no timed wait, and the plan does not require one.
+- **`Notify` permit accounting**: `notify_one` stores at most one permit (tokio's `notify_one` likewise coalesces); a `notify_waiters` with no registered waiter is a no-op, exactly like tokio's.
+- **`Semaphore` has no `MAX_PERMITS` guard**: `release_n` simply adds; overflow is not checked.
+- **No re-export of the native primitives**: `sync.Mutex`/`sync.Cond` remain the prebound runtime namespace; `import pet.sync as sync` shadows it with this module, so code that wants both imports the file under a different alias.

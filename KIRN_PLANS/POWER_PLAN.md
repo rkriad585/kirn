@@ -772,3 +772,26 @@ Deviations / not shipped (documented):
 - **`Notify` permit accounting**: `notify_one` stores at most one permit (tokio's `notify_one` likewise coalesces); a `notify_waiters` with no registered waiter is a no-op, exactly like tokio's.
 - **`Semaphore` has no `MAX_PERMITS` guard**: `release_n` simply adds; overflow is not checked.
 - **No re-export of the native primitives**: `sync.Mutex`/`sync.Cond` remain the prebound runtime namespace; `import pet.sync as sync` shadows it with this module, so code that wants both imports the file under a different alias.
+
+### Update (2026-10-19) — Phase 9 (plan §6 follow-up): `pet.sync` channels (shipped)
+
+**Path chosen:** §6 lists `oneshot` / `broadcast` / `watch` under the `async` prelude namespace, but `async` is a keyword, so the namespace cannot exist as a module name. The native `chan` already covers plain FIFO hand-off, so the missing pieces are the three tokio::sync _channels_; they are built in `pet.sync` (the natural home for tokio::sync parity) from the same `Mutex` + `Cond` + single-`st`-list pattern Phase 8 established. No compiler changes. Reference read directly from `langs-source-code/rust/tokio/tokio/src/sync/{oneshot,broadcast,watch}.rs`.
+
+Delivered:
+
+- **`Oneshot()`** — single-use channel: `send(v)` (non-blocking, may run on any thread), `recv()` (blocks until a value or close), `try_recv()`, `close()`, `is_empty()`, `is_closed()`. The value is stored, so a `send` before `recv` is never lost.
+- **`Broadcast(capacity)`** — multi-producer/multi-consumer ring buffer: `send(v) -> Int` (returns the receiver count), `subscribe() -> BroadcastRx`, `receiver_count()`, `len()`/`is_empty()`, `close()`/`is_closed()`. `BroadcastRx`: `recv()` (blocks), `try_recv()`, `len()`/`is_empty()` (pending for this receiver), and `lagged()`. A receiver that falls more than `capacity` behind skips the overwritten values, resumes at the oldest retained one, and accumulates the number skipped in `lagged()`.
+- **`Watch(initial)`** — last-value channel with per-receiver seen-versioning: `send(v)`, `send_replace(v) -> any` (returns the old value), `borrow()`, `subscribe() -> WatchRx`, `receiver_count()`, `close()`/`is_closed()`. `WatchRx`: `borrow()`, `borrow_and_update()`, `has_changed()`, `changed() -> Bool` (blocks; false only when closed _and_ already seen), `mark_changed()`, `mark_unchanged()`, `is_closed()`.
+- **`stdlib/pet/sync_test.kn`**: 10 new tests (18 total) — oneshot roundtrip + close, broadcast fan-out, subscribe-sees-future-only, lag/resume, close-drains; watch `changed`, `borrow` vs `borrow_and_update`, `mark_changed`/`mark_unchanged`, and close semantics.
+- **`examples/74_channels.kn`** + three goldens; the examples gate now reports **71** files.
+
+Verification: gates **317/0/0 hung** (1_runall 71, 8_bundle 15, 8b_HIR 3, 9_MIR 10, 11_native 11, …), golden **312/0**, crosscheck **795/0** (130 `.kn` files), stdlib **18/18**; `kirnc check` clean. Threaded probes (spawn + join around `recv`/`changed`) were run three times each with identical output.
+
+Deviations / not shipped (documented):
+
+- **No `Result`-typed errors.** Kirn has no `Result`/`?` for the module's callers here, so `recv`/`try_recv` return `none` on the empty/closed path (in `Oneshot` this makes a stored `none` indistinguishable from "nothing arrived" — documented widening), and `send` on a closed channel, or a `Broadcast.send` with no receivers, raises instead of returning `Err`.
+- **Values are shared by reference, not cloned.** tokio clones `T` per broadcast receiver; Kirn has no implicit deep copy, so every receiver of a `Broadcast`/`Watch` gets the same underlying object. For `Int`/`Str`/`Bool`/`Float` payloads this is identical to a clone; a mutable list payload is shared.
+- **No receiver destructors.** Kirn has no deterministic drop hook, so `receiver_count` only grows and a `Broadcast.send` with zero subscribers is the only "no receivers" state (tokio errors when the last receiver is dropped). `close()` is explicit.
+- **`Broadcast` capacity is exact, not rounded up** to a power of two, and lag is reported via the queryable `lagged()` counter rather than a `RecvError::Lagged`; lost values are never buffered past `capacity`. No `WeakSender`, `try_recv` error distinction, or sender garbage-collection bookkeeping.
+- **`Watch` `send_modify`/`send_if_modified`** are not shipped; `send` and `send_replace` cover the publishing cases.
+- **Timed variants** (`recv_timeout`, `changed_timeout`) are absent for the same reason as Phase 8: the runtime `Cond` has no timed wait.

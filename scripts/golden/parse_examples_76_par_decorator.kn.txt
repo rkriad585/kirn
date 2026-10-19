@@ -1,0 +1,117 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/76_par_decorator.kn
+Import pet.parallel as parallel
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "pool"
+          Arg
+            Value 
+              Binary op=">"
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="current_num_threads"
+                        Obj Ident "parallel"
+                Rhs Int "0"
+    VarDecl
+      Target Ident "total"
+      Value Int "0"
+    Decorator "par" bracket
+    For
+      PatBind x
+      Iter 
+        List len=5
+          Item Int "1"
+          Item Int "2"
+          Item Int "3"
+          Item Int "4"
+          Item Int "5"
+      Body
+        AugAssign op="+="
+          Target Ident "total"
+          Value Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "total"
+          Arg
+            Value Ident "total"
+    VarDecl
+      Target Ident "both"
+      Value Int "0"
+    Decorator "par" bracket
+    For
+      PatTuple len=2
+        PatBind a
+        PatBind b
+      Iter 
+        List len=2
+          Item 
+            Tuple len=2
+              Item Int "1"
+              Item Int "2"
+          Item 
+            Tuple len=2
+              Item Int "10"
+              Item Int "20"
+      Body
+        AugAssign op="+="
+          Target Ident "both"
+          Value 
+            Binary op="+"
+              Lhs Ident "a"
+              Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "both"
+          Arg
+            Value Ident "both"
+    VarDecl
+      Target Ident "acc"
+      Value 
+        Call
+          Callee 
+            Member name="Atomic"
+              Obj Ident "sync"
+          Arg
+            Value Int "0"
+    Decorator "par" bracket
+    For
+      PatBind x
+      Iter 
+        Binary op="..="
+          Lhs Int "1"
+          Rhs Int "20000"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="add"
+                  Obj Ident "acc"
+              Arg
+                Value Ident "x"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "sum"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="load"
+                    Obj Ident "acc"
+<ROOT>/examples/76_par_decorator.kn: OK (2 top-level statements)
+[exit 0]

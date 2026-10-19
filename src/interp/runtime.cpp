@@ -4411,6 +4411,40 @@ void Interpreter::exec(const Stmt& s, Env env) {
             return;
 
         case ast::StKind::For: {
+            // Check for @[par] decorator on the for statement (POWER_PLAN §4.4)
+            bool isParallel = false;
+            for (const auto& d : s.decorators) {
+                if (d.name == "par") { isParallel = true; break; }
+            }
+            if (isParallel) {
+                // POWER_PLAN §4.4: `@[par] for x in xs { … }` runs the body
+                // concurrently across the worker pool. Lower to
+                // `pet.parallel.par_iter(xs).for_each(fn (it) { … })`; the
+                // synthetic native closure re-binds the original loop pattern
+                // against each element, exactly like a serial `for`.
+                Value seq = eval(*s.exprs[0], env);
+                const ast::Stmt* loop = &s;
+                Env base = env;
+                Value bodyFn = biFn({"it"}, [this, loop, base](std::vector<Value>& a) -> Value {
+                    Value item = a.empty() ? Value::none() : a[0];
+                    Env child = makeChild(base);
+                    matchPat(*loop->pat, item, child);
+                    execBlock(loop->body, child);
+                    return Value::none();
+                });
+                Value mod = loadModuleFile("pet.parallel");
+                if (mod.k != VK::Module)
+                    panicHere("`@[par]` requires the pet.parallel module");
+                Value parIterFn = moduleMember(mod.typeName, "par_iter");
+                Value parIterRes =
+                    callValue(parIterFn, {seq}, s.span.line, s.span.col);
+                // A struct method resolves through invokeMethod (memberRead on
+                // a struct only sees fields), so dispatch `for_each` with the
+                // synthetic body closure as its argument.
+                invokeMethod(parIterRes, "for_each", {bodyFn}, {}, env,
+                             s.span.line, s.span.col, nullptr);
+                return;
+            }
             Value seq = eval(*s.exprs[0], env);
             iterateSeq(seq,
                        [&](Value& item, Env&) {

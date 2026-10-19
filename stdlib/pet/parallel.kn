@@ -122,7 +122,27 @@ struct ParIter {
     }
 
     fn for_each(self, f) -> none {
-        for e in self.xs { f(e); }
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < 4096 or n <= 1 {
+            for e in xs { f(e); }
+            return;
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> none {
+                for e in c { f(e); }
+            });
+            i = end;
+        }
+        parallel.invoke(fns);
     }
 
     fn reduce(self, init, f) -> any {

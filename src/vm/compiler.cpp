@@ -532,6 +532,13 @@ public:
             }
 
             case StKind::For: {
+                // POWER_PLAN §4.4: `@[par] for …` dispatches through the
+                // tree-walker's pet.parallel.par_iter(...).for_each lowering, so
+                // a decorated loop hands the whole function back to the
+                // interpreter (same policy as Try/Match and non-bind patterns).
+                for (const auto& d : s.decorators)
+                    if (d.name == "par") { em.f.interpreted = true; break; }
+                if (em.f.interpreted) break;
                 if (!s.pat || s.pat->kind != ast::PatKind::Bind || s.pat->bindName.empty())
                     { em.f.interpreted = true; break; }
                 int32_t bindName = em.strId(s.pat->bindName);

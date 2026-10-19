@@ -1,0 +1,44 @@
+# examples/76_par_decorator.kn - the `@[par] for` loop (POWER_PLAN §4.4)
+#
+# `@[par]` turns a plain `for` into a rayon-style parallel loop: the body runs
+# across the worker pool through `pet.parallel.par_iter(xs).for_each(...)`, so
+# `@[par] for x in xs { … }` is exactly the hand-written par_iter form. The loop
+# itself yields no value, so a parallel body must reach its result through an
+# order-independent effect.
+#
+# Like pet.parallel's combinators, a parallel closure must not race on shared
+# mutable state (there is no sendability checker yet). Use a sync.Atomic — or a
+# Mutex — when you need a shared accumulator over a large input; a plain `+=`
+# is only safe on the small inputs below, which run on the calling thread.
+
+import pet.parallel as parallel;
+
+fn main() -> none {
+    # The pool `@[par]` fans out over.
+    print("pool", parallel.current_num_threads() > 0);
+
+    # Small list (< 4096 elements) runs serially, same as a plain `for`.
+    var total = 0;
+    @[par]
+    for x in [1, 2, 3, 4, 5] {
+        total += x;
+    }
+    print("total", total);
+
+    # Pattern binding destructure works exactly like the serial form.
+    var both = 0;
+    @[par]
+    for (a, b) in [(1, 2), (10, 20)] {
+        both += a + b;
+    }
+    print("both", both);
+
+    # A large input takes the parallel path; the atomic accumulator keeps the
+    # order-independent sum exact however the chunks interleave.
+    var acc = sync.Atomic(0);
+    @[par]
+    for x in 1..=20000 {
+        acc.add(x);
+    }
+    print("sum", acc.load());
+}

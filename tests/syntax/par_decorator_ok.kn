@@ -1,0 +1,29 @@
+# `@[par] for` runs the loop body across the pet.parallel worker pool
+# (POWER_PLAN §4.4). Its output must match the serial `for` exactly on both the
+# tree-walker and the bytecode VM.
+fn main() -> none {
+    # A small list runs on the calling thread; a plain accumulator is safe there.
+    var total = 0;
+    @[par]
+    for x in [1, 2, 3, 4, 5] {
+        total += x;
+    }
+    print("total", total);
+
+    # Pattern destructure behaves like the serial loop.
+    var both = 0;
+    @[par]
+    for (a, b) in [(1, 2), (10, 20)] {
+        both += a + b;
+    }
+    print("both", both);
+
+    # A large input takes the parallel path; an atomic accumulator keeps the
+    # order-independent sum exact however the chunks interleave.
+    var acc = sync.Atomic(0);
+    @[par]
+    for x in 1..=10000 {
+        acc.add(x);
+    }
+    print("sum", acc.load());
+}

@@ -1,0 +1,218 @@
+# stdlib/pet/sync_test.kn - tests for the pet.sync primitives (POWER_PLAN §6).
+#
+# Every test is deterministic: blocking waits are paired either with a stored
+# permit/notification (signal-before-wait is safe by design) or with an
+# explicit spawn + join, cross-thread results land in slots printed only
+# after all threads are joined, and the notify tests poll waiter_count()
+# before broadcasting so a notification can never be delivered into the
+# void before its waiter has registered.
+
+import pet.sync as sync;
+
+# ---- Barrier ----------------------------------------------------------------
+
+fn test_barrier_single_party() -> none {
+    var b = sync.Barrier(1);
+    var g = b.wait();
+    assert(g == 0);
+    g = b.wait();
+    assert(g == 1);
+    print("barrier single party: ok");
+}
+
+fn test_barrier_four_parties() -> none {
+    var results = [0, 0, 0, 0];
+    var b = sync.Barrier(4);
+    var h1 = spawn fn () -> none {
+        var g = b.wait();
+        results[0] = g + 1;
+        b.wait();
+        results[3] = 10;
+    };
+    var h2 = spawn fn () -> none {
+        var g = b.wait();
+        results[1] = g + 1;
+        b.wait();
+    };
+    var h3 = spawn fn () -> none {
+        var g = b.wait();
+        results[2] = g + 1;
+        b.wait();
+    };
+    var g = b.wait();
+    assert(g == 0);
+    # round 2 must be entered by main before joining: the child threads are
+    # already blocked waiting for the second release
+    var g2 = b.wait();
+    assert(g2 == 1);
+    h1.join();
+    h2.join();
+    h3.join();
+    # every party saw generation 0 in round 1 -> slot values are 1
+    assert(results[0] == 1);
+    assert(results[1] == 1);
+    assert(results[2] == 1);
+    assert(results[3] == 10);
+    print("barrier four parties: ok");
+}
+
+# ---- Semaphore --------------------------------------------------------------
+
+fn test_semaphore_counts() -> none {
+    var s = sync.Semaphore(2);
+    assert(s.available() == 2);
+    assert(s.try_acquire());
+    assert(s.try_acquire());
+    assert(not s.try_acquire());
+    assert(s.available() == 0);
+    s.release();
+    assert(s.available() == 1);
+    assert(s.try_acquire_n(1));
+    assert(not s.try_acquire());
+    s.release_n(2);
+    assert(s.available() == 2);
+    s.acquire_n(2);
+    assert(s.available() == 0);
+    print("semaphore counts: ok");
+}
+
+fn test_semaphore_blocking_acquire() -> none {
+    var s = sync.Semaphore(0);
+    var slot = [0];
+    var h = spawn fn () -> none {
+        s.acquire();
+        slot[0] = 1;
+        s.release();
+    };
+    # store the permit - safe whether the waiter is already blocked or not
+    s.release();
+    h.join();
+    assert(slot[0] == 1);
+    assert(s.available() == 1);
+    print("semaphore blocking acquire: ok");
+}
+
+fn test_semaphore_release_n_wakes_two_waiters() -> none {
+    var s = sync.Semaphore(0);
+    var slots = [0, 0];
+    var h1 = spawn fn () -> none {
+        s.acquire();
+        slots[0] = 1;
+    };
+    var h2 = spawn fn () -> none {
+        s.acquire();
+        slots[1] = 1;
+    };
+    # permits are stored either way, so both waiters are released
+    s.release_n(2);
+    h1.join();
+    h2.join();
+    assert(slots[0] == 1);
+    assert(slots[1] == 1);
+    assert(s.available() == 0);
+    print("semaphore release n wakes two: ok");
+}
+
+fn test_semaphore_limits_concurrency() -> none {
+    var s = sync.Semaphore(1);
+    var active = [0];
+    var peak = [0];
+    var h1 = spawn fn () -> none {
+        s.acquire();
+        var a = active[0] + 1;
+        active[0] = a;
+        if a > peak[0] { peak[0] = a; }
+        active[0] = active[0] - 1;
+        s.release();
+    };
+    var h2 = spawn fn () -> none {
+        s.acquire();
+        var a = active[0] + 1;
+        active[0] = a;
+        if a > peak[0] { peak[0] = a; }
+        active[0] = active[0] - 1;
+        s.release();
+    };
+    h1.join();
+    h2.join();
+    # with one permit the critical sections cannot overlap
+    assert(peak[0] == 1);
+    assert(s.available() == 1);
+    print("semaphore limits concurrency: ok");
+}
+
+# ---- Notify -----------------------------------------------------------------
+
+fn test_notify_stores_permit() -> none {
+    var n = sync.Notify();
+    n.notify_one();
+    n.notify_one();
+    # only one permit is stored; consume it before spawning so main never
+    # races the child for it
+    n.wait();
+    assert(n.waiter_count() == 0);
+    var slot = [0];
+    var h = spawn fn () -> none {
+        n.wait();
+        slot[0] = 1;
+    };
+    # permit already consumed -> this reaches the waiter when it registers,
+    # or stores a permit if it has not registered yet; both paths complete
+    n.notify_one();
+    h.join();
+    assert(slot[0] == 1);
+    print("notify stores permit: ok");
+}
+
+fn test_notify_two_waiters() -> none {
+    var n = sync.Notify();
+    var a = [0];
+    var b = [0];
+    var h1 = spawn fn () -> none {
+        n.wait();
+        a[0] = 1;
+    };
+    var h2 = spawn fn () -> none {
+        n.wait();
+        b[0] = 1;
+    };
+    # poll until both are registered inside wait() so the broadcast below
+    # cannot fire into an empty waiter set
+    while n.waiter_count() < 2 { }
+    n.notify_waiters();
+    h1.join();
+    h2.join();
+    assert(a[0] == 1);
+    assert(b[0] == 1);
+    # notify_one reaches one waiter at a time; with both registered first,
+    # two notify_ones always release both (each goes down the waking path)
+    var c = [0];
+    var d = [0];
+    var h3 = spawn fn () -> none {
+        n.wait();
+        c[0] = 1;
+    };
+    var h4 = spawn fn () -> none {
+        n.wait();
+        d[0] = 1;
+    };
+    while n.waiter_count() < 2 { }
+    n.notify_one();
+    n.notify_one();
+    h3.join();
+    h4.join();
+    assert(c[0] == 1);
+    assert(d[0] == 1);
+    print("notify two waiters: ok");
+}
+
+fn main() -> none {
+    test_barrier_single_party();
+    test_barrier_four_parties();
+    test_semaphore_counts();
+    test_semaphore_blocking_acquire();
+    test_semaphore_release_n_wakes_two_waiters();
+    test_semaphore_limits_concurrency();
+    test_notify_stores_permit();
+    test_notify_two_waiters();
+}

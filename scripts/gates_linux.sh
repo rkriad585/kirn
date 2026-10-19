@@ -12,8 +12,8 @@
 #   5. conventions - rules/convention matrix for the `kirn` driver (run-entry
 #                    resolution, pin.kn package initializer, and `kirn new`
 #                    app/pet scaffolds: bare run, test, pack).
-#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (16
-#                    tests, must report '16 passed, 0 failed').
+#   6. test        - `kirn test .` runs the stdlib/pet *_test.kn suite (17
+#                    tests, must report '17 passed, 0 failed').
 #   7. pets        - .pet bundle round-trip: pack a lib, install the bundle
 #                    into a consuming project's pets/ dir, consume it at run.
 # Exit 0 iff every gate passes, else 1.

@@ -1,0 +1,207 @@
+# stdlib/pet/sync.kn - synchronization primitives (POWER_PLAN §6).
+#
+# The native runtime already provides Mutex, RwMutex, WaitGroup, Once, Cond,
+# and Atomic as globals (and via the prebound `sync` namespace). This module
+# adds the higher-level primitives tokio::sync is known for, built from
+# Mutex + Cond so they compose with everything else:
+#
+#   import pet.sync as sync;
+#   var b = sync.Barrier(4);
+#   var s = sync.Semaphore(2);
+#   var n = sync.Notify();
+#
+# All operations block the calling (OS) thread - Kirn tasks are OS threads,
+# so a blocked task never stalls the others. Every wait loop is a condition
+# check under the lock, which makes "signal first, wait later" safe: a
+# permit/notification delivered before a waiter arrives is stored and the
+# next wait returns immediately.
+#
+# LANGUAGE NOTE (found the hard way): a method receives `self` as a COPY of
+# the receiver, and scalar fields are written back only when the call
+# RETURNS. A method that mutates its own Int fields and then blocks inside
+# c.wait() therefore publishes nothing while it is blocked - other callers
+# keep observing the pre-call values and the primitive deadlocks. Reference
+# fields (lists, sync values) are SHARED through that copy, so this module
+# keeps every piece of mutable state in one list (`st`): the lock, the cond,
+# and the counters all live there, and list element writes are immediately
+# visible to every thread no matter which copy of the receiver is running.
+#
+# State layout (tokio semantics on top of native primitives):
+#   BarrierState.st   = [mutex, cond, parties, count, generation]
+#   SemaphoreState.st = [mutex, cond, permits]
+#   NotifyState.st    = [mutex, cond, generation, waiters, pending]
+
+# ---- Barrier ----------------------------------------------------------------
+
+# Reusable `parties`-way gate: every `wait()` blocks until `parties` callers
+# are inside the current generation, then all are released together. Returns
+# the generation number the caller waited on (identical for every party of
+# that round; increments each round, so a Barrier can be reused).
+struct BarrierState {
+    var st: list;
+
+    fn wait(self) -> Int {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        var gen: Int = self.st[4];
+        self.st[3] = self.st[3] + 1;
+        if self.st[3] >= self.st[2] {
+            self.st[3] = 0;
+            self.st[4] = self.st[4] + 1;
+            c.broadcast();
+            m.unlock();
+            return gen;
+        }
+        while gen == self.st[4] {
+            c.wait(m);
+        }
+        m.unlock();
+        return gen;
+    }
+}
+
+pub fn Barrier(parties: Int) -> BarrierState {
+    if parties < 1 { raise("sync: Barrier needs at least one party"); }
+    b = BarrierState();
+    b.st = [Mutex(), Cond(), parties, 0, 0];
+    return b;
+}
+
+# ---- Semaphore --------------------------------------------------------------
+
+# Counting semaphore: `acquire` takes one permit (blocking when none are
+# left), `release` returns one; `*_n` variants take/return many; `try_*`
+# never block; `available` reads the current count.
+struct SemaphoreState {
+    var st: list;
+
+    fn acquire(self) -> none {
+        self.acquire_n(1);
+    }
+
+    fn acquire_n(self, n: Int) -> none {
+        if n < 0 { raise("sync: Semaphore.acquire_n needs a non-negative count"); }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        while self.st[2] < n {
+            c.wait(m);
+        }
+        self.st[2] = self.st[2] - n;
+        m.unlock();
+    }
+
+    fn try_acquire(self) -> Bool {
+        return self.try_acquire_n(1);
+    }
+
+    fn try_acquire_n(self, n: Int) -> Bool {
+        if n < 0 { raise("sync: Semaphore.try_acquire_n needs a non-negative count"); }
+        var m = self.st[0];
+        m.lock();
+        if self.st[2] >= n {
+            self.st[2] = self.st[2] - n;
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn release(self) -> none {
+        self.release_n(1);
+    }
+
+    fn release_n(self, n: Int) -> none {
+        if n < 0 { raise("sync: Semaphore.release_n needs a non-negative count"); }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[2] = self.st[2] + n;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn available(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[2];
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Semaphore(permits: Int) -> SemaphoreState {
+    if permits < 0 { raise("sync: Semaphore cannot start negative"); }
+    s = SemaphoreState();
+    s.st = [Mutex(), Cond(), permits];
+    return s;
+}
+
+# ---- Notify -----------------------------------------------------------------
+
+# One-shot/permit-style notification (tokio::sync::Notify):
+#   - `notify_one` wakes one current waiter, or stores one permit if none
+#     is waiting (the next `wait` consumes it immediately);
+#   - `notify_waiters` wakes every current waiter but stores no permit;
+#   - `wait` blocks until it can consume a notification;
+#   - `waiter_count` reads the number of threads currently blocked in
+#     `wait` (lets tests/broadcasts synchronize on "everyone is ready").
+struct NotifyState {
+    var st: list;
+
+    fn notify_one(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[3] > 0 {
+            self.st[2] = self.st[2] + 1;
+            c.signal();
+        } else {
+            self.st[4] = true;
+        }
+        m.unlock();
+    }
+
+    fn notify_waiters(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[2] = self.st[2] + 1;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn wait(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] {
+            self.st[4] = false;
+            m.unlock();
+            return;
+        }
+        var gen: Int = self.st[2];
+        self.st[3] = self.st[3] + 1;
+        while gen == self.st[2] {
+            c.wait(m);
+        }
+        self.st[3] = self.st[3] - 1;
+        m.unlock();
+    }
+
+    fn waiter_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[3];
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Notify() -> NotifyState {
+    n = NotifyState();
+    n.st = [Mutex(), Cond(), 0, 0, false];
+    return n;
+}

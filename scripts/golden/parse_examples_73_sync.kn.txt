@@ -1,0 +1,154 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/73_sync.kn
+Import pet.sync as sync
+FuncDef "main"
+  Ret none
+  Body
+    VarDecl
+      Target Ident "arrived"
+      Value 
+        List len=3
+          Item Int "0"
+          Item Int "0"
+          Item Int "0"
+    VarDecl
+      Target Ident "gate"
+      Value 
+        Call
+          Callee 
+            Member name="Barrier"
+              Obj Ident "sync"
+          Arg
+            Value Int "3"
+    VarDecl
+      Target Ident "w1"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda params=()
+    VarDecl
+      Target Ident "w2"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda params=()
+    VarDecl
+      Target Ident "g"
+      Value 
+        Call
+          Callee 
+            Member name="wait"
+              Obj Ident "gate"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="join"
+              Obj Ident "w1"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="join"
+              Obj Ident "w2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "barrier generation:"
+          Arg
+            Value Ident "g"
+          Arg
+            Value Ident "arrived"
+    VarDecl
+      Target Ident "sem"
+      Value 
+        Call
+          Callee 
+            Member name="Semaphore"
+              Obj Ident "sync"
+          Arg
+            Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="acquire"
+              Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="acquire"
+              Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "permits left:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="available"
+                    Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "try acquire with none free:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_acquire"
+                    Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="release_n"
+              Obj Ident "sem"
+          Arg
+            Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "after release:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="available"
+                    Obj Ident "sem"
+    VarDecl
+      Target Ident "note"
+      Value 
+        Call
+          Callee 
+            Member name="Notify"
+              Obj Ident "sync"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="notify_one"
+              Obj Ident "note"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="wait"
+              Obj Ident "note"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "notify consumed"
+<ROOT>/examples/73_sync.kn: OK (2 top-level statements)
+[exit 0]

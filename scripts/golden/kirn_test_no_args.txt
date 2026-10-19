@@ -31,11 +31,20 @@ test ./stdlib/pet/serde_test.kn ... serde_test ok
 PASS
 test ./stdlib/pet/strings_test.kn ... strings_test ok
 PASS
+test ./stdlib/pet/sync_test.kn ... barrier single party: ok
+barrier four parties: ok
+semaphore counts: ok
+semaphore blocking acquire: ok
+semaphore release n wakes two: ok
+semaphore limits concurrency: ok
+notify stores permit: ok
+notify two waiters: ok
+PASS
 test ./stdlib/pet/time_test.kn ... time_test ok
 PASS
 test ./stdlib/pet/toml_test.kn ... toml_test ok
 PASS
 test ./stdlib/pet/yaml_test.kn ... yaml_test ok
 PASS
-16 passed, 0 failed
+17 passed, 0 failed
 [exit 0]

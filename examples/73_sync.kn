@@ -1,0 +1,43 @@
+# examples/73_sync.kn - pet.sync: Barrier, Semaphore and Notify (POWER_PLAN §6)
+#
+# The three higher-level primitives build on the native Mutex/Cond values.
+# Everything here is deterministic: the barrier hands out one generation,
+# the semaphore counters are read in a fixed order, and the notification is
+# stored before the waiter arrives.
+
+import pet.sync as sync;
+
+fn main() -> none {
+    # Three workers meet at a reusable barrier; every party observes the same
+    # generation number for that round.
+    var arrived = [0, 0, 0];
+    var gate = sync.Barrier(3);
+    var w1 = spawn fn () -> none {
+        var g = gate.wait();
+        arrived[0] = g;
+    };
+    var w2 = spawn fn () -> none {
+        var g = gate.wait();
+        arrived[1] = g;
+    };
+    var g = gate.wait();
+    w1.join();
+    w2.join();
+    print("barrier generation:", g, arrived);
+
+    # A counting semaphore: take two permits, then hand them back.
+    var sem = sync.Semaphore(2);
+    sem.acquire();
+    sem.acquire();
+    print("permits left:", sem.available());
+    print("try acquire with none free:", sem.try_acquire());
+    sem.release_n(2);
+    print("after release:", sem.available());
+
+    # A notification delivered before the waiter arrives is remembered as a
+    # single permit, so this wait returns immediately.
+    var note = sync.Notify();
+    note.notify_one();
+    note.wait();
+    print("notify consumed");
+}

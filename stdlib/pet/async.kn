@@ -19,6 +19,10 @@ import pet.async_net as net;
 # `a.signal`.
 import pet.async_process as process;
 import pet.async_signal as signal;
+# §2.5 async synchronization: native mutex/rwlock/once plus the pet.sync
+# semaphore/notify/barrier state machines.
+import sync as sysnc;
+import pet.sync as psync;
 
 # Sleep for `ms` milliseconds. Returns an awaitable timer, so `await sleep(..)`
 # cooperates with other tasks instead of blocking a worker thread.
@@ -208,4 +212,187 @@ pub async fn try_join(ts: list) -> list {
         out.append(await t);
     }
     return out;
+}
+
+# ---- §2.5 async synchronization ---------------------------------------------
+#
+# Kirn tasks are OS threads, so a wait blocks only its own task thread; wrapping
+# each wait in an `async fn` keeps the shape of tokio's async sync API and lets
+# `await` join the wait. There is no poisoning and no RAII drop: guards expose
+# `unlock()` (and `Mutex.with` unlocks for you, even on a raise).
+#
+#   var m = a.Mutex(0);
+#   var g = await m.lock();
+#   g.set(g.get() + 1);
+#   g.unlock();
+
+pub struct MutexState {
+    var m: any;      # native sync.Mutex
+    var v: list;     # [value] - reference field, shared across receiver copies
+
+    async fn lock(self) -> MutexGuard {
+        self.m.lock();
+        return MutexGuard(m: self.m, v: self.v);
+    }
+
+    # Non-blocking: a guard or `none`.
+    fn try_lock(self) -> any {
+        if self.m.try_lock() { return MutexGuard(m: self.m, v: self.v); }
+        return none;
+    }
+
+    # Read without taking the lock (use only when no writer is active).
+    fn get(self) -> any {
+        return self.v[0];
+    }
+
+    # Run `f(value)` under the lock; unlocks even if `f` raises.
+    async fn with(self, f: any) -> any {
+        self.m.lock();
+        defer self.m.unlock();
+        return f(self.v[0]);
+    }
+
+    fn is_locked(self) -> Bool {
+        return self.m.locked();
+    }
+}
+
+pub struct MutexGuard {
+    var m: any;
+    var v: list;
+    fn get(self) -> any { return self.v[0]; }
+    fn set(self, x: any) -> none { self.v[0] = x; }
+    fn unlock(self) -> none { self.m.unlock(); }
+}
+
+# `Mutex(value)` - a lock plus the value it protects (tokio::sync::Mutex).
+pub fn Mutex(value: any) -> MutexState {
+    return MutexState(m: sysnc.Mutex(), v: [value]);
+}
+
+# ---- RwLock -----------------------------------------------------------------
+
+pub struct RwLockState {
+    var m: any;      # native sync.RwMutex
+    var v: list;
+
+    async fn read(self) -> ReadGuard {
+        self.m.rlock();
+        return ReadGuard(m: self.m, v: self.v);
+    }
+
+    async fn write(self) -> WriteGuard {
+        self.m.lock();
+        return WriteGuard(m: self.m, v: self.v);
+    }
+
+    fn try_read(self) -> any {
+        if self.m.try_rlock() { return ReadGuard(m: self.m, v: self.v); }
+        return none;
+    }
+
+    fn try_write(self) -> any {
+        if self.m.try_lock() { return WriteGuard(m: self.m, v: self.v); }
+        return none;
+    }
+
+    fn get(self) -> any { return self.v[0]; }
+}
+
+pub struct ReadGuard {
+    var m: any;
+    var v: list;
+    fn get(self) -> any { return self.v[0]; }
+    fn unlock(self) -> none { self.m.runlock(); }
+}
+
+pub struct WriteGuard {
+    var m: any;
+    var v: list;
+    fn get(self) -> any { return self.v[0]; }
+    fn set(self, x: any) -> none { self.v[0] = x; }
+    fn unlock(self) -> none { self.m.unlock(); }
+}
+
+pub fn RwLock(value: any) -> RwLockState {
+    return RwLockState(m: sysnc.RwMutex(), v: [value]);
+}
+
+# ---- Semaphore --------------------------------------------------------------
+
+pub struct AsyncSemaphore {
+    var s: any;      # pet.sync.SemaphoreState
+
+    async fn acquire(self) -> none { self.s.acquire(); }
+    async fn acquire_n(self, n: Int) -> none { self.s.acquire_n(n); }
+    fn try_acquire(self) -> Bool { return self.s.try_acquire(); }
+    fn try_acquire_n(self, n: Int) -> Bool { return self.s.try_acquire_n(n); }
+    fn release(self) -> none { self.s.release(); }
+    fn release_n(self, n: Int) -> none { self.s.release_n(n); }
+    fn available(self) -> Int { return self.s.available(); }
+}
+
+pub fn Semaphore(permits: Int) -> AsyncSemaphore {
+    return AsyncSemaphore(s: psync.Semaphore(permits));
+}
+
+# ---- Notify -----------------------------------------------------------------
+
+pub struct AsyncNotify {
+    var n: any;      # pet.sync.NotifyState
+
+    fn notify_one(self) -> none { self.n.notify_one(); }
+    fn notify_waiters(self) -> none { self.n.notify_waiters(); }
+    # Wait for one notification; a permit stored before the wait is consumed.
+    async fn notified(self) -> none { self.n.wait(); }
+    fn waiter_count(self) -> Int { return self.n.waiter_count(); }
+}
+
+pub fn Notify() -> AsyncNotify {
+    return AsyncNotify(n: psync.Notify());
+}
+
+# ---- OnceCell ---------------------------------------------------------------
+
+pub struct OnceCellState {
+    var o: any;      # native sync.Once
+    var v: list;
+
+    fn get(self) -> any {
+        if self.o.done() { return self.v[0]; }
+        return none;
+    }
+
+    fn is_set(self) -> Bool {
+        return self.o.done();
+    }
+
+    # Initialise once; later calls (and concurrent callers) reuse the value.
+    # `f` is a plain function value, called while the Once is locked.
+    async fn get_or_init(self, f: any) -> any {
+        if not self.o.done() {
+            self.o.do(fn () -> none { self.v[0] = f(); });
+        }
+        return self.v[0];
+    }
+}
+
+pub fn OnceCell() -> OnceCellState {
+    return OnceCellState(o: sysnc.Once(), v: [none]);
+}
+
+# ---- Barrier ----------------------------------------------------------------
+
+pub struct AsyncBarrier {
+    var b: any;      # pet.sync.BarrierState
+
+    # Blocks until all parties arrive; returns the generation (same for all).
+    async fn wait(self) -> Int {
+        return self.b.wait();
+    }
+}
+
+pub fn Barrier(parties: Int) -> AsyncBarrier {
+    return AsyncBarrier(b: psync.Barrier(parties));
 }

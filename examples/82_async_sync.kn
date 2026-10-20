@@ -1,0 +1,67 @@
+# 82 — Async synchronization (POWER_PLAN §2.5)
+#
+# Kirn tasks are OS threads, so these primitives block only the waiting task;
+# every wait is wrapped in an `async fn` so `await` has tokio's shape. Guards
+# are explicit (there is no RAII drop): call `unlock()`, or use `Mutex.with`.
+import pet.async as a;
+
+async fn bump(m: any, n: Int) -> none {
+    for _i in 0..n {
+        g = await m.lock();
+        g.set(g.get() + 1);
+        g.unlock();
+    }
+}
+
+async fn main() -> none {
+    # Mutex: two tasks, 50 increments each.
+    m = a.Mutex(0);
+    await a.join([bump(m, 50), bump(m, 50)]);
+    print("count:", m.get());
+
+    # with() locks, calls the function, and unlocks even on a raise.
+    print("doubled:", await m.with(fn (v) -> Int { return v * 2; }));
+
+    # RwLock: read guard, then write guard.
+    rw = a.RwLock("before");
+    r = await rw.read();
+    print("read:", r.get());
+    r.unlock();
+    w = await rw.write();
+    w.set("after");
+    w.unlock();
+    r1 = await rw.read();
+    r2 = await rw.read();
+    print("readers:", r1.get(), r2.get());
+    r1.unlock();
+    r2.unlock();
+
+    # Semaphore: one permit, so the second try_acquire fails.
+    sem = a.Semaphore(1);
+    print("acquire:", sem.try_acquire(), sem.try_acquire(), sem.available());
+    sem.release();
+    print("released:", sem.available());
+
+    # Notify: a permit stored before the wait is consumed immediately.
+    n = a.Notify();
+    n.notify_one();
+    await n.notified();
+    print("notify: ok");
+
+    # OnceCell: the initialiser runs once; later calls reuse the value.
+    c = a.OnceCell();
+    print("set before:", c.is_set());
+    v = await c.get_or_init(fn () -> Int { return 7; });
+    print("cell:", v, c.get(), c.is_set());
+
+    # Barrier: one task plus main.
+    b = a.Barrier(2);
+    arrived = [0];
+    t = spawn(async fn () -> none {
+        await b.wait();
+        arrived[0] = arrived[0] + 1;
+    });
+    await b.wait();
+    await t;
+    print("barrier:", arrived[0]);
+}

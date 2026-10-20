@@ -12,6 +12,14 @@ async fn afail(n: Int) -> Int {
     return n;
 }
 
+async fn bump(m: any, n: Int) -> none {
+    for _i in 0..n {
+        g = await m.lock();
+        g.set(g.get() + 1);
+        g.unlock();
+    }
+}
+
 async fn main() -> none {
     t0 = a.now_ms();
     await a.sleep(ms: 30);        # must actually wait, not run instantly
@@ -153,6 +161,68 @@ async fn main() -> none {
     assert_eq(await srv, 2);
     tc.close();
     lst.close();
+
+    # ---- §2.5 async synchronization ----
+    var sm = a.Mutex(0);
+    await a.join([bump(sm, 100), bump(sm, 100), bump(sm, 100), bump(sm, 100)]);
+    assert_eq(sm.get(), 400);
+    assert_eq(await sm.with(fn (v) -> Int { return v + 1; }), 401);
+    assert(not sm.is_locked());
+
+    var sm2 = a.Mutex(1);
+    started = chan[Int]();
+    holder = spawn(async fn () -> none {
+        hg = await sm2.lock();
+        started.send(1);
+        await a.sleep(ms: 20);
+        hg.unlock();
+    });
+    started.recv();
+    assert(sm2.try_lock() == none);
+    await holder;
+    hg2 = await sm2.lock();
+    assert_eq(hg2.get(), 1);
+    hg2.unlock();
+
+    var srw = a.RwLock(3);
+    srg = await srw.read();
+    assert_eq(srg.get(), 3);
+    srg.unlock();
+    swg = await srw.write();
+    swg.set(4);
+    swg.unlock();
+    assert_eq(srw.get(), 4);
+    tgr = srw.try_read();
+    assert(tgr != none);
+    tgr.unlock();
+    twg = srw.try_write();
+    assert(twg != none);
+    twg.unlock();
+
+    var ssem = a.Semaphore(2);
+    assert(ssem.try_acquire());
+    assert(ssem.try_acquire());
+    assert(not ssem.try_acquire());
+    assert_eq(ssem.available(), 0);
+    ssem.release();
+    ssem.release();
+    assert_eq(ssem.available(), 2);
+
+    var sn = a.Notify();
+    sn.notify_one();
+    await sn.notified();
+
+    var sc = a.OnceCell();
+    assert(not sc.is_set());
+    assert_eq(await sc.get_or_init(fn () -> Int { return 7; }), 7);
+    assert_eq(await sc.get_or_init(fn () -> Int { return 9; }), 7);
+    assert(sc.is_set());
+    assert_eq(sc.get(), 7);
+
+    var sb = a.Barrier(2);
+    sbt = spawn(async fn () -> none { await sb.wait(); });
+    await sb.wait();
+    await sbt;
 
     print("async_test ok");
 }

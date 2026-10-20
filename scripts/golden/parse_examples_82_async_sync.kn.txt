@@ -1,0 +1,398 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/82_async_sync.kn
+Import pet.async as a
+FuncDef "bump" async
+  Param "m" : any
+  Param "n" : Int
+  Ret none
+  Body
+    For
+      PatBind _i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Ident "n"
+      Body
+        Assign
+          Target Ident "g"
+          Value 
+            Unary op="await"
+              Operand 
+                Call
+                  Callee 
+                    Member name="lock"
+                      Obj Ident "m"
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="set"
+                  Obj Ident "g"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Call
+                        Callee 
+                          Member name="get"
+                            Obj Ident "g"
+                    Rhs Int "1"
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="unlock"
+                  Obj Ident "g"
+FuncDef "main" async
+  Ret none
+  Body
+    Assign
+      Target Ident "m"
+      Value 
+        Call
+          Callee 
+            Member name="Mutex"
+              Obj Ident "a"
+          Arg
+            Value Int "0"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="join"
+                  Obj Ident "a"
+              Arg
+                Value 
+                  List len=2
+                    Item 
+                      Call
+                        Callee Ident "bump"
+                        Arg
+                          Value Ident "m"
+                        Arg
+                          Value Int "50"
+                    Item 
+                      Call
+                        Callee Ident "bump"
+                        Arg
+                          Value Ident "m"
+                        Arg
+                          Value Int "50"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "count:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "m"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "doubled:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="with"
+                        Obj Ident "m"
+                    Arg
+                      Value 
+                        Lambda params=(v: <inferred>)
+                          Ret Int
+                          Body
+                            Return
+                              Value 
+                                Binary op="*"
+                                  Lhs Ident "v"
+                                  Rhs Int "2"
+    Assign
+      Target Ident "rw"
+      Value 
+        Call
+          Callee 
+            Member name="RwLock"
+              Obj Ident "a"
+          Arg
+            Value Str "before"
+    Assign
+      Target Ident "r"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="read"
+                  Obj Ident "rw"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "read:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "r"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="unlock"
+              Obj Ident "r"
+    Assign
+      Target Ident "w"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="write"
+                  Obj Ident "rw"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="set"
+              Obj Ident "w"
+          Arg
+            Value Str "after"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="unlock"
+              Obj Ident "w"
+    Assign
+      Target Ident "r1"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="read"
+                  Obj Ident "rw"
+    Assign
+      Target Ident "r2"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="read"
+                  Obj Ident "rw"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "readers:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "r1"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "r2"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="unlock"
+              Obj Ident "r1"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="unlock"
+              Obj Ident "r2"
+    Assign
+      Target Ident "sem"
+      Value 
+        Call
+          Callee 
+            Member name="Semaphore"
+              Obj Ident "a"
+          Arg
+            Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "acquire:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_acquire"
+                    Obj Ident "sem"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_acquire"
+                    Obj Ident "sem"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="available"
+                    Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="release"
+              Obj Ident "sem"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "released:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="available"
+                    Obj Ident "sem"
+    Assign
+      Target Ident "n"
+      Value 
+        Call
+          Callee 
+            Member name="Notify"
+              Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="notify_one"
+              Obj Ident "n"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="notified"
+                  Obj Ident "n"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "notify: ok"
+    Assign
+      Target Ident "c"
+      Value 
+        Call
+          Callee 
+            Member name="OnceCell"
+              Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "set before:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_set"
+                    Obj Ident "c"
+    Assign
+      Target Ident "v"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="get_or_init"
+                  Obj Ident "c"
+              Arg
+                Value 
+                  Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "cell:"
+          Arg
+            Value Ident "v"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="get"
+                    Obj Ident "c"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_set"
+                    Obj Ident "c"
+    Assign
+      Target Ident "b"
+      Value 
+        Call
+          Callee 
+            Member name="Barrier"
+              Obj Ident "a"
+          Arg
+            Value Int "2"
+    Assign
+      Target Ident "arrived"
+      Value 
+        List len=1
+          Item Int "0"
+    Assign
+      Target Ident "t"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda async params=()
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="wait"
+                  Obj Ident "b"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand Ident "t"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "barrier:"
+          Arg
+            Value 
+              Index
+                Obj Ident "arrived"
+                At Int "0"
+<ROOT>/examples/82_async_sync.kn: OK (3 top-level statements)
+[exit 0]

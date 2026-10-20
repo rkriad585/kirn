@@ -3218,13 +3218,17 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                         dep = Value::none();
                     else
                         dep = loadModuleFile(s.moduleName);
+                    // A prebound module must bind under the alias too: the old
+                    // code only bound it when `importAlias` was empty, so
+                    // `import sync as sysnc;` inside a module left `sysnc`
+                    // undefined at call time.
+                    std::string bind = s.importAlias.empty()
+                                           ? s.moduleName
+                                           : s.importAlias;
                     if (dep.k != VK::None)
-                        modEnv->vars[s.importAlias.empty() ? s.moduleName
-                                                           : s.importAlias] =
-                            dep;
-                    else if (s.importAlias.empty())
-                        modEnv->vars[s.moduleName] =
-                            Value::module(s.moduleName);
+                        modEnv->vars[bind] = dep;
+                    else
+                        modEnv->vars[bind] = Value::module(s.moduleName);
                 } else {
                     Value dep = resolveModulePath(s.moduleName);
                     for (const auto& item : s.importItems) {
@@ -6798,6 +6802,17 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     }
                     return Value::boolean(false);
                 });
+            if (name == "try_rlock" || name == "try_read_lock") {
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    SyncImpl* s = a[0].sync.get();
+                    std::lock_guard<std::mutex> lk(s->m);
+                    if (!s->writer) {
+                        s->readers++;
+                        return Value::boolean(true);
+                    }
+                    return Value::boolean(false);
+                });
+            }
             break;
         }
 

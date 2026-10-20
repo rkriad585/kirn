@@ -1,0 +1,43 @@
+# Async synchronization surface (POWER_PLAN §2.5). Tree-walker == VM.
+import pet.async as a;
+
+async fn bump(m: any) -> none {
+    g = await m.lock();
+    g.set(g.get() + 1);
+    g.unlock();
+}
+
+async fn main() -> none {
+    m = a.Mutex(0);
+    await a.join([bump(m), bump(m), bump(m)]);
+    print("count:", m.get());
+    print("doubled:", await m.with(fn (v) -> Int { return v * 2; }));
+
+    rw = a.RwLock(1);
+    r = await rw.read();
+    print("read:", r.get());
+    r.unlock();
+    w = await rw.write();
+    w.set(2);
+    w.unlock();
+    print("write:", rw.get());
+
+    sem = a.Semaphore(1);
+    print("permits:", sem.try_acquire(), sem.try_acquire());
+    sem.release();
+    print("avail:", sem.available());
+
+    n = a.Notify();
+    n.notify_one();
+    await n.notified();
+    print("notify ok");
+
+    c = a.OnceCell();
+    print("once:", await c.get_or_init(fn () -> Int { return 5; }), c.get());
+
+    b = a.Barrier(2);
+    t = spawn(async fn () -> none { await b.wait(); });
+    await b.wait();
+    await t;
+    print("barrier ok");
+}

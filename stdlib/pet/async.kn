@@ -25,6 +25,142 @@ pub fn now_ms() -> Int {
     return time.now();
 }
 
+# ---- time: Instant / Duration / sleep_until / timeout / interval ------------
+#
+# Kirn has no dedicated Instant/Duration types in v1; both are Int milliseconds
+# (Instant = absolute epoch ms on the `time.after` clock, Duration = relative
+# ms), so they interoperate with `time.now`/`time.after` and arithmetic. This
+# mirrors tokio's `Instant`/`Duration` API (POWER_PLAN §2.8) without adding a
+# new nominal type to the language.
+
+# Current Instant (epoch ms). Alias of `now_ms`, named for tokio familiarity.
+pub fn instant() -> Int {
+    return time.now();
+}
+
+# Milliseconds from `earlier` (an Instant) to now. Saturates at 0 if `earlier`
+# is in the future, matching `Instant::saturating_duration_since`.
+pub fn elapsed(earlier: Int) -> Int {
+    d = time.now() - earlier;
+    if d < 0 { return 0; }
+    return d;
+}
+
+# Milliseconds from `earlier` to `later`, or `none` if `later < earlier`
+# (mirrors `Instant::checked_duration_since`).
+pub fn duration_since(later: Int, earlier: Int) -> any {
+    if later < earlier { return none; }
+    return later - earlier;
+}
+
+# Instant `base + d` (a Duration). Never overflows for realistic clocks.
+pub fn checked_add(base: Int, d: Int) -> Int {
+    return base + d;
+}
+
+# Await a timer that fires at the absolute deadline `deadline_ms` (an Instant).
+pub fn sleep_until(deadline_ms: Int) -> any {
+    return time.after_at(deadline_ms);
+}
+
+# Await `fut` but give up after `ms` milliseconds: `ok(v)` if it finished in
+# time, `err("elapsed")` otherwise. `fut` must be an already-started Task (calling
+# an `async fn` schedules it); on timeout the task keeps running detached. This
+# is the futures that `timeout_at`/`select` are built on (POWER_PLAN §2.8).
+pub async fn timeout(ms: Int, fut: any) -> any {
+    waited = time.wait(fut, ms);
+    if not waited { return err("elapsed"); }
+    return ok(await fut);
+}
+
+# `timeout` against an absolute deadline (an Instant) instead of a duration.
+pub async fn timeout_at(deadline_ms: Int, fut: any) -> any {
+    d = deadline_ms - time.now();
+    if d < 0 { d = 0; }
+    return await timeout(d, fut);
+}
+
+# Missed-tick strategies for `Interval.tick` (POWER_PLAN §2.8), matching tokio's
+# `MissedTickBehavior`: after work overruns the period, `burst` fires the missed
+# ticks back-to-back, `delay` restarts the period from now, and `skip` jumps to
+# the next tick aligned to the original schedule. `burst` is the default.
+pub const BURST: Str = "burst";
+pub const DELAY: Str = "delay";
+pub const SKIP: Str = "skip";
+
+# A periodic ticker. Unlike calling `sleep` in a loop, this accounts for the time
+# spent doing work between ticks, so the cadence does not drift. The first
+# `tick()` resolves immediately after creation (matching tokio's `interval`).
+#
+# `tick()` is an ordinary (non-`async`) method that advances the schedule and
+# returns an awaitable timer, so `await iv.tick()` both waits for the tick and
+# persists the new schedule in `iv` (an `async fn` method cannot: its receiver
+# is a per-task copy and field writes are not written back). The schedule
+# advances when `tick()` is *called*, not when the await resumes - the same
+# point tokio's `poll_tick` uses - so `Burst`/`Skip` remain aligned to the
+# original phase. The value of `await iv.tick()` is `none`.
+struct Interval {
+    period_ms: Int;
+    next_ms: Int;
+    behaviour: Str;
+
+    fn tick(self) -> any {
+        now = time.now();
+        deadline = self.next_ms;
+        # Assume a normal tick: the next one is a full period after the deadline
+        # this tick represents (tokio's `Burst` default). Only a genuine overrun
+        # (>5ms past the deadline) triggers a missed-tick strategy.
+        next = deadline + self.period_ms;
+        if now > deadline + 5 {
+            if self.behaviour == "delay" {
+                # Restart the period from the moment tick() was called.
+                next = now + self.period_ms;
+            } else if self.behaviour == "skip" {
+                # Jump to the next tick aligned to the original phase.
+                off = (now - deadline) % self.period_ms;
+                next = now + (self.period_ms - off);
+            }
+            # "burst" keeps next = deadline + period, firing missed ticks
+            # back-to-back until caught up.
+        }
+        self.next_ms = next;
+        return time.after_at(deadline);
+    }
+
+    fn set_missed_tick_behavior(self, behaviour: Str) -> none {
+        self.behaviour = behaviour;
+    }
+
+    fn missed_tick_behavior(self) -> Str {
+        return self.behaviour;
+    }
+
+    fn period(self) -> Int {
+        return self.period_ms;
+    }
+
+    # Reset so the next `tick()` fires one full period from now.
+    fn reset(self) -> none {
+        self.next_ms = time.now() + self.period_ms;
+    }
+}
+
+# Periodic ticker. `behaviour` is one of `BURST`/`DELAY`/`SKIP` (default
+# `BURST`). Like tokio's `interval`, the first `tick()` resolves immediately.
+# Usage:
+#   var iv = a.interval(period_ms: 100);
+#   while true { await iv.tick(); ... }
+pub fn interval(period_ms: Int) -> Interval {
+    if period_ms <= 0 { raise "interval period must be positive"; }
+    return Interval(period_ms: period_ms, next_ms: time.now(), behaviour: BURST);
+}
+
+# Periodic ticker whose first tick fires at the absolute Instant `start_ms`.
+pub fn interval_at(start_ms: Int, period_ms: Int) -> Interval {
+    if period_ms <= 0 { raise "interval period must be positive"; }
+    return Interval(period_ms: period_ms, next_ms: start_ms, behaviour: BURST);
+}
+
 # Await every task in `ts`, returning their results in order (POWER_PLAN §2.10).
 # Tasks are scheduled when their `async fn` is called, so they already run
 # concurrently; `join` waits for all of them, then re-raises the first error (if

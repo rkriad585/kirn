@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/78_async_time.kn
+<ROOT>/examples/78_async_time.kn: OK
+[exit 0]

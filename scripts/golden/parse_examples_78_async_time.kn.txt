@@ -1,0 +1,231 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/78_async_time.kn
+Import pet.async as a
+FuncDef "fetch" async
+  Param "id" : Int
+  Param "ms" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Ident "ms"
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "id"
+          Rhs Int "10"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "t0"
+      Value 
+        Call
+          Callee 
+            Member name="instant"
+              Obj Ident "a"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "elapsed >= 20:"
+          Arg
+            Value 
+              Binary op=">="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="elapsed"
+                        Obj Ident "a"
+                    Arg
+                      Value Ident "t0"
+                Rhs Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "duration_since:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="duration_since"
+                    Obj Ident "a"
+                Arg
+                  Value 
+                    Binary op="+"
+                      Lhs Ident "t0"
+                      Rhs Int "50"
+                Arg
+                  Value Ident "t0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "checked_add delta:"
+          Arg
+            Value 
+              Binary op="-"
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="checked_add"
+                        Obj Ident "a"
+                    Arg
+                      Value Ident "t0"
+                    Arg
+                      Value Int "1000"
+                Rhs Ident "t0"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep_until"
+                  Obj Ident "a"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Call
+                        Callee 
+                          Member name="instant"
+                            Obj Ident "a"
+                    Rhs Int "20"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "slept until deadline"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "timeout fast:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="timeout"
+                        Obj Ident "a"
+                    Arg
+                      Value Int "1000"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "fetch"
+                          Arg
+                            Value Int "3"
+                          Arg
+                            Value Int "10"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "timeout slow:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="timeout"
+                        Obj Ident "a"
+                    Arg
+                      Value Int "20"
+                    Arg
+                      Value 
+                        Call
+                          Callee Ident "fetch"
+                          Arg
+                            Value Int "4"
+                          Arg
+                            Value Int "300"
+    VarDecl
+      Target Ident "iv"
+      Value 
+        Call
+          Callee 
+            Member name="interval"
+              Obj Ident "a"
+          Arg name=period_ms
+            Value Int "25"
+    VarDecl
+      Target Ident "ticks"
+      Value Int "0"
+    While
+      Cond 
+        Binary op="<"
+          Lhs Ident "ticks"
+          Rhs Int "3"
+      Body
+        ExprStmt
+          Value 
+            Unary op="await"
+              Operand 
+                Call
+                  Callee 
+                    Member name="tick"
+                      Obj Ident "iv"
+        AugAssign op="+="
+          Target Ident "ticks"
+          Value Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "ticks:"
+          Arg
+            Value Ident "ticks"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "period:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="period"
+                    Obj Ident "iv"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "behaviour:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="missed_tick_behavior"
+                    Obj Ident "iv"
+<ROOT>/examples/78_async_time.kn: OK (3 top-level statements)
+[exit 0]

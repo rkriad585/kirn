@@ -50,5 +50,48 @@ async fn main() -> none {
     }
     assert_eq(jcaught, "neg");
 
+    # ---- §2.8 time: Instant / Duration helpers ----
+    tnow = a.instant();
+    await a.sleep(ms: 15);
+    assert(a.elapsed(tnow) >= 15);
+    assert_eq(a.duration_since(tnow + 100, tnow), 100);
+    assert(a.duration_since(tnow, tnow + 100) == none);
+    assert_eq(a.checked_add(5, 7), 12);
+
+    # sleep_until waits for an absolute deadline (an Instant), not a duration
+    tsu = a.instant();
+    await a.sleep_until(tsu + 20);
+    assert(a.elapsed(tsu) >= 20);
+
+    # timeout: finishes in time -> ok(value); too slow -> err("elapsed")
+    fast = spawn(async fn () -> Int { await a.sleep(ms: 5); return 42; });
+    assert_eq(Str(await a.timeout(1000, fast)), "ok(42)");
+    slowt = spawn(async fn () -> Int { await a.sleep(ms: 300); return 1; });
+    assert_eq(Str(await a.timeout(15, slowt)), "err('elapsed')");
+    fast2 = spawn(async fn () -> Int { await a.sleep(ms: 5); return 9; });
+    assert_eq(Str(await a.timeout_at(a.instant() + 1000, fast2)), "ok(9)");
+
+    # interval: the first tick is immediate, later ticks are one period apart,
+    # and the schedule advances by exactly one period each time
+    var iv = a.interval(period_ms: 20);
+    tiv = a.instant();
+    await iv.tick();
+    assert(a.elapsed(tiv) < 18);
+    n1 = iv.next_ms;
+    await iv.tick();
+    n2 = iv.next_ms;
+    assert_eq(n2 - n1, 20);
+    assert_eq(iv.period(), 20);
+    assert_eq(iv.missed_tick_behavior(), "burst");
+    iv.set_missed_tick_behavior(a.SKIP);
+    assert_eq(iv.missed_tick_behavior(), "skip");
+    iv.reset();
+    await iv.tick();
+
+    # a zero/negative period is rejected
+    bad = "none";
+    try { a.interval(period_ms: 0); } catch e { bad = Str(e); }
+    assert_eq(bad, "interval period must be positive");
+
     print("async_test ok");
 }

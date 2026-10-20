@@ -1,0 +1,30 @@
+# Async time surface (POWER_PLAN §2.8): Instant/Duration helpers, sleep_until,
+# timeout, and interval. Runs identically under the tree-walker and the VM.
+import pet.async as a;
+
+async fn work(id: Int, ms: Int) -> Int {
+    await a.sleep(ms: ms);
+    return id * 10;
+}
+
+async fn main() -> none {
+    t0 = a.instant();
+    await a.sleep(ms: 10);
+    print("elapsed>=", a.elapsed(t0) >= 10);
+    print("dur:", a.duration_since(t0 + 30, t0));
+    print("add:", a.checked_add(2, 3));
+
+    await a.sleep_until(a.instant() + 10);
+    print("until ok");
+
+    print("timeout:", await a.timeout(1000, work(2, 5)));
+    print("timeout slow:", await a.timeout(10, work(3, 250)));
+
+    var iv = a.interval(period_ms: 15);
+    var n = 0;
+    while n < 2 {
+        await iv.tick();
+        n += 1;
+    }
+    print("ticks:", n, "period:", iv.period(), "behaviour:", iv.missed_tick_behavior());
+}

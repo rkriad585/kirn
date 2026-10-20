@@ -1,0 +1,42 @@
+# 78 — Async time: Instant/Duration, sleep_until, timeout, interval (POWER_PLAN §2.8)
+#
+# The async time API mirrors tokio: `instant`/`elapsed`/`duration_since` treat
+# time as integer milliseconds, `sleep_until` waits for an absolute deadline,
+# `timeout` gives up on a task after a budget, and `interval` yields a steady
+# tick sequence without drifting when the work between ticks takes time.
+import pet.async as a;
+
+async fn fetch(id: Int, ms: Int) -> Int {
+    await a.sleep(ms: ms);
+    return id * 10;
+}
+
+async fn main() -> none {
+    # Instant / Duration helpers (Int milliseconds)
+    var t0 = a.instant();
+    await a.sleep(ms: 20);
+    print("elapsed >= 20:", a.elapsed(t0) >= 20);
+    print("duration_since:", a.duration_since(t0 + 50, t0));
+    print("checked_add delta:", a.checked_add(t0, 1000) - t0);
+
+    # sleep_until an absolute Instant rather than a relative duration
+    await a.sleep_until(a.instant() + 20);
+    print("slept until deadline");
+
+    # timeout: ok(value) when the task finishes in time, err("elapsed") when not
+    print("timeout fast:", await a.timeout(1000, fetch(3, 10)));
+    print("timeout slow:", await a.timeout(20, fetch(4, 300)));
+
+    # interval: the first tick is immediate, then one tick per period. The
+    # scheduled deadline advances by exactly one period, so work between ticks
+    # does not make the cadence drift.
+    var iv = a.interval(period_ms: 25);
+    var ticks = 0;
+    while ticks < 3 {
+        await iv.tick();
+        ticks += 1;
+    }
+    print("ticks:", ticks);
+    print("period:", iv.period());
+    print("behaviour:", iv.missed_tick_behavior());
+}

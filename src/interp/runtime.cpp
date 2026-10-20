@@ -3714,10 +3714,39 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 t.deadlineMs = nowMs() + (a[0].k == VK::Int ? a[0].i : 0);
                 return t;
             });
+        // A timer that fires at an absolute epoch-millisecond deadline. Backs
+        // `sleep_until`/`timeout_at` (POWER_PLAN §2.8), which name an Instant.
+        if (name == "after_at")
+            return biFn({"deadline_ms"}, [](std::vector<Value>& a) -> Value {
+                Value t;
+                t.k = VK::Timer;
+                t.deadlineMs =
+                    a.empty() || a[0].k != VK::Int ? nowMs() : a[0].i;
+                return t;
+            });
         if (name == "now")
             return biFn({}, [](std::vector<Value>&) -> Value {
                 return Value::integer(nowMs());
             });
+        // Wait on a task handle until it finishes or `ms` elapses: returns true
+        // if the task completed (ready), false on timeout. `pet.async.timeout`
+        // is built on this - it cannot be a plain `await` because the whole
+        // point is to stop waiting before the task does.
+        if (name == "wait") {
+            return biFn({"handle", "ms"}, [](std::vector<Value>& a) -> Value {
+                if (a.empty() || a[0].k != VK::ThreadH) return Value::boolean(true);
+                auto t = a[0].thread;
+                if (!t) return Value::boolean(true);
+                int64_t ms = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                std::unique_lock<std::mutex> lk(t->m);
+                if (t->done) return Value::boolean(true);
+                if (ms <= 0) return Value::boolean(t->done);
+                bool ok =
+                    t->cv.wait_for(lk, std::chrono::milliseconds(ms),
+                                   [&] { return t->done; });
+                return Value::boolean(ok);
+            });
+        }
         panicHere("time has no member '" + name + "'");
     }
 

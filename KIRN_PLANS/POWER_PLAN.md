@@ -857,3 +857,25 @@ Deviations / not shipped (documented):
 - **No `parallel.String.*`** (`par_lines`/`par_split`/`par_bytes`). The ops are list-only; split a string into lines/`chars` first (`str.split`) and run `par_chunk_by`/`par_split` on that.
 - **Group sessions don't nest.** `chunks(...).chunks(...)` reshapes the already-grouped list (each element being a group), which is well-defined but rarely what you want; group once, then `map`.
 - **`par_sort` has no `_unstable`/in-place variants** (carried over from Phase 8): it is a stable mergesort returning a new list.
+
+### Update (2026-10-20) — §2.8: async time (`pet.async`)
+
+**Path chosen:** build the time API on the existing native `time` pseudo-module instead of adding a new reactor, matching how `pet.async` already fronts `time.after`. Two small native primitives were missing: an **absolute-deadline** timer (`after_at`) for `sleep_until`/`timeout_at`, and a **wait-with-timeout** on a task handle (`wait`) for `timeout` — the latter cannot be a plain `await` because the point is to stop waiting before the task finishes. Instants and Durations are **Int milliseconds** (Instants are epoch ms on the `time.after` clock), so they interoperate with `time.now`/`time.after` and arithmetic without adding nominal types; `MissedTickBehavior` is a set of `pub const` strings.
+
+Delivered:
+
+- **Native `time` additions** (`src/interp/runtime.cpp`, `time` module handler): `time.after_at(deadline_ms)` returns a `VK::Timer` whose deadline is the absolute instant (immediate if already past); `time.wait(handle, ms) -> Bool` locks the task's `ThreadImpl` and waits on its condition variable until it is done or the budget elapses (returns `true` if done, `false` on timeout; `true` for a non-task handle). `time.wait` is the primitive `timeout` is built on.
+- **`stdlib/pet/async.kn` §2.8 block**: `instant`, `elapsed` (saturating), `duration_since` (`none` if the later instant precedes the earlier, mirroring `checked_duration_since`), `checked_add`; `sleep_until(deadline_ms)`; `async fn timeout(ms, fut) -> ok(v) | err("elapsed")` and `timeout_at(deadline_ms, fut)`; `BURST`/`DELAY`/`SKIP` consts; `struct Interval` + `interval(period_ms)` / `interval_at(start_ms, period_ms)`. `Interval` ports tokio's `next_timeout` logic exactly: the schedule advances from the **fired deadline** by one period (`Burst`), from `now` (`Delay`), or to the next tick aligned to the original phase (`Skip`), with tokio's 5 ms missed-tick tolerance. `interval`'s first tick is immediate (start = now), like tokio; zero/negative periods raise.
+- **`Interval.tick()` is a plain (non-`async`) method that advances the schedule and returns an awaitable timer**, so `await iv.tick()` both waits and persists the new `next_ms` in the receiver. An `async fn` method cannot: its receiver is a per-task copy and field writes are not written back to the caller. The schedule advances when `tick()` is called (the same point tokio's `poll_tick` samples `now`), so `Burst`/`Skip` stay phase-aligned.
+- **`examples/78_async_time.kn`** + three goldens; the examples gate now reports **75** files. **`tests/syntax/async_time_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** gained the Instant/Duration, `sleep_until`, `timeout` ok/elapsed/`timeout_at`, interval cadence/behaviour, and zero-period assertions.
+
+Verification: gates **328/0/0 hung** (1_runall 75, 2b_syntax 48, 4_vm_diff 93, 8_bundle 15, 11_native 11, …), golden **324/0**, crosscheck **819/0** (134 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
+
+Deviations / not shipped (documented):
+
+- **`Instant`/`Duration` are `Int` ms, not nominal types**, and `MissedTickBehavior` is `Str` consts (`BURST`/`DELAY`/`SKIP`), not an enum. This keeps them usable with the existing clock and arithmetic; the plan named types, not representations.
+- **`timeout` returns `err("elapsed")`** (a `Str` payload), not `err(Elapsed)`: Kirn has no dedicated `Elapsed` error type. It re-raises a task's own error unchanged when the task finishes first.
+- **`await iv.tick()` yields `none`**, not the tick's `Instant`: `await` on a timer is defined to yield `none`. Read `iv.next_ms` for the schedule, or `a.instant()` around the call if a timestamp is needed.
+- **`tick()` is not cancel-safe.** Because the schedule advances at call time, cancelling the await (e.g. losing a `select` race) still consumes a tick. Tokio's `poll_tick` is cancel-safe; matching that would require advancing inside the wait, which the copy-receiver async-method semantics currently prevent.
+- **`timeout` detaches the slow task.** Kirn tasks are eager OS threads with no cancellation token, so on timeout the task keeps running and its result is discarded rather than aborted.
+- **`timeout` polls a single handle** via `time.wait`; it is not a general select over a timer and a future (that is §2.10's `select`, still unextended).

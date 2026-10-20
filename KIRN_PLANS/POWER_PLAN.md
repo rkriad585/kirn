@@ -1010,3 +1010,29 @@ Deviations / not shipped (documented):
 - **`rename_all_fields`, container `rename`, `borrow`, `bound`** are parsed but ignored (struct-style enum variants do not parse in Kirn, and the bundled formats do not use a type name).
 - **Per-variant `untagged` is applied on encode only**; decode uses the enum-level `untagged` mode. Untagged matching is shape-based, not a serde `Visitor`.
 - **Internal tagging requires named payloads**; an unnamed payload is emitted under a positional `vN` key. External unit variants stay `{"Variant": null}` (Kirn's existing convention, not serde's bare `"Variant"`), and TOML still cannot round-trip unit variants (pre-existing, documented in Phase 7).
+
+### Update (2026-10-20) — §2.3 tasks: cancellation, TaskSet, spawn_blocking
+
+**Path chosen:** the runtime is thread-per-task, so this ships tokio's _handle_ surface (`abort`, `is_finished`, `JoinSet`) on top of the eager tasks rather than a cooperative cancellation token woven through every await. `abort()` sets an atomic on the `ThreadImpl`; `await`/`join` on a cancelled, still-running handle returns `none` instead of blocking, and `is_finished()` reports true. The OS thread keeps executing (there is no stack unwinding/drop), which is the honest semantic for eager threads and is what the OS-thread layer can guarantee without rewriting the task model. `select` now also cancels the task arms it did not pick, and `try_join` cancels the handles it never reached.
+
+Delivered:
+
+- **Native task handle** (`src/interp/runtime.{h,cpp}`): `ThreadImpl::aborted` (atomic); `thread` protocol gains `is_finished()` (done || aborted), `is_aborted()`, and `abort()`. `awaitTask` returns `none` immediately for an aborted, unfinished task (a task that already finished still returns its result or re-raises); `is_finished` is checked under the task mutex.
+- **`select` cancellation** (`selectExec`): after an arm is chosen, every other `Prepared::Task` handle is aborted; an arm whose handle was already aborted is treated as ready with payload `none` (so a select cannot spin on a cancelled task).
+- **`pet.async`**:
+  - `TaskSet()` → `TaskSetState` with `spawn(t)`/`add(t)`, `len`, `is_empty`, `async join_next` (FIFO: shifts the oldest handle), `async join_all`, `abort_all`, and `async shutdown` (abort-all then drain).
+  - `spawn_blocking(f)` = `spawn f()`, available in any (sync) context.
+  - `try_join` now aborts every handle after the one that raised, matching its documented short-circuit.
+- **Checker** (`src/sema/checker.cpp`): the `thread` protocol types `is_finished`/`is_aborted` → `Bool` and `abort` → `none`.
+- **Examples/tests**: `examples/84_task_control.kn` + three goldens (examples gate **81**), `tests/syntax/async_tasks_ok.kn`, and `async_test.kn` coverage for abort → `none`, `is_finished`, TaskSet FIFO/join_all/shutdown, `try_join` aborting un-reached handles, select cancelling the losing task, and `spawn_blocking`.
+
+Verification: gates **346/0/0 hung** (1_runall 81, 2b_syntax 54, 4_vm_diff 99, 8_bundle 15, 11_native 11 — one earlier 11_native run hit a transient build timeout and passed on rerun), golden **342/0**, crosscheck **885/0** (145 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
+
+Deviations / not shipped (documented):
+
+- **Cancellation is a handle flag, not an interrupt.** The eager OS thread runs to completion; there are no cancellation points, no drop-based cancellation, and `shutdownThreads` still joins outstanding tasks (an aborted long task delays process exit). This is the §2 "cancel-safe by drop" goal only at the handle level, not in the body.
+- **Awaiting a cancelled task yields `none`**, not a `Result`/`JoinError::Cancelled`; callers cannot distinguish "aborted" from "returned none" by value (use `is_aborted()` before/after).
+- **`join_next` is FIFO**, not tokio's completion order (the thread-per-task runtime has no completion wakeup to order by). `TaskSet.spawn(t)` _tracks_ an already-started handle; it cannot accept a lazy future.
+- **`spawn_blocking` is `spawn` with tokio's name** — there is no separate blocking pool or worker cap.
+- **`select` aborts task arms only**; channel/timer arms hold no resource to cancel. A losing task arm's spawned work still runs its current body.
+- **Task typing is still erased**: `spawn(...)` is `thread`, but a direct `async fn` call is typed as its declared return `T` (the §2.2 deviation), so store such handles in `any` before calling `abort()`/`is_finished()`.

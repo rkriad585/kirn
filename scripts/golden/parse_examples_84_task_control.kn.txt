@@ -1,0 +1,346 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/84_task_control.kn
+Import pet.async as a
+FuncDef "work" async
+  Param "id" : Int
+  Param "ms" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg name=ms
+                Value Ident "ms"
+    Return
+      Value Ident "id"
+FuncDef "fail" async
+  Ret Int
+  Body
+    Raise
+      Value Str "worker failed"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl : any
+      Target Ident "t"
+      Value 
+        Call
+          Callee Ident "work"
+          Arg
+            Value Int "1"
+          Arg
+            Value Int "300"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "running:"
+          Arg
+            Value 
+              Unary op="not"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="is_finished"
+                        Obj Ident "t"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="abort"
+              Obj Ident "t"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "cancelled:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_aborted"
+                    Obj Ident "t"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_finished"
+                    Obj Ident "t"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "t"
+    VarDecl
+      Target Ident "set"
+      Value 
+        Call
+          Callee 
+            Member name="TaskSet"
+              Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="spawn"
+              Obj Ident "set"
+          Arg
+            Value 
+              Call
+                Callee Ident "work"
+                Arg
+                  Value Int "10"
+                Arg
+                  Value Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="spawn"
+              Obj Ident "set"
+          Arg
+            Value 
+              Call
+                Callee Ident "work"
+                Arg
+                  Value Int "20"
+                Arg
+                  Value Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="spawn"
+              Obj Ident "set"
+          Arg
+            Value 
+              Call
+                Callee Ident "work"
+                Arg
+                  Value Int "30"
+                Arg
+                  Value Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "tracked:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "set"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "first:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="join_next"
+                        Obj Ident "set"
+    Assign
+      Target Ident "rest"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="join_all"
+                  Obj Ident "set"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "rest:"
+          Arg
+            Value Ident "rest"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_empty"
+                    Obj Ident "set"
+    VarDecl
+      Target Ident "doomed"
+      Value 
+        Call
+          Callee 
+            Member name="TaskSet"
+              Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="spawn"
+              Obj Ident "doomed"
+          Arg
+            Value 
+              Call
+                Callee Ident "work"
+                Arg
+                  Value Int "40"
+                Arg
+                  Value Int "200"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="spawn"
+              Obj Ident "doomed"
+          Arg
+            Value 
+              Call
+                Callee Ident "work"
+                Arg
+                  Value Int "50"
+                Arg
+                  Value Int "200"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="abort_all"
+              Obj Ident "doomed"
+    Assign
+      Target Ident "out"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="shutdown"
+                  Obj Ident "doomed"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "shutdown:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "out"
+    Try
+      ExprStmt
+        Value 
+          Unary op="await"
+            Operand 
+              Call
+                Callee 
+                  Member name="try_join"
+                    Obj Ident "a"
+                Arg
+                  Value 
+                    List len=3
+                      Item 
+                        Call
+                          Callee Ident "work"
+                          Arg
+                            Value Int "60"
+                          Arg
+                            Value Int "1"
+                      Item 
+                        Call
+                          Callee Ident "fail"
+                      Item 
+                        Call
+                          Callee Ident "work"
+                          Arg
+                            Value Int "70"
+                          Arg
+                            Value Int "200"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "try_join:"
+              Arg
+                Value 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "e"
+    VarDecl
+      Target Ident "slow"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda async params=()
+    VarDecl
+      Target Ident "fast"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda async params=()
+    Select biased
+      SelArm bind=v
+        ChanOp Ident "fast"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "select picked:"
+                Arg
+                  Value Ident "v"
+      SelArm bind=v
+        ChanOp Ident "slow"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "select picked:"
+                Arg
+                  Value Ident "v"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "select cancelled loser:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_aborted"
+                    Obj Ident "slow"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "blocking:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="spawn_blocking"
+                        Obj Ident "a"
+                    Arg
+                      Value 
+                        Lambda params=()
+<ROOT>/examples/84_task_control.kn: OK (4 top-level statements)
+[exit 0]

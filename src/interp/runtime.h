@@ -53,6 +53,12 @@ struct ThreadImpl {
     bool raised = false;
     Value raiseValue;
     Value result;
+    // POWER_PLAN §2.3: cooperative cancellation. `abort()` flags the handle;
+    // awaiting it then yields `none` instead of blocking, and `is_finished()`
+    // reports true. Kirn tasks are eager OS threads, so the body itself is not
+    // interrupted (there is no drop/cancellation unwinding); the thread is
+    // still joined at interpreter shutdown.
+    std::atomic<bool> aborted{false};
 };
 
 // Non-local control flow.

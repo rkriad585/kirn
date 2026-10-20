@@ -203,15 +203,89 @@ pub async fn join(ts: list) -> list {
 }
 
 # Await tasks in order, short-circuiting on the first raise (POWER_PLAN §2.10):
-# the error propagates immediately and the remaining tasks are not awaited.
-# Because calling an `async fn` already started the task, a skipped task keeps
-# running detached - `try_join` cancels the wait, not the work.
+# the error propagates immediately and the remaining handles are cancelled
+# (`abort()`), so a later await of one returns `none` instead of blocking.
+# Because calling an `async fn` already started the task, cancellation flags
+# the handle; the eager OS thread still finishes its current work.
 pub async fn try_join(ts: list) -> list {
     var out = [];
-    for t in ts {
-        out.append(await t);
+    for i in 0..ts.len() {
+        try {
+            out.append(await ts[i]);
+        } catch e {
+            for j in 0..ts.len() {
+                if j > i { ts[j].abort(); }
+            }
+            raise(e);
+        }
     }
     return out;
+}
+
+# ---- §2.3 tasks: TaskSet / abort / spawn_blocking ---------------------------
+#
+# Calling an `async fn` starts the task eagerly, so a TaskSet *tracks* handles
+# rather than scheduling work: `set.spawn(t)` appends one. `join_next` is FIFO
+# (there is no completion-order wakeup in the thread-per-task runtime) and a
+# task's `raise` surfaces at the await site, as with `join`.
+
+pub struct TaskSetState {
+    var ts: list;
+
+    fn spawn(self, t: any) -> any {
+        self.ts.append(t);
+        return t;
+    }
+
+    fn add(self, t: any) -> any {
+        return self.spawn(t);
+    }
+
+    fn len(self) -> Int {
+        return self.ts.len();
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.ts.len() == 0;
+    }
+
+    async fn join_next(self) -> any {
+        if self.ts.len() == 0 { return none; }
+        t = self.ts.shift();
+        return await t;
+    }
+
+    async fn join_all(self) -> list {
+        out = [];
+        while self.ts.len() > 0 {
+            t = self.ts.shift();
+            out.append(await t);
+        }
+        return out;
+    }
+
+    fn abort_all(self) -> none {
+        for t in self.ts {
+            t.abort();
+        }
+        return none;
+    }
+
+    async fn shutdown(self) -> list {
+        self.abort_all();
+        return await self.join_all();
+    }
+}
+
+pub fn TaskSet() -> TaskSetState {
+    return TaskSetState(ts: []);
+}
+
+# Run a blocking/CPU closure on an OS thread. Kirn's async tasks are already OS
+# threads, so this is `spawn` under tokio's name (there is no separate blocking
+# pool; `spawn_blocking` does not require an async context).
+pub fn spawn_blocking(f: any) -> any {
+    return spawn f();
 }
 
 # ---- §2.5 async synchronization ---------------------------------------------

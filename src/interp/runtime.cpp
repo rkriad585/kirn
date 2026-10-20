@@ -6906,6 +6906,26 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     // `pet.parallel` collect parallel results without `await`.
                     return awaitTask(a[0]);
                 });
+            if (name == "is_finished")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (a.empty() || a[0].k != VK::ThreadH || !a[0].thread)
+                        return Value::boolean(true);
+                    auto t = a[0].thread;
+                    std::lock_guard<std::mutex> lk(t->m);
+                    return Value::boolean(t->done || t->aborted);
+                });
+            if (name == "abort")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (!a.empty() && a[0].k == VK::ThreadH && a[0].thread)
+                        a[0].thread->aborted = true;
+                    return Value::none();
+                });
+            if (name == "is_aborted")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    return Value::boolean(
+                        !a.empty() && a[0].k == VK::ThreadH && a[0].thread &&
+                        a[0].thread->aborted.load());
+                });
             break;
 
         case VK::File:
@@ -10249,6 +10269,13 @@ Value Interpreter::spawnTask(Value callee, std::vector<Value> args) {
 Value Interpreter::awaitTask(const Value& task) {
     auto t = task.thread;
     if (!t) return Value::none();
+    // POWER_PLAN §2.3: an aborted, still-running task is not awaited. The OS
+    // thread keeps running (there is no unwinding), but the handle behaves as
+    // cancelled. If it already finished, fall through and return the result.
+    {
+        std::lock_guard<std::mutex> lk(t->m);
+        if (!t->done && t->aborted) return Value::none();
+    }
     if (!t->done) {
         std::unique_lock<std::mutex> lk(t->m);
         t->cv.wait(lk, [&] { return t->done; });
@@ -10371,7 +10398,8 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
 
     for (;;) {
         for (size_t k = 0; k < n; ++k) {
-            const auto& pr = prepared[(start + k) % n];
+            const size_t idx = (start + k) % n;
+            const auto& pr = prepared[idx];
             bool ready = false;
             Value payload;
             switch (pr.kind) {
@@ -10390,7 +10418,7 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
                     auto t = pr.cached.thread;
                     if (t) {
                         std::lock_guard<std::mutex> lk(t->m);
-                        ready = t->done;
+                        ready = t->done || t->aborted;
                     } else {
                         ready = true;
                     }
@@ -10405,6 +10433,15 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
                     break;
             }
             if (!ready) continue;
+            // POWER_PLAN §2.3: cancel the losing task arms. Their eager OS
+            // threads still finish, but their handles become cancelled and a
+            // later `await`/`join` returns `none` instead of blocking.
+            for (size_t j = 0; j < n; ++j) {
+                if (j == idx) continue;
+                if (prepared[j].kind == Prepared::Task &&
+                    prepared[j].cached.thread)
+                    prepared[j].cached.thread->aborted = true;
+            }
             Env aenv = makeChild(env);
             if (!pr.arm->bind.empty())
                 aenv->vars[pr.arm->bind] = payload;

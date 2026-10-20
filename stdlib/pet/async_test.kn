@@ -224,5 +224,56 @@ async fn main() -> none {
     await sb.wait();
     await sbt;
 
+    # ---- §2.3 tasks: abort / TaskSet / spawn_blocking ----
+    var ta: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 300);
+        return 9;
+    });
+    assert(not ta.is_finished());
+    ta.abort();
+    assert(ta.is_aborted());
+    assert(ta.is_finished());
+    assert(await ta == none);
+
+    sset = a.TaskSet();
+    sset.spawn(addup(1));
+    sset.spawn(addup(2));
+    assert_eq(sset.len(), 2);
+    assert_eq(await sset.join_next(), 10);
+    rest = await sset.join_all();
+    assert_eq(rest.len(), 1);
+    assert_eq(rest[0], 20);
+    assert(sset.is_empty());
+
+    var sset2 = a.TaskSet();
+    sset2.spawn(addup(3));
+    sset2.abort_all();
+    drained = await sset2.shutdown();
+    assert_eq(drained.len(), 1);
+
+    var tj_slow: any = addup(7);
+    try { await a.try_join([afail(-1), tj_slow]); }
+    catch { }
+    assert(tj_slow.is_aborted());
+
+    assert_eq(await a.spawn_blocking(fn () -> Int { return 5; }), 5);
+
+    # `select` cancels the task arms it did not pick.
+    var sc_slow: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 300);
+        return 1;
+    });
+    var sc_fast: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 1);
+        return 2;
+    });
+    select biased {
+        case _v = sc_fast { }
+        case _v = sc_slow { }
+    }
+    assert(not sc_fast.is_aborted());
+    assert(sc_slow.is_aborted());
+    assert(await sc_slow == none);
+
     print("async_test ok");
 }

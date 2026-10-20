@@ -1,0 +1,59 @@
+# 84 — task cancellation, TaskSet, spawn_blocking (POWER_PLAN §2.3)
+#
+# `abort()` flags a task handle: awaiting it yields `none` instead of blocking,
+# and `is_finished()` reports true. Kirn tasks are eager OS threads, so the body
+# keeps running to completion (there is no cancellation unwinding); the flag
+# only affects the handle. `select` aborts the task arms it did not pick, and
+# `try_join` aborts the handles it never reached.
+import pet.async as a;
+
+async fn work(id: Int, ms: Int) -> Int {
+    await a.sleep(ms: ms);
+    return id;
+}
+
+async fn fail() -> Int {
+    raise("worker failed");
+}
+
+async fn main() -> none {
+    var t: any = work(1, 300);
+    print("running:", not t.is_finished());
+    t.abort();
+    print("cancelled:", t.is_aborted(), t.is_finished(), await t);
+
+    var set = a.TaskSet();
+    set.spawn(work(10, 5));
+    set.spawn(work(20, 5));
+    set.spawn(work(30, 5));
+    print("tracked:", set.len());
+    print("first:", await set.join_next());
+    rest = await set.join_all();
+    print("rest:", rest, set.is_empty());
+
+    var doomed = a.TaskSet();
+    doomed.spawn(work(40, 200));
+    doomed.spawn(work(50, 200));
+    doomed.abort_all();
+    out = await doomed.shutdown();
+    print("shutdown:", out.len());
+
+    try { await a.try_join([work(60, 1), fail(), work(70, 200)]); }
+    catch e { print("try_join:", Str(e)); }
+
+    var slow = spawn(async fn () -> Int {
+        await a.sleep(ms: 200);
+        return 100;
+    });
+    var fast = spawn(async fn () -> Int {
+        await a.sleep(ms: 1);
+        return 200;
+    });
+    select biased {
+        case v = fast { print("select picked:", v); }
+        case v = slow { print("select picked:", v); }
+    }
+    print("select cancelled loser:", slow.is_aborted());
+
+    print("blocking:", await a.spawn_blocking(fn () -> Int { return 6 * 7; }));
+}

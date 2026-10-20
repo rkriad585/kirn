@@ -1,0 +1,22 @@
+# Task cancellation surface (POWER_PLAN §2.3). Tree-walker == VM.
+import pet.async as a;
+
+async fn work(id: Int, ms: Int) -> Int {
+    await a.sleep(ms: ms);
+    return id;
+}
+
+async fn main() -> none {
+    var t: any = work(1, 100);
+    t.abort();
+    print("cancelled:", t.is_aborted(), t.is_finished(), await t);
+
+    set = a.TaskSet();
+    set.spawn(work(2, 1));
+    set.spawn(work(3, 1));
+    print("tracked:", set.len());
+    print("next:", await set.join_next());
+    print("all:", await set.join_all(), set.is_empty());
+
+    print("blocking:", await a.spawn_blocking(fn () -> Int { return 1; }));
+}

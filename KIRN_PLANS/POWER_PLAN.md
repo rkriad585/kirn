@@ -879,3 +879,27 @@ Deviations / not shipped (documented):
 - **`tick()` is not cancel-safe.** Because the schedule advances at call time, cancelling the await (e.g. losing a `select` race) still consumes a tick. Tokio's `poll_tick` is cancel-safe; matching that would require advancing inside the wait, which the copy-receiver async-method semantics currently prevent.
 - **`timeout` detaches the slow task.** Kirn tasks are eager OS threads with no cancellation token, so on timeout the task keeps running and its result is discarded rather than aborted.
 - **`timeout` polls a single handle** via `time.wait`; it is not a general select over a timer and a future (that is §2.10's `select`, still unextended).
+
+### Update (2026-10-20) — §2.9: async filesystem, process, signals
+
+**Path chosen:** extend the native `os` pseudo-module with the blocking syscalls, then wrap each in an `async fn` in sibling stdlib modules — `pet.async_fs`, `pet.async_process`, `pet.async_signal` — re-exported from `pet.async` as `a.fs`, `a.process`, `a.signal`. An `async fn` runs on a task thread, so awaiting it yields to the caller; this is the same spawn-blocking shape `tokio::fs` uses, and avoids building a reactor.
+
+Delivered:
+
+- **Native filesystem** (`src/interp/runtime.cpp`, `os`): `read_file`/`read_bytes`, `write_file` (truncate), `copy_file` (overwrite; returns bytes copied), `rename`, `remove_file`, `create_dir_all`, `exists`, `metadata` (`{is_file, is_dir, size, modified_ms}`), `read_dir` (entry names), all via `<filesystem>`.
+- **Native process** (`os`): `run(argv)` → `{code, stdout, stderr}`; `spawn(argv)` → `{pid, out_path, err_path, in_path}`; `wait(pid)` → status; `kill(pid)` → SIGKILL. fork/exec with temp-file redirection; **argv is built before `fork`** so the child of this multithreaded runtime only calls async-signal-safe functions before `execvp`.
+- **Native signals** (`os`): `install_ctrl_c` (SIGINT handler sets a `volatile sig_atomic_t`), `ctrl_c_pending`, `reset_ctrl_c`.
+- **`stdlib/pet/async_fs.kn`**: `read`, `read_to_string`, `write`, `copy`, `rename`, `remove_file`, `create_dir_all`, `exists`, `metadata`, `read_dir` (all `async fn`).
+- **`stdlib/pet/async_process.kn`**: `command`/`arg`/`args` build a dict handle; `output`/`status`/`spawn` are `async fn`; `wait`/`kill`/`wait_with_output` operate on the child dict and clean up its temp files.
+- **`stdlib/pet/async_signal.kn`**: `install`/`pending`/`reset`, plus `async fn ctrl_c()` (polls the flag on a 10 ms timer) and `stream(sig)` (one-item batch; SIGINT only).
+- **`examples/79_async_fs_process.kn`** + three goldens (examples gate now **76**); **`tests/syntax/async_io_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** covers the fs round-trip, metadata/copy/rename/read_dir, process output/status, and the signal flag.
+
+Verification: gates **331/0/0 hung** (1_runall 76, 2b_syntax 49, 4_vm_diff 94, 8_bundle 15, 11_native 11, …), golden **327/0**, crosscheck **843/0** (138 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
+
+Deviations / not shipped (documented):
+
+- **POSIX only.** `spawn` raises on Windows (filesystem and `run` still work); CI here is Linux.
+- **`Command`/`Child` are dict values driven by free functions**, not structs with methods. A method on a struct declared in an imported module is dispatched with the _entry_ globals, so its body cannot see the module's `os` import — a pre-existing limitation this phase did not change. Thus `cmd.output()` in the plan is `a.process.output(cmd)`, and `child.wait()` is `a.process.wait(child)`.
+- **No stdin piping** (spawned children read EOF), and **no `fs.File`** with `AsyncRead`/`AsyncWrite`/`AsyncSeek`; fs operations are whole-file.
+- **`signal.stream(sig)` is a one-shot batch**, not a stream (Kirn has no stream type); only SIGINT is supported, and `ctrl_c` **polls** every 10 ms rather than being woken by the handler.
+- **No process cancellation/timeout**; use `kill`. `wait`/`wait_with_output` are single-shot (a second `waitpid` on the same pid fails).

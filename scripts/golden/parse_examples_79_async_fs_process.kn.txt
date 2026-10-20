@@ -1,0 +1,256 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/79_async_fs_process.kn
+Import pet.async as a
+FuncDef "main" async
+  Ret none
+  Body
+    Assign
+      Target Ident "dir"
+      Value Str "/tmp/kirn_example_79"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="create_dir_all"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "dir"
+    Assign
+      Target Ident "p"
+      Value 
+        Binary op="+"
+          Lhs Ident "dir"
+          Rhs Str "/note.txt"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="write"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "p"
+              Arg
+                Value Str "hello"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "text:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="read_to_string"
+                        Obj 
+                          Member name="fs"
+                            Obj Ident "a"
+                    Arg
+                      Value Ident "p"
+    Assign
+      Target Ident "m"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="metadata"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "size:"
+          Arg
+            Value 
+              Index
+                Obj Ident "m"
+                At Str "size"
+          Arg
+            Value Str "file:"
+          Arg
+            Value 
+              Index
+                Obj Ident "m"
+                At Str "is_file"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="copy"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "p"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Ident "dir"
+                    Rhs Str "/copy.txt"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="rename"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Ident "dir"
+                    Rhs Str "/copy.txt"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Ident "dir"
+                    Rhs Str "/moved.txt"
+    Assign
+      Target Ident "names"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="read_dir"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "dir"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="sort"
+              Obj Ident "names"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "dir:"
+          Arg
+            Value Ident "names"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="remove_file"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "p"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="remove_file"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Ident "dir"
+                    Rhs Str "/moved.txt"
+    VarDecl
+      Target Ident "c"
+      Value 
+        Call
+          Callee 
+            Member name="command"
+              Obj 
+                Member name="process"
+                  Obj Ident "a"
+          Arg
+            Value Str "printf"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="arg"
+              Obj 
+                Member name="process"
+                  Obj Ident "a"
+          Arg
+            Value Ident "c"
+          Arg
+            Value Str "from child"
+    Assign
+      Target Ident "out"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="output"
+                  Obj 
+                    Member name="process"
+                      Obj Ident "a"
+              Arg
+                Value Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "child:"
+          Arg
+            Value 
+              Index
+                Obj Ident "out"
+                At Str "code"
+          Arg
+            Value 
+              Index
+                Obj Ident "out"
+                At Str "stdout"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="install"
+              Obj 
+                Member name="signal"
+                  Obj Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "sigint pending:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="pending"
+                    Obj 
+                      Member name="signal"
+                        Obj Ident "a"
+<ROOT>/examples/79_async_fs_process.kn: OK (2 top-level statements)
+[exit 0]

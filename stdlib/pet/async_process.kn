@@ -1,0 +1,70 @@
+# stdlib/pet/async_process.kn — async process execution (POWER_PLAN §2.9).
+#
+# Each operation that can block (running to completion, waiting for a child) is
+# an `async fn`, so it runs on a task thread and `await` yields to the caller.
+# Commands are plain dicts (a reference value), so a `command(...)` accumulator
+# stays usable without receiver-field writeback:
+#
+#   import pet.async as a;
+#   var c = a.process.command("printf");
+#   a.process.arg(c, "hi");
+#   print((await a.process.output(c))["stdout"]);
+#
+# POSIX only: `spawn` is unavailable on Windows (it raises).
+import os;
+
+# Start building a command for `prog`; add arguments with `arg`/`args`.
+pub fn command(prog: Str) -> dict {
+    return {"argv": [prog]};
+}
+
+pub fn arg(cmd: dict, value: Str) -> none {
+    cmd["argv"].append(value);
+}
+
+pub fn args(cmd: dict, values: list) -> none {
+    for v in values {
+        cmd["argv"].append(v);
+    }
+}
+
+# Run to completion; returns {code, stdout, stderr}. stdin is empty.
+pub async fn output(cmd: dict) -> dict {
+    return os.run(cmd["argv"]);
+}
+
+# Run to completion; returns only the exit status.
+pub async fn status(cmd: dict) -> Int {
+    return os.run(cmd["argv"])["code"];
+}
+
+# Start the command without waiting; returns a child handle
+# {pid, out_path, err_path, in_path}.
+pub async fn spawn(cmd: dict) -> dict {
+    return os.spawn(cmd["argv"]);
+}
+
+# Wait for a spawned child; returns its exit status and cleans up its temp files.
+pub fn wait(child: dict) -> Int {
+    code = os.wait(child["pid"]);
+    os.remove_file(child["out_path"]);
+    os.remove_file(child["err_path"]);
+    os.remove_file(child["in_path"]);
+    return code;
+}
+
+# Kill a spawned child with SIGKILL.
+pub fn kill(child: dict) -> none {
+    os.kill(child["pid"]);
+}
+
+# Wait for a spawned child, then read and remove its captured output.
+pub async fn wait_with_output(child: dict) -> dict {
+    code = os.wait(child["pid"]);
+    out = os.read_file(child["out_path"]);
+    er = os.read_file(child["err_path"]);
+    os.remove_file(child["out_path"]);
+    os.remove_file(child["err_path"]);
+    os.remove_file(child["in_path"]);
+    return {"code": code, "stdout": out, "stderr": er};
+}

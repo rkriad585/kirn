@@ -23,6 +23,14 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <atomic>
+
+#ifndef _WIN32
+#include <csignal>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace kirn {
 namespace interp {
@@ -3286,6 +3294,105 @@ static void dumpJson(const Value& v, std::string& out) {
     }
 }
 
+// ---- process spawning (POWER_PLAN §2.9) ------------------------------------
+// A tiny POSIX-free-standing launcher: create temp files for stdin/stdout/stderr,
+// fork+exec the argv, and hand back the pid and paths. `os.run` waits and reads
+// them; `os.spawn` leaves the child running for `Child.wait`/`kill`.
+namespace {
+struct SpawnedProc {
+    int pid = -1;
+    std::string outPath, errPath, inPath;
+};
+
+// Set by the SIGINT handler; `sig_atomic_t` keeps the handler async-signal-safe.
+static volatile sig_atomic_t g_ctrlC = 0;
+#ifndef _WIN32
+static void kirnCtrlCHandler(int) { g_ctrlC = 1; }
+#endif
+
+static bool launchProcess(const std::vector<std::string>& argv,
+                          SpawnedProc& sp, std::string& err) {
+#ifndef _WIN32
+    if (argv.empty() || argv[0].empty()) {
+        err = "empty command";
+        return false;
+    }
+    static std::atomic<uint64_t> seq{0};
+    auto stamp = std::to_string((long long)::getpid()) + "_" +
+                 std::to_string((unsigned long long)seq.fetch_add(1));
+    auto base = std::filesystem::temp_directory_path() / ("kirn_proc_" + stamp);
+    sp.outPath = base.string() + ".out";
+    sp.errPath = base.string() + ".err";
+    sp.inPath  = base.string() + ".in";
+    for (const auto& p : {sp.outPath, sp.errPath, sp.inPath}) {
+        std::ofstream touch(p, std::ios::binary | std::ios::trunc);
+        if (!touch) { err = "cannot create temp file '" + p + "'"; return false; }
+    }
+    // Build argv before fork: the child of a multithreaded process may only call
+    // async-signal-safe functions, and allocating there could deadlock.
+    std::vector<char*> cargv;
+    cargv.reserve(argv.size() + 1);
+    for (const auto& s : argv) cargv.push_back(const_cast<char*>(s.c_str()));
+    cargv.push_back(nullptr);
+    pid_t pid = fork();
+    if (pid < 0) { err = "fork failed"; return false; }
+    if (pid == 0) {
+        int in  = ::open(sp.inPath.c_str(),  O_RDONLY);
+        int out = ::open(sp.outPath.c_str(), O_WRONLY | O_TRUNC);
+        int er  = ::open(sp.errPath.c_str(), O_WRONLY | O_TRUNC);
+        if (in  >= 0) ::dup2(in,  0);
+        if (out >= 0) ::dup2(out, 1);
+        if (er  >= 0) ::dup2(er,  2);
+        ::execvp(cargv[0], cargv.data());
+        ::_exit(127);
+    }
+    sp.pid = (int)pid;
+    return true;
+#else
+    (void)argv; (void)sp;
+    err = "process spawn is not supported on this platform";
+    return false;
+#endif
+}
+
+static int waitProcess(int pid) {
+#ifndef _WIN32
+    int status = 0;
+    if (::waitpid((pid_t)pid, &status, 0) < 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return -1;
+#else
+    (void)pid;
+    return -1;
+#endif
+}
+
+static std::string slurpFile(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)),
+                       std::istreambuf_iterator<char>());
+}
+
+static Value runProcess(const std::vector<std::string>& argv) {
+    SpawnedProc sp;
+    std::string err;
+    if (!launchProcess(argv, sp, err)) panicHere(err);
+    int code = waitProcess(sp.pid);
+    std::string out = slurpFile(sp.outPath);
+    std::string errOut = slurpFile(sp.errPath);
+    std::error_code ec;
+    std::filesystem::remove(sp.outPath, ec);
+    std::filesystem::remove(sp.errPath, ec);
+    std::filesystem::remove(sp.inPath, ec);
+    Value d = Value::dict();
+    dictPutInPlace(d, Value::str("code"), Value::integer(code));
+    dictPutInPlace(d, Value::str("stdout"), Value::str(std::move(out)));
+    dictPutInPlace(d, Value::str("stderr"), Value::str(std::move(errOut)));
+    return d;
+}
+}  // namespace
+
 Value Interpreter::moduleMember(const std::string& mod, const std::string& name) {
     // file-backed modules: look the member up in the module's namespace
     if (mod.rfind("__loaded__:", 0) == 0) {
@@ -3854,6 +3961,176 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             return biFn({"name"}, [](std::vector<Value>& a) -> Value {
                 const char* v = envGet(toStr(a[0]).c_str());
                 return v ? Value::str(v) : Value::none();
+            });
+        // ---- filesystem primitives (POWER_PLAN §2.9) -----------------------
+        // These are the blocking syscalls. `pet.async.fs` wraps each in an
+        // `async fn`, so the call runs on a task thread instead of the caller
+        // (the same spawn-blocking shape tokio::fs uses).
+        if (name == "read_file" || name == "read_bytes") {
+            bool asBytes = name == "read_bytes";
+            return biFn({"path"}, [asBytes](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                std::ifstream f(path, std::ios::binary);
+                if (!f) panicHere("cannot open '" + path + "'");
+                std::string data((std::istreambuf_iterator<char>(f)),
+                                 std::istreambuf_iterator<char>());
+                Value v = Value::str(std::move(data));
+                if (asBytes) v.k = VK::Bytes;
+                return v;
+            });
+        }
+        if (name == "write_file")
+            return biFn({"path", "data"}, [](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                std::ofstream f(path, std::ios::binary | std::ios::trunc);
+                if (!f) panicHere("cannot write '" + path + "'");
+                f << (a.size() > 1 && isBuffer(a[1]) ? bytesData(a[1])
+                                                     : toStr(a.size() > 1 ? a[1] : Value()));
+                f.close();
+                return Value::none();
+            });
+        if (name == "copy_file")
+            return biFn({"from", "to"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                std::filesystem::copy_file(toStr(a[0]), toStr(a[1]),
+                    std::filesystem::copy_options::overwrite_existing, ec);
+                if (ec) panicHere("copy '" + toStr(a[0]) + "' -> '" +
+                                  toStr(a[1]) + "': " + ec.message());
+                auto sz = std::filesystem::file_size(toStr(a[1]), ec);
+                return Value::integer(ec ? 0 : (int64_t)sz);
+            });
+        if (name == "rename")
+            return biFn({"from", "to"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                std::filesystem::rename(toStr(a[0]), toStr(a[1]), ec);
+                if (ec) panicHere("rename '" + toStr(a[0]) + "' -> '" +
+                                  toStr(a[1]) + "': " + ec.message());
+                return Value::none();
+            });
+        if (name == "remove_file")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                bool removed = std::filesystem::remove(toStr(a[0]), ec);
+                if (ec) panicHere("remove '" + toStr(a[0]) + "': " + ec.message());
+                if (!removed) panicHere("remove '" + toStr(a[0]) + "': no such file");
+                return Value::none();
+            });
+        if (name == "create_dir_all")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                std::filesystem::create_directories(toStr(a[0]), ec);
+                if (ec) panicHere("create_dir_all '" + toStr(a[0]) + "': " +
+                                  ec.message());
+                return Value::none();
+            });
+        if (name == "exists")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                bool ok = std::filesystem::exists(toStr(a[0]), ec);
+                return Value::boolean(ok && !ec);
+            });
+        if (name == "metadata")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                std::error_code ec;
+                auto st = std::filesystem::status(path, ec);
+                if (ec || st.type() == std::filesystem::file_type::not_found)
+                    panicHere("metadata '" + path + "': no such file");
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("is_file"),
+                               Value::boolean(std::filesystem::is_regular_file(st)));
+                dictPutInPlace(d, Value::str("is_dir"),
+                               Value::boolean(std::filesystem::is_directory(st)));
+                auto sz = std::filesystem::file_size(path, ec);
+                dictPutInPlace(d, Value::str("size"),
+                               Value::integer(ec ? 0 : (int64_t)sz));
+                auto mt = std::filesystem::last_write_time(path, ec);
+                int64_t ms = 0;
+                if (!ec) {
+                    auto sys = std::chrono::time_point_cast<
+                        std::chrono::milliseconds>(
+                        mt - decltype(mt)::clock::now() +
+                        std::chrono::system_clock::now());
+                    ms = (int64_t)sys.time_since_epoch().count();
+                }
+                dictPutInPlace(d, Value::str("modified_ms"),
+                               Value::integer(ms));
+                return d;
+            });
+        if (name == "read_dir")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                std::error_code ec;
+                std::filesystem::directory_iterator it(path, ec), end;
+                if (ec) panicHere("read_dir '" + path + "': " + ec.message());
+                Value out = Value::list();
+                for (; it != end; it.increment(ec)) {
+                    if (ec) break;
+                    out.vec->push_back(Value::str(it->path().filename().string()));
+                }
+                return out;
+            });
+        // ---- process primitives (POWER_PLAN §2.9) --------------------------
+        // `run` blocks to completion and captures output; `spawn` returns a
+        // handle (pid + temp paths) for `pet.async.process.Child`.
+        if (name == "run")
+            return biFn({"argv"}, [](std::vector<Value>& a) -> Value {
+                std::vector<std::string> argv;
+                if (!a.empty() && a[0].k == VK::List && a[0].vec)
+                    for (auto& e : *a[0].vec) argv.push_back(toStr(e));
+                else if (!a.empty())
+                    argv.push_back(toStr(a[0]));
+                return runProcess(argv);
+            });
+        if (name == "spawn")
+            return biFn({"argv"}, [](std::vector<Value>& a) -> Value {
+                std::vector<std::string> argv;
+                if (!a.empty() && a[0].k == VK::List && a[0].vec)
+                    for (auto& e : *a[0].vec) argv.push_back(toStr(e));
+                else if (!a.empty())
+                    argv.push_back(toStr(a[0]));
+                SpawnedProc sp;
+                std::string err;
+                if (!launchProcess(argv, sp, err)) panicHere(err);
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("pid"), Value::integer(sp.pid));
+                dictPutInPlace(d, Value::str("out_path"), Value::str(sp.outPath));
+                dictPutInPlace(d, Value::str("err_path"), Value::str(sp.errPath));
+                dictPutInPlace(d, Value::str("in_path"), Value::str(sp.inPath));
+                return d;
+            });
+        if (name == "wait")
+            return biFn({"pid"}, [](std::vector<Value>& a) -> Value {
+                int pid = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                return Value::integer(waitProcess(pid));
+            });
+        if (name == "kill")
+            return biFn({"pid"}, [](std::vector<Value>& a) -> Value {
+#ifndef _WIN32
+                if (!a.empty() && a[0].k == VK::Int)
+                    ::kill((pid_t)a[0].i, SIGKILL);
+#endif
+                return Value::none();
+            });
+        // ---- signal primitives (POWER_PLAN §2.9) ---------------------------
+        // `install_ctrl_c` arms a SIGINT handler that only raises a flag;
+        // `ctrl_c_pending` polls it, so `pet.async.signal.ctrl_c` can wait
+        // cooperatively with a timer instead of blocking a worker.
+        if (name == "install_ctrl_c")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+#ifndef _WIN32
+                std::signal(SIGINT, kirnCtrlCHandler);
+#endif
+                return Value::none();
+            });
+        if (name == "ctrl_c_pending")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                return Value::integer((int64_t)g_ctrlC);
+            });
+        if (name == "reset_ctrl_c")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                g_ctrlC = 0;
+                return Value::none();
             });
         panicHere("os has no member '" + name + "'");
     }

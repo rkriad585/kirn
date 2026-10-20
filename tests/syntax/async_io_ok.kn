@@ -1,0 +1,29 @@
+# Async filesystem / process / signal surface (POWER_PLAN §2.9). Runs
+# identically under the tree-walker and the VM.
+import pet.async as a;
+
+async fn main() -> none {
+    dir = "/tmp/kirn_syntax_async_io";
+    await a.fs.create_dir_all(dir);
+    p = dir + "/a.txt";
+    await a.fs.write(p, "data");
+    print("read:", await a.fs.read_to_string(p));
+    print("exists:", await a.fs.exists(p));
+    print("meta:", (await a.fs.metadata(p))["size"]);
+
+    await a.fs.copy(p, dir + "/b.txt");
+    await a.fs.rename(dir + "/b.txt", dir + "/c.txt");
+    print("renamed:", await a.fs.exists(dir + "/c.txt"));
+
+    var c = a.process.command("printf");
+    a.process.arg(c, "ok");
+    out = await a.process.output(c);
+    print("proc:", out["code"], out["stdout"]);
+    print("status:", await a.process.status(a.process.command("true")));
+
+    a.signal.install();
+    print("pending:", a.signal.pending());
+
+    await a.fs.remove_file(p);
+    await a.fs.remove_file(dir + "/c.txt");
+}

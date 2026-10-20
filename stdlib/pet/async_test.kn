@@ -93,5 +93,35 @@ async fn main() -> none {
     try { a.interval(period_ms: 0); } catch e { bad = Str(e); }
     assert_eq(bad, "interval period must be positive");
 
+    # ---- §2.9 async filesystem ----
+    adir = "/tmp/kirn_async_test_fs";
+    await a.fs.create_dir_all(adir);
+    ap = adir + "/t.txt";
+    await a.fs.write(ap, "abc");
+    assert(await a.fs.exists(ap));
+    assert_eq(await a.fs.read_to_string(ap), "abc");
+    assert_eq((await a.fs.metadata(ap))["size"], 3);
+    assert_eq(await a.fs.copy(ap, adir + "/c.txt"), 3);
+    await a.fs.rename(adir + "/c.txt", adir + "/m.txt");
+    assert(await a.fs.exists(adir + "/m.txt"));
+    names = await a.fs.read_dir(adir);
+    assert(names.contains("t.txt"));
+    assert(names.contains("m.txt"));
+    await a.fs.remove_file(ap);
+    await a.fs.remove_file(adir + "/m.txt");
+    assert(not await a.fs.exists(ap));
+
+    # ---- §2.9 process execution ----
+    var pc = a.process.command("printf");
+    a.process.arg(pc, "hi");
+    pout = await a.process.output(pc);
+    assert_eq(pout["code"], 0);
+    assert_eq(pout["stdout"], "hi");
+    assert_eq(await a.process.status(a.process.command("false")), 1);
+
+    # ---- §2.9 signals: the handler installs and the flag starts clear ----
+    a.signal.install();
+    assert(not a.signal.pending());
+
     print("async_test ok");
 }

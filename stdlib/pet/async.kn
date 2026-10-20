@@ -9,6 +9,13 @@
 #   var t = a.sleep(ms: 100);   # a timer future
 #   await t;
 
+# §2.9 async filesystem lives in a sibling module, re-exported as `a.fs`.
+import pet.async_fs as fs;
+# §2.9 process execution and signal handling, re-exported as `a.process` /
+# `a.signal`.
+import pet.async_process as process;
+import pet.async_signal as signal;
+
 # Sleep for `ms` milliseconds. Returns an awaitable timer, so `await sleep(..)`
 # cooperates with other tasks instead of blocking a worker thread.
 pub fn sleep(ms: Int) -> any {

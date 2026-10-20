@@ -1,0 +1,36 @@
+# 79 — Async filesystem, process, and signals (POWER_PLAN §2.9)
+#
+# `pet.async` re-exports sibling modules: `a.fs` (filesystem), `a.process`
+# (commands) and `a.signal`. Each blocking syscall runs inside an `async fn`, so
+# `await` yields to other tasks instead of blocking the caller.
+import pet.async as a;
+
+async fn main() -> none {
+    dir = "/tmp/kirn_example_79";
+    await a.fs.create_dir_all(dir);
+    p = dir + "/note.txt";
+
+    await a.fs.write(p, "hello");
+    print("text:", await a.fs.read_to_string(p));
+    m = await a.fs.metadata(p);
+    print("size:", m["size"], "file:", m["is_file"]);
+
+    await a.fs.copy(p, dir + "/copy.txt");
+    await a.fs.rename(dir + "/copy.txt", dir + "/moved.txt");
+    names = await a.fs.read_dir(dir);
+    names.sort();
+    print("dir:", names);
+
+    await a.fs.remove_file(p);
+    await a.fs.remove_file(dir + "/moved.txt");
+
+    # Run a command and capture its output.
+    var c = a.process.command("printf");
+    a.process.arg(c, "from child");
+    out = await a.process.output(c);
+    print("child:", out["code"], out["stdout"]);
+
+    # The SIGINT handler installs; the flag is clear until Ctrl-C is pressed.
+    a.signal.install();
+    print("sigint pending:", a.signal.pending());
+}

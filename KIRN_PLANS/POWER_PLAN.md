@@ -952,3 +952,31 @@ Deviations / not shipped (documented):
 - **`biased`/rotation is per select invocation, not per poll.** Tokio randomizes the arm order on every poll of a single select; here the start index is fixed for the duration of one `select` execution. With one always-ready arm this is indistinguishable; with multiple, the per-invocation rotation prevents long-run starvation.
 - **No `select!`-style `if` guards or per-arm patterns.** An arm is still `case [bind =] expr`; use an `if` inside the body for conditional logic.
 - **`select` arms cannot bind `none` from a timer.** Timer arms bind `none` (as before); task arms bind the result value.
+
+### Update (2026-10-20) — §2.5 async synchronization (`pet.async`)
+
+**Path chosen:** thin `async fn` wrappers over the existing blocking primitives. Native `Mutex`/`RwMutex`/`Once` already exist, and `pet.sync` already implements `Semaphore`/`Notify`/`Barrier` on top of `Mutex` + `Cond` with all mutable state in a shared list; duplicating those state machines would add no value. `pet.async` re-exports the factories under the plan's names, so `a.Mutex(v)`/`a.RwLock(v)`/`a.Semaphore(n)`/`a.Notify()`/`a.OnceCell()`/`a.Barrier(n)` all live next to the rest of `pet.async`. A native `try_rlock` was the only missing operation.
+
+Delivered:
+
+- **Native `sync.RwMutex`**: added `try_rlock` (alias `try_read_lock`), a non-blocking shared read acquire used by `RwLock.try_read`.
+- **`stdlib/pet/async.kn` §2.5 block** (imports the native namespace as `sysnc` and `pet.sync` as `psync`):
+  - `Mutex(value)` → `MutexState` with `async lock()` → `MutexGuard`, `try_lock()` → guard|`none`, `get`, `async with(f)` (unlocks via `defer`, including on a raise), `is_locked`; guard `get`/`set`/`unlock`.
+  - `RwLock(value)` → `RwLockState` with `async read()`/`write()`, `try_read()`/`try_write()`, `get`; `ReadGuard.get`/`unlock`, `WriteGuard.get`/`set`/`unlock`.
+  - `Semaphore(permits)` → `AsyncSemaphore` with `async acquire`/`acquire_n`, `try_acquire`/`try_acquire_n`, `release`/`release_n`, `available`.
+  - `Notify()` → `AsyncNotify` with `notify_one`/`notify_waiters`, `async notified()`, `waiter_count`.
+  - `OnceCell()` → `OnceCellState` with `get`, `is_set`, `async get_or_init(f)`; initialisation is guarded by native `Once`, so concurrent callers run `f` at most once.
+  - `Barrier(parties)` → `AsyncBarrier` with `async wait()` returning the generation.
+- **Loader fix (`src/interp/runtime.cpp`)**: inside a module, `import NATIVE as alias;` now binds `alias`. The old code bound a prebound module only when the import had no alias, so `import sync as sysnc;` in `pet.async` left `sysnc` undefined when a factory ran. Entry-file imports already handled aliases; this closes the module-file gap (and is why the async sync API can name its factories `Mutex(...)` while still reaching the native constructor through an alias).
+- **`examples/82_async_sync.kn`** + three goldens (examples gate now **79**); **`tests/syntax/async_sync_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** covers 4×100 mutex increments, `with`, `try_lock` contention, read/write/try guards, semaphore permits, a stored `Notify` permit, single-run `OnceCell`, and a two-party `Barrier`.
+
+Verification: gates **340/0/0 hung** (1_runall 79, 2b_syntax 52, 4_vm_diff 97, 8_bundle 15, 11_native 11, …), golden **336/0**, crosscheck **873/0** (143 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files; the §2.5 probe matches across tree-walker and VM.
+
+Deviations / not shipped (documented):
+
+- **No poisoning and no RAII.** A `raise`/panic while holding a guard does not mark the lock poisoned; guards must be released with `unlock()`. `Mutex.with` is the exception: it uses `defer` so it unlocks even on a raise, but it passes the *value*, not a mutable guard.
+- **`try_lock`/`try_read`/`try_write` return a guard or `none`**, not `Result`; callers test `== none`. `Mutex.try_lock` on a lock already held by the *same* OS thread inherits `std::mutex` semantics (non-recursive; not a supported pattern).
+- **`Mutex.get` is an unlocked peek**, for diagnostics/single-threaded reads; use a guard for shared mutation.
+- **Waits block the task thread.** `lock`/`read`/`write`/`acquire`/`notified`/`wait` are `async fn`s for API shape and to keep `await` uniform, but the underlying primitive blocks; there is no async-aware waiter queue.
+- **`OnceCell.get_or_init` takes a plain function value** (no `async` initialiser, no `await` inside `f`), and there is no `set`/`get_or_try_init`. `OnceCell.get()` returns `none` before initialisation (Kirn's `Option`).
+- **`Notify` follows `pet.sync` semantics** (one stored permit, `notify_waiters` wakes current waiters), and `Barrier` is reusable with generation numbers, matching `pet.sync` rather than adding new behaviour.

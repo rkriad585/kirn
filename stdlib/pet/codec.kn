@@ -13,8 +13,87 @@
 # (externally tagged), list/tuple/set/deque -> list, dict/counter -> dict with
 # string keys, scalars as-is (inf/nan float -> none, which every renderer
 # prints as null).
+#
+# POWER_PLAN §3.2 — `@[serde(...)]` options are honoured here, at the shared
+# tree layer, so every format gets them for free:
+#   container: rename_all, deny_unknown_fields, transparent, tag, content,
+#              untagged
+#   field:     rename, alias, skip, skip_serializing, skip_deserializing,
+#              flatten, default (implicit — see decode_struct), default = "…"
+#              is not supported
+#   variant:   rename, alias, skip, skip_serializing, skip_deserializing,
+#              untagged (per-variant)
+# `rename_all` uses serde's rules (lowercase/UPPERCASE/PascalCase/camelCase/
+# snake_case/SCREAMING_SNAKE_CASE/kebab-case/SCREAMING-KEBAB-CASE) via native
+# `reflect.case`. Not supported (documented): `with`, `serialize_with`,
+# `deserialize_with`, `skip_serializing_if`, `borrow`, `bound`, and the
+# `default = "path"` function form.
 
 import reflect;
+
+# ---- Attribute helpers -----------------------------------------------------
+
+# `attrs` is `{attrName: [{name, value}, …]}` (see runtime decoratorsValue).
+fn attr_args(attrs: any, name: Str) -> list {
+    if reflect.kind_of(attrs) != "dict" { return []; }
+    if has_key(attrs, name) { return attrs[name]; }
+    return [];
+}
+
+fn opt(args: list, name: Str) -> any {
+    for a in args {
+        if a["name"] == name { return a["value"]; }
+    }
+    return none;
+}
+
+fn has_opt(args: list, name: Str) -> Bool {
+    for a in args {
+        if a["name"] == name { return true; }
+    }
+    return false;
+}
+
+fn opts(args: list, name: Str) -> list {
+    out = [];
+    for a in args {
+        if a["name"] == name { out.append(a["value"]); }
+    }
+    return out;
+}
+
+fn str_opt(args: list, name: Str) -> Str {
+    v = opt(args, name);
+    if reflect.kind_of(v) == "string" { return v; }
+    return "";
+}
+
+fn field_args(fattrs: any, fname: Str) -> list {
+    if reflect.kind_of(fattrs) != "dict" { return []; }
+    if not has_key(fattrs, fname) { return []; }
+    return attr_args(fattrs[fname], "serde");
+}
+
+fn variant_args(vattrs: any, vname: Str) -> list {
+    if reflect.kind_of(vattrs) != "dict" { return []; }
+    if not has_key(vattrs, vname) { return []; }
+    return attr_args(vattrs[vname], "serde");
+}
+
+fn serde_name(orig: Str, args: list, rule: Str, kind: Str) -> Str {
+    r = str_opt(args, "rename");
+    if r != "" { return r; }
+    if rule != "" { return reflect.case(orig, rule, kind); }
+    return orig;
+}
+
+fn skip_ser(args: list) -> Bool {
+    return has_opt(args, "skip") or has_opt(args, "skip_serializing");
+}
+
+fn skip_de(args: list) -> Bool {
+    return has_opt(args, "skip") or has_opt(args, "skip_deserializing");
+}
 
 # ---- Encoding: any -> tree -------------------------------------------------
 
@@ -58,16 +137,90 @@ fn enc_map(v: any) -> any {
 }
 
 fn enc_struct(v: any) -> any {
+    attrs = reflect.type_attrs(v);
+    sargs = attr_args(attrs, "serde");
+    names = reflect.field_names(v);
+    fattrs = reflect.field_attrs(v);
+    rule = str_opt(sargs, "rename_all");
+
+    if has_opt(sargs, "transparent") {
+        for name in names {
+            fargs = field_args(fattrs, name);
+            if not skip_ser(fargs) {
+                return enc_tree(reflect.get_field(v, name));
+            }
+        }
+        raise("serde: transparent struct " + Str(reflect.type(v)) +
+              " has no serializable field");
+    }
+
     out = {};
-    for name in reflect.field_names(v) {
-        out[name] = enc_tree(reflect.get_field(v, name));
+    for name in names {
+        fargs = field_args(fattrs, name);
+        if skip_ser(fargs) { continue; }
+        if has_opt(fargs, "flatten") {
+            merge_map(out, enc_tree(reflect.get_field(v, name)));
+        } else {
+            key = serde_name(name, fargs, rule, "field");
+            out[key] = enc_tree(reflect.get_field(v, name));
+        }
     }
     return out;
 }
 
+fn merge_map(dst: any, src: any) -> none {
+    if reflect.kind_of(src) == "none" { return none; }
+    if reflect.kind_of(src) != "dict" {
+        raise("serde: flatten requires a map or struct field");
+    }
+    for k in src { dst[k] = src[k]; }
+    return none;
+}
+
 fn enc_enum(v: any) -> any {
-    name = reflect.variant(v);
+    attrs = reflect.type_attrs(v);
+    sargs = attr_args(attrs, "serde");
+    rule = str_opt(sargs, "rename_all");
+    tag = str_opt(sargs, "tag");
+    content = str_opt(sargs, "content");
+    untagged = has_opt(sargs, "untagged");
+
+    vname = reflect.variant(v);
+    vattrs = reflect.variant_attrs(v);
+    vargs = variant_args(vattrs, vname);
+    if skip_ser(vargs) {
+        raise("serde: variant '" + vname + "' is skipped");
+    }
+    if has_opt(vargs, "untagged") { untagged = true; }
+    name = serde_name(vname, vargs, rule, "variant");
     payload = reflect.payload(v);
+
+    if untagged {
+        if payload.len() == 0 { return none; }
+        if payload.len() == 1 { return enc_tree(payload[0]); }
+        return enc_seq(payload);
+    }
+    if tag != "" and content != "" {
+        out = {};
+        out[tag] = name;
+        if payload.len() > 0 { out[content] = enc_seq(payload); }
+        else { out[content] = none; }
+        return out;
+    }
+    if tag != "" {
+        # Internally tagged: merge the (named) payload fields beside the tag.
+        pnames = reflect.enum_payload_names(v, vname);
+        out = {};
+        out[tag] = name;
+        var i = 0;
+        while i < payload.len() {
+            var pn = "v" + Str(i);
+            if i < pnames.len() and pnames[i] != "" { pn = pnames[i]; }
+            out[pn] = enc_tree(payload[i]);
+            i = i + 1;
+        }
+        return out;
+    }
     var pj = none;
     if payload.len() > 0 { pj = enc_seq(payload); }
     out = {};
@@ -86,22 +239,130 @@ pub fn coerce_type(T: any, data: any) -> any {
 }
 
 fn decode_struct(T: any, data: any) -> any {
+    attrs = reflect.type_attrs(T);
+    sargs = attr_args(attrs, "serde");
+    types = reflect.field_type_names(T);
+    generics = reflect.field_generics(T);
+    fattrs = reflect.field_attrs(T);
+    rule = str_opt(sargs, "rename_all");
+    deny = has_opt(sargs, "deny_unknown_fields");
+
+    var has_flat = false;
+    for fname in types {
+        if has_opt(field_args(fattrs, fname), "flatten") { has_flat = true; }
+    }
+    if deny and has_flat {
+        raise("serde: deny_unknown_fields cannot be combined with flatten");
+    }
+
+    if has_opt(sargs, "transparent") {
+        for fname in types {
+            fargs = field_args(fattrs, fname);
+            if skip_de(fargs) { continue; }
+            fields = {};
+            gen = generics[fname];
+            fields[fname] = coerce(types[fname], gen, data);
+            return reflect.new(T, fields);
+        }
+        raise("serde: transparent struct " + Str(T) +
+              " has no deserializable field");
+    }
+
     if reflect.kind_of(data) != "dict" {
         raise("serde: expected an object for struct " + Str(T));
     }
-    types = reflect.field_type_names(T);
-    generics = reflect.field_generics(T);
+
     fields = {};
+    consumed = [];
     for fname in types {
-        if has_key(data, fname) {
+        fargs = field_args(fattrs, fname);
+        if skip_de(fargs) { continue; }
+        if has_opt(fargs, "flatten") {
+            # Everything not claimed by an ordinary field belongs to the
+            # flattened field. `deny_unknown_fields` was rejected above.
+            sub = {};
+            for k in data {
+                if not contains(consumed, k) { sub[k] = data[k]; }
+            }
             gen = generics[fname];
-            fields[fname] = coerce(types[fname], gen, data[fname]);
+            fields[fname] = coerce(types[fname], gen, sub);
+            continue;
+        }
+        key = serde_name(fname, fargs, rule, "field");
+        var present = false;
+        var raw = none;
+        if has_key(data, key) {
+            present = true;
+            raw = data[key];
+            consumed.append(key);
+        } else {
+            for al in opts(fargs, "alias") {
+                if has_key(data, al) {
+                    present = true;
+                    raw = data[al];
+                    consumed.append(al);
+                    break;
+                }
+            }
+        }
+        if present {
+            gen = generics[fname];
+            fields[fname] = coerce(types[fname], gen, raw);
+        }
+    }
+    if deny {
+        for k in data {
+            if not contains(consumed, k) {
+                raise("serde: unknown field '" + Str(k) + "' for " + Str(T));
+            }
         }
     }
     return reflect.new(T, fields);
 }
 
 fn decode_enum(T: any, data: any) -> any {
+    attrs = reflect.type_attrs(T);
+    sargs = attr_args(attrs, "serde");
+    rule = str_opt(sargs, "rename_all");
+    tag = str_opt(sargs, "tag");
+    content = str_opt(sargs, "content");
+    vattrs = reflect.variant_attrs(T);
+    variants = reflect.variants(T);
+
+    if has_opt(sargs, "untagged") {
+        return decode_untagged(T, data, variants, vattrs);
+    }
+    if tag != "" and content == "" {
+        if reflect.kind_of(data) != "dict" or not has_key(data, tag) {
+            raise("serde: expected an object with tag '" + tag + "' for " +
+                  Str(T));
+        }
+        real = find_variant(T, variants, vattrs, rule, data[tag]);
+        pnames = reflect.enum_payload_names(T, real);
+        ptys = reflect.enum_payload_type_names(T, real);
+        coerced = [];
+        for i in 0..pnames.len() {
+            pn = pnames[i];
+            var raw = none;
+            if pn != "" and has_key(data, pn) { raw = data[pn]; }
+            var pt = "";
+            if i < ptys.len() { pt = ptys[i]; }
+            coerced.append(coerce(pt, [], raw));
+        }
+        return reflect.enum_new(T, real, coerced);
+    }
+    if tag != "" and content != "" {
+        if reflect.kind_of(data) != "dict" or not has_key(data, tag) {
+            raise("serde: expected an object with tag '" + tag + "' for " +
+                  Str(T));
+        }
+        real = find_variant(T, variants, vattrs, rule, data[tag]);
+        var raw = none;
+        if has_key(data, content) { raw = data[content]; }
+        return build_payload(T, real, raw);
+    }
+
+    # externally tagged (the default)
     if reflect.kind_of(data) != "dict" {
         raise("serde: expected an object for enum " + Str(T));
     }
@@ -110,23 +371,105 @@ fn decode_enum(T: any, data: any) -> any {
     if keys.len() != 1 {
         raise("serde: enum object must have exactly one variant key");
     }
-    variant = keys[0];
-    pj = data[variant];
-    var payload = [];
-    if reflect.kind_of(pj) == "list" { payload = pj; }
-    if reflect.kind_of(pj) != "none" and reflect.kind_of(pj) != "list" {
+    real = find_variant(T, variants, vattrs, rule, keys[0]);
+    return build_payload(T, real, data[keys[0]]);
+}
+
+fn find_variant(T: any, variants: list, vattrs: any, rule: Str,
+                given: any) -> Str {
+    for v in variants {
+        vargs = variant_args(vattrs, v);
+        if skip_de(vargs) { continue; }
+        name = serde_name(v, vargs, rule, "variant");
+        if name == given { return v; }
+        for al in opts(vargs, "alias") {
+            if al == given { return v; }
+        }
+    }
+    raise("serde: unknown variant '" + Str(given) + "' for " + Str(T));
+}
+
+fn build_payload(T: any, variant: Str, pj: any) -> any {
+    payload = [];
+    if reflect.kind_of(pj) == "list" {
+        payload = pj;
+    } else if reflect.kind_of(pj) != "none" {
         payload = [pj];
     }
     ptys = reflect.enum_payload_type_names(T, variant);
     coerced = [];
-    var i = 0;
-    while i < payload.len() {
+    for i in 0..payload.len() {
         var pt = "";
         if i < ptys.len() { pt = ptys[i]; }
         coerced.append(coerce(pt, [], payload[i]));
-        i = i + 1;
     }
     return reflect.enum_new(T, variant, coerced);
+}
+
+fn decode_untagged(T: any, data: any, variants: list, vattrs: any) -> any {
+    for v in variants {
+        vargs = variant_args(vattrs, v);
+        if skip_de(vargs) { continue; }
+        ptys = reflect.enum_payload_type_names(T, v);
+        var payload = [];
+        var matched = false;
+        if ptys.len() == 0 {
+            if reflect.kind_of(data) == "none" { matched = true; }
+        } else if ptys.len() == 1 {
+            if type_ok(ptys[0], data) {
+                payload = [data];
+                matched = true;
+            }
+        } else if reflect.kind_of(data) == "list" {
+            var ok = true;
+            var i = 0;
+            while i < ptys.len() {
+                if i >= data.len() or not type_ok(ptys[i], data[i]) {
+                    ok = false;
+                }
+                i = i + 1;
+            }
+            if ok {
+                payload = data;
+                matched = true;
+            }
+        }
+        if matched {
+            coerced = [];
+            for i in 0..ptys.len() {
+                var raw = none;
+                if i < payload.len() { raw = payload[i]; }
+                coerced.append(coerce(ptys[i], [], raw));
+            }
+            return reflect.enum_new(T, v, coerced);
+        }
+    }
+    raise("serde: no untagged variant of " + Str(T) + " matched");
+}
+
+# Untagged matching needs shape checks; `coerce` itself is deliberately lenient
+# (JSON has one number type), which would make the first variant always win.
+fn type_ok(ft: Str, raw: any) -> Bool {
+    k = reflect.kind_of(raw);
+    if ft == "Int" or ft == "int" or ft == "i64" or ft == "i32" or ft == "i16" or ft == "i8" or ft == "u64" or ft == "u32" or ft == "u16" or ft == "u8" {
+        return k == "int" or k == "float";
+    }
+    if ft == "Float" or ft == "float" or ft == "f64" or ft == "f32" {
+        return k == "int" or k == "float";
+    }
+    if ft == "Bool" or ft == "bool" { return k == "bool"; }
+    if ft == "Str" or ft == "str" or ft == "String" or ft == "string" {
+        return k == "string";
+    }
+    if ft == "list" or ft == "List" { return k == "list"; }
+    if ft == "dict" or ft == "Dict" { return k == "dict"; }
+    if ft == "any" { return true; }
+    tr = reflect.type_ref(ft);
+    if tr != none {
+        if reflect.variants(tr).len() > 0 { return k == "dict"; }
+        if reflect.field_type_names(tr).len() > 0 { return k == "dict"; }
+    }
+    return true;
 }
 
 # Coerce a decoded value to the declared type named `ft`, using the
@@ -174,6 +517,13 @@ fn has_key(d: any, k: Str) -> Bool {
     if reflect.kind_of(d) != "dict" { return false; }
     for kk in d {
         if kk == k { return true; }
+    }
+    return false;
+}
+
+fn contains(xs: list, k: any) -> Bool {
+    for x in xs {
+        if x == k { return true; }
     }
     return false;
 }

@@ -1,0 +1,84 @@
+# 83 — serde attributes: rename, skip, flatten, tagging (POWER_PLAN §3.2)
+#
+# `@[serde(...)]` options are read through `reflect` and applied in the shared
+# `pet.codec` tree layer, so JSON / TOML / YAML / CBOR all honour them.
+import pet.json as json;
+import pet.toml as toml;
+import reflect;
+
+@[serde(rename_all = "camelCase")]
+struct User {
+    user_name: Str;
+    @[serde(rename = "id")] user_id: Int;
+    @[serde(skip)] session: Str;
+    @[serde(default)] age: Int;
+}
+
+struct Point { x: Int; y: Int; }
+
+struct Record {
+    name: Str;
+    @[serde(flatten)] at: Point;
+}
+
+@[serde(deny_unknown_fields)]
+struct Strict { id: Int; }
+
+@[serde(transparent)]
+struct Meters { value: Float; }
+
+@[serde(tag = "type", rename_all = "snake_case")]
+enum Event {
+    UserLogin(user: Str);
+    Logout;
+}
+
+@[serde(tag = "kind", content = "data")]
+enum Frame { Num(n: Int); Text(s: Str); }
+
+@[serde(untagged)]
+enum Value { N(n: Int); S(s: Str); }
+
+@[serde(rename_all = "kebab-case")]
+enum Legacy {
+    @[serde(alias = "old_name")] NewName;
+}
+
+fn main() -> none {
+    u = User(user_name: "ada", user_id: 7, session: "secret", age: 36);
+    print("user:", json.to_string(u));
+    ub = json.from_string(User, "{\"userName\": \"ada\", \"id\": 7}");
+    print("back:", ub.user_name, ub.user_id, ub.age, ub.session == "");
+
+    r = Record(name: "home", at: Point(x: 1, y: 2));
+    print("flatten:", json.to_string(r));
+    rb = json.from_string(Record, "{\"name\": \"work\", \"x\": 3, \"y\": 4}");
+    print("flatten back:", rb.name, rb.at.x, rb.at.y);
+
+    try { json.from_string(Strict, "{\"id\": 1, \"extra\": 2}"); }
+    catch e { print("strict:", Str(e)); }
+
+    print("transparent:", json.to_string(Meters(value: 1.5)),
+          json.from_string(Meters, "2.5").value);
+
+    print("event:", json.to_string(Event.UserLogin(user: "bo")),
+          json.to_string(Event.Logout));
+    eb = json.from_string(Event, "{\"type\": \"user_login\", \"user\": \"cy\"}");
+    print("event back:", reflect.variant(eb), eb.user);
+
+    print("frame:", json.to_string(Frame.Num(n: 4)));
+    fb = json.from_string(Frame, "{\"kind\": \"Text\", \"data\": [\"hi\"]}");
+    print("frame back:", reflect.variant(fb), reflect.payload(fb)[0]);
+
+    print("untagged:", json.to_string(Value.N(n: 5)),
+          json.to_string(Value.S(s: "hi")));
+    vb = json.from_string(Value, "\"hello\"");
+    print("untagged back:", reflect.variant(vb), reflect.payload(vb)[0]);
+
+    print("alias:", json.to_string(Legacy.NewName));
+    lb = json.from_string(Legacy, "{\"old_name\": null}");
+    print("alias back:", reflect.variant(lb));
+
+    print("toml:");
+    print(toml.to_string(u));
+}

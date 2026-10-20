@@ -1166,6 +1166,144 @@ static std::vector<std::string> typeGenericNames(const ast::Type& t) {
     return out;
 }
 
+// POWER_PLAN §3.2: a literal attribute argument (`rename = "id"`, `skip`, …)
+// as a runtime value. Only literals are meaningful for attributes; anything
+// else becomes `none` so reflection never evaluates arbitrary user code.
+static Value attrLiteralValue(const ast::Expr& e) {
+    switch (e.kind) {
+        case ast::ExKind::Str:
+        case ast::ExKind::CharLit:
+            return Value::str(e.text);
+        case ast::ExKind::Int: {
+            errno = 0;
+            long long n = std::strtoll(e.text.c_str(), nullptr, 0);
+            if (errno == 0) return Value::integer((int64_t)n);
+            return Value::none();
+        }
+        case ast::ExKind::Float:
+            return Value::floating(std::strtod(e.text.c_str(), nullptr));
+        case ast::ExKind::Ident:
+            if (e.text == "true") return Value::boolean(true);
+            if (e.text == "false") return Value::boolean(false);
+            if (e.text == "none") return Value::none();
+            // `skip_serializing_if = is_empty` — keep the bare path name.
+            return Value::str(e.text);
+        case ast::ExKind::List: {
+            Value out = Value::list();
+            for (const auto& el : e.elems)
+                if (el) out.vec->push_back(attrLiteralValue(*el));
+            return out;
+        }
+        default:
+            return Value::none();
+    }
+}
+
+// Attributes as `{attrName: [{name, value}, …]}`. A list of args (rather than a
+// map) preserves repeated options such as `@[serde(rename = "a", rename = "b")]`
+// and keeps positional args (`name == ""`) distinct.
+static Value decoratorsValue(const std::vector<ast::Decorator>& ds) {
+    Value out = Value::dict();
+    for (const auto& d : ds) {
+        Value args = Value::list();
+        for (const auto& a : d.args) {
+            Value av = Value::dict();
+            std::string aname = a.name;
+            Value aval =
+                a.value ? attrLiteralValue(*a.value) : Value::none();
+            // Bare flags inside an attribute list (`@[serde(skip)]`,
+            // `@[serde(untagged)]`) parse as positional ident arguments; expose
+            // them as named booleans so option lookup is uniform.
+            if (aname.empty() && a.value &&
+                a.value->kind == ast::ExKind::Ident &&
+                a.value->text != "true" && a.value->text != "false" &&
+                a.value->text != "none") {
+                aname = a.value->text;
+                aval = Value::boolean(true);
+            }
+            av.map->push_back({Value::str("name"), Value::str(aname)});
+            av.map->push_back({Value::str("value"), std::move(aval)});
+            args.vec->push_back(std::move(av));
+        }
+        out.map->push_back({Value::str(d.name), std::move(args)});
+    }
+    return out;
+}
+
+// POWER_PLAN §3.2: serde's rename_all rules, byte-for-byte the field/variant
+// behaviour of serde_derive_internals::case (ASCII, like serde).
+static std::string serdeCase(const std::string& s, const std::string& rule,
+                             bool variant) {
+    auto asciiLower = [](std::string x) {
+        for (char& c : x) c = (char)std::tolower((unsigned char)c);
+        return x;
+    };
+    auto asciiUpper = [](std::string x) {
+        for (char& c : x) c = (char)std::toupper((unsigned char)c);
+        return x;
+    };
+    auto snakeVariant = [&](const std::string& v) {
+        std::string out;
+        for (size_t i = 0; i < v.size(); ++i) {
+            unsigned char c = (unsigned char)v[i];
+            if (i > 0 && std::isupper(c)) out += '_';
+            out += (char)std::tolower(c);
+        }
+        return out;
+    };
+    auto pascalField = [&](const std::string& f) {
+        std::string out;
+        bool cap = true;
+        for (char c : f) {
+            if (c == '_') {
+                cap = true;
+            } else if (cap) {
+                out += (char)std::toupper((unsigned char)c);
+                cap = false;
+            } else {
+                out += c;
+            }
+        }
+        return out;
+    };
+    auto camelField = [&](const std::string& f) {
+        std::string p = pascalField(f);
+        if (!p.empty()) p[0] = (char)std::tolower((unsigned char)p[0]);
+        return p;
+    };
+    auto kebab = [](std::string x) {
+        for (char& c : x)
+            if (c == '_') c = '-';
+        return x;
+    };
+    if (rule.empty()) return s;
+    if (variant) {
+        if (rule == "PascalCase") return s;
+        if (rule == "lowercase") return asciiLower(s);
+        if (rule == "UPPERCASE") return asciiUpper(s);
+        if (rule == "camelCase") {
+            std::string t = s;
+            if (!t.empty()) t[0] = (char)std::tolower((unsigned char)t[0]);
+            return t;
+        }
+        if (rule == "snake_case") return snakeVariant(s);
+        if (rule == "SCREAMING_SNAKE_CASE")
+            return asciiUpper(snakeVariant(s));
+        if (rule == "kebab-case") return kebab(snakeVariant(s));
+        if (rule == "SCREAMING-KEBAB-CASE")
+            return asciiUpper(kebab(snakeVariant(s)));
+    } else {
+        if (rule == "lowercase" || rule == "snake_case") return s;
+        if (rule == "UPPERCASE") return asciiUpper(s);
+        if (rule == "PascalCase") return pascalField(s);
+        if (rule == "camelCase") return camelField(s);
+        if (rule == "SCREAMING_SNAKE_CASE") return asciiUpper(s);
+        if (rule == "kebab-case") return kebab(s);
+        if (rule == "SCREAMING-KEBAB-CASE") return asciiUpper(kebab(s));
+    }
+    panicHere("serde: unknown rename rule '" + rule + "'");
+}
+
 // Accumulate numeric addition (int + int -> int; float involved -> float).
 static void numericAdd(Value& acc, const Value& item) {
     if (acc.k == VK::Int && item.k == VK::Int) {
@@ -3668,11 +3806,13 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                             ft == "u64" || ft == "u32" || ft == "u16" ||
                             ft == "u8")
                             v.fields.emplace_back(fd.name, Value::integer(0));
-                        else if (ft == "f64" || ft == "f32" || ft == "float")
+                        else if (ft == "f64" || ft == "f32" || ft == "float" ||
+                                 ft == "Float")
                             v.fields.emplace_back(fd.name, Value::floating(0.0));
-                        else if (ft == "bool")
+                        else if (ft == "bool" || ft == "Bool")
                             v.fields.emplace_back(fd.name, Value::boolean(false));
-                        else if (ft == "str" || ft == "String" || ft == "string")
+                        else if (ft == "str" || ft == "String" ||
+                                 ft == "string" || ft == "Str")
                             v.fields.emplace_back(fd.name, Value::str(""));
                         else
                             v.fields.emplace_back(fd.name, Value::none());
@@ -3816,6 +3956,74 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                         out.map->push_back({Value::str(fd.name), std::move(g)});
                     }
                 return out;
+            });
+        // POWER_PLAN §3.2: attribute introspection for serde options.
+        // `type_attrs`/`field_attrs`/`variant_attrs` expose the parsed
+        // `@[serde(...)]` decorators as data so `pet.codec` can honour
+        // rename/rename_all/skip/flatten/tag/deny_unknown_fields/transparent.
+        if (name == "type_attrs")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    return decoratorsValue(si->second->decorators);
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    return decoratorsValue(ei->second->decorators);
+                return Value::dict();
+            });
+        if (name == "field_attrs")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                Value out = Value::dict();
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto si = structs_.find(tn);
+                if (si != structs_.end())
+                    for (const auto& fd : si->second->fields)
+                        out.map->push_back(
+                            {Value::str(fd.name),
+                             decoratorsValue(fd.decorators)});
+                return out;
+            });
+        if (name == "variant_attrs")
+            return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
+                Value out = Value::dict();
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    for (const auto& var : ei->second->variants)
+                        out.map->push_back(
+                            {Value::str(var.name),
+                             decoratorsValue(var.decorators)});
+                return out;
+            });
+        if (name == "payload_attrs")
+            return biFn({"t", "variant"},
+                        [this](std::vector<Value>& a) -> Value {
+                Value out = Value::list();
+                std::string tn = a.empty() ? std::string() : typeRefName(a[0]);
+                std::string var =
+                    a.size() > 1 && a[1].k == VK::Str ? a[1].s : "";
+                auto ei = enums_.find(tn);
+                if (ei != enums_.end())
+                    for (const auto& v : ei->second->variants)
+                        if (v.name == var) {
+                            for (const auto& pd : v.payload)
+                                out.vec->push_back(
+                                    decoratorsValue(pd.decorators));
+                            break;
+                        }
+                return out;
+            });
+        // `case(name, rule, "field"|"variant")` — serde rename_all rules.
+        if (name == "case")
+            return biFn({"name", "rule", "kind"},
+                        [](std::vector<Value>& a) -> Value {
+                if (a.empty() || a[0].k != VK::Str)
+                    panicHere("reflect.case expects (name, rule, kind)");
+                std::string rule = a.size() > 1 ? toStr(a[1]) : "";
+                std::string kind = a.size() > 2 ? toStr(a[2]) : "field";
+                return Value::str(
+                    serdeCase(a[0].s, rule, kind == "variant"));
             });
         panicHere("reflect has no member '" + name + "'");
     }

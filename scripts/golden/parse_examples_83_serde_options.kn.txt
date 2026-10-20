@@ -1,0 +1,492 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/83_serde_options.kn
+Import pet.json as json
+Import pet.toml as toml
+Import reflect
+Decorator "serde" bracket
+  ArgName "rename_all"
+  Value Str "camelCase"
+StructDef "User"
+  Field "user_name" : Str
+  Decorator "serde" bracket
+    ArgName "rename"
+    Value Str "id"
+  Field "user_id" : Int
+  Decorator "serde" bracket
+    Arg Ident "skip"
+  Field "session" : Str
+  Decorator "serde" bracket
+    Arg Ident "default"
+  Field "age" : Int
+StructDef "Point"
+  Field "x" : Int
+  Field "y" : Int
+StructDef "Record"
+  Field "name" : Str
+  Decorator "serde" bracket
+    Arg Ident "flatten"
+  Field "at" : Point
+Decorator "serde" bracket
+  Arg Ident "deny_unknown_fields"
+StructDef "Strict"
+  Field "id" : Int
+Decorator "serde" bracket
+  Arg Ident "transparent"
+StructDef "Meters"
+  Field "value" : Float
+Decorator "serde" bracket
+  ArgName "tag"
+  Value Str "type"
+  ArgName "rename_all"
+  Value Str "snake_case"
+EnumDef "Event"
+  Variant UserLogin {user: Str}
+  Variant Logout
+Decorator "serde" bracket
+  ArgName "tag"
+  Value Str "kind"
+  ArgName "content"
+  Value Str "data"
+EnumDef "Frame"
+  Variant Num {n: Int}
+  Variant Text {s: Str}
+Decorator "serde" bracket
+  Arg Ident "untagged"
+EnumDef "Value"
+  Variant N {n: Int}
+  Variant S {s: Str}
+Decorator "serde" bracket
+  ArgName "rename_all"
+  Value Str "kebab-case"
+EnumDef "Legacy"
+  Decorator "serde" bracket
+    ArgName "alias"
+    Value Str "old_name"
+  Variant NewName
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "u"
+      Value 
+        Call
+          Callee Ident "User"
+          Arg name=user_name
+            Value Str "ada"
+          Arg name=user_id
+            Value Int "7"
+          Arg name=session
+            Value Str "secret"
+          Arg name=age
+            Value Int "36"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "user:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value Ident "u"
+    Assign
+      Target Ident "ub"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "User"
+          Arg
+            Value Str "{\\\"userName\\\": \\\"ada\\\", \\\"id\\\": 7}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "back:"
+          Arg
+            Value 
+              Member name="user_name"
+                Obj Ident "ub"
+          Arg
+            Value 
+              Member name="user_id"
+                Obj Ident "ub"
+          Arg
+            Value 
+              Member name="age"
+                Obj Ident "ub"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Member name="session"
+                    Obj Ident "ub"
+                Rhs Str ""
+    Assign
+      Target Ident "r"
+      Value 
+        Call
+          Callee Ident "Record"
+          Arg name=name
+            Value Str "home"
+          Arg name=at
+            Value 
+              Call
+                Callee Ident "Point"
+                Arg name=x
+                  Value Int "1"
+                Arg name=y
+                  Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "flatten:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value Ident "r"
+    Assign
+      Target Ident "rb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Record"
+          Arg
+            Value Str "{\\\"name\\\": \\\"work\\\", \\\"x\\\": 3, \\\"y\\\": 4}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "flatten back:"
+          Arg
+            Value 
+              Member name="name"
+                Obj Ident "rb"
+          Arg
+            Value 
+              Member name="x"
+                Obj 
+                  Member name="at"
+                    Obj Ident "rb"
+          Arg
+            Value 
+              Member name="y"
+                Obj 
+                  Member name="at"
+                    Obj Ident "rb"
+    Try
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="from_string"
+                Obj Ident "json"
+            Arg
+              Value Ident "Strict"
+            Arg
+              Value Str "{\\\"id\\\": 1, \\\"extra\\\": 2}"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "strict:"
+              Arg
+                Value 
+                  Call
+                    Callee Ident "Str"
+                    Arg
+                      Value Ident "e"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "transparent:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee Ident "Meters"
+                      Arg name=value
+                        Value Float "1.5"
+          Arg
+            Value 
+              Member name="value"
+                Obj 
+                  Call
+                    Callee 
+                      Member name="from_string"
+                        Obj Ident "json"
+                    Arg
+                      Value Ident "Meters"
+                    Arg
+                      Value Str "2.5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "event:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="UserLogin"
+                          Obj Ident "Event"
+                      Arg name=user
+                        Value Str "bo"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Member name="Logout"
+                      Obj Ident "Event"
+    Assign
+      Target Ident "eb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Event"
+          Arg
+            Value Str "{\\\"type\\\": \\\"user_login\\\", \\\"user\\\": \\\"cy\\\"}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "event back:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "eb"
+          Arg
+            Value 
+              Member name="user"
+                Obj Ident "eb"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "frame:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="Num"
+                          Obj Ident "Frame"
+                      Arg name=n
+                        Value Int "4"
+    Assign
+      Target Ident "fb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Frame"
+          Arg
+            Value Str "{\\\"kind\\\": \\\"Text\\\", \\\"data\\\": [\\\"hi\\\"]}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "frame back:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "fb"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Call
+                    Callee 
+                      Member name="payload"
+                        Obj Ident "reflect"
+                    Arg
+                      Value Ident "fb"
+                At Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "untagged:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="N"
+                          Obj Ident "Value"
+                      Arg name=n
+                        Value Int "5"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="S"
+                          Obj Ident "Value"
+                      Arg name=s
+                        Value Str "hi"
+    Assign
+      Target Ident "vb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Value"
+          Arg
+            Value Str "\\\"hello\\\""
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "untagged back:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "vb"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Call
+                    Callee 
+                      Member name="payload"
+                        Obj Ident "reflect"
+                    Arg
+                      Value Ident "vb"
+                At Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "alias:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Member name="NewName"
+                      Obj Ident "Legacy"
+    Assign
+      Target Ident "lb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Legacy"
+          Arg
+            Value Str "{\\\"old_name\\\": null}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "alias back:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "lb"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "toml:"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "toml"
+                Arg
+                  Value Ident "u"
+<ROOT>/examples/83_serde_options.kn: OK (13 top-level statements)
+[exit 0]

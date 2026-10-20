@@ -6,6 +6,37 @@ struct Line { a: Point; b: Point; label: Str; }
 
 enum Shape { Circle(r: Float); Rect(w: Float, h: Float); Empty; }
 
+@[serde(rename_all = "camelCase")]
+struct OptUser {
+    user_name: Str;
+    @[serde(rename = "id")] user_id: Int;
+    @[serde(skip)] hidden: Str;
+    @[serde(default)] age: Int;
+}
+
+@[serde(deny_unknown_fields)]
+struct OptStrict { id: Int; }
+
+@[serde(transparent)]
+struct OptMeters { value: Float; }
+
+struct OptFlat {
+    name: Str;
+    @[serde(flatten)] pos: Point;
+}
+
+@[serde(tag = "type", rename_all = "snake_case")]
+enum OptEvent { UserLogin(user: Str); Logout; }
+
+@[serde(tag = "kind", content = "data")]
+enum OptFrame { Num(n: Int); Text(s: Str); }
+
+@[serde(untagged)]
+enum OptValue { N(n: Int); S(s: Str); }
+
+@[serde(rename_all = "kebab-case")]
+enum OptLegacy { @[serde(alias = "old_name")] NewName; }
+
 fn main() -> none {
     p = Point(x: 3, y: 4);
     assert(serde.to_json(p) == "{\"x\":3,\"y\":4}");
@@ -37,6 +68,49 @@ fn main() -> none {
 
     # Maps and dynamic values.
     assert(serde.to_json({"k": 1, "v": none}) == "{\"k\":1,\"v\":null}");
+
+    # ---- §3.2 serde options ----
+    ou = OptUser(user_name: "ada", user_id: 7, hidden: "x", age: 36);
+    assert(serde.to_json(ou) == "{\"userName\":\"ada\",\"id\":7,\"age\":36}");
+    ob = serde.from_json_as(OptUser, "{\"userName\": \"ada\", \"id\": 7}");
+    assert(ob.user_name == "ada");
+    assert(ob.user_id == 7);
+    assert(ob.age == 0);
+    assert(ob.hidden == "");
+
+    assert(serde.to_json(OptMeters(value: 1.5)) == "1.5");
+    assert(serde.from_json_as(OptMeters, "2.5").value == 2.5);
+
+    of = OptFlat(name: "p", pos: Point(x: 1, y: 2));
+    assert(serde.to_json(of) == "{\"name\":\"p\",\"x\":1,\"y\":2}");
+    ofb = serde.from_json_as(OptFlat, "{\"name\": \"q\", \"x\": 3, \"y\": 4}");
+    assert(ofb.pos.x == 3);
+    assert(ofb.pos.y == 4);
+
+    assert(serde.to_json(OptEvent.UserLogin(user: "bo")) ==
+           "{\"type\":\"user_login\",\"user\":\"bo\"}");
+    ev = serde.from_json_as(OptEvent, "{\"type\": \"logout\"}");
+    assert(reflect.variant(ev) == "Logout");
+
+    assert(serde.to_json(OptFrame.Num(n: 3)) ==
+           "{\"kind\":\"Num\",\"data\":[3]}");
+    fr = serde.from_json_as(OptFrame,
+                            "{\"kind\": \"Text\", \"data\": [\"hi\"]}");
+    assert(reflect.payload(fr)[0] == "hi");
+
+    assert(serde.to_json(OptValue.N(n: 5)) == "5");
+    assert(serde.to_json(OptValue.S(s: "hi")) == "\"hi\"");
+    assert(reflect.variant(serde.from_json_as(OptValue, "\"x\"")) == "S");
+
+    assert(serde.to_json(OptLegacy.NewName) == "{\"new-name\":null}");
+    assert(reflect.variant(
+               serde.from_json_as(OptLegacy, "{\"old_name\": null}")) ==
+           "NewName");
+
+    var denied = false;
+    try { serde.from_json_as(OptStrict, "{\"id\": 1, \"x\": 2}"); }
+    catch { denied = true; }
+    assert(denied);
 
     print("serde_test ok");
 }

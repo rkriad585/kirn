@@ -1,0 +1,55 @@
+# serde attribute surface (POWER_PLAN §3.2). Tree-walker == VM.
+import pet.json as json;
+import reflect;
+
+@[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct User {
+    user_name: Str;
+    @[serde(rename = "id")] user_id: Int;
+    @[serde(skip)] hidden: Str;
+}
+
+struct Point { x: Int; y: Int; }
+
+struct Record {
+    name: Str;
+    @[serde(flatten)] at: Point;
+}
+
+@[serde(transparent)]
+struct Meters { value: Float; }
+
+@[serde(tag = "type", rename_all = "snake_case")]
+enum Event { UserLogin(user: Str); Logout; }
+
+@[serde(tag = "kind", content = "data")]
+enum Frame { Num(n: Int); Text(s: Str); }
+
+@[serde(untagged)]
+enum Value { N(n: Int); S(s: Str); }
+
+fn main() -> none {
+    u = User(user_name: "ada", user_id: 7, hidden: "x");
+    print("user:", json.to_string(u));
+    ub = json.from_string(User, "{\"userName\": \"ada\", \"id\": 7}");
+    print("back:", ub.user_name, ub.user_id);
+
+    r = Record(name: "p", at: Point(x: 1, y: 2));
+    print("flat:", json.to_string(r));
+    rb = json.from_string(Record, "{\"name\": \"q\", \"x\": 3, \"y\": 4}");
+    print("flat back:", rb.at.x, rb.at.y);
+
+    print("transparent:", json.to_string(Meters(value: 1.5)));
+
+    print("event:", json.to_string(Event.Logout));
+    eb = json.from_string(Event, "{\"type\": \"user_login\", \"user\": \"z\"}");
+    print("event back:", reflect.variant(eb), eb.user);
+
+    print("frame:", json.to_string(Frame.Num(n: 9)));
+    fb = json.from_string(Frame, "{\"kind\": \"Text\", \"data\": [\"hi\"]}");
+    print("frame back:", reflect.variant(fb), reflect.payload(fb)[0]);
+
+    print("untagged:", json.to_string(Value.S(s: "hi")));
+    vb = json.from_string(Value, "7");
+    print("untagged back:", reflect.variant(vb), reflect.payload(vb)[0]);
+}

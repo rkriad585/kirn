@@ -134,6 +134,9 @@ private:
 
     std::mutex threadsM_;
     std::vector<std::shared_ptr<ThreadImpl>> threads_;
+    // POWER_PLAN §2.10: rotates the starting arm of an unbiased `select` so a
+    // permanently-ready arm cannot starve the others. `select biased` pins 0.
+    size_t selectTurn_ = 0;
 
     // program arguments surfaced as os.args()
     std::vector<std::string> argv_;

@@ -1,0 +1,40 @@
+# `select` over tasks/timers/channels, `biased`, and `else` (POWER_PLAN §2.10).
+# Runs identically under the tree-walker and the VM (the VM falls back to the
+# tree-walker for functions containing `select`).
+import pet.async as a;
+
+async fn later(v: Int, ms: Int) -> Int {
+    await a.sleep(ms);
+    return v;
+}
+
+async fn main() -> none {
+    var slow = later(1, 50);
+    var fast = later(2, 5);
+    select biased {
+        case v = slow { print("slow", v); }
+        case v = fast { print("fast", v); }
+    }
+
+    var hits = [0, 0];
+    var p = later(0, 0);
+    var q = later(0, 0);
+    await a.sleep(10);
+    for _i in 0..2 {
+        select {
+            case _a = p { hits[0] = hits[0] + 1; }
+            case _b = q { hits[1] = hits[1] + 1; }
+        }
+    }
+    print("hits:", hits);
+
+    ch = chan[Int]();
+    select {
+        case v = ch.recv() { print("got", v); }
+        else { print("empty"); }
+    }
+    select {
+        case <-a.yield_now() { print("ready"); }
+        else { print("pending"); }
+    }
+}

@@ -671,13 +671,18 @@ void dump(const Stmt& s, int d) {
             }
             return;
         case StKind::Select:
-            std::cout << ind(d) << "Select\n";
+            std::cout << ind(d) << "Select" << (s.selBiased ? " biased" : "")
+                      << '\n';
             for (const auto& arm : s.selArms) {
                 std::cout << ind(d + 1) << "SelArm"
                           << (arm.bind.empty() ? "" : " bind=" + arm.bind) << '\n';
                 if (arm.chanOp) childExpr("ChanOp", arm.chanOp, d + 2);
                 std::cout << ind(d + 2) << "Body\n";
                 for (const auto& st : arm.body) dump(*st, d + 3);
+            }
+            if (!s.elseBody.empty()) {
+                std::cout << ind(d + 1) << "Else\n";
+                for (const auto& st : s.elseBody) dump(*st, d + 2);
             }
             return;
         case StKind::Unsafe:

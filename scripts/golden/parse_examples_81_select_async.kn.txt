@@ -1,0 +1,359 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/81_select_async.kn
+Import pet.async as a
+FuncDef "fetch" async
+  Param "ms" : Int
+  Param "v" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg
+                Value Ident "ms"
+    Return
+      Value Ident "v"
+FuncDef "failing" async
+  Param "ms" : Int
+  Ret Int
+  Body
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg
+                Value Ident "ms"
+    Raise
+      Value Str "upstream failed"
+FuncDef "main" async
+  Ret none
+  Body
+    VarDecl
+      Target Ident "slow"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "80"
+          Arg
+            Value Int "1"
+    VarDecl
+      Target Ident "fast"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "5"
+          Arg
+            Value Int "2"
+    Select biased
+      SelArm bind=v
+        ChanOp Ident "slow"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "picked slow"
+                Arg
+                  Value Ident "v"
+      SelArm bind=v
+        ChanOp Ident "fast"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "picked fast"
+                Arg
+                  Value Ident "v"
+    VarDecl
+      Target Ident "x"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "0"
+          Arg
+            Value Int "10"
+    VarDecl
+      Target Ident "y"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "0"
+          Arg
+            Value Int "20"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg
+                Value Int "10"
+    Select biased
+      SelArm bind=v
+        ChanOp Ident "x"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "biased:"
+                Arg
+                  Value Ident "v"
+      SelArm bind=v
+        ChanOp Ident "y"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "biased:"
+                Arg
+                  Value Ident "v"
+    VarDecl
+      Target Ident "hits"
+      Value 
+        List len=2
+          Item Int "0"
+          Item Int "0"
+    VarDecl
+      Target Ident "p"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "0"
+          Arg
+            Value Int "0"
+    VarDecl
+      Target Ident "q"
+      Value 
+        Call
+          Callee Ident "fetch"
+          Arg
+            Value Int "0"
+          Arg
+            Value Int "0"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="sleep"
+                  Obj Ident "a"
+              Arg
+                Value Int "10"
+    For
+      PatBind _i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "4"
+      Body
+        Select
+          SelArm bind=_v
+            ChanOp Ident "p"
+            Body
+              Assign
+                Target 
+                  Index
+                    Obj Ident "hits"
+                    At Int "0"
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Index
+                        Obj Ident "hits"
+                        At Int "0"
+                    Rhs Int "1"
+          SelArm bind=_v
+            ChanOp Ident "q"
+            Body
+              Assign
+                Target 
+                  Index
+                    Obj Ident "hits"
+                    At Int "1"
+                Value 
+                  Binary op="+"
+                    Lhs 
+                      Index
+                        Obj Ident "hits"
+                        At Int "1"
+                    Rhs Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "rotated:"
+          Arg
+            Value Ident "hits"
+    Assign
+      Target Ident "ch"
+      Value 
+        Call
+          Callee 
+            New type=chan[Int]
+    Select
+      SelArm bind=v
+        ChanOp 
+          Call
+            Callee 
+              Member name="recv"
+                Obj Ident "ch"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "channel:"
+                Arg
+                  Value Ident "v"
+      Else
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "channel empty"
+    Select
+      SelArm
+        ChanOp 
+          Call
+            Callee 
+              Member name="sleep"
+                Obj Ident "a"
+            Arg
+              Value Int "1000"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "timer fired"
+      Else
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "timer pending"
+    Select
+      SelArm
+        ChanOp 
+          Call
+            Callee 
+              Member name="yield_now"
+                Obj Ident "a"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "yield ready"
+      Else
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "yield pending"
+    Assign
+      Target Ident "ch2"
+      Value 
+        Call
+          Callee 
+            New type=chan[Str]
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="send"
+              Obj Ident "ch2"
+          Arg
+            Value Str "hello"
+    Select
+      SelArm bind=msg
+        ChanOp 
+          Call
+            Callee 
+              Member name="recv"
+                Obj Ident "ch2"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "msg:"
+                Arg
+                  Value Ident "msg"
+      SelArm
+        ChanOp 
+          Call
+            Callee 
+              Member name="sleep"
+                Obj Ident "a"
+            Arg
+              Value Int "1000"
+        Body
+          ExprStmt
+            Value 
+              Call
+                Callee Ident "print"
+                Arg
+                  Value Str "timeout"
+    VarDecl
+      Target Ident "bad"
+      Value 
+        Call
+          Callee Ident "failing"
+          Arg
+            Value Int "1"
+    Try
+      Select
+        SelArm bind=v
+          ChanOp Ident "bad"
+          Body
+            ExprStmt
+              Value 
+                Call
+                  Callee Ident "print"
+                  Arg
+                    Value Str "unexpected"
+                  Arg
+                    Value Ident "v"
+      Catch bind=e
+        ExprStmt
+          Value 
+            Call
+              Callee Ident "print"
+              Arg
+                Value Str "caught:"
+              Arg
+                Value Ident "e"
+<ROOT>/examples/81_select_async.kn: OK (4 top-level statements)
+[exit 0]

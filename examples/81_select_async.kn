@@ -1,0 +1,84 @@
+# 81 — select over tasks, timers, and channels (POWER_PLAN §2.10)
+#
+# Arms may name a task handle, a timer, or a channel receive. The first ready
+# arm runs; `select biased` checks arms in source order, while a plain `select`
+# rotates its starting arm so a constantly-ready arm cannot starve the rest.
+# `else` is the non-blocking tail, run when a full pass finds nothing ready.
+import pet.async as a;
+
+async fn fetch(ms: Int, v: Int) -> Int {
+    await a.sleep(ms);
+    return v;
+}
+
+async fn failing(ms: Int) -> Int {
+    await a.sleep(ms);
+    raise "upstream failed";
+}
+
+async fn main() -> none {
+    # The fast task finishes first; biased order does not force waiting on t1.
+    var slow = fetch(80, 1);
+    var fast = fetch(5, 2);
+    select biased {
+        case v = slow { print("picked slow", v); }
+        case v = fast { print("picked fast", v); }
+    }
+
+    # Both ready: biased takes the first source-order arm.
+    var x = fetch(0, 10);
+    var y = fetch(0, 20);
+    await a.sleep(10);
+    select biased {
+        case v = x { print("biased:", v); }
+        case v = y { print("biased:", v); }
+    }
+
+    # Repeated unbiased selects rotate: both always-ready tasks run twice.
+    var hits = [0, 0];
+    var p = fetch(0, 0);
+    var q = fetch(0, 0);
+    await a.sleep(10);
+    for _i in 0..4 {
+        select {
+            case _v = p { hits[0] = hits[0] + 1; }
+            case _v = q { hits[1] = hits[1] + 1; }
+        }
+    }
+    print("rotated:", hits);
+
+    # else runs when nothing is ready.
+    ch = chan[Int]();
+    select {
+        case v = ch.recv() { print("channel:", v); }
+        else { print("channel empty"); }
+    }
+    select {
+        case <-a.sleep(1000) { print("timer fired"); }
+        else { print("timer pending"); }
+    }
+
+    # A timer whose deadline has passed is ready on the first pass.
+    select {
+        case <-a.yield_now() { print("yield ready"); }
+        else { print("yield pending"); }
+    }
+
+    # Channel vs timer: the queued message wins without waiting.
+    ch2 = chan[Str]();
+    ch2.send("hello");
+    select {
+        case msg = ch2.recv() { print("msg:", msg); }
+        case <-a.sleep(1000) { print("timeout"); }
+    }
+
+    # A task's raise propagates at the select site (catchable).
+    var bad = failing(1);
+    try {
+        select {
+            case v = bad { print("unexpected", v); }
+        }
+    } catch e {
+        print("caught:", e);
+    }
+}

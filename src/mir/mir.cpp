@@ -1124,6 +1124,7 @@ struct Builder {
                 if (arm.chanOp) lower(*arm.chanOp);
                 lowerStmts(arm.body);
             }
+            lowerStmts(p.elseBody);
         } else if constexpr (std::is_same_v<T, hir::payload::TryStmt>) {
             lowerStmts(p.body);
             lowerStmts(p.handler);

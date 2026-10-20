@@ -339,6 +339,8 @@ struct Select {
     struct Arm { std::string bind; DeclId decl = NO_DECL; ExprP chanOp; std::vector<StmtP> body; };
     ExprP subject;
     std::vector<Arm> arms;
+    std::vector<StmtP> elseBody;   // POWER_PLAN §2.10 non-blocking tail
+    bool biased = false;           // fixed arm order
 };
 struct TryStmt {
     std::vector<StmtP> body;

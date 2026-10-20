@@ -874,6 +874,7 @@ struct Lowerer {
             }
             case ast::StKind::Select: {
                 payload::Select sel;
+                sel.biased = s.selBiased;
                 if (!s.exprs.empty()) sel.subject = lower(*s.exprs[0]);
                 pushScope();
                 for (const auto& arm : s.selArms) {
@@ -896,6 +897,8 @@ struct Lowerer {
                     sel.arms.push_back(std::move(a));
                 }
                 popScope();
+                for (const auto& b : s.elseBody)
+                    if (b) sel.elseBody.push_back(lower(*b));
                 return mk(StmtKind::Select, sp, std::move(sel));
             }
             case ast::StKind::Try: {

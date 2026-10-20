@@ -343,6 +343,7 @@ struct Stmt {
     std::vector<MatchArm> arms;       // Match (statement); MatchArm reused
     struct SelArm { std::string bind; ExprP chanOp; std::vector<StmtP> body; };
     std::vector<SelArm> selArms;      // Select
+    bool selBiased = false;           // Select: fixed arm order (default rotates)
 
     // DoWhile — `do { body } while (cond) ;` (also used as a search loop when
     // `pat` is present: `do { ... } while (pat = it.next()) { body }`).

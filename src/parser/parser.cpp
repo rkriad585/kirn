@@ -1203,9 +1203,18 @@ ast::StmtP Parser::parseCompound() {
     if (atIdent("select")) {
         advance();
         s->kind = ast::StKind::Select;
+        if (atIdent("biased")) { advance(); s->selBiased = true; }
         expectPunct("{");
         for (;;) {
             if (atPunct("}") || at(Tok::Eof)) break;
+            // Optional non-blocking tail: `else { ... }` runs when no arm is
+            // ready (POWER_PLAN §2.10).
+            if (atIdent("else")) {
+                advance();
+                s->elseBody = parseBlock();
+                endBlock();
+                break;
+            }
             expect(Tok::Ident, "'case'");               // consumes 'case'
             ast::Stmt::SelArm arm;
             if (cur().kind == Tok::Ident && atOp("=", 1)) {

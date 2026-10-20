@@ -314,6 +314,14 @@ static ast::StmtP cloneStmt(const ast::Stmt* s) {
         for (const auto& b : arm.body) na.body.push_back(cloneStmt(b.get()));
         c->arms.push_back(std::move(na));
     }
+    c->selBiased = s->selBiased;
+    for (const auto& arm : s->selArms) {
+        ast::Stmt::SelArm na;
+        na.bind = arm.bind;
+        na.chanOp = cloneExpr(arm.chanOp.get());
+        for (const auto& b : arm.body) na.body.push_back(cloneStmt(b.get()));
+        c->selArms.push_back(std::move(na));
+    }
     return c;
 }
 
@@ -10094,9 +10102,9 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
 
 Value Interpreter::selectExec(const Stmt& s, Env env) {
     struct Prepared {
-        enum Kind { Recv, Timer, Gate } kind = Kind::Gate;
+        enum Kind { Recv, Timer, Task, Gate } kind = Kind::Gate;
         Value cachedChan;                      // Recv
-        Value cached;                          // Timer/Gate
+        Value cached;                          // Timer/Task/Gate
         const ast::Stmt::SelArm* arm = nullptr;
     };
     std::vector<Prepared> prepared;
@@ -10118,6 +10126,11 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
             } else if (cv.k == VK::Timer) {
                 pr.kind = Prepared::Timer;
                 pr.cached = cv;
+            } else if (cv.k == VK::ThreadH) {
+                // POWER_PLAN §2.10: a task handle is a source. The arm is ready
+                // once the task finished; the bound name receives its result.
+                pr.kind = Prepared::Task;
+                pr.cached = cv;
             } else {
                 pr.kind = Prepared::Gate;
                 pr.cached = cv;
@@ -10126,8 +10139,16 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
         prepared.push_back(std::move(pr));
     }
 
+    const size_t n = prepared.size();
+    // Unbiased selects rotate their starting arm so a permanently-ready arm
+    // cannot starve the rest; `select biased` pins the source order. (Tokio
+    // randomizes instead, but a rotation is deterministic and testable.)
+    const size_t start =
+        (n > 0 && !s.selBiased) ? (selectTurn_++) % n : 0;
+
     for (;;) {
-        for (const auto& pr : prepared) {
+        for (size_t k = 0; k < n; ++k) {
+            const auto& pr = prepared[(start + k) % n];
             bool ready = false;
             Value payload;
             switch (pr.kind) {
@@ -10142,6 +10163,19 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
                 case Prepared::Timer:
                     ready = nowMs() >= pr.cached.deadlineMs;
                     break;
+                case Prepared::Task: {
+                    auto t = pr.cached.thread;
+                    if (t) {
+                        std::lock_guard<std::mutex> lk(t->m);
+                        ready = t->done;
+                    } else {
+                        ready = true;
+                    }
+                    // Join and read the result (or re-raise the task's error)
+                    // only once it is done, so the select does not block here.
+                    if (ready) payload = awaitTask(pr.cached);
+                    break;
+                }
                 case Prepared::Gate:
                     ready = truthy(pr.cached);
                     if (ready) payload = pr.cached;
@@ -10152,6 +10186,12 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
             if (!pr.arm->bind.empty())
                 aenv->vars[pr.arm->bind] = payload;
             execBlock(pr.arm->body, aenv);
+            return Value::none();
+        }
+        // POWER_PLAN §2.10: `else` is the non-blocking tail - taken when a
+        // full pass found nothing ready.
+        if (!s.elseBody.empty()) {
+            execBlock(s.elseBody, makeChild(env));
             return Value::none();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

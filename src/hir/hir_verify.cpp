@@ -383,11 +383,13 @@ struct Verifier {
         } else if constexpr (std::is_same_v<T, payload::Select>) {
             wantKind(s.span, s.kind, StmtKind::Select, "Select");
             if (p.subject) expr(*p.subject);
-            if (p.arms.empty()) bad(s.span, "select has no arms");
+            if (p.arms.empty() && p.elseBody.empty())
+                bad(s.span, "select has no arms");
             for (const auto& a : p.arms) {
                 if (a.chanOp) expr(*a.chanOp);
                 stmtList(a.body, s.span);
             }
+            stmtList(p.elseBody, s.span);
         } else if constexpr (std::is_same_v<T, payload::TryStmt>) {
             wantKind(s.span, s.kind, StmtKind::Try, "Try");
             stmtList(p.body, s.span);
@@ -823,10 +825,15 @@ struct Dumper {
                 for (const auto& a : p.arms) { pat(a.pat, n + 1); stmtList(a.body, n + 2); }
             } else if constexpr (std::is_same_v<T, payload::Select>) {
                 if (p.subject) expr(*p.subject, n + 1);
+                if (p.biased) { ind(n + 1); o << "biased\n"; }
                 for (const auto& a : p.arms) {
                     ind(n + 1); o << "arm " << a.bind << "\n";
                     if (a.chanOp) expr(*a.chanOp, n + 2);
                     stmtList(a.body, n + 2);
+                }
+                if (!p.elseBody.empty()) {
+                    ind(n + 1); o << "else\n";
+                    stmtList(p.elseBody, n + 2);
                 }
             } else if constexpr (std::is_same_v<T, payload::TryStmt>) {
                 ind(n + 1); o << "try\n"; stmtList(p.body, n + 2);

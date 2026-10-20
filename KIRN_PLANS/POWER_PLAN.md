@@ -974,9 +974,39 @@ Verification: gates **340/0/0 hung** (1_runall 79, 2b_syntax 52, 4_vm_diff 97, 8
 
 Deviations / not shipped (documented):
 
-- **No poisoning and no RAII.** A `raise`/panic while holding a guard does not mark the lock poisoned; guards must be released with `unlock()`. `Mutex.with` is the exception: it uses `defer` so it unlocks even on a raise, but it passes the *value*, not a mutable guard.
-- **`try_lock`/`try_read`/`try_write` return a guard or `none`**, not `Result`; callers test `== none`. `Mutex.try_lock` on a lock already held by the *same* OS thread inherits `std::mutex` semantics (non-recursive; not a supported pattern).
+- **No poisoning and no RAII.** A `raise`/panic while holding a guard does not mark the lock poisoned; guards must be released with `unlock()`. `Mutex.with` is the exception: it uses `defer` so it unlocks even on a raise, but it passes the _value_, not a mutable guard.
+- **`try_lock`/`try_read`/`try_write` return a guard or `none`**, not `Result`; callers test `== none`. `Mutex.try_lock` on a lock already held by the _same_ OS thread inherits `std::mutex` semantics (non-recursive; not a supported pattern).
 - **`Mutex.get` is an unlocked peek**, for diagnostics/single-threaded reads; use a guard for shared mutation.
 - **Waits block the task thread.** `lock`/`read`/`write`/`acquire`/`notified`/`wait` are `async fn`s for API shape and to keep `await` uniform, but the underlying primitive blocks; there is no async-aware waiter queue.
 - **`OnceCell.get_or_init` takes a plain function value** (no `async` initialiser, no `await` inside `f`), and there is no `set`/`get_or_try_init`. `OnceCell.get()` returns `none` before initialisation (Kirn's `Option`).
 - **`Notify` follows `pet.sync` semantics** (one stored permit, `notify_waiters` wakes current waiters), and `Barrier` is reusable with generation numbers, matching `pet.sync` rather than adding new behaviour.
+
+### Update (2026-10-20) — §3.2 serde attribute options (shipped, reflection-based)
+
+**Path chosen:** `@[derive(Serialize, Deserialize)]` is still inert and §3.1's traits remain blocked on generic impls / `static fn` / call-site type args, so this closes the §3.2 gap **where serde actually lives**: the shared reflection codec. The parser already stored `@[serde(...)]` on structs, fields and variants (Phase 0/1) but nothing read it. Attributes are now exposed as data through `reflect`, and `pet.codec` applies them to the tree, so JSON/TOML/YAML/CBOR all inherit the options without per-format work.
+
+Delivered:
+
+- **Native reflection** (`src/interp/runtime.cpp`):
+  - `reflect.type_attrs(T)`, `reflect.field_attrs(T)`, `reflect.variant_attrs(T)`, `reflect.payload_attrs(T, variant)` return `{attrName: [{name, value}, …]}`. Arguments are literal-only (str/int/float/bool/list/`none`), so reflection never evaluates user code; a list of args (not a map) preserves repeated options such as `alias`.
+  - Bare flags (`@[serde(skip)]`, `@[serde(untagged)]`) parse as positional idents and are normalised to `{name: "skip", value: true}`, so option lookup is uniform.
+  - `reflect.case(name, rule, "field"|"variant")` implements serde's eight `rename_all` rules byte-for-byte from `serde_derive_internals::case` (including the field/variant split: snake variants insert `_` before capitals, snake fields are unchanged, pascal/camel strip `_`).
+- **`stdlib/pet/codec.kn`** honours, in both directions:
+  - container: `rename_all` (fields for structs, variants for enums), `deny_unknown_fields`, `transparent`, `tag`, `content`, `untagged`;
+  - field: `rename`, `alias` (decode), `skip`, `skip_serializing`, `skip_deserializing`, `flatten` (`deny_unknown_fields` + `flatten` is rejected, as in serde);
+  - variant: `rename`, `alias`, `skip`, `skip_serializing`, `skip_deserializing`.
+  - Enum encodings: externally tagged (unchanged default), internally tagged `{tag: variant, <payload names>}` (uses the declared payload names), adjacently tagged `{tag, content}` (keeps the list payload convention), and `untagged` (unit → `null`, single payload → the value, multiple → a list).
+  - Untagged decode tries variants in declaration order with a shape check (`type_ok`) before coercion, so the first variant no longer always wins through the lenient scalar coercion.
+- **`reflect.new` defaults fixed**: field types spelled `Str`/`Bool`/`Float` now get `""`/`false`/`0.0` (they previously fell through to `none`), which is what makes `@[serde(skip)]` and missing fields produce the declared default.
+- **`examples/83_serde_options.kn`** + three goldens (examples gate now **80**), including a TOML render with camelCase keys; **`tests/syntax/serde_options_ok.kn`** pins tree == VM; **`stdlib/pet/serde_test.kn`** gained rename/skip/default/flatten/transparent/deny/alias and all three enum tagging modes.
+
+Verification: gates **343/0/0 hung** (1_runall 80, 2b_syntax 53, 4_vm_diff 98, 8_bundle 15, 11_native 11, …), golden **339/0**, crosscheck **879/0** (144 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files; golden record produced exactly the three new files.
+
+Deviations / not shipped (documented):
+
+- **`with`, `serialize_with`, `deserialize_with`, `skip_serializing_if` and `default = "path"` are not implemented** — they name user functions, and module-exported functions are not reachable by name at runtime. `default` is accepted as a bare flag; behavior is unchanged because missing fields already receive the declared type's default.
+- **Missing required fields do not raise.** serde errors unless a field is `default`/`Option`; Kirn's `reflect.new` fills missing fields with type defaults, so `default` is effectively implicit. `deny_unknown_fields` covers only unknown keys.
+- **No `Option`-aware skipping**: `none` is encoded as `null` and never omitted; `skip_serializing_if` would be the way to omit it.
+- **`rename_all_fields`, container `rename`, `borrow`, `bound`** are parsed but ignored (struct-style enum variants do not parse in Kirn, and the bundled formats do not use a type name).
+- **Per-variant `untagged` is applied on encode only**; decode uses the enum-level `untagged` mode. Untagged matching is shape-based, not a serde `Visitor`.
+- **Internal tagging requires named payloads**; an unnamed payload is emitted under a positional `vN` key. External unit variants stay `{"Variant": null}` (Kirn's existing convention, not serde's bare `"Variant"`), and TOML still cannot round-trip unit variants (pre-existing, documented in Phase 7).

@@ -37,15 +37,25 @@ pub fn invoke(fns: list) -> list {
 
 struct ParIter {
     xs: list;
-    fn init(self, xs: list) -> none { self.xs = xs; }
+    # true when `xs` already holds groups (chunks / windows / split runs), so the
+    # downstream combinators fan out per group instead of waiting for the 4096
+    # element grain - otherwise a handful of chunks would never leave one thread.
+    divided: Bool;
+    fn init(self, xs: list) -> none { self.xs = xs; self.divided = false; }
+
+    # Minimum element count before it is worth splitting across threads.
+    fn grain(self) -> Int {
+        if self.divided { return 2; }
+        return 4096;
+    }
 
     fn map(self, f) -> ParIter {
         xs = self.xs;
         n = parallel.current_num_threads();
-        if xs.len() < 4096 or n <= 1 {
+        if xs.len() < self.grain() or n <= 1 {
             out = [];
             for e in xs { out.append(f(e)); }
-            return ParIter(xs: out);
+            return ParIter(xs: out, divided: false);
         }
         total = xs.len();
         if n > total { n = total; }
@@ -67,18 +77,18 @@ struct ParIter {
         for part in parallel.invoke(fns) {
             for e in part { out.append(e); }
         }
-        return ParIter(xs: out);
+        return ParIter(xs: out, divided: false);
     }
 
     fn filter(self, f) -> ParIter {
         xs = self.xs;
         n = parallel.current_num_threads();
-        if xs.len() < 4096 or n <= 1 {
+        if xs.len() < self.grain() or n <= 1 {
             out = [];
             for e in xs {
                 if f(e) { out.append(e); }
             }
-            return ParIter(xs: out);
+            return ParIter(xs: out, divided: self.divided);
         }
         total = xs.len();
         if n > total { n = total; }
@@ -102,7 +112,88 @@ struct ParIter {
         for part in parallel.invoke(fns) {
             for e in part { out.append(e); }
         }
-        return ParIter(xs: out);
+        return ParIter(xs: out, divided: self.divided);
+    }
+
+    # ---- grouping (POWER_PLAN 4.3) ---------------------------------------
+    # These only reshape `xs` - the reshaping is a cheap sequential scan - but
+    # they mark the iterator `divided`, so the resulting groups are what fans
+    # out across the pool: `par_iter(rows).chunks(1024).for_each(ingest)` runs
+    # one chunk per worker instead of one row.
+
+    # Fixed-size sublists; the last one holds the remainder (`< n` if the length
+    # is not a multiple of `n`). `n <= 0` raises rather than looping forever.
+    fn chunks(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.chunks: size must be > 0"; }
+        xs = self.xs;
+        out = [];
+        var i = 0;
+        while i < xs.len() {
+            end = i + n;
+            if end > xs.len() { end = xs.len(); }
+            out.append(xs[i..end]);
+            i = end;
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Sliding windows of length `n` advancing one element at a time, so windows
+    # overlap. Empty when the list is shorter than `n`.
+    fn windows(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.windows: size must be > 0"; }
+        xs = self.xs;
+        out = [];
+        var i = 0;
+        while i + n <= xs.len() {
+            out.append(xs[i..i + n]);
+            i += 1;
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Split on every occurrence of `sep` (compared with `==`); the separators are
+    # dropped, and a run of adjacent separators yields empty groups - the same
+    # shape a string `split` gives you.
+    fn split(self, sep) -> ParIter {
+        out = [];
+        cur = [];
+        for e in self.xs {
+            if e == sep {
+                out.append(cur);
+                cur = [];
+            } else {
+                cur.append(e);
+            }
+        }
+        out.append(cur);
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Group *consecutive* elements for which `f` returns an equal value (like
+    # rayon's `chunk_by`): the scan is order-dependent, so building the groups is
+    # sequential, but consuming them with for_each/map is parallel.
+    fn chunk_by(self, f) -> ParIter {
+        out = [];
+        xs = self.xs;
+        if xs.len() > 0 {
+            cur = [xs[0]];
+            var key = f(xs[0]);
+            var i = 1;
+            while i < xs.len() {
+                e = xs[i];
+                k = f(e);
+                if k == key {
+                    cur.append(e);
+                } else {
+                    out.append(cur);
+                    cur = [e];
+                    key = k;
+                }
+                i += 1;
+            }
+            out.append(cur);
+        }
+        return ParIter(xs: out, divided: true);
     }
 
     fn collect(self) -> list { return self.xs; }
@@ -124,7 +215,7 @@ struct ParIter {
     fn for_each(self, f) -> none {
         xs = self.xs;
         n = parallel.current_num_threads();
-        if xs.len() < 4096 or n <= 1 {
+        if xs.len() < self.grain() or n <= 1 {
             for e in xs { f(e); }
             return;
         }
@@ -196,7 +287,26 @@ struct ParIter {
 pub fn par_iter(xs) -> ParIter {
     list_xs = [];
     for e in xs { list_xs.append(e); }
-    return ParIter(xs: list_xs);
+    return ParIter(xs: list_xs, divided: false);
+}
+
+# ---- grouping entry points (POWER_PLAN 4.3) -------------------------------
+
+# `par_chunks(xs, n)` == `par_iter(xs).chunks(n)`; likewise for the rest.
+pub fn par_chunks(xs, n: Int) -> ParIter {
+    return par_iter(xs).chunks(n);
+}
+
+pub fn par_windows(xs, n: Int) -> ParIter {
+    return par_iter(xs).windows(n);
+}
+
+pub fn par_split(xs, sep) -> ParIter {
+    return par_iter(xs).split(sep);
+}
+
+pub fn par_chunk_by(xs, f) -> ParIter {
+    return par_iter(xs).chunk_by(f);
 }
 
 # ---- parallel sort ---------------------------------------------------------

@@ -1279,6 +1279,20 @@ Value Interpreter::run() {
     return r;
 }
 
+// True for the native/prebound pseudo-modules. A bare `import m;` for one of
+// these must never be satisfied by a same-named *.kn file: a stdlib module such
+// as pet/parallel.kn starts with `import parallel;` (the native module), and if
+// the entry file lives in that same directory the file resolver finds
+// parallel.kn and binds the module to *itself* - `parallel.current_num_threads()`
+// then recurses until the stack overflows.
+static bool isPreboundModule(const std::string& name) {
+    for (const char* m :
+         {"math", "time", "io", "mem", "json", "text", "os", "parallel",
+          "error", "sync", "reflect"})
+        if (name == m) return true;
+    return false;
+}
+
 void Interpreter::collectProgram(const Stmt& program) {
     for (const auto& sp : program.body) {
         const Stmt& s = *sp;
@@ -1314,8 +1328,12 @@ void Interpreter::collectProgram(const Stmt& program) {
             }
             case ast::StKind::Import: {
                 if (!s.fromImport) {
-                    // real module file (project package or stdlib) first
-                    Value real = loadModuleFile(s.moduleName);
+                    // real module file (project package or stdlib) first, but a
+                    // bare prebound-module name always binds the native module
+                    // (see isPreboundModule).
+                    Value real = isPreboundModule(s.moduleName)
+                                     ? Value::none()
+                                     : loadModuleFile(s.moduleName);
                     if (real.k != VK::None) {
                         // unaliased imports bind the last path segment
                         // ("util.kn" -> util, "a/b.kn" -> b)
@@ -3102,6 +3120,11 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
     prog = std::move(body);
 
     Env modEnv = makeChild(globals_);   // builtins visible inside the module
+    // Register before executing the body: a module whose evaluation re-enters
+    // loadModuleFile for the same dotted name (directly, or through a value it
+    // builds) would otherwise recurse until the stack overflows, because the
+    // loadedModules_ entry is only written on the way out.
+    loadedModules_[dotted] = modEnv;
     for (const auto& sp : prog) {
         const Stmt& s = *sp;
         switch (s.kind) {
@@ -3162,7 +3185,13 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
             case ast::StKind::Import: {
                 // modules importing other modules bind into their own namespace
                 if (!s.fromImport) {
-                    Value dep = loadModuleFile(s.moduleName);
+                    // A bare prebound-module name binds the native module, never
+                    // a same-named file (see isPreboundModule).
+                    Value dep;
+                    if (isPreboundModule(s.moduleName))
+                        dep = Value::none();
+                    else
+                        dep = loadModuleFile(s.moduleName);
                     if (dep.k != VK::None)
                         modEnv->vars[s.importAlias.empty() ? s.moduleName
                                                            : s.importAlias] =
@@ -3191,7 +3220,6 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
         }
     }
 
-    loadedModules_[dotted] = modEnv;
     Value m = Value::module(dotted);
     m.typeName = "__loaded__:" + dotted;
     return m;

@@ -1,0 +1,247 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/77_parallel_grouping.kn
+Import pet.parallel as parallel
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_chunks"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=5
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                              Item Int "4"
+                              Item Int "5"
+                        Arg
+                          Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_chunks"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=5
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                              Item Int "4"
+                              Item Int "5"
+                        Arg
+                          Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_windows"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=4
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                              Item Int "4"
+                        Arg
+                          Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_split"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=5
+                              Item Int "1"
+                              Item Int "0"
+                              Item Int "2"
+                              Item Int "0"
+                              Item Int "3"
+                        Arg
+                          Value Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_chunk_by"
+                            Obj Ident "parallel"
+                        Arg
+                          Value 
+                            List len=5
+                              Item Int "1"
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "2"
+                              Item Int "3"
+                        Arg
+                          Value 
+                            Lambda params=(x: <inferred>)
+                              Body
+                                Return
+                                  Value 
+                                    Binary op="%"
+                                      Lhs Ident "x"
+                                      Rhs Int "2"
+    VarDecl
+      Target Ident "sums"
+      Value 
+        Call
+          Callee 
+            Member name="map"
+              Obj 
+                Call
+                  Callee 
+                    Member name="par_chunks"
+                      Obj Ident "parallel"
+                  Arg
+                    Value 
+                      List len=6
+                        Item Int "1"
+                        Item Int "2"
+                        Item Int "3"
+                        Item Int "4"
+                        Item Int "5"
+                        Item Int "6"
+                  Arg
+                    Value Int "3"
+          Arg
+            Value 
+              Lambda params=(c: <inferred>)
+                Body
+                  VarDecl
+                    Target Ident "t"
+                    Value Int "0"
+                  For
+                    PatBind e
+                    Iter Ident "c"
+                    Body
+                      AugAssign op="+="
+                        Target Ident "t"
+                        Value Ident "e"
+                  Return
+                    Value Ident "t"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj Ident "sums"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="filter"
+                            Obj 
+                              Call
+                                Callee 
+                                  Member name="par_chunks"
+                                    Obj Ident "parallel"
+                                Arg
+                                  Value 
+                                    List len=4
+                                      Item Int "1"
+                                      Item Int "2"
+                                      Item Int "3"
+                                      Item Int "4"
+                                Arg
+                                  Value Int "2"
+                        Arg
+                          Value 
+                            Lambda params=(c: <inferred>)
+                              Body
+                                Return
+                                  Value 
+                                    Binary op="=="
+                                      Lhs 
+                                        Call
+                                          Callee 
+                                            Member name="len"
+                                              Obj Ident "c"
+                                      Rhs Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="chunks"
+                            Obj 
+                              Call
+                                Callee 
+                                  Member name="par_iter"
+                                    Obj Ident "parallel"
+                                Arg
+                                  Value 
+                                    List len=3
+                                      Item Int "1"
+                                      Item Int "2"
+                                      Item Int "3"
+                        Arg
+                          Value Int "2"
+<ROOT>/examples/77_parallel_grouping.kn: OK (2 top-level statements)
+[exit 0]

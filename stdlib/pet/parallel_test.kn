@@ -41,5 +41,58 @@ fn main() -> none {
     assert(s[0] == 1 and s[s.len() - 1] == 5000 and s.len() == 5000);
     assert(parallel.par_sort_by_key([2, 1, 2, 1], fn (x) { return x; }) == [1, 1, 2, 2]);
 
+    # ---- grouping ops (POWER_PLAN 4.3) ----
+
+    # chunks: fixed size, last chunk holds the remainder
+    assert(parallel.par_chunks([1, 2, 3, 4, 5], 2).collect() == [[1, 2], [3, 4], [5]]);
+    assert(parallel.par_chunks([1, 2, 3, 4, 5], 3).collect() == [[1, 2, 3], [4, 5]]);
+    assert(parallel.par_chunks([], 4).collect() == []);
+
+    # windows: slide by one, so they overlap; empty below the window size
+    assert(parallel.par_windows([1, 2, 3, 4], 2).collect() == [[1, 2], [2, 3], [3, 4]]);
+    assert(parallel.par_windows([1, 2], 5).collect() == []);
+
+    # split: separators dropped, absent separator returns the whole run,
+    # adjacent separators produce empty groups
+    assert(parallel.par_split([1, 0, 2, 0, 3], 0).collect() == [[1], [2], [3]]);
+    assert(parallel.par_split([1, 2, 3], 9).collect() == [[1, 2, 3]]);
+    assert(parallel.par_split([1, 0, 0, 2], 0).collect() == [[1], [], [2]]);
+
+    # chunk_by: groups *consecutive* equal-key elements
+    assert(parallel.par_chunk_by([1, 1, 2, 2, 3], fn (x) { return x % 2; })
+        .collect() == [[1, 1], [2, 2], [3]]);
+    assert(parallel.par_chunk_by([1, 2, 1], fn (x) { return x; })
+        .collect() == [[1], [2], [1]]);
+
+    # a chunked iterator maps over whole chunks, then is no longer divided
+    var summed = parallel.par_chunks([1, 2, 3, 4, 5, 6], 3).map(
+        fn (c) { var t = 0; for e in c { t += e; } return t; });
+    assert(summed.collect() == [6, 15]);
+    assert(summed.divided == false);
+
+    # filter keeps groups as groups, so the divided flag survives
+    assert(parallel.par_chunks([1, 2, 3, 4], 2)
+        .filter(fn (c) { return c.len() == 2; }).divided == true);
+
+    # the method form and the par_* entry point agree
+    assert(parallel.par_chunks([1, 2, 3], 2).collect()
+        == parallel.par_iter([1, 2, 3]).chunks(2).collect());
+    assert(parallel.par_windows([1, 2, 3], 2).collect()
+        == parallel.par_iter([1, 2, 3]).windows(2).collect());
+    assert(parallel.par_split([1, 0, 1], 0).collect()
+        == parallel.par_iter([1, 0, 1]).split(0).collect());
+    assert(parallel.par_chunk_by([1, 2], fn (x) { return x; }).collect()
+        == parallel.par_iter([1, 2]).chunk_by(fn (x) { return x; }).collect());
+
+    # a degenerate size raises instead of spinning forever
+    var raised = false;
+    try {
+        parallel.par_chunks([1, 2], 0).collect();
+    } catch e {
+        raised = true;
+        if e == "" { raised = false; }
+    }
+    assert(raised);
+
     print("parallel_test ok");
 }

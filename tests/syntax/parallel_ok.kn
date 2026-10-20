@@ -5,5 +5,9 @@ fn main() -> none {
     print(parallel.par_iter([1, 2, 3]).map(fn (x) { return x + 1; }).collect());
     print(parallel.par_sort([3, 1, 2]));
     print(parallel.join(fn () -> Int { return 5; }, fn () -> Int { return 6; }));
+    print(parallel.par_chunks([1, 2, 3, 4, 5], 2).collect());
+    print(parallel.par_windows([1, 2, 3], 2).collect());
+    print(parallel.par_split([1, 0, 2], 0).collect());
+    print(parallel.par_chunk_by([1, 1, 2, 3], fn (x) { return x % 2; }).collect());
 }
 # expect: [2, 3, 4]

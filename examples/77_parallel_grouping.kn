@@ -1,0 +1,35 @@
+# 77 — Data parallelism: grouping iterators (POWER_PLAN §4.3)
+#
+# par_iter(...).chunks / windows / split / chunk_by reshape the sequence into
+# groups and mark the iterator "divided", so the following map/filter/for_each
+# fans out one group per worker (not one element): par_chunks(xs, 1024)
+# .for_each(ingest) runs a chunk at a time across the pool. The reshaping
+# itself is a cheap sequential scan; results are deterministic.
+import pet.parallel as parallel;
+
+fn main() -> none {
+    # chunks: fixed size, the last group holds the remainder
+    print(parallel.par_chunks([1, 2, 3, 4, 5], 2).collect());
+    print(parallel.par_chunks([1, 2, 3, 4, 5], 3).collect());
+
+    # windows: slide one element at a time, so they overlap
+    print(parallel.par_windows([1, 2, 3, 4], 2).collect());
+
+    # split: separators dropped, runs between them kept
+    print(parallel.par_split([1, 0, 2, 0, 3], 0).collect());
+
+    # chunk_by: consecutive elements with an equal key
+    print(parallel.par_chunk_by([1, 1, 2, 2, 3], fn (x) { return x % 2; }).collect());
+
+    # a divided iterator maps over whole chunks, so each worker handles a group
+    var sums = parallel.par_chunks([1, 2, 3, 4, 5, 6], 3)
+        .map(fn (c) { var t = 0; for e in c { t += e; } return t; });
+    print(sums.collect());
+
+    # filter keeps the groups as groups, so the fan-out grain is preserved
+    print(parallel.par_chunks([1, 2, 3, 4], 2)
+        .filter(fn (c) { return c.len() == 2; }).collect());
+
+    # the method form and the par_* entry points are interchangeable
+    print(parallel.par_iter([1, 2, 3]).chunks(2).collect());
+}

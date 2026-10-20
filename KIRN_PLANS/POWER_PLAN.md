@@ -930,3 +930,25 @@ Deviations / not shipped (documented):
 - **`lookup_host` returns address strings without ports** (the native resolver is called with a null service); combine with a port manually. No `ToSocketAddrs` port parsing beyond the `host:port` form used by `bind`/`connect`.
 - **`BufReader` does not buffer** — whole-file reads are one syscall, and per-`read` buffering only complicates the cursor. `BufWriter` buffers `Str` chunks only.
 - **No cancellation.** Dropping an await leaves the blocking syscall on its thread until it returns; `split` halves do not add independent shutdown.
+
+### Update (2026-10-20) — §2.10 `select` over async sources, `else`, `biased`
+
+**Path chosen:** extend the existing `select` statement rather than add a macro over futures. `select` already multiplexed channel receives, timers, and truthy "gates"; this update adds **task handles** as sources, a non-blocking **`else`** tail, and **`biased`** ordering. `join`/`try_join` were already shipped in the §2.8 commit on top of eagerly-scheduled tasks, so no further work was needed there.
+
+Delivered:
+
+- **Task arms.** A `case v = EXPR` arm whose `EXPR` evaluates to a task handle (`async fn` call) is ready once the task is done; the arm binds the task's result and joins it. A task's `raise` propagates at the select site as a catchable error, exactly like `await`; a panic still aborts.
+- **`else`.** `select { case … else { … } }` runs the tail when one full pass finds no ready source. Arms are still evaluated fresh on each pass (timers are re-armed per pass, as before).
+- **`biased`.** `select biased { … }` checks arms in source order. A plain `select` rotates its starting arm on every invocation (tracked by `selectTurn_`), so an always-ready arm cannot starve the others. Rotation was chosen over tokio's randomization because it is deterministic and testable.
+- **Parser/AST/HIR/MIR.** `ast::Stmt::selBiased` and the reused `elseBody` are parsed; HIR `payload::Select` gained `biased`/`elseBody` and lowers/dumps/verifies them; MIR lowers the tail. `cloneStmt` now copies `selArms`/`selBiased` as well (it previously dropped select arms when cloning a body).
+- **`examples/81_select_async.kn`** + three goldens (examples gate now **78**); **`tests/syntax/select_ok.kn`** pins tree-walker == VM; probes cover biased first-ready, both-ready bias, rotation (`[2,2]`), channel/`else`, timer/`else`, immediate timer, channel-vs-timer, and a raising task.
+
+Verification: gates **337/0/0 hung** (1_runall 78, 2b_syntax 51, 4_vm_diff 96, 8_bundle 15, 11_native 11, …), golden **333/0**, crosscheck **867/0** (142 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files. Functions containing `select` are marked `interpreted` by the VM compiler and fall back to the tree-walker, so both engines produce identical output.
+
+Deviations / not shipped (documented):
+
+- **Losing arms are not cancelled.** A task that lost the race keeps running (and its result is discarded); there is no cancellation token. `select` also does not spawn: it polls in the calling task, sleeping 1 ms between passes, like the previous implementation.
+- **`join`/`try_join` take a list**, `await a.join([t1, t2, t3])`, not positional varargs: Kirn only supports `...` in `extern` declarations. `join` waits for every task before re-raising the first error; `try_join` stops awaiting at the first error and leaves the rest running.
+- **`biased`/rotation is per select invocation, not per poll.** Tokio randomizes the arm order on every poll of a single select; here the start index is fixed for the duration of one `select` execution. With one always-ready arm this is indistinguishable; with multiple, the per-invocation rotation prevents long-run starvation.
+- **No `select!`-style `if` guards or per-arm patterns.** An arm is still `case [bind =] expr`; use an `if` inside the body for conditional logic.
+- **`select` arms cannot bind `none` from a timer.** Timer arms bind `none` (as before); task arms bind the result value.

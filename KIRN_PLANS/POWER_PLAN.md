@@ -835,3 +835,25 @@ Deviations / not shipped (documented):
 - **No result collection.** `for_each` returns `none`, so `@[par] for` yields nothing; the body must reach a result through an order-independent effect (`sync.Atomic`, or a `Mutex`-guarded structure). A shared plain `+=` over a large parallel input races and is the documented anti-pattern.
 - **`break`/`continue` unsupported in the body.** The body runs as a closure handed to `for_each`, so those signals have no enclosing loop to unwind to.
 - **The 4096-element threshold** (shared with `map`/`filter`) means small loops run on the calling thread — identical output to a serial `for`, which is what keeps the example and test deterministic.
+
+### Update (2026-10-20) — §4.3: grouping iterators (`chunks`/`windows`/`split`/`chunk_by`)
+
+**Path chosen:** §4.3's list-shaping ops are pure `ParIter` methods — each makes a cheap sequential pass to build the groups — plus `par_chunks`/`par_windows`/`par_split`/`par_chunk_by` free-function entry points that delegate to the method form, matching how `par_iter` already fronts the struct. The important part is that a shaped iterator is **`divided`**: the downstream `map`/`filter`/`for_each` then fans out one _group_ per worker instead of one element, so `par_iter(rows).chunks(1024).for_each(ingest)` actually parallelizes. `par_sort`/`par_sort_by`/`par_sort_by_key` shipped earlier under Phase 8.
+
+Delivered:
+
+- **`ParIter` gains a `divided: Bool` field** (`stdlib/pet/parallel.kn`) and a `grain()` helper: the split threshold is 4096 elements normally, but only **2 groups** once the sequence has been shaped — otherwise a handful of chunks would never leave one thread and `chunks(1024).for_each(...)` would silently run serially. `map`/`filter` thread the flag through appropriately (`map` over groups produces elements again, so it clears it; `filter` preserves it).
+- **Grouping methods**: `chunks(n)` (fixed size, last group is the remainder), `windows(n)` (slide by one, overlapping; empty below `n`), `split(sep)` (drop separators, adjacent separators give empty groups), `chunk_by(f)` (group _consecutive_ equal-key elements). `chunks`/`windows` raise on `n <= 0` rather than spinning. Each returns `ParIter(xs: groups, divided: true)`.
+- **Free-function entry points** `par_chunks`/`par_windows`/`par_split`/`par_chunk_by`, equivalent to `par_iter(xs).<op>(...)`.
+- **`examples/77_parallel_grouping.kn`** + three goldens; a timing probe with four 300 ms chunks in `for_each` runs in ~0.3 s vs ~1.2 s for four plain elements (one group per worker). **`tests/syntax/parallel_ok.kn`** gained the four ops (tree == VM).
+
+Verification: gates **328/0/0 hung** (1_runall 74, 4_vm_diff 92, 8_bundle 15, 11_native 11, …), golden **321/0**, crosscheck **813/0**, stdlib **17/0**; `kirncheck` clean on the new files.
+
+Loader bug fixed along the way (`src/interp/runtime.cpp`, same commit): `pet/parallel.kn` begins with `import parallel;` (the **native** module). When the entry file lived in `stdlib/pet/` — which the loader adds as an import dir because it is the entry's own directory — the bare name `parallel` resolved to the sibling file `stdlib/pet/parallel.kn`, i.e. the module bound _itself_, and `parallel.current_num_threads()` recursed until the stack overflowed (segfault). A bare `import m;` for a known prebound module name (`math`/`time`/`io`/`mem`/`json`/`text`/`os`/`parallel`/`error`/`sync`/`reflect`) now always binds the native module and never a same-named file. The module is also registered in `loadedModules_` **before** its body runs, so a re-entrant load sees it. This unblocked putting `parallel_test.kn` in `stdlib/pet/` alongside the other pet tests.
+
+Deviations / not shipped (documented):
+
+- **`par_chunks_mut` and `ParallelDrainRange` are absent.** Kirn lists are reference values with no in-place parallel mutation or drain-range protocol; use `map` to build the transformed list instead.
+- **No `parallel.String.*`** (`par_lines`/`par_split`/`par_bytes`). The ops are list-only; split a string into lines/`chars` first (`str.split`) and run `par_chunk_by`/`par_split` on that.
+- **Group sessions don't nest.** `chunks(...).chunks(...)` reshapes the already-grouped list (each element being a group), which is well-defined but rarely what you want; group once, then `map`.
+- **`par_sort` has no `_unstable`/in-place variants** (carried over from Phase 8): it is a stable mergesort returning a new list.

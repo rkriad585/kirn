@@ -1,0 +1,53 @@
+# 80 — Async byte I/O and networking (POWER_PLAN §2.6 / §2.7)
+#
+# `a.io` offers a cursor-based File (read/read_line/lines/read_to_end/write/
+# seek) plus `copy` and buffered adapters. `a.net` offers TCP listener/stream
+# and UDP sockets. The syscalls block, but each wrapper is an `async fn`, so
+# `await` hands the worker to other tasks.
+import pet.async as a;
+
+async fn main() -> none {
+    p = "/tmp/kirn_example_80.txt";
+    f = a.io.create(p);
+    await f.write_all("alpha\nbeta\n");
+    f.close();
+
+    var r = a.io.open(p);
+    print("line 1:", await r.read_line());
+    print("line 2:", await r.read_line());
+    print("eof:", await r.read_line() == "");
+    print("size:", await r.size());
+
+    q = "/tmp/kirn_example_80_copy.txt";
+    var w = a.io.create(q);
+    print("copied:", await a.io.copy(a.io.open(p), w));
+
+    # TCP echo server on an ephemeral localhost port.
+    var l = a.net.bind("127.0.0.1:0");
+    print("listening:", l.local_addr() != "");
+    var server = spawn(async fn () -> Str {
+        s = await l.accept();
+        data = await s.read(64);
+        await s.write_all(data);
+        s.close();
+        return data.decode("utf-8");
+    });
+    c = await a.net.connect(l.local_addr());
+    await c.write_all("ping");
+    print("echo:", (await c.read(64)).decode("utf-8"));
+    print("server saw:", await server);
+    c.close();
+    l.close();
+
+    # UDP datagram round trip.
+    u1 = a.net.udp_bind("127.0.0.1:0");
+    u2 = a.net.udp_bind("127.0.0.1:0");
+    await u1.send_to("hi", u2.local_addr());
+    d = await u2.recv_from(64);
+    print("udp:", d["data"].decode("utf-8"));
+    u1.close();
+    u2.close();
+
+    await a.fs.remove_file(p);
+    await a.fs.remove_file(q);
+}

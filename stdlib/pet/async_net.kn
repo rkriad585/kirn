@@ -1,0 +1,132 @@
+# stdlib/pet/async_net.kn — async TCP/UDP networking (POWER_PLAN §2.7).
+#
+# The socket calls are blocking POSIX calls (`net.*`); each wrapper is an
+# `async fn`, so the operation runs on a task thread and `await` yields to the
+# caller (spawn-blocking, like tokio's net without a reactor). Reach it through
+# `pet.async` as `a.net`, or import this module directly:
+#
+#   import pet.async as a;
+#   var l = a.net.bind("127.0.0.1:0");
+#   print(l.local_addr());
+#   var s = await l.accept();
+#
+# Addresses are "host:port" (IPv6 as "[::1]:port"). `bind` with a ":0" port
+# picks an ephemeral port; read it back from `local_addr()`.
+import net;
+
+pub struct TcpStream {
+    fd: Int;
+    peer: Str;
+
+    # Read up to `n` bytes; `""` bytes at EOF.
+    async fn read(self, n: Int) -> any {
+        return net.tcp_read(self.fd, n);
+    }
+
+    # Write all of `data` (Str or bytes); returns bytes written.
+    async fn write(self, data: any) -> Int {
+        return net.tcp_write(self.fd, data);
+    }
+
+    async fn write_all(self, data: any) -> none {
+        net.tcp_write(self.fd, data);
+    }
+
+    fn peer_addr(self) -> Str {
+        return self.peer;
+    }
+
+    fn close(self) -> none {
+        net.close(self.fd);
+    }
+
+    # Split into read/write halves that share the underlying fd. Both halves
+    # must not be closed independently; close the original stream instead.
+    fn split(self) -> list {
+        return [ReadHalf(fd: self.fd), WriteHalf(fd: self.fd)];
+    }
+
+    async fn into_split(self) -> list {
+        return [ReadHalf(fd: self.fd), WriteHalf(fd: self.fd)];
+    }
+}
+
+pub struct ReadHalf {
+    fd: Int;
+    async fn read(self, n: Int) -> any {
+        return net.tcp_read(self.fd, n);
+    }
+}
+
+pub struct WriteHalf {
+    fd: Int;
+    async fn write(self, data: any) -> Int {
+        return net.tcp_write(self.fd, data);
+    }
+    async fn write_all(self, data: any) -> none {
+        net.tcp_write(self.fd, data);
+    }
+}
+
+pub struct TcpListener {
+    fd: Int;
+    addr: Str;
+
+    # Wait for the next connection.
+    async fn accept(self) -> TcpStream {
+        d = net.tcp_accept(self.fd);
+        return TcpStream(fd: d["fd"], peer: d["peer"]);
+    }
+
+    fn local_addr(self) -> Str {
+        return self.addr;
+    }
+
+    fn close(self) -> none {
+        net.close(self.fd);
+    }
+}
+
+# Bind and listen on `addr` ("host:port", port 0 = ephemeral).
+pub fn bind(addr: Str) -> TcpListener {
+    d = net.tcp_bind(addr);
+    return TcpListener(fd: d["fd"], addr: d["addr"]);
+}
+
+# Connect to `addr`; returns a connected stream.
+pub async fn connect(addr: Str) -> TcpStream {
+    d = net.tcp_connect(addr);
+    return TcpStream(fd: d["fd"], peer: d["peer"]);
+}
+
+pub struct UdpSocket {
+    fd: Int;
+    addr: Str;
+
+    async fn send_to(self, data: any, addr: Str) -> Int {
+        return net.udp_send_to(self.fd, data, addr);
+    }
+
+    # Receive up to `n` bytes: `{data: bytes, addr: "host:port"}`.
+    async fn recv_from(self, n: Int) -> dict {
+        return net.udp_recv_from(self.fd, n);
+    }
+
+    fn local_addr(self) -> Str {
+        return self.addr;
+    }
+
+    fn close(self) -> none {
+        net.close(self.fd);
+    }
+}
+
+pub fn udp_bind(addr: Str) -> UdpSocket {
+    d = net.udp_bind(addr);
+    return UdpSocket(fd: d["fd"], addr: d["addr"]);
+}
+
+# Resolve a host name to a list of addresses (no port).
+pub fn lookup_host(host: Str) -> list {
+    return net.lookup_host(host);
+}

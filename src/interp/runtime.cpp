@@ -27,9 +27,14 @@
 
 #ifndef _WIN32
 #include <csignal>
+#include <cerrno>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #endif
 
 namespace kirn {
@@ -1296,7 +1301,7 @@ Value Interpreter::run() {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect"})
+          "error", "sync", "reflect", "net"})
         if (name == m) return true;
     return false;
 }
@@ -1313,13 +1318,17 @@ void Interpreter::collectProgram(const Stmt& program) {
                     globals_->vars.erase(s.name);
                 }
                 break;
-            case ast::StKind::StructDef: structs_[s.name] = &s; break;
+            case ast::StKind::StructDef:
+                structs_[s.name] = &s;
+                structEnv_[s.name] = globals_;
+                break;
             case ast::StKind::EnumDef:   enums_[s.name] = &s;   registerEnumDerive(s); break;
             case ast::StKind::TraitDef:  traits_[s.name] = &s;  break;
             case ast::StKind::ImplDef: {
                 ImplEntry ent;
                 ent.traitName = s.implTrait ? s.implTrait->name : "";
                 ent.typeName  = s.implType ? s.implType->name : "";
+                ent.env = globals_;
                 for (const auto& m : s.body)
                     if (m->kind == ast::StKind::FuncDef)
                         ent.methods[m->name] = m.get();
@@ -2969,7 +2978,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect"})
+          "error", "sync", "reflect", "net"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -3174,6 +3183,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                 break;
             case ast::StKind::StructDef:
                 structs_[s.name] = &s;
+                structEnv_[s.name] = modEnv;
                 // export `pub struct`/`pub class` through the module namespace
                 // so consumers can reference `mod.Type` and construct it.
                 if (s.pub && !s.privateDecl)
@@ -3391,6 +3401,111 @@ static Value runProcess(const std::vector<std::string>& argv) {
     dictPutInPlace(d, Value::str("stderr"), Value::str(std::move(errOut)));
     return d;
 }
+
+// ---- sockets (POWER_PLAN §2.7) ---------------------------------------------
+#ifndef _WIN32
+static bool splitHostPort(const std::string& s, std::string& host,
+                          std::string& port) {
+    if (!s.empty() && s[0] == '[') {
+        auto close = s.find(']');
+        if (close == std::string::npos || close + 1 >= s.size() ||
+            s[close + 1] != ':')
+            return false;
+        host = s.substr(1, close - 1);
+        port = s.substr(close + 2);
+        return true;
+    }
+    auto pos = s.rfind(':');
+    if (pos == std::string::npos) return false;
+    host = s.substr(0, pos);
+    port = s.substr(pos + 1);
+    if (host.empty()) host = "0.0.0.0";
+    return true;
+}
+
+static std::string sockAddrStr(const sockaddr* sa, socklen_t len) {
+    char host[NI_MAXHOST], serv[NI_MAXSERV];
+    if (getnameinfo(sa, len, host, sizeof host, serv, sizeof serv,
+                    NI_NUMERICHOST | NI_NUMERICSERV) != 0)
+        return "?";
+    std::string h = host;
+    if (h.find(':') != std::string::npos) h = "[" + h + "]";
+    return h + ":" + serv;
+}
+
+static bool resolveAddr(const std::string& addr, int socktype, bool passive,
+                        addrinfo*& out, std::string& err) {
+    std::string host, port;
+    if (!splitHostPort(addr, host, port)) {
+        err = "address must be host:port (got '" + addr + "')";
+        return false;
+    }
+    addrinfo hints{};
+    hints.ai_socktype = socktype;
+    hints.ai_family = AF_UNSPEC;
+    if (passive) hints.ai_flags = AI_PASSIVE;
+    int rc = getaddrinfo(host == "0.0.0.0" ? nullptr : host.c_str(),
+                         port.c_str(), &hints, &out);
+    if (rc != 0) {
+        err = gai_strerror(rc);
+        return false;
+    }
+    return true;
+}
+
+static int bindSocket(const std::string& addr, int socktype, std::string& bound,
+                      std::string& err) {
+    addrinfo* res = nullptr;
+    if (!resolveAddr(addr, socktype, true, res, err)) return -1;
+    int fd = -1;
+    for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) continue;
+        int one = 1;
+        ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+        if (::bind(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+            if (socktype == SOCK_STREAM && ::listen(fd, 128) != 0) {
+                err = std::string("listen: ") + std::strerror(errno);
+                ::close(fd);
+                fd = -1;
+                continue;
+            }
+            sockaddr_storage ss{};
+            socklen_t sl = sizeof ss;
+            if (::getsockname(fd, (sockaddr*)&ss, &sl) == 0)
+                bound = sockAddrStr((sockaddr*)&ss, sl);
+            break;
+        }
+        err = std::string("bind: ") + std::strerror(errno);
+        ::close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(res);
+    if (fd < 0 && err.empty()) err = "bind failed";
+    return fd;
+}
+
+static int connectSocket(const std::string& addr, int socktype,
+                         std::string& peer, std::string& err) {
+    addrinfo* res = nullptr;
+    if (!resolveAddr(addr, socktype, false, res, err)) return -1;
+    int fd = -1;
+    for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) continue;
+        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+            peer = addr;
+            break;
+        }
+        err = std::string("connect: ") + std::strerror(errno);
+        ::close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(res);
+    if (fd < 0 && err.empty()) err = "connect failed";
+    return fd;
+}
+#endif
 }  // namespace
 
 Value Interpreter::moduleMember(const std::string& mod, const std::string& name) {
@@ -3989,6 +4104,56 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 f.close();
                 return Value::none();
             });
+        // Positional whole-file I/O backing `pet.async_io.File` (§2.6).
+        if (name == "read_at")
+            return biFn({"path", "offset", "len"}, [](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                int64_t off = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                int64_t len = a.size() > 2 && a[2].k == VK::Int ? a[2].i : -1;
+                std::ifstream f(path, std::ios::binary);
+                if (!f) panicHere("cannot open '" + path + "'");
+                f.seekg(off);
+                std::string data;
+                if (len < 0) {
+                    data.assign((std::istreambuf_iterator<char>(f)),
+                                std::istreambuf_iterator<char>());
+                } else {
+                    data.resize((size_t)len);
+                    f.read(data.data(), (std::streamsize)len);
+                    data.resize((size_t)f.gcount());
+                }
+                Value v = Value::str(std::move(data));
+                v.k = VK::Bytes;
+                return v;
+            });
+        if (name == "write_at")
+            return biFn({"path", "offset", "data"}, [](std::vector<Value>& a) -> Value {
+                std::string path = toStr(a[0]);
+                int64_t off = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                std::string data =
+                    a.size() > 2 && isBuffer(a[2])
+                        ? bytesData(a[2])
+                        : toStr(a.size() > 2 ? a[2] : Value());
+                std::fstream f(path, std::ios::in | std::ios::out | std::ios::binary);
+                if (!f) {
+                    std::ofstream create(path, std::ios::binary);
+                    create.close();
+                    f.open(path, std::ios::in | std::ios::out | std::ios::binary);
+                }
+                if (!f) panicHere("cannot write '" + path + "'");
+                f.seekp(off);
+                f.write(data.data(), (std::streamsize)data.size());
+                f.flush();
+                if (!f) panicHere("write failed '" + path + "'");
+                return Value::integer((int64_t)data.size());
+            });
+        if (name == "file_size")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                auto sz = std::filesystem::file_size(toStr(a[0]), ec);
+                if (ec) panicHere("file_size '" + toStr(a[0]) + "': no such file");
+                return Value::integer((int64_t)sz);
+            });
         if (name == "copy_file")
             return biFn({"from", "to"}, [](std::vector<Value>& a) -> Value {
                 std::error_code ec;
@@ -4207,6 +4372,171 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::none();
             });
         panicHere("error has no member '" + name + "'");
+    }
+
+    // POWER_PLAN §2.7: blocking POSIX sockets. `pet.async_net` wraps each in
+    // an `async fn`; fds are plain Ints, so the stdlib handles are cheap.
+    if (mod == "net") {
+#ifndef _WIN32
+        if (name == "tcp_bind")
+            return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
+                std::string bound, err;
+                int fd = bindSocket(toStr(a[0]), SOCK_STREAM, bound, err);
+                if (fd < 0) panicHere("tcp_bind: " + err);
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
+                dictPutInPlace(d, Value::str("addr"), Value::str(bound));
+                return d;
+            });
+        if (name == "tcp_accept")
+            return biFn({"fd"}, [](std::vector<Value>& a) -> Value {
+                int lfd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                sockaddr_storage ss{};
+                socklen_t sl = sizeof ss;
+                int fd = ::accept(lfd, (sockaddr*)&ss, &sl);
+                if (fd < 0) panicHere(std::string("tcp_accept: ") +
+                                      std::strerror(errno));
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
+                dictPutInPlace(d, Value::str("peer"),
+                               Value::str(sockAddrStr((sockaddr*)&ss, sl)));
+                return d;
+            });
+        if (name == "tcp_connect")
+            return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
+                std::string peer, err;
+                int fd = connectSocket(toStr(a[0]), SOCK_STREAM, peer, err);
+                if (fd < 0) panicHere("tcp_connect: " + err);
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
+                dictPutInPlace(d, Value::str("peer"), Value::str(peer));
+                return d;
+            });
+        if (name == "tcp_read")
+            return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
+                               ? (size_t)a[1].i
+                               : 4096;
+                std::string buf(n, '\0');
+                ssize_t k;
+                do {
+                    k = ::recv(fd, buf.data(), n, 0);
+                } while (k < 0 && errno == EINTR);
+                if (k < 0)
+                    panicHere(std::string("tcp_read: ") + std::strerror(errno));
+                buf.resize((size_t)k);
+                Value v = Value::str(std::move(buf));
+                v.k = VK::Bytes;
+                return v;
+            });
+        if (name == "tcp_write")
+            return biFn({"fd", "data"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                std::string data =
+                    a.size() > 1 && isBuffer(a[1])
+                        ? bytesData(a[1])
+                        : toStr(a.size() > 1 ? a[1] : Value());
+                size_t sent = 0;
+                while (sent < data.size()) {
+                    ssize_t k = ::send(fd, data.data() + sent,
+                                       data.size() - sent, 0);
+                    if (k < 0) {
+                        if (errno == EINTR) continue;
+                        panicHere(std::string("tcp_write: ") +
+                                  std::strerror(errno));
+                    }
+                    if (k == 0) break;
+                    sent += (size_t)k;
+                }
+                return Value::integer((int64_t)sent);
+            });
+        if (name == "close")
+            return biFn({"fd"}, [](std::vector<Value>& a) -> Value {
+                if (!a.empty() && a[0].k == VK::Int) ::close((int)a[0].i);
+                return Value::none();
+            });
+        if (name == "udp_bind")
+            return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
+                std::string bound, err;
+                int fd = bindSocket(toStr(a[0]), SOCK_DGRAM, bound, err);
+                if (fd < 0) panicHere("udp_bind: " + err);
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
+                dictPutInPlace(d, Value::str("addr"), Value::str(bound));
+                return d;
+            });
+        if (name == "udp_send_to")
+            return biFn({"fd", "data", "addr"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                std::string data =
+                    a.size() > 1 && isBuffer(a[1])
+                        ? bytesData(a[1])
+                        : toStr(a.size() > 1 ? a[1] : Value());
+                std::string addr = a.size() > 2 ? toStr(a[2]) : "";
+                addrinfo* res = nullptr;
+                std::string err;
+                if (!resolveAddr(addr, SOCK_DGRAM, false, res, err))
+                    panicHere("udp_send_to: " + err);
+                ssize_t k = -1;
+                for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+                    k = ::sendto(fd, data.data(), data.size(), 0,
+                                 ai->ai_addr, ai->ai_addrlen);
+                    if (k >= 0) break;
+                }
+                freeaddrinfo(res);
+                if (k < 0)
+                    panicHere(std::string("udp_send_to: ") +
+                              std::strerror(errno));
+                return Value::integer((int64_t)k);
+            });
+        if (name == "udp_recv_from")
+            return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
+                               ? (size_t)a[1].i
+                               : 4096;
+                std::string buf(n, '\0');
+                sockaddr_storage ss{};
+                socklen_t sl = sizeof ss;
+                ssize_t k;
+                do {
+                    k = ::recvfrom(fd, buf.data(), n, 0, (sockaddr*)&ss, &sl);
+                } while (k < 0 && errno == EINTR);
+                if (k < 0)
+                    panicHere(std::string("udp_recv_from: ") +
+                              std::strerror(errno));
+                buf.resize((size_t)k);
+                Value v = Value::str(std::move(buf));
+                v.k = VK::Bytes;
+                Value d = Value::dict();
+                dictPutInPlace(d, Value::str("data"), v);
+                dictPutInPlace(d, Value::str("addr"),
+                               Value::str(sockAddrStr((sockaddr*)&ss, sl)));
+                return d;
+            });
+        if (name == "lookup_host")
+            return biFn({"host"}, [](std::vector<Value>& a) -> Value {
+                std::string host = a.empty() ? "" : toStr(a[0]);
+                addrinfo hints{};
+                hints.ai_socktype = SOCK_STREAM;
+                hints.ai_family = AF_UNSPEC;
+                addrinfo* res = nullptr;
+                int rc = getaddrinfo(host.c_str(), nullptr, &hints, &res);
+                if (rc != 0) panicHere(std::string("lookup_host: ") +
+                                       gai_strerror(rc));
+                Value out = Value::list();
+                for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+                    std::string s = sockAddrStr(ai->ai_addr, ai->ai_addrlen);
+                    auto c = s.rfind(':');
+                    if (c != std::string::npos) s = s.substr(0, c);
+                    out.vec->push_back(Value::str(s));
+                }
+                freeaddrinfo(res);
+                return out;
+            });
+#endif
+        panicHere("net has no member '" + name + "'");
     }
 
     panicHere("unknown module '" + mod + "'");
@@ -4437,6 +4767,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
 
         case ast::StKind::StructDef: {
             structs_[s.name] = &s;
+            structEnv_[s.name] = env;
             env->vars[s.name] = Value::module("__struct__:" + s.name);
             return;
         }
@@ -6162,6 +6493,7 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             panicHere("type '" + tn + "' has no method '" + name + "'");
         }
         const Stmt* method = nullptr;
+        Env menv = globals_;
         auto si = structs_.find(tn);
         if (si != structs_.end()) {
             for (const auto& m : si->second->body)
@@ -6169,12 +6501,20 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                     method = m.get();
                     break;
                 }
+            if (method) {
+                auto se = structEnv_.find(tn);
+                if (se != structEnv_.end() && se->second) menv = se->second;
+            }
         }
         if (!method) {
             for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
                 if (it->typeName != tn) continue;
                 auto mi = it->methods.find(name);
-                if (mi != it->methods.end()) { method = mi->second; break; }
+                if (mi != it->methods.end()) {
+                    method = mi->second;
+                    if (it->env) menv = it->env;
+                    break;
+                }
             }
         }
         if (!method)
@@ -6188,11 +6528,11 @@ std::vector<Value> full;
             Value fv;
             fv.k = VK::Fn;
             fv.fn = method;
-            fv.env = globals_;
+            fv.env = menv;
             return spawnTask(std::move(fv), std::move(full));
         }
         CallFrameGuard guard(method->name, line, col);
-        return runFunc(method, std::move(full), std::move(named), globals_,
+        return runFunc(method, std::move(full), std::move(named), menv,
                        selfOut);
     }
 

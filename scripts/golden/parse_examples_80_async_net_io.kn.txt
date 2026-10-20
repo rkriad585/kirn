@@ -1,0 +1,354 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/80_async_net_io.kn
+Import pet.async as a
+FuncDef "main" async
+  Ret none
+  Body
+    Assign
+      Target Ident "p"
+      Value Str "/tmp/kirn_example_80.txt"
+    Assign
+      Target Ident "f"
+      Value 
+        Call
+          Callee 
+            Member name="create"
+              Obj 
+                Member name="io"
+                  Obj Ident "a"
+          Arg
+            Value Ident "p"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="write_all"
+                  Obj Ident "f"
+              Arg
+                Value Str "alpha\\nbeta\\n"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "f"
+    VarDecl
+      Target Ident "r"
+      Value 
+        Call
+          Callee 
+            Member name="open"
+              Obj 
+                Member name="io"
+                  Obj Ident "a"
+          Arg
+            Value Ident "p"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "line 1:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="read_line"
+                        Obj Ident "r"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "line 2:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="read_line"
+                        Obj Ident "r"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "eof:"
+          Arg
+            Value 
+              Binary op="=="
+                Lhs 
+                  Unary op="await"
+                    Operand 
+                      Call
+                        Callee 
+                          Member name="read_line"
+                            Obj Ident "r"
+                Rhs Str ""
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "size:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="size"
+                        Obj Ident "r"
+    Assign
+      Target Ident "q"
+      Value Str "/tmp/kirn_example_80_copy.txt"
+    VarDecl
+      Target Ident "w"
+      Value 
+        Call
+          Callee 
+            Member name="create"
+              Obj 
+                Member name="io"
+                  Obj Ident "a"
+          Arg
+            Value Ident "q"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "copied:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand 
+                  Call
+                    Callee 
+                      Member name="copy"
+                        Obj 
+                          Member name="io"
+                            Obj Ident "a"
+                    Arg
+                      Value 
+                        Call
+                          Callee 
+                            Member name="open"
+                              Obj 
+                                Member name="io"
+                                  Obj Ident "a"
+                          Arg
+                            Value Ident "p"
+                    Arg
+                      Value Ident "w"
+    VarDecl
+      Target Ident "l"
+      Value 
+        Call
+          Callee 
+            Member name="bind"
+              Obj 
+                Member name="net"
+                  Obj Ident "a"
+          Arg
+            Value Str "127.0.0.1:0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "listening:"
+          Arg
+            Value 
+              Binary op="!="
+                Lhs 
+                  Call
+                    Callee 
+                      Member name="local_addr"
+                        Obj Ident "l"
+                Rhs Str ""
+    VarDecl
+      Target Ident "server"
+      Value 
+        Unary op="spawn"
+          Operand 
+            Lambda async params=()
+    Assign
+      Target Ident "c"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="connect"
+                  Obj 
+                    Member name="net"
+                      Obj Ident "a"
+              Arg
+                Value 
+                  Call
+                    Callee 
+                      Member name="local_addr"
+                        Obj Ident "l"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="write_all"
+                  Obj Ident "c"
+              Arg
+                Value Str "ping"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "echo:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="decode"
+                    Obj 
+                      Unary op="await"
+                        Operand 
+                          Call
+                            Callee 
+                              Member name="read"
+                                Obj Ident "c"
+                            Arg
+                              Value Int "64"
+                Arg
+                  Value Str "utf-8"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "server saw:"
+          Arg
+            Value 
+              Unary op="await"
+                Operand Ident "server"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "c"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "l"
+    Assign
+      Target Ident "u1"
+      Value 
+        Call
+          Callee 
+            Member name="udp_bind"
+              Obj 
+                Member name="net"
+                  Obj Ident "a"
+          Arg
+            Value Str "127.0.0.1:0"
+    Assign
+      Target Ident "u2"
+      Value 
+        Call
+          Callee 
+            Member name="udp_bind"
+              Obj 
+                Member name="net"
+                  Obj Ident "a"
+          Arg
+            Value Str "127.0.0.1:0"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="send_to"
+                  Obj Ident "u1"
+              Arg
+                Value Str "hi"
+              Arg
+                Value 
+                  Call
+                    Callee 
+                      Member name="local_addr"
+                        Obj Ident "u2"
+    Assign
+      Target Ident "d"
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="recv_from"
+                  Obj Ident "u2"
+              Arg
+                Value Int "64"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "udp:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="decode"
+                    Obj 
+                      Index
+                        Obj Ident "d"
+                        At Str "data"
+                Arg
+                  Value Str "utf-8"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "u1"
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="close"
+              Obj Ident "u2"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="remove_file"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "p"
+    ExprStmt
+      Value 
+        Unary op="await"
+          Operand 
+            Call
+              Callee 
+                Member name="remove_file"
+                  Obj 
+                    Member name="fs"
+                      Obj Ident "a"
+              Arg
+                Value Ident "q"
+<ROOT>/examples/80_async_net_io.kn: OK (2 top-level statements)
+[exit 0]

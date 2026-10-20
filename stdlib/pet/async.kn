@@ -11,6 +11,10 @@
 
 # §2.9 async filesystem lives in a sibling module, re-exported as `a.fs`.
 import pet.async_fs as fs;
+# §2.6 async byte I/O, re-exported as `a.io`.
+import pet.async_io as io;
+# §2.7 async TCP/UDP, re-exported as `a.net`.
+import pet.async_net as net;
 # §2.9 process execution and signal handling, re-exported as `a.process` /
 # `a.signal`.
 import pet.async_process as process;
@@ -119,10 +123,10 @@ struct Interval {
         # (>5ms past the deadline) triggers a missed-tick strategy.
         next = deadline + self.period_ms;
         if now > deadline + 5 {
-            if self.behaviour == "delay" {
+            if self.behaviour == DELAY {
                 # Restart the period from the moment tick() was called.
                 next = now + self.period_ms;
-            } else if self.behaviour == "skip" {
+            } else if self.behaviour == SKIP {
                 # Jump to the next tick aligned to the original phase.
                 off = (now - deadline) % self.period_ms;
                 next = now + (self.period_ms - off);

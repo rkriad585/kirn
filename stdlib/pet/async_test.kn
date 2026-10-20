@@ -123,5 +123,36 @@ async fn main() -> none {
     a.signal.install();
     assert(not a.signal.pending());
 
+    # ---- §2.6 async byte I/O ----
+    iod = "/tmp/kirn_async_test_io.txt";
+    var iof = a.io.create(iod);
+    await iof.write_all("one\ntwo\n");
+    var ior = a.io.open(iod);
+    assert_eq(await ior.read_line(), "one");
+    assert_eq(await ior.read_line(), "two");
+    assert_eq(await ior.read_line(), "");
+    assert_eq(await ior.size(), 8);
+    var ioc = a.io.create("/tmp/kirn_async_test_io2.txt");
+    assert_eq(await a.io.copy(a.io.open(iod), ioc), 8);
+    assert_eq((await a.io.open(iod).read_to_string()), "one\ntwo\n");
+    await a.fs.remove_file(iod);
+    await a.fs.remove_file("/tmp/kirn_async_test_io2.txt");
+
+    # ---- §2.7 TCP echo ----
+    var lst = a.net.bind("127.0.0.1:0");
+    var srv = spawn(async fn () -> Int {
+        s = await lst.accept();
+        d = await s.read(16);
+        await s.write_all(d);
+        s.close();
+        return d.len();
+    });
+    var tc = await a.net.connect(lst.local_addr());
+    await tc.write_all("hi");
+    assert_eq((await tc.read(16)).decode("utf-8"), "hi");
+    assert_eq(await srv, 2);
+    tc.close();
+    lst.close();
+
     print("async_test ok");
 }

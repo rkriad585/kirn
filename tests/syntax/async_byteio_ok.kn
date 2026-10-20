@@ -1,0 +1,34 @@
+# Async byte I/O and TCP/UDP surface (POWER_PLAN §2.6 / §2.7). Runs identically
+# under the tree-walker and the VM.
+import pet.async as a;
+
+async fn main() -> none {
+    p = "/tmp/kirn_syntax_byteio.txt";
+    f = a.io.create(p);
+    await f.write_all("one\ntwo\n");
+    print("line:", await a.io.open(p).read_line());
+
+    var l = a.net.bind("127.0.0.1:0");
+    var srv = spawn(async fn () -> Int {
+        s = await l.accept();
+        d = await s.read(32);
+        await s.write_all(d);
+        s.close();
+        return d.len();
+    });
+    c = await a.net.connect(l.local_addr());
+    await c.write_all("ok");
+    print("echo:", (await c.read(32)).decode("utf-8"));
+    print("srv:", await srv);
+    c.close();
+    l.close();
+
+    u = a.net.udp_bind("127.0.0.1:0");
+    v = a.net.udp_bind("127.0.0.1:0");
+    await u.send_to("x", v.local_addr());
+    print("udp:", (await v.recv_from(8))["data"].decode("utf-8"));
+    u.close();
+    v.close();
+
+    await a.fs.remove_file(p);
+}

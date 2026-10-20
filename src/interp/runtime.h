@@ -105,9 +105,13 @@ private:
     std::unordered_map<std::string, const Stmt*> structs_;
     std::unordered_map<std::string, const Stmt*> enums_;
     std::unordered_map<std::string, const Stmt*> traits_;
+    // Defining module environment per struct, so a method body resolves the
+    // module's own consts/imports (not just the entry file's globals).
+    std::unordered_map<std::string, Env> structEnv_;
     struct ImplEntry {
         std::string traitName, typeName;
         std::unordered_map<std::string, const Stmt*> methods;
+        Env env;
     };
     std::vector<ImplEntry> impls_;
 

@@ -1004,10 +1004,10 @@ Verification: gates **343/0/0 hung** (1_runall 80, 2b_syntax 53, 4_vm_diff 98, 8
 
 Deviations / not shipped (documented):
 
-- **`with`, `serialize_with`, `deserialize_with`, `skip_serializing_if` and `default = "path"` are not implemented** — they name user functions, and module-exported functions are not reachable by name at runtime. `default` is accepted as a bare flag; behavior is unchanged because missing fields already receive the declared type's default.
+- **`with`, `serialize_with`, `deserialize_with`, `skip_serializing_if` and `default = "path"` were initially not implemented** — they name user functions, and module-exported functions are not reachable by name at runtime. `default` is accepted as a bare flag; behavior is unchanged because missing fields already receive the declared type's default. **The function-valued options shipped in the follow-up below.**
 - **Missing required fields do not raise.** serde errors unless a field is `default`/`Option`; Kirn's `reflect.new` fills missing fields with type defaults, so `default` is effectively implicit. `deny_unknown_fields` covers only unknown keys.
-- **No `Option`-aware skipping**: `none` is encoded as `null` and never omitted; `skip_serializing_if` would be the way to omit it.
-- **`rename_all_fields`, container `rename`, `borrow`, `bound`** are parsed but ignored (struct-style enum variants do not parse in Kirn, and the bundled formats do not use a type name).
+- **No `Option`-aware skipping by default**: `none` is encoded as `null` and never omitted; `skip_serializing_if` (shipped in the follow-up) is the way to omit it.
+- **`rename_all_fields`, container `rename`, `borrow`, `bound`** are parsed but were initially ignored (struct-style enum variants do not parse in Kirn, and the bundled formats do not use a type name). **`rename_all_fields` shipped in the follow-up; the rest remain ignored.**
 - **Per-variant `untagged` is applied on encode only**; decode uses the enum-level `untagged` mode. Untagged matching is shape-based, not a serde `Visitor`.
 - **Internal tagging requires named payloads**; an unnamed payload is emitted under a positional `vN` key. External unit variants stay `{"Variant": null}` (Kirn's existing convention, not serde's bare `"Variant"`), and TOML still cannot round-trip unit variants (pre-existing, documented in Phase 7).
 
@@ -1036,3 +1036,27 @@ Deviations / not shipped (documented):
 - **`spawn_blocking` is `spawn` with tokio's name** — there is no separate blocking pool or worker cap.
 - **`select` aborts task arms only**; channel/timer arms hold no resource to cancel. A losing task arm's spawned work still runs its current body.
 - **Task typing is still erased**: `spawn(...)` is `thread`, but a direct `async fn` call is typed as its declared return `T` (the §2.2 deviation), so store such handles in `any` before calling `abort()`/`is_finished()`.
+
+### Update (2026-10-20) — §3.2 follow-up: function-valued serde options
+
+The §3.2 deviation "function-valued options are not implemented" was caused by name resolution, not by the codec: attribute strings like `"crate::helpers::skip"` could not be turned into callables. This adds the resolver and then wires the remaining field options through the shared tree codec, so all four formats inherit them.
+
+Delivered:
+
+- **`reflect.fn(name)`** (native): resolves a callable by name, mirroring ident lookup — entry `globals_` first (decorated functions/`const` bindings), then plain top-level functions in `funcs_` (materialized as `VK::Fn` with the entry env), then every `loadedModules_` environment, then each struct's defining module (`structEnv_`). Serde paths use only the final `::` segment, so `"crate::skip"`/`"helpers::skip"`/`"skip"` are equivalent. Missing names raise.
+- **`pet.codec` field options**, encode and decode:
+  - `skip_serializing_if = "f"` — `f(value)` is consulted before encoding (and inside `transparent`); a true result omits the field.
+  - `default = "f"` — `f()` supplies a missing field (including `skip_deserializing` fields). Bare `default` remains implicit.
+  - `serialize_with = "f"` / `deserialize_with = "f"` — because this codec works on trees, `serialize_with(f)` returns the **tree** to emit (not a `Serializer` write) and `deserialize_with(f)` consumes the decoded **tree**; the results bypass scalar coercion.
+  - `rename_all_fields = "rule"` — applies `rename_all` to internally-tagged enum payload names on encode and decode (serde's field rules apply, so `snake_case` is a no-op on already-snake fields; `camelCase`/`PascalCase` transform).
+- **Examples/tests**: `examples/83_serde_options.kn` gained a `Server` struct (skip-if-zero, default path, custom point codec) and a `Motion` enum (`rename_all_fields = "camelCase"`), with goldens re-recorded; new `tests/syntax/serde_hooks_ok.kn` (clean, tree == VM); `stdlib/pet/serde_test.kn` asserts the same surface.
+
+Verification: gates **346/0/0 hung** (1_runall 81, 2b_syntax **54**, 4_vm_diff 99, 8_bundle 15, 11_native 11 — one earlier 11_native run hit a transient build timeout and passed on rerun), golden **342/0**, crosscheck **885/0** (145 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
+
+Deviations / not shipped (documented):
+
+- **Hook contract is tree-based, not serde's `Serializer`/`Deserializer`.** A `serialize_with` hook must return a JSON-tree value (dict/list/scalar); a `deserialize_with` hook receives that tree. Hooks that expect to write bytes or stream cannot be expressed this way.
+- **No `with = "module"`**: serde's module form needs two well-known entry points (`serialize`/`deserialize`) in a named module; use `serialize_with`/`deserialize_with` instead.
+- **Name resolution is flat.** Hooks are found by final segment across the entry globals, all loaded modules, and struct-defining modules; there is no visibility/ambiguity check, so two modules exporting the same hook name make the result depend on map iteration. Attribute arguments also remain literal-only (a hook cannot take extra parameters).
+- **`borrow`/`bound`/container `rename` remain ignored**; `borrow` is a compile-time lifetime hint and `rename` on a container is not emitted by the tree codec (type names never appear in the output).
+- Hook functions see the caller's module environment only through the resolver's search; closures/lambdas cannot be named by an attribute path.

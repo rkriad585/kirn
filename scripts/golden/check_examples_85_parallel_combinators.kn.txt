@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/85_parallel_combinators.kn
+<ROOT>/examples/85_parallel_combinators.kn: OK
+[exit 0]

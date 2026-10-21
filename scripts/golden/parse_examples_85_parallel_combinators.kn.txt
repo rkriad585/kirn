@@ -1,0 +1,584 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/85_parallel_combinators.kn
+Import pet.parallel as p
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "xs"
+      Value 
+        Call
+          Callee 
+            Member name="par_iter"
+              Obj Ident "p"
+          Arg
+            Value 
+              List len=6
+                Item Int "1"
+                Item Int "2"
+                Item Int "3"
+                Item Int "4"
+                Item Int "5"
+                Item Int "6"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "filter_map:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="filter_map"
+                            Obj Ident "xs"
+                        Arg
+                          Value 
+                            Lambda params=(x: <inferred>)
+                              Body
+                                If
+                                  Cond 
+                                    Binary op="=="
+                                      Lhs 
+                                        Binary op="%"
+                                          Lhs Ident "x"
+                                          Rhs Int "2"
+                                      Rhs Int "0"
+                                  Then
+                                    Return
+                                      Value 
+                                        Binary op="*"
+                                          Lhs Ident "x"
+                                          Rhs Int "10"
+                                Return
+                                  Value Ident "none"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "flat_map:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="flat_map"
+                            Obj 
+                              Call
+                                Callee 
+                                  Member name="par_iter"
+                                    Obj Ident "p"
+                                Arg
+                                  Value 
+                                    List len=4
+                                      Item 
+                                        List len=2
+                                          Item Int "1"
+                                          Item Int "2"
+                                      Item 
+                                        List len=1
+                                          Item Int "3"
+                                      Item 
+                                        List len=0
+                                      Item 
+                                        List len=2
+                                          Item Int "4"
+                                          Item Int "5"
+                        Arg
+                          Value 
+                            Lambda params=(g: <inferred>)
+                              Body
+                                Return
+                                  Value Ident "g"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "flatten:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="flatten"
+                            Obj 
+                              Call
+                                Callee 
+                                  Member name="par_iter"
+                                    Obj Ident "p"
+                                Arg
+                                  Value 
+                                    List len=2
+                                      Item 
+                                        List len=1
+                                          Item Int "1"
+                                      Item 
+                                        List len=2
+                                          Item Int "2"
+                                          Item Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "find:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="find_any"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Lambda params=(x: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op=">"
+                              Lhs Ident "x"
+                              Rhs Int "3"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="find_first"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Lambda params=(x: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op=">"
+                              Lhs Ident "x"
+                              Rhs Int "3"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="find_last"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Lambda params=(x: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="<"
+                              Lhs Ident "x"
+                              Rhs Int "5"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "positions:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="positions"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=4
+                              Item Int "5"
+                              Item Int "6"
+                              Item Int "7"
+                              Item Int "8"
+                Arg
+                  Value 
+                    Lambda params=(x: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="=="
+                              Lhs 
+                                Binary op="%"
+                                  Lhs Ident "x"
+                                  Rhs Int "2"
+                              Rhs Int "0"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "minmax:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="min_by"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="-"
+                              Lhs Ident "a"
+                              Rhs Ident "b"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="max_by"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="-"
+                              Lhs Ident "a"
+                              Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "minmax key:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="min_by_key"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=3
+                              Item Str "aa"
+                              Item Str "b"
+                              Item Str "ccc"
+                Arg
+                  Value 
+                    Lambda params=(w: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Call
+                              Callee 
+                                Member name="len"
+                                  Obj Ident "w"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="max_by_key"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=3
+                              Item Str "aa"
+                              Item Str "b"
+                              Item Str "ccc"
+                Arg
+                  Value 
+                    Lambda params=(w: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Call
+                              Callee 
+                                Member name="len"
+                                  Obj Ident "w"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "zip:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="zip"
+                    Obj Ident "xs"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="par_iter"
+                          Obj Ident "p"
+                      Arg
+                        Value 
+                          List len=3
+                            Item Int "10"
+                            Item Int "20"
+                            Item Int "30"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "enumerate:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="enumerate"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=2
+                              Item Str "a"
+                              Item Str "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "take/skip/step:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="take"
+                            Obj Ident "xs"
+                        Arg
+                          Value Int "2"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="skip"
+                            Obj Ident "xs"
+                        Arg
+                          Value Int "4"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="step_by"
+                            Obj Ident "xs"
+                        Arg
+                          Value Int "2"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "fold:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="fold"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=4
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                              Item Int "4"
+                Arg
+                  Value 
+                    Lambda params=()
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="+"
+                              Lhs Ident "a"
+                              Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "try_reduce:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="try_reduce"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_iter"
+                            Obj Ident "p"
+                        Arg
+                          Value 
+                            List len=3
+                              Item Int "1"
+                              Item Int "2"
+                              Item Int "3"
+                Arg
+                  Value Int "0"
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Call
+                              Callee Ident "ok"
+                              Arg
+                                Value 
+                                  Binary op="+"
+                                    Lhs Ident "a"
+                                    Rhs Ident "b"
+    VarDecl
+      Target Ident "bad"
+      Value 
+        Call
+          Callee 
+            Member name="try_reduce"
+              Obj 
+                Call
+                  Callee 
+                    Member name="par_iter"
+                      Obj Ident "p"
+                  Arg
+                    Value 
+                      List len=3
+                        Item Int "1"
+                        Item Int "2"
+                        Item 
+                          Unary op="-"
+                            Operand Int "3"
+          Arg
+            Value Int "0"
+          Arg
+            Value 
+              Lambda params=(a: <inferred>, b: <inferred>)
+                Body
+                  If
+                    Cond 
+                      Binary op="<"
+                        Lhs Ident "b"
+                        Rhs Int "0"
+                    Then
+                      Return
+                        Value 
+                          Call
+                            Callee Ident "err"
+                            Arg
+                              Value 
+                                Binary op="+"
+                                  Lhs Str "negative "
+                                  Rhs 
+                                    Call
+                                      Callee Ident "Str"
+                                      Arg
+                                        Value Ident "b"
+                  Return
+                    Value 
+                      Call
+                        Callee Ident "ok"
+                        Arg
+                          Value 
+                            Binary op="+"
+                              Lhs Ident "a"
+                              Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "try_reduce err:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="is_err"
+                    Obj Ident "bad"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="unwrap_err"
+                    Obj Ident "bad"
+    VarDecl
+      Target Ident "seen"
+      Value 
+        List len=0
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="for_each_init"
+              Obj 
+                Call
+                  Callee 
+                    Member name="par_iter"
+                      Obj Ident "p"
+                  Arg
+                    Value 
+                      List len=3
+                        Item Int "1"
+                        Item Int "2"
+                        Item Int "3"
+          Arg
+            Value 
+              Lambda params=()
+          Arg
+            Value 
+              Lambda params=(_st: <inferred>, e: <inferred>)
+                Body
+                  ExprStmt
+                    Value 
+                      Call
+                        Callee 
+                          Member name="append"
+                            Obj Ident "seen"
+                        Arg
+                          Value Ident "e"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "for_each_init:"
+          Arg
+            Value Ident "seen"
+<ROOT>/examples/85_parallel_combinators.kn: OK (2 top-level statements)
+[exit 0]

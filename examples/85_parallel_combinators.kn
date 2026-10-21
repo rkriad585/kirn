@@ -1,0 +1,54 @@
+# 85 — rayon-style combinators on pet.parallel (POWER_PLAN §4.2)
+#
+# `ParIter` gained the item-preserving adaptors (`filter_map`, `flat_map`,
+# `flatten`), searching (`find_any`/`find_first`/`find_last`/`positions`),
+# ordered min/max (`min_by`/`max_by`/`min_by_key`/`max_by_key`), the reshaping
+# forms (`zip`/`enumerate`/`take`/`skip`/`step_by`), and the reducers
+# (`fold`/`try_reduce`/`for_each_init`). Small inputs stay on one worker, so the
+# output below is deterministic; larger inputs fan out but reassemble in order.
+import pet.parallel as p;
+
+fn main() -> none {
+    xs = p.par_iter([1, 2, 3, 4, 5, 6]);
+
+    print("filter_map:", xs.filter_map(fn (x) {
+        if x % 2 == 0 { return x * 10; }
+        return none;
+    }).collect());
+    print("flat_map:", p.par_iter([[1, 2], [3], [], [4, 5]])
+        .flat_map(fn (g) { return g; }).collect());
+    print("flatten:", p.par_iter([[1], [2, 3]]).flatten().collect());
+
+    print("find:", xs.find_any(fn (x) { return x > 3; }),
+          xs.find_first(fn (x) { return x > 3; }),
+          xs.find_last(fn (x) { return x < 5; }));
+    print("positions:", p.par_iter([5, 6, 7, 8]).positions(
+        fn (x) { return x % 2 == 0; }));
+
+    print("minmax:", xs.min_by(fn (a, b) { return a - b; }),
+          xs.max_by(fn (a, b) { return a - b; }));
+    print("minmax key:", p.par_iter(["aa", "b", "ccc"]).min_by_key(
+        fn (w) { return w.len(); }),
+        p.par_iter(["aa", "b", "ccc"]).max_by_key(
+        fn (w) { return w.len(); }));
+
+    print("zip:", xs.zip(p.par_iter([10, 20, 30])));
+    print("enumerate:", p.par_iter(["a", "b"]).enumerate());
+    print("take/skip/step:", xs.take(2).collect(), xs.skip(4).collect(),
+          xs.step_by(2).collect());
+
+    print("fold:", p.par_iter([1, 2, 3, 4]).fold(
+        fn () { return 0; }, fn (a, b) { return a + b; }));
+    print("try_reduce:", p.par_iter([1, 2, 3]).try_reduce(
+        0, fn (a, b) { return ok(a + b); }));
+    var bad = p.par_iter([1, 2, -3]).try_reduce(0, fn (a, b) {
+        if b < 0 { return err("negative " + Str(b)); }
+        return ok(a + b);
+    });
+    print("try_reduce err:", bad.is_err(), bad.unwrap_err());
+
+    var seen = [];
+    p.par_iter([1, 2, 3]).for_each_init(
+        fn () { return 0; }, fn (_st, e) { seen.append(e); });
+    print("for_each_init:", seen);
+}

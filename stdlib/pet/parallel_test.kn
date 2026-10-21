@@ -94,5 +94,80 @@ fn main() -> none {
     }
     assert(raised);
 
+    # ---- combining / searching combinators (POWER_PLAN 4.2) ----
+
+    xs = parallel.par_iter([1, 2, 3, 4, 5, 6]);
+
+    # filter_map keeps mapped values, drops `none`
+    assert(xs.filter_map(fn (x) {
+        if x % 2 == 0 { return x * 10; }
+        return none;
+    }).collect() == [20, 40, 60]);
+
+    # flat_map concatenates the iterables in element order; flatten is one level
+    assert(parallel.par_iter([[1, 2], [3], [], [4, 5]])
+        .flat_map(fn (g) { return g; }).collect() == [1, 2, 3, 4, 5]);
+    assert(parallel.par_iter([[1], [2, 3]]).flatten().collect() == [1, 2, 3]);
+
+    # searching: deterministic, first/last in order
+    assert(xs.find_any(fn (x) { return x > 3; }) == 4);
+    assert(xs.find_first(fn (x) { return x > 3; }) == 4);
+    assert(xs.find_last(fn (x) { return x < 5; }) == 4);
+    assert(xs.find_any(fn (x) { return x > 99; }) == none);
+    assert(parallel.par_iter([5, 6, 7, 8]).positions(
+        fn (x) { return x % 2 == 0; }) == [1, 3]);
+
+    # min/max by comparator and by key
+    assert(xs.min_by(fn (a, b) { return a - b; }) == 1);
+    assert(xs.max_by(fn (a, b) { return a - b; }) == 6);
+    assert(parallel.par_iter(["aa", "b", "ccc"]).min_by_key(
+        fn (w) { return w.len(); }) == "b");
+    assert(parallel.par_iter(["aa", "b", "ccc"]).max_by_key(
+        fn (w) { return w.len(); }) == "ccc");
+
+    # zip truncates to the shorter length; enumerate pairs index then value
+    assert(xs.zip(parallel.par_iter([10, 20, 30]))
+        == [[1, 10], [2, 20], [3, 30]]);
+    assert(parallel.par_iter(["a", "b"]).enumerate() == [[0, "a"], [1, "b"]]);
+
+    # take/skip/step_by are index-space rewrites
+    assert(xs.take(2).collect() == [1, 2]);
+    assert(xs.skip(4).collect() == [5, 6]);
+    assert(xs.step_by(2).collect() == [1, 3, 5]);
+    assert(xs.take(99).collect() == [1, 2, 3, 4, 5, 6]);
+    assert(xs.skip(99).collect() == []);
+    assert(parallel.par_iter([1, 2, 3]).take(0).collect() == []);
+
+    # fold seeds each slice from identity() and combines partials
+    assert(parallel.par_iter([1, 2, 3, 4]).fold(
+        fn () { return 0; }, fn (a, b) { return a + b; }) == 10);
+    # ... and a large input (multiple slices) still reduces correctly
+    var many = [];
+    var k = 1;
+    while k <= 20000 { many.append(k); k = k + 1; }
+    assert(parallel.par_iter(many).fold(
+        fn () { return 0; }, fn (a, b) { return a + b; }) == 200010000);
+
+    # try_reduce short-circuits on the first err
+    assert(parallel.par_iter([1, 2, 3]).try_reduce(
+        0, fn (a, b) { return ok(a + b); }) == ok(6));
+    var bad = parallel.par_iter([1, 2, -3, 4]).try_reduce(0, fn (a, b) {
+        if b < 0 { return err("negative " + Str(b)); }
+        return ok(a + b);
+    });
+    assert(bad.is_err());
+    assert(bad.unwrap_err() == "negative -3");
+
+    # for_each_init runs init() per slice and visits every element once. A small
+    # input stays on one slice, so a captured list is safe to observe; a large
+    # one fans out and must only touch its own `init()` state.
+    var visits = [];
+    parallel.par_iter([1, 2, 3]).for_each_init(
+        fn () { return 0; }, fn (_st, e) { visits.append(e); });
+    assert(visits.len() == 3);
+    ran = parallel.par_iter(many).for_each_init(
+        fn () { return 0; }, fn (_st, e) { if e < 0 { raise "neg"; } });
+    assert(ran == none);
+
     print("parallel_test ok");
 }

@@ -196,6 +196,286 @@ struct ParIter {
         return ParIter(xs: out, divided: true);
     }
 
+    # Split `xs` into at most one contiguous slice per worker. The building
+    # blocks for the fan-out combinators below; grouping ops mark the iterator
+    # `divided`, whose smaller grain lets a handful of groups fan out.
+    fn slices(self) -> list {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            return [xs];
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        out = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            out.append(xs[i..end]);
+            i = end;
+        }
+        return out;
+    }
+
+    # ---- combining / searching (POWER_PLAN 4.2) --------------------------
+    # The item-preserving adaptors fan out per slice and reassemble in order, so
+    # the result equals the sequential one. `f` returns a value (kept) or `none`
+    # (dropped) for `filter_map`; Kirn has no `Option` wrapper to unwrap.
+
+    fn filter_map(self, f) -> ParIter {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    m = f(e);
+                    if m != none { part.append(m); }
+                }
+                return part;
+            });
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # `f(e)` returns an iterable; the iterables are concatenated in element
+    # order (rayon's `flat_map`). The empty input still runs one (trivial) task.
+    fn flat_map(self, f) -> ParIter {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    for y in f(e) { part.append(y); }
+                }
+                return part;
+            });
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # Flatten one level: a list of lists becomes a flat list.
+    fn flatten(self) -> ParIter {
+        return self.flat_map(fn (g) { return g; });
+    }
+
+    # Keep the first element (in order) for which `f` is true; `none` if none.
+    fn find_any(self, f) -> any {
+        for e in self.xs {
+            if f(e) { return e; }
+        }
+        return none;
+    }
+
+    # `find_first`/`find_last` differ only in direction (rayon's indexed forms);
+    # both are deterministic scans, since Kirn's fan-out reassembles in order.
+    fn find_first(self, f) -> any {
+        return self.find_any(f);
+    }
+
+    fn find_last(self, f) -> any {
+        xs = self.xs;
+        var i = xs.len() - 1;
+        while i >= 0 {
+            if f(xs[i]) { return xs[i]; }
+            i -= 1;
+        }
+        return none;
+    }
+
+    # Indices whose element satisfies `f` (rayon's `positions`).
+    fn positions(self, f) -> list {
+        out = [];
+        var i = 0;
+        for e in self.xs {
+            if f(e) { out.append(i); }
+            i += 1;
+        }
+        return out;
+    }
+
+    # `min_by`/`max_by` take a comparison function `(a, b) -> Int` (negative when
+    # `a` orders before `b`), like rayon's `min_by`/`max_by`; the `_key` forms
+    # order by a key function, like `min_by_key`/`max_by_key`.
+    fn min_by(self, cmp) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and cmp(e, best) < 0 { best = e; }
+        }
+        return best;
+    }
+
+    fn max_by(self, cmp) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and cmp(e, best) > 0 { best = e; }
+        }
+        return best;
+    }
+
+    fn min_by_key(self, key) -> any {
+        var best = none;
+        var bestk = none;
+        var first = true;
+        for e in self.xs {
+            k = key(e);
+            if first {
+                best = e;
+                bestk = k;
+                first = false;
+            }
+            if not first and k < bestk {
+                best = e;
+                bestk = k;
+            }
+        }
+        return best;
+    }
+
+    fn max_by_key(self, key) -> any {
+        var best = none;
+        var bestk = none;
+        var first = true;
+        for e in self.xs {
+            k = key(e);
+            if first {
+                best = e;
+                bestk = k;
+                first = false;
+            }
+            if not first and k > bestk {
+                best = e;
+                bestk = k;
+            }
+        }
+        return best;
+    }
+
+    # Zip two iterators into `[a, b]` pairs, truncated to the shorter length
+    # (rayon's `zip` requires equal lengths; Kirn truncates instead of raising).
+    fn zip(self, other: ParIter) -> list {
+        a = self.xs;
+        b = other.xs;
+        n = a.len();
+        if b.len() < n { n = b.len(); }
+        out = [];
+        var i = 0;
+        while i < n {
+            out.append([a[i], b[i]]);
+            i += 1;
+        }
+        return out;
+    }
+
+    # Pair each element with its index: `[i, e]` (rayon yields tuples; Kirn has
+    # no tuple value, so a two-element list stands in, as the tagging codec does).
+    fn enumerate(self) -> list {
+        out = [];
+        var i = 0;
+        for e in self.xs {
+            out.append([i, e]);
+            i += 1;
+        }
+        return out;
+    }
+
+    # `take`/`skip`/`step_by` are index-space rewrites (rayon's take/skip/step_by
+    # on indexed iterators); the result is a fresh, undivided iterator.
+    fn take(self, n: Int) -> ParIter {
+        xs = self.xs;
+        if n < 0 { n = 0; }
+        if n > xs.len() { n = xs.len(); }
+        return ParIter(xs: xs[0..n], divided: false);
+    }
+
+    fn skip(self, n: Int) -> ParIter {
+        xs = self.xs;
+        if n < 0 { n = 0; }
+        if n > xs.len() { n = xs.len(); }
+        return ParIter(xs: xs[n..xs.len()], divided: false);
+    }
+
+    fn step_by(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.step_by: step must be > 0"; }
+        out = [];
+        xs = self.xs;
+        var i = 0;
+        while i < xs.len() {
+            out.append(xs[i]);
+            i += n;
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # Per-thread stateful traversal (rayon's `for_each_init`): each worker calls
+    # `init()` once, then `f(state, e)` for its slice. Mutating `state` is safe
+    # because it never crosses a task; mutating captured `self.xs` is not.
+    fn for_each_init(self, seed, f) -> none {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> none {
+                var st = seed();
+                for e in c { f(st, e); }
+            });
+        }
+        parallel.invoke(fns);
+    }
+
+    # Parallel tree reduce with a per-slice seed: each slice folds from
+    # `identity()`, then the partials are combined pairwise with `op`. `op` must
+    # be associative for a stable result (rayon's `fold` has the same caveat).
+    fn fold(self, identity, op) -> any {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> any {
+                var acc = identity();
+                for e in c { acc = op(acc, e); }
+                return acc;
+            });
+        }
+        parts = parallel.invoke(fns);
+        if parts.len() == 0 { return identity(); }
+        var acc = parts[0];
+        var i = 1;
+        while i < parts.len() {
+            acc = op(acc, parts[i]);
+            i += 1;
+        }
+        return acc;
+    }
+
+    # Fallible reduce (rayon's `try_reduce`): `op(acc, e)` returns `ok(acc)` or
+    # `err(e)`. The first `err` encountered in order short-circuits the whole
+    # reduce and is returned; otherwise `ok(final)`.
+    fn try_reduce(self, init, op) -> any {
+        var acc = init;
+        for e in self.xs {
+            var r = op(acc, e);
+            if r.is_err() { return r; }
+            acc = r.unwrap();
+        }
+        return ok(acc);
+    }
+
     fn collect(self) -> list { return self.xs; }
 
     fn count(self) -> Int { return self.xs.len(); }

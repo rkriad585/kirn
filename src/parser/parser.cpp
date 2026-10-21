@@ -1896,6 +1896,7 @@ ast::ExprP Parser::parseFnClosure() {
         throw Abort("fnclosure");
     }
     lam->lambdaBody = parseBlock();
+    lam->isBlockClosure = true;
     endBlock();
     return lam;
 }

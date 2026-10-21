@@ -4125,7 +4125,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
         }
 
         case ExKind::Lambda: {
-            if (!e.lambdaBody.empty()) {
+            if (e.isBlockClosure) {
                 // block-bodied closure: `fn (params) [-> T] { stmts }`
                 Save<TyP> retG(currentRet_);
                 Save<int> loopG(loopDepth_);

@@ -408,7 +408,7 @@ struct Lowerer {
             }
             case ast::ExKind::Lambda: {
                 payload::Lambda l;
-                l.isBlock = !e.lambdaBody.empty();
+                l.isBlock = e.isBlockClosure;
                 pushScope(true);
                 for (const auto& pn : e.lambdaParams) {
                     DeclId id = declare(pn, Decl::Kind::Param, sp, nullptr, true, nullptr);

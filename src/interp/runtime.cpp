@@ -6655,7 +6655,7 @@ Value Interpreter::runLambda(const Expr* lam, std::vector<Value> args,
                              Env closure) {
     Env lenv = makeChild(closure ? closure : globals_);
 
-    if (!lam->lambdaBody.empty()) {
+    if (lam->isBlockClosure) {
         // block-bodied closure: bind positionally, fill defaults, execute the
         // statement block; `return v;` supplies the value (SignalReturn).
         const auto& cps = lam->closureParams;

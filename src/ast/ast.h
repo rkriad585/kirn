@@ -178,6 +178,10 @@ struct Expr {
     // closureParams/lambdaBody empty and retType null.
     std::vector<Param> closureParams;
     std::vector<StmtP> lambdaBody;
+    // True for a block-bodied closure (`fn (…) { … }`), including an *empty*
+    // body. Distinguishes it from an arrow lambda, whose empty `lambdaBody`
+    // would otherwise be misread as "not a block closure".
+    bool isBlockClosure = false;
     TypeP retType;                    // declared closure return type (may be null)
     // POWER_PLAN §2: `async fn (…) { … }` closure — calling it schedules a task.
     bool isAsync = false;

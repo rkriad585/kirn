@@ -1,0 +1,13 @@
+# An empty-body block closure (`fn (…) { }`) is a block closure, not an arrow
+# lambda: it takes the declared parameters and returns `none`. Regression guard
+# for closures captured into a threaded `parallel.invoke` fan-out.
+fn apply(g) -> list {
+    out = [];
+    out.append(g(1, 2));
+    return out;
+}
+
+fn main() -> none {
+    print(apply(fn (_a, _b) { }));
+    print(apply(fn (a, b) { return a + b; }));
+}

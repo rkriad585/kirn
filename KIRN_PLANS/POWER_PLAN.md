@@ -1060,3 +1060,31 @@ Deviations / not shipped (documented):
 - **Name resolution is flat.** Hooks are found by final segment across the entry globals, all loaded modules, and struct-defining modules; there is no visibility/ambiguity check, so two modules exporting the same hook name make the result depend on map iteration. Attribute arguments also remain literal-only (a hook cannot take extra parameters).
 - **`borrow`/`bound`/container `rename` remain ignored**; `borrow` is a compile-time lifetime hint and `rename` on a container is not emitted by the tree codec (type names never appear in the output).
 - Hook functions see the caller's module environment only through the resolver's search; closures/lambdas cannot be named by an attribute path.
+
+### Update (2026-10-20) — §4.2 parallel iterator combinators (shipped)
+
+**Path chosen:** the spawn-based `ParIter` (§4, Phase 4) already fans a slice per worker and reassembles in order, so the remaining rayon combinators are pure stdlib additions on top of it — no compiler change. A new `slices()` helper cuts `xs` into one contiguous slice per worker (honouring the `divided` grain so grouping iterators still fan out per group); the item-preserving adaptors map each slice, then `parallel.invoke` runs them and the partials are concatenated in order, which is exactly the sequential result. Reference read directly from `langs-source-code/rust/rayon/src/iter/{filter_map,flat_map,find,positions,min_by,max_by,zip,enumerate,take,skip,step_by,fold,try_reduce,for_each_init}.rs`.
+
+Delivered (`stdlib/pet/parallel.kn`):
+
+- **Item-preserving adaptors**: `filter_map(f)` (`f` returns a value to keep or `none` to drop), `flat_map(f)` (`f` returns an iterable, concatenated in element order), `flatten()` (one level).
+- **Searching**: `find_any`/`find_first` (first in order), `find_last` (reverse), `positions(f)` (indices), each deterministic because the fan-out reassembles in order.
+- **Ordered min/max**: `min_by`/`max_by` (a `(a, b) -> Int` comparator, as rayon's `min_by`/`max_by`) and `min_by_key`/`max_by_key` (by a key function).
+- **Reshaping**: `zip(other)` (pairs `[a, b]`, truncated to the shorter input), `enumerate()` (pairs `[i, e]`, since Kirn has no tuple value), `take`/`skip`/`step_by` (index-space rewrites returning a fresh, undivided iterator; `step_by` rejects `n <= 0`).
+- **Reducers**: `fold(identity, op)` (per-slice seed from `identity()`, partials combined pairwise with `op`), `try_reduce(init, op)` (`op` returns `ok`/`err`; the first `err` in order short-circuits and is returned, else `ok(final)`), `for_each_init(seed, f)` (one `seed()` per worker, then `f(state, e)` for its slice).
+- **Examples/tests**: `examples/85_parallel_combinators.kn` + three goldens (examples gate now **82**); `tests/syntax/empty_closure_ok.kn`; `stdlib/pet/parallel_test.kn` extended with ordered and large-input (`20000`) coverage of every combinator.
+
+**Incidental bug fixed** (found while testing `for_each_init`): an **empty-body block closure** (`fn (…) { }`) was classified by `lambdaBody.empty()` as an arrow lambda, so invoking it raised `too many lambda arguments` (and it took no parameters). A new `ast::Expr::isBlockClosure` flag is set by the parser and used by `callValue`, the checker, and the HIR lowering, so an empty block closure now takes its declared parameters and returns `none`.
+
+Verification: gates **350/0/0 hung** (1_runall 82, 2b_syntax 56, 4_vm_diff 100, 8_bundle 15, 11_native 11, …), golden **345/0** (exactly the three new files recorded), crosscheck **891/0** (146 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
+
+Deviations / not shipped (documented):
+
+- **No `.par_iter()` method form**, `.into_par_iter()`, or `.par_iter_mut()` — `par_iter(xs)` remains a free function (the checker has no `ParIter` return type to hang list methods on), and mutation across threads is still unrepresentable.
+- **`fold` is a seed-and-combine reduce, not rayon's lazy `Fold` iterator.** It returns the reduced value directly; combining partials needs an associative `op` for a stable result (rayon has the same caveat).
+- **`try_reduce` is sequential per slice** (it does not fan out, because a short-circuit at an arbitrary point would make the winner nondeterministic): the first `err` in element order wins. `ok`/`err` values are used instead of a `Try` trait.
+- **`find_any` is deterministic** (first in order), not rayon's racy first-found; `find_first`/`find_last` are aliases for the two directions.
+- **`zip` truncates** to the shorter input instead of raising `zip_eq`-style, and produces `[a, b]` lists (no tuple value); likewise `enumerate` yields `[i, e]`.
+- **`positions` of a large input is sequential** (index order matters); the item-preserving adaptors are the parallel ones.
+- **No `chain`/`interleave`/`rev`/`cloned`/`copied`/`inspect`/`map_with`/`while_some`/`flatten_iter`/`par_bridge`** yet; the §4.2 list named the combinators above.
+- **Sendability is still unchecked.** A closure that mutates captured shared state inside `for_each`/`for_each_init`/`flat_map` can race; use per-slice `init()` state (or `@[par] for`, which the tree-walker lowers) for mutations.

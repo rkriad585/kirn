@@ -62,9 +62,88 @@ EnumDef "Legacy"
     ArgName "alias"
     Value Str "old_name"
   Variant NewName
+FuncDef "is_zero"
+  Param "v" : Int
+  Ret Bool
+  Body
+    Return
+      Value 
+        Binary op="=="
+          Lhs Ident "v"
+          Rhs Int "0"
+FuncDef "default_port"
+  Ret Int
+  Body
+    Return
+      Value Int "8080"
+FuncDef "point_pair"
+  Param "p" : Point
+  Ret any
+  Body
+    Return
+      Value 
+        List len=2
+          Item 
+            Member name="x"
+              Obj Ident "p"
+          Item 
+            Member name="y"
+              Obj Ident "p"
+FuncDef "point_from"
+  Param "t" : any
+  Ret Point
+  Body
+    Return
+      Value 
+        Call
+          Callee Ident "Point"
+          Arg name=x
+            Value 
+              Index
+                Obj Ident "t"
+                At Int "0"
+          Arg name=y
+            Value 
+              Index
+                Obj Ident "t"
+                At Int "1"
+Decorator "serde" bracket
+  ArgName "rename_all"
+  Value Str "snake_case"
+StructDef "Server"
+  Decorator "serde" bracket
+    ArgName "skip_serializing_if"
+    Value Str "is_zero"
+  Field "retries" : Int
+  Decorator "serde" bracket
+    ArgName "default"
+    Value Str "default_port"
+  Field "port" : Int
+  Decorator "serde" bracket
+    ArgName "serialize_with"
+    Value Str "point_pair"
+    ArgName "deserialize_with"
+    Value Str "point_from"
+  Field "origin" : Point
+Decorator "serde" bracket
+  ArgName "tag"
+  Value Str "kind"
+  ArgName "rename_all_fields"
+  Value Str "camelCase"
+EnumDef "Motion"
+  Variant Step {dx: Int, dy: Int}
+  Variant Halt
 FuncDef "main"
   Ret none
   Body
+    Assign
+      Target Ident "_hooks"
+      Value 
+        List len=4
+          Item Ident "is_zero"
+          Item Ident "default_port"
+          Item Ident "point_pair"
+          Item Ident "point_from"
     Assign
       Target Ident "u"
       Value 
@@ -470,6 +549,143 @@ FuncDef "main"
                     Obj Ident "reflect"
                 Arg
                   Value Ident "lb"
+    Assign
+      Target Ident "srv"
+      Value 
+        Call
+          Callee Ident "Server"
+          Arg name=retries
+            Value Int "0"
+          Arg name=port
+            Value Int "1"
+          Arg name=origin
+            Value 
+              Call
+                Callee Ident "Point"
+                Arg name=x
+                  Value Int "2"
+                Arg name=y
+                  Value Int "3"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "hooks:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value Ident "srv"
+    Assign
+      Target Ident "sb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Server"
+          Arg
+            Value Str "{\\\"origin\\\": [4, 5]}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "hooks back:"
+          Arg
+            Value 
+              Member name="retries"
+                Obj Ident "sb"
+          Arg
+            Value 
+              Member name="port"
+                Obj Ident "sb"
+          Arg
+            Value 
+              Member name="x"
+                Obj 
+                  Member name="origin"
+                    Obj Ident "sb"
+          Arg
+            Value 
+              Member name="y"
+                Obj 
+                  Member name="origin"
+                    Obj Ident "sb"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "fields:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="to_string"
+                    Obj Ident "json"
+                Arg
+                  Value 
+                    Call
+                      Callee 
+                        Member name="Step"
+                          Obj Ident "Motion"
+                      Arg name=dx
+                        Value Int "1"
+                      Arg name=dy
+                        Value Int "2"
+    Assign
+      Target Ident "mb"
+      Value 
+        Call
+          Callee 
+            Member name="from_string"
+              Obj Ident "json"
+          Arg
+            Value Ident "Motion"
+          Arg
+            Value Str "{\\\"kind\\\": \\\"Step\\\", \\\"dx\\\": 6, \\\"dy\\\": 7}"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "fields back:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="variant"
+                    Obj Ident "reflect"
+                Arg
+                  Value Ident "mb"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Call
+                    Callee 
+                      Member name="payload"
+                        Obj Ident "reflect"
+                    Arg
+                      Value Ident "mb"
+                At Int "0"
+          Arg
+            Value 
+              Index
+                Obj 
+                  Call
+                    Callee 
+                      Member name="payload"
+                        Obj Ident "reflect"
+                    Arg
+                      Value Ident "mb"
+                At Int "1"
     ExprStmt
       Value 
         Call
@@ -488,5 +704,5 @@ FuncDef "main"
                     Obj Ident "toml"
                 Arg
                   Value Ident "u"
-<ROOT>/examples/83_serde_options.kn: OK (13 top-level statements)
+<ROOT>/examples/83_serde_options.kn: OK (19 top-level statements)
 [exit 0]

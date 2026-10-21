@@ -4025,6 +4025,44 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::str(
                     serdeCase(a[0].s, rule, kind == "variant"));
             });
+        // `fn(name)` — resolve a function value by name for attribute hooks
+        // (`serialize_with`, `default = "…"`, …). Serde paths look like
+        // `crate::helpers::skip`; only the final segment is used. The lookup
+        // walks the entry globals, then every loaded module, then each struct's
+        // defining module, so a hook defined beside the type is found even when
+        // the encoder itself runs inside `pet.codec`.
+        if (name == "fn")
+            return biFn({"name"}, [this](std::vector<Value>& a) -> Value {
+                if (a.empty() || a[0].k != VK::Str)
+                    panicHere("reflect.fn expects a function name");
+                std::string path = a[0].s;
+                auto pos = path.rfind("::");
+                std::string nm =
+                    pos == std::string::npos ? path : path.substr(pos + 2);
+                if (const Value* v = globals_ ? globals_->find(nm) : nullptr)
+                    return *v;
+                // Plain top-level functions are not bound in `globals_`; they
+                // live in `funcs_` and are materialized on lookup.
+                if (auto fi = funcs_.find(nm); fi != funcs_.end()) {
+                    Value f;
+                    f.k = VK::Fn;
+                    f.fn = fi->second;
+                    f.env = globals_;
+                    return f;
+                }
+                for (const auto& [mn, me] : loadedModules_) {
+                    (void)mn;
+                    if (!me) continue;
+                    if (const Value* v = me->find(nm)) return *v;
+                }
+                for (const auto& [sn, se] : structEnv_) {
+                    (void)sn;
+                    if (!se) continue;
+                    if (const Value* v = se->find(nm)) return *v;
+                }
+                panicHere("reflect.fn: no function '" + nm + "'");
+                return Value::none();
+            });
         panicHere("reflect has no member '" + name + "'");
     }
 

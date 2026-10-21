@@ -16,18 +16,22 @@
 #
 # POWER_PLAN §3.2 — `@[serde(...)]` options are honoured here, at the shared
 # tree layer, so every format gets them for free:
-#   container: rename_all, deny_unknown_fields, transparent, tag, content,
-#              untagged
+#   container: rename_all, rename_all_fields, deny_unknown_fields, transparent,
+#              tag, content, untagged
 #   field:     rename, alias, skip, skip_serializing, skip_deserializing,
-#              flatten, default (implicit — see decode_struct), default = "…"
-#              is not supported
+#              flatten, default, default = "path", skip_serializing_if,
+#              serialize_with, deserialize_with
 #   variant:   rename, alias, skip, skip_serializing, skip_deserializing,
 #              untagged (per-variant)
-# `rename_all` uses serde's rules (lowercase/UPPERCASE/PascalCase/camelCase/
-# snake_case/SCREAMING_SNAKE_CASE/kebab-case/SCREAMING-KEBAB-CASE) via native
-# `reflect.case`. Not supported (documented): `with`, `serialize_with`,
-# `deserialize_with`, `skip_serializing_if`, `borrow`, `bound`, and the
-# `default = "path"` function form.
+# Function-valued options name a function (`"crate::helpers::skip"`; only the
+# final `::` segment matters) resolved by native `reflect.fn`. Because this
+# encoder works on trees, `serialize_with(f)` returns the *tree* to emit and
+# `deserialize_with(f)` consumes the decoded tree (serde's variants write to a
+# Serializer/read from a Deserializer instead). `rename_all` uses serde's rules
+# (lowercase/UPPERCASE/PascalCase/camelCase/snake_case/SCREAMING_SNAKE_CASE/
+# kebab-case/SCREAMING-KEBAB-CASE) via native `reflect.case`. Not supported
+# (documented): `with`, `borrow`, `bound`, and `default` without a value when the
+# field is skipped for deserialization (the field stays absent).
 
 import reflect;
 
@@ -66,6 +70,14 @@ fn str_opt(args: list, name: Str) -> Str {
     v = opt(args, name);
     if reflect.kind_of(v) == "string" { return v; }
     return "";
+}
+
+# Resolve a function-valued attribute (e.g. `serialize_with = "path"`).
+# Returns `none` when the option is absent or has no string path.
+fn hook(args: list, name: Str) -> any {
+    p = str_opt(args, name);
+    if p == "" { return none; }
+    return reflect.fn(p);
 }
 
 fn field_args(fattrs: any, fname: Str) -> list {
@@ -146,9 +158,13 @@ fn enc_struct(v: any) -> any {
     if has_opt(sargs, "transparent") {
         for name in names {
             fargs = field_args(fattrs, name);
-            if not skip_ser(fargs) {
-                return enc_tree(reflect.get_field(v, name));
-            }
+            if skip_ser(fargs) { continue; }
+            fval = reflect.get_field(v, name);
+            pred = hook(fargs, "skip_serializing_if");
+            if reflect.kind_of(pred) != "none" and pred(fval) { continue; }
+            ser = hook(fargs, "serialize_with");
+            if reflect.kind_of(ser) != "none" { return enc_tree(ser(fval)); }
+            return enc_tree(fval);
         }
         raise("serde: transparent struct " + Str(reflect.type(v)) +
               " has no serializable field");
@@ -158,11 +174,18 @@ fn enc_struct(v: any) -> any {
     for name in names {
         fargs = field_args(fattrs, name);
         if skip_ser(fargs) { continue; }
+        fval = reflect.get_field(v, name);
+        pred = hook(fargs, "skip_serializing_if");
+        if reflect.kind_of(pred) != "none" and pred(fval) { continue; }
+        var enc = none;
+        ser = hook(fargs, "serialize_with");
+        if reflect.kind_of(ser) != "none" { enc = enc_tree(ser(fval)); }
+        else { enc = enc_tree(fval); }
         if has_opt(fargs, "flatten") {
-            merge_map(out, enc_tree(reflect.get_field(v, name)));
+            merge_map(out, enc);
         } else {
             key = serde_name(name, fargs, rule, "field");
-            out[key] = enc_tree(reflect.get_field(v, name));
+            out[key] = enc;
         }
     }
     return out;
@@ -210,12 +233,15 @@ fn enc_enum(v: any) -> any {
     if tag != "" {
         # Internally tagged: merge the (named) payload fields beside the tag.
         pnames = reflect.enum_payload_names(v, vname);
+        prule = str_opt(sargs, "rename_all_fields");
         out = {};
         out[tag] = name;
         var i = 0;
         while i < payload.len() {
             var pn = "v" + Str(i);
-            if i < pnames.len() and pnames[i] != "" { pn = pnames[i]; }
+            if i < pnames.len() and pnames[i] != "" {
+                pn = serde_name(pnames[i], [], prule, "field");
+            }
             out[pn] = enc_tree(payload[i]);
             i = i + 1;
         }
@@ -261,7 +287,9 @@ fn decode_struct(T: any, data: any) -> any {
             if skip_de(fargs) { continue; }
             fields = {};
             gen = generics[fname];
-            fields[fname] = coerce(types[fname], gen, data);
+            de = hook(fargs, "deserialize_with");
+            if reflect.kind_of(de) != "none" { fields[fname] = de(data); }
+            else { fields[fname] = coerce(types[fname], gen, data); }
             return reflect.new(T, fields);
         }
         raise("serde: transparent struct " + Str(T) +
@@ -276,7 +304,11 @@ fn decode_struct(T: any, data: any) -> any {
     consumed = [];
     for fname in types {
         fargs = field_args(fattrs, fname);
-        if skip_de(fargs) { continue; }
+        if skip_de(fargs) {
+            dfn = hook(fargs, "default");
+            if reflect.kind_of(dfn) != "none" { fields[fname] = dfn(); }
+            continue;
+        }
         if has_opt(fargs, "flatten") {
             # Everything not claimed by an ordinary field belongs to the
             # flattened field. `deny_unknown_fields` was rejected above.
@@ -306,8 +338,16 @@ fn decode_struct(T: any, data: any) -> any {
             }
         }
         if present {
-            gen = generics[fname];
-            fields[fname] = coerce(types[fname], gen, raw);
+            de = hook(fargs, "deserialize_with");
+            if reflect.kind_of(de) != "none" {
+                fields[fname] = de(raw);
+            } else {
+                gen = generics[fname];
+                fields[fname] = coerce(types[fname], gen, raw);
+            }
+        } else {
+            dfn = hook(fargs, "default");
+            if reflect.kind_of(dfn) != "none" { fields[fname] = dfn(); }
         }
     }
     if deny {
@@ -340,9 +380,11 @@ fn decode_enum(T: any, data: any) -> any {
         real = find_variant(T, variants, vattrs, rule, data[tag]);
         pnames = reflect.enum_payload_names(T, real);
         ptys = reflect.enum_payload_type_names(T, real);
+        prule = str_opt(sargs, "rename_all_fields");
         coerced = [];
         for i in 0..pnames.len() {
             pn = pnames[i];
+            if pn != "" and prule != "" { pn = serde_name(pn, [], prule, "field"); }
             var raw = none;
             if pn != "" and has_key(data, pn) { raw = data[pn]; }
             var pt = "";

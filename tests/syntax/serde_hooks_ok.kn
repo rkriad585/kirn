@@ -1,0 +1,27 @@
+# serde function-valued options (POWER_PLAN §3.2): skip_serializing_if,
+# default = "path", serialize_with / deserialize_with. Clean + tree == VM.
+import pet.json as json;
+
+struct Pair { a: Int; b: Int; }
+
+fn is_zero(v: Int) -> Bool { return v == 0; }
+fn fallback() -> Int { return 7; }
+fn ser_pair(p: Pair) -> any { return [p.a, p.b]; }
+fn read_pair(t: any) -> Pair { return Pair(a: t[0], b: t[1]); }
+
+@[serde(rename_all = "camelCase")]
+struct Item {
+    @[serde(skip_serializing_if = "is_zero")] hit_count: Int;
+    @[serde(default = "fallback")] retry_limit: Int;
+    @[serde(serialize_with = "ser_pair", deserialize_with = "read_pair")]
+    coords: Pair;
+}
+
+fn main() -> none {
+    _touch = [is_zero, fallback, ser_pair, read_pair];
+    it = Item(hit_count: 0, retry_limit: 1, coords: Pair(a: 2, b: 3));
+    print("enc:", json.to_string(it));
+    back = json.from_string(Item, "{\"coords\": [4, 5]}");
+    print("dec:", back.hit_count, back.retry_limit, back.coords.a,
+          back.coords.b);
+}

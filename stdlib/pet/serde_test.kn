@@ -37,7 +37,24 @@ enum OptValue { N(n: Int); S(s: Str); }
 @[serde(rename_all = "kebab-case")]
 enum OptLegacy { @[serde(alias = "old_name")] NewName; }
 
+fn zero_int(v: Int) -> Bool { return v == 0; }
+fn fallback_port() -> Int { return 8080; }
+fn ser_pair(p: Point) -> any { return [p.x, p.y]; }
+fn de_pair(t: any) -> Point { return Point(x: t[0], y: t[1]); }
+
+@[serde(rename_all = "camelCase")]
+struct OptHooks {
+    @[serde(skip_serializing_if = "zero_int")] hit_count: Int;
+    @[serde(default = "fallback_port")] port: Int;
+    @[serde(serialize_with = "ser_pair", deserialize_with = "de_pair")]
+    at: Point;
+}
+
+@[serde(tag = "kind", rename_all_fields = "camelCase")]
+enum OptMotion { Step(start_x: Int, start_y: Int); Halt; }
+
 fn main() -> none {
+    _touch = [zero_int, fallback_port, ser_pair, de_pair];
     p = Point(x: 3, y: 4);
     assert(serde.to_json(p) == "{\"x\":3,\"y\":4}");
 
@@ -111,6 +128,22 @@ fn main() -> none {
     try { serde.from_json_as(OptStrict, "{\"id\": 1, \"x\": 2}"); }
     catch { denied = true; }
     assert(denied);
+
+    # §3.2 function-valued options: skip_serializing_if, default = "path",
+    # serialize_with / deserialize_with, rename_all_fields.
+    h = OptHooks(hit_count: 0, port: 1, at: Point(x: 2, y: 3));
+    assert(serde.to_json(h) == "{\"port\":1,\"at\":[2,3]}");
+    hb = serde.from_json_as(OptHooks, "{\"at\": [4, 5]}");
+    assert(reflect.get_field(hb, "port") == 8080);
+    assert(reflect.get_field(reflect.get_field(hb, "at"), "x") == 4);
+    assert(reflect.get_field(reflect.get_field(hb, "at"), "y") == 5);
+
+    assert(serde.to_json(OptMotion.Step(start_x: 1, start_y: 2)) ==
+           "{\"kind\":\"Step\",\"startX\":1,\"startY\":2}");
+    m = serde.from_json_as(OptMotion,
+                           "{\"kind\": \"Step\", \"startX\": 6, \"startY\": 7}");
+    assert(reflect.payload(m)[0] == 6);
+    assert(reflect.payload(m)[1] == 7);
 
     print("serde_test ok");
 }

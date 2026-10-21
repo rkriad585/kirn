@@ -44,7 +44,27 @@ enum Legacy {
     @[serde(alias = "old_name")] NewName;
 }
 
+fn is_zero(v: Int) -> Bool { return v == 0; }
+fn default_port() -> Int { return 8080; }
+fn point_pair(p: Point) -> any { return [p.x, p.y]; }
+fn point_from(t: any) -> Point { return Point(x: t[0], y: t[1]); }
+
+@[serde(rename_all = "snake_case")]
+struct Server {
+    @[serde(skip_serializing_if = "is_zero")] retries: Int;
+    @[serde(default = "default_port")] port: Int;
+    @[serde(serialize_with = "point_pair", deserialize_with = "point_from")]
+    origin: Point;
+}
+
+@[serde(tag = "kind", rename_all_fields = "camelCase")]
+enum Motion {
+    Step(dx: Int, dy: Int);
+    Halt;
+}
+
 fn main() -> none {
+    _hooks = [is_zero, default_port, point_pair, point_from];
     u = User(user_name: "ada", user_id: 7, session: "secret", age: 36);
     print("user:", json.to_string(u));
     ub = json.from_string(User, "{\"userName\": \"ada\", \"id\": 7}");
@@ -78,6 +98,16 @@ fn main() -> none {
     print("alias:", json.to_string(Legacy.NewName));
     lb = json.from_string(Legacy, "{\"old_name\": null}");
     print("alias back:", reflect.variant(lb));
+
+    srv = Server(retries: 0, port: 1, origin: Point(x: 2, y: 3));
+    print("hooks:", json.to_string(srv));
+    sb = json.from_string(Server, "{\"origin\": [4, 5]}");
+    print("hooks back:", sb.retries, sb.port, sb.origin.x, sb.origin.y);
+
+    print("fields:", json.to_string(Motion.Step(dx: 1, dy: 2)));
+    mb = json.from_string(Motion, "{\"kind\": \"Step\", \"dx\": 6, \"dy\": 7}");
+    print("fields back:", reflect.variant(mb), reflect.payload(mb)[0],
+          reflect.payload(mb)[1]);
 
     print("toml:");
     print(toml.to_string(u));

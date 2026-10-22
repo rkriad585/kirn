@@ -1,4 +1,5 @@
 import pet.parallel as parallel;
+import pet.sync as sync;
 
 fn main() -> none {
     assert(parallel.current_num_threads() > 0);
@@ -175,14 +176,14 @@ fn main() -> none {
     assert(pool.install(fn () { return 6 * 7; }) == 42);
     assert(pool.join(fn () { return 1; }, fn () { return 2; }) == [1, 2]);
     assert(pool.broadcast(fn () { return 5; }) == [5, 5, 5]);
-    var scoped = [];
+    var scoped = sync.Atomic(0);
     out = pool.scope(fn (sc) {
-        sc.spawn(fn () { scoped.append(1); });
-        sc.spawn(fn () { scoped.append(2); });
+        sc.spawn(fn () { scoped.add(1); });
+        sc.spawn(fn () { scoped.add(1); });
         return "ok";
     });
     assert(out == "ok");
-    assert(scoped.len() == 2);
+    assert(scoped.load() == 2);
     assert(parallel.yield_now() == none);
 
     # §4.3: slice & string ops.

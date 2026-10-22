@@ -1,5 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/86_parallel_pool.kn
 Import pet.parallel as p
+Import pet.sync as sync
 FuncDef "square"
   Param "x" : <inferred>
   Ret Int
@@ -88,7 +89,12 @@ FuncDef "main"
     VarDecl
       Target Ident "hits"
       Value 
-        List len=0
+        Call
+          Callee 
+            Member name="Atomic"
+              Obj Ident "sync"
+          Arg
+            Value Int "0"
     Assign
       Target Ident "label"
       Value 
@@ -141,7 +147,7 @@ FuncDef "main"
             Value 
               Call
                 Callee 
-                  Member name="len"
+                  Member name="load"
                     Obj Ident "hits"
     ExprStmt
       Value 
@@ -155,5 +161,5 @@ FuncDef "main"
                 Callee 
                   Member name="yield_now"
                     Obj Ident "p"
-<ROOT>/examples/86_parallel_pool.kn: OK (3 top-level statements)
+<ROOT>/examples/86_parallel_pool.kn: OK (4 top-level statements)
 [exit 0]

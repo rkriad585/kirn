@@ -6,6 +6,7 @@
 # runs them together before returning. Small work stays on one worker, so the
 # output is deterministic.
 import pet.parallel as p;
+import pet.sync as sync;
 
 fn square(x) -> Int { return x * x; }
 
@@ -22,14 +23,14 @@ fn main() -> none {
     print("broadcast count:", pool.broadcast(
         fn () { return p.current_thread_index(); }).len());
 
-    var hits = [];
+    var hits = sync.Atomic(0);
     label = pool.scope(fn (s) {
-        s.spawn(fn () { hits.append("a"); });
-        s.spawn(fn () { hits.append("b"); });
-        s.spawn(fn () { hits.append("c"); });
+        s.spawn(fn () { hits.add(1); });
+        s.spawn(fn () { hits.add(1); });
+        s.spawn(fn () { hits.add(1); });
         return "scoped";
     });
-    print("scope:", label, hits.len());
+    print("scope:", label, hits.load());
 
     print("yield:", p.yield_now());
 }

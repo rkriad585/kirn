@@ -451,6 +451,14 @@ struct ParIter {
         return self.map(fn (x) { f(x); return x; });
     }
 
+    fn cloned(self) -> ParIter {
+        return self.map(fn (x) { return x; });
+    }
+
+    fn copied(self) -> ParIter {
+        return self.map(fn (x) { return x; });
+    }
+
     # Per-thread stateful traversal (rayon's `for_each_init`): each worker calls
     # `init()` once, then `f(state, e)` for its slice. Mutating `state` is safe
     # because it never crosses a task; mutating captured `self.xs` is not.

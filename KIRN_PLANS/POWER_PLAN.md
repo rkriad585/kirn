@@ -417,6 +417,27 @@ rows.par_chunks(1024).for_each(fn (chunk) { ingest(chunk); });
 
 > Reference: rust — `ParallelSlice`/`ParallelSliceMut` (`rust/rayon/src/slice/mod.rs`, `slice/chunks.rs`, `slice/windows.rs`), `ParallelString` (`rust/rayon/src/str.rs`), `par_sort` (`rust/rayon/src/slice/mod.rs`).
 
+### Update (2026-10-20) — §4.3 slice / string ops (shipped)
+
+**Path chosen:** the slice/string forms are stdlib additions on the existing `ParIter`: sorts reuse the stable merge sort (paths already parallelise above the 8192-element grain), and the string helpers split a `Str` and hand the pieces to `par_iter`. Reference read from `langs-source-code/rust/rayon/src/{slice/mod.rs,slice/chunks.rs,str.rs}`.
+
+Delivered (`stdlib/pet/parallel.kn`):
+
+- **`par_sort_by(xs, cmp)`** — stable parallel sort with an `(a, b) -> Int` comparator (negative means `a` first), mirroring `par_sort_by`/`merge_cmp`/`merge_sort_cmp` next to the existing `par_sort`/`par_sort_by_key`.
+- **`par_sort_unstable(xs)`** — the rayon in-place name; delegates to the stable merge sort (see deviation).
+- **String helpers** over `parameter.ParallelString`'s surface: `par_lines(s)` (split on `\n`), `par_str_split(s, sep)` (split on a separator), and `par_bytes(s)` (walk the code points). Each returns a `ParIter` so the §4.2 combinators compose.
+- **Examples/tests**: `examples/87_parallel_slice_string.kn` + three goldens (examples gate now **84**); `tests/syntax/parallel_slice_string_ok.kn`; `stdlib/pet/parallel_test.kn` extended with sort and string assertions.
+
+Verification: gates **356/0/0 hung** (1_runall 84, 2b_syntax 58, 4_vm_diff 102, 8_bundle 15, 11_native 11, …), golden **351/0** (exactly the three new files recorded), crosscheck **903/0** (149 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
+
+Deviations / not shipped (documented):
+
+- **No in-place mutation (`par_chunks_mut`, `par_sort*` mutating the receiver).** Kirn has no references or `&mut`, and list/str receivers are passed by value, so every sort returns a new list. `par_sort_unstable` therefore cannot be a true in-place/unstable sort — it is the stable merge sort under rayon's name (identical output).
+- **No `ParallelDrainRange`** (`par_drain`): draining requires mutating the source in place, which the value/reference model cannot express.
+- **No `parallel.String` namespace.** The string helpers are free functions (`par_lines`/`par_str_split`/`par_bytes`) rather than `Str` methods, because the checker has no `Str`-method table to hang them on and `par_split` is already taken by the slice form (`par_split(xs, sep)`).
+- **`par_bytes` yields characters, not bytes.** Kirn `Str` indexes and iterates by character and has no byte/`u8` type, so `par_bytes("hi")` produces a `ParIter` of `char` values (map with `Str(c)` to compare against strings). `par_split` on a string is `par_str_split` to avoid the list-`par_split` clash.
+- **Splits are eager:** `par_lines`/`par_str_split`/`par_bytes` materialise the pieces (via `Str.split`/indexing) before fanning out, rather than lazily streaming as rayon's `ParallelString` does; `par_sort` on a very small input stays sequential.
+
 ### 4.4 `@[par]` decorator
 
 `@[par]` on a `for` loop or a map/fold lowers the body to the parallel iterator equivalent. `@[par]` on a pure `fn` marks it safe to run on the pool.

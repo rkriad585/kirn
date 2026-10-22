@@ -426,6 +426,31 @@ struct ParIter {
         return ParIter(xs: out, divided: false);
     }
 
+    fn rev(self) -> ParIter {
+        out = [];
+        var i = self.xs.len() - 1;
+        while i >= 0 {
+            out.append(self.xs[i]);
+            i -= 1;
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn chain(self, other: ParIter) -> ParIter {
+        out = [];
+        var i = 0;
+        var xs = self.xs;
+        while i < xs.len() { out.append(xs[i]); i += 1; }
+        i = 0;
+        var ys = other.xs;
+        while i < ys.len() { out.append(ys[i]); i += 1; }
+        return ParIter(xs: out, divided: true);
+    }
+
+    fn inspect(self, f) -> ParIter {
+        return self.map(fn (x) { f(x); return x; });
+    }
+
     # Per-thread stateful traversal (rayon's `for_each_init`): each worker calls
     # `init()` once, then `f(state, e)` for its slice. Mutating `state` is safe
     # because it never crosses a task; mutating captured `self.xs` is not.

@@ -1152,3 +1152,11 @@ Delivered:
 - **Tests**: `stdlib/pet/sync_test.kn` extended with `test_mpsc_unbounded`, `test_mpsc_bounded`, `test_mpsc_close`.
 
 Verification: `kirn test stdlib/pet/sync_test.kn` PASS (1 passed); `kirnrun --no-vm stdlib/pet/sync_test.kn` and VM both report the new mpsc tests OK. Both engines produce identical behavior for the new surface.
+
+### Update (2026-10-21) — §4.2 parallel iterators: `rev` / `chain` / `inspect` (shipped)
+
+**Path chosen:** stdlib additions on the spawn-based `ParIter` (no compiler changes). `rev`/`chain` return new `ParIter`s with `divided` set appropriately so downstream fanning honors the grain; `inspect(f)` maps through `f` for side effects.
+
+Delivered (`stdlib/pet/parallel.kn`): `ParIter.rev()` returns a reversed iterator (undivided), `ParIter.chain(other)` concatenates in order (re-divided), `ParIter.inspect(f)` passes each element through `f` and returns it.
+
+Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/pet/parallel_test.kn` PASS, `scripts/gates/6_test.sh` green.

@@ -49,6 +49,9 @@ watch changed: ok
 watch borrow vs update: ok
 watch mark: ok
 watch close: ok
+mpsc unbounded: ok
+mpsc bounded: ok
+mpsc close: ok
 PASS
 test ./stdlib/pet/time_test.kn ... time_test ok
 PASS

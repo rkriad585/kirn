@@ -1,0 +1,20 @@
+# pet.error is file-backed like the other pet modules: it re-exports the
+# native error helpers under the same names, and `error.new` still resolves
+# through the native fallback (it cannot be declared here - `new` is a keyword).
+import pet.error;
+
+fn boom() -> result[Int] {
+    raise error.msg("boom");
+}
+
+fn main() -> none {
+    var e = error.msg("boom");
+    print(error.chain(e));
+    print(error.root_cause(e));
+    print(error.display(e));
+    print(error.is(e, "Error"));
+    print(error.new(7).msg);
+    print(error.context(boom(), "outer").is_err());
+    error.ensure(true, "fine");
+    print("done");
+}

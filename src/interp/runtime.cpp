@@ -3666,9 +3666,19 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         if (it == loadedModules_.end())
             panicHere("module '" + dotted + "' is not loaded");
         const Value* mv = it->second->find(name);
-        if (!mv || name.empty() || name[0] == '_')
+        if (!mv || name.empty() || name[0] == '_') {
+            // A file-backed wrapper may re-export a native pseudo-module
+            // (pet/error.kn wraps the native `error`). Members the file cannot
+            // declare - notably `new`, a reserved keyword - still resolve from
+            // the native module of the same base name.
+            size_t dot = dotted.rfind('.');
+            std::string base =
+                dot == std::string::npos ? dotted : dotted.substr(dot + 1);
+            if (isPreboundModule(base) && base != dotted)
+                return moduleMember(base, name);
             panicHere("module '" + dotted + "' has no exported member '" +
                       name + "'");
+        }
         return *mv;
     }
 

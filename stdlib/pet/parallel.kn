@@ -459,6 +459,66 @@ struct ParIter {
         return self.map(fn (x) { return x; });
     }
 
+    fn map_with(self, init, map_fn) -> ParIter {
+        # map with per-worker state via for_each_init not possible to return iter;
+        # materialize per-slice then map serially over results
+        out = [];
+        for c in self.slices() {
+            st = init();
+            var i = 0;
+            while i < c.len() {
+                out.append(map_fn(st, c[i]));
+                i += 1;
+            }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn interleave(self, other: ParIter) -> ParIter {
+        out = [];
+        a = self.xs;
+        b = other.xs;
+        var i = 0;
+        var n = a.len();
+        if b.len() < n { n = b.len(); }
+        while i < n {
+            out.append(a[i]);
+            out.append(b[i]);
+            i += 1;
+        }
+        if a.len() > b.len() {
+            var j = n;
+            while j < a.len() { out.append(a[j]); j += 1; }
+        } else if b.len() > a.len() {
+            var j = n;
+            while j < b.len() { out.append(b[j]); j += 1; }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn flatten_iter(self) -> ParIter {
+        out = [];
+        for c in self.xs {
+            if type(c) == "list" {
+                var i = 0;
+                while i < c.len() { out.append(c[i]); i += 1; }
+            } else {
+                out.append(c);
+            }
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    fn while_some(self, f) -> ParIter {
+        out = [];
+        for c in self.xs {
+            var v = f(c);
+            if v == none { break; }
+            out.append(v);
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
     # Per-thread stateful traversal (rayon's `for_each_init`): each worker calls
     # `init()` once, then `f(state, e)` for its slice. Mutating `state` is safe
     # because it never crosses a task; mutating captured `self.xs` is not.
@@ -752,6 +812,10 @@ pub fn par_bytes(s: Str) -> ParIter {
 }
 
 # ---- higher-level shapes ---------------------------------------------------
+
+pub fn par_bridge(xs) -> ParIter {
+    return par_iter(xs);
+}
 
 # Run `f` once per thread, returning the list of results.
 pub fn broadcast(f) -> list {

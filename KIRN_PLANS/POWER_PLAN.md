@@ -452,6 +452,8 @@ rows.par_iter_mut().for_each(fn (row) { row.score = score(row); });
 
 **Phase 4 exit:** `examples/66_parallel_iter.kn`, `examples/67_parallel_sort.kn`; `@[par]` equals the manual par form; gates green.
 
+**Phase 4 exit update (2026-10-20):** §4.1–§4.4 are all shipped. Example numbering diverged (the sequence reached `85`/`86`/`87`), so `examples/85_parallel_combinators.kn` (combinators), `86_parallel_pool.kn` (pool), and `87_parallel_slice_string.kn` (slice/string) stand in for the plan's `66`/`67`; the `@[par]` equality check is covered by the §4.4 tests. Gates green (356).
+
 ---
 
 ## 5. Ergonomics: typed and dynamic errors (`anyhow` + `thiserror`)

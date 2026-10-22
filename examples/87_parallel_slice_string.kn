@@ -1,0 +1,19 @@
+# 87 — parallel slice & string ops (POWER_PLAN §4.3)
+#
+# `par_sort_by` sorts with an `(a, b) -> Int` comparator and `par_sort_unstable`
+# is the in-place rayon name (here it delegates to the stable merge sort, since
+# Kirn returns a new list rather than mutating in place). The string helpers
+# split a `Str` and hand the pieces to a `ParIter`; `par_bytes` walks the code
+# points (Kirn strings index by character, so there is no separate byte view).
+import pet.parallel as p;
+
+fn main() -> none {
+    print("by asc:", p.par_sort_by([3, 1, 4, 2], fn (a, b) { return a - b; }));
+    print("by desc:", p.par_sort_by([3, 1, 4, 2], fn (a, b) { return b - a; }));
+    print("unstable:", p.par_sort_unstable([5, 2, 9, 1]));
+
+    print("lines:", p.par_lines("one\ntwo\nthree")
+        .map(fn (l) { return Str(l.len()); }).collect());
+    print("split:", p.par_str_split("red,green,blue", ",").collect());
+    print("bytes:", p.par_bytes("abc").collect());
+}

@@ -1,0 +1,3 @@
+$ <ROOT>/build/kirncheck <ROOT>/examples/87_parallel_slice_string.kn
+<ROOT>/examples/87_parallel_slice_string.kn: OK
+[exit 0]

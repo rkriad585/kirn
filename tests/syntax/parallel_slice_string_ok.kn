@@ -1,0 +1,13 @@
+# Parallel slice/string ops: par_sort_by uses an (a, b) -> Int comparator,
+# par_sort_unstable delegates to the stable merge sort, and the string helpers
+# hand substrings/code points to a ParIter. Identical on both engines.
+import pet.parallel as p;
+
+fn main() -> none {
+    print(p.par_sort_by([3, 1, 2], fn (a, b) { return a - b; }));
+    print(p.par_sort_by([3, 1, 2], fn (a, b) { return b - a; }));
+    print(p.par_sort_unstable([4, 2, 3, 1]));
+    print(p.par_lines("a\nbb\nccc").map(fn (l) { return l.len(); }).collect());
+    print(p.par_str_split("a:b:c", ":").collect());
+    print(p.par_bytes("hi").collect());
+}

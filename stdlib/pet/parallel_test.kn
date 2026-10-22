@@ -185,5 +185,17 @@ fn main() -> none {
     assert(scoped.len() == 2);
     assert(parallel.yield_now() == none);
 
+    # §4.3: slice & string ops.
+    assert(parallel.par_sort_by([3, 1, 2], fn (a, b) { return a - b; }) ==
+           [1, 2, 3]);
+    assert(parallel.par_sort_by([3, 1, 2], fn (a, b) { return b - a; }) ==
+           [3, 2, 1]);
+    assert(parallel.par_sort_unstable([4, 2, 3, 1]) == [1, 2, 3, 4]);
+    assert(parallel.par_lines("a\nbb\nccc").map(
+        fn (l) { return l.len(); }).collect() == [1, 2, 3]);
+    assert(parallel.par_str_split("a:b:c", ":").collect() == ["a", "b", "c"]);
+    assert(parallel.par_bytes("hi").map(
+        fn (c) { return Str(c); }).collect() == ["h", "i"]);
+
     print("parallel_test ok");
 }

@@ -1,0 +1,156 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/87_parallel_slice_string.kn
+Import pet.parallel as p
+FuncDef "main"
+  Ret none
+  Body
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "by asc:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="par_sort_by"
+                    Obj Ident "p"
+                Arg
+                  Value 
+                    List len=4
+                      Item Int "3"
+                      Item Int "1"
+                      Item Int "4"
+                      Item Int "2"
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="-"
+                              Lhs Ident "a"
+                              Rhs Ident "b"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "by desc:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="par_sort_by"
+                    Obj Ident "p"
+                Arg
+                  Value 
+                    List len=4
+                      Item Int "3"
+                      Item Int "1"
+                      Item Int "4"
+                      Item Int "2"
+                Arg
+                  Value 
+                    Lambda params=(a: <inferred>, b: <inferred>)
+                      Body
+                        Return
+                          Value 
+                            Binary op="-"
+                              Lhs Ident "b"
+                              Rhs Ident "a"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "unstable:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="par_sort_unstable"
+                    Obj Ident "p"
+                Arg
+                  Value 
+                    List len=4
+                      Item Int "5"
+                      Item Int "2"
+                      Item Int "9"
+                      Item Int "1"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "lines:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="map"
+                            Obj 
+                              Call
+                                Callee 
+                                  Member name="par_lines"
+                                    Obj Ident "p"
+                                Arg
+                                  Value Str "one\\ntwo\\nthree"
+                        Arg
+                          Value 
+                            Lambda params=(l: <inferred>)
+                              Body
+                                Return
+                                  Value 
+                                    Call
+                                      Callee Ident "Str"
+                                      Arg
+                                        Value 
+                                          Call
+                                            Callee 
+                                              Member name="len"
+                                                Obj Ident "l"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "split:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_str_split"
+                            Obj Ident "p"
+                        Arg
+                          Value Str "red,green,blue"
+                        Arg
+                          Value Str ","
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "bytes:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="collect"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="par_bytes"
+                            Obj Ident "p"
+                        Arg
+                          Value Str "abc"
+<ROOT>/examples/87_parallel_slice_string.kn: OK (2 top-level statements)
+[exit 0]

@@ -658,6 +658,66 @@ pub fn par_sort_by_key(xs: list, key) -> list {
     return merge_sort_key(xs, key, 0);
 }
 
+fn merge_cmp(a, b, cmp) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if cmp(b[j], a[i]) < 0 { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort_cmp(xs: list, cmp, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort_cmp(left, cmp, depth + 1);
+        var r = merge_sort_cmp(right, cmp, depth + 1);
+        var l = h.join();
+        return merge_cmp(l, r, cmp);
+    }
+    return merge_cmp(merge_sort_cmp(left, cmp, depth + 1),
+                     merge_sort_cmp(right, cmp, depth + 1), cmp);
+}
+
+# Stable parallel sort by a `(a, b) -> Int` comparator (negative = `a` first).
+pub fn par_sort_by(xs: list, cmp) -> list {
+    return merge_sort_cmp(xs, cmp, 0);
+}
+
+# Parallel sort. Kirn's merge sort is stable, so this is `par_sort`; it does not
+# sort in place (see the deviation note in POWER_PLAN §4.3).
+pub fn par_sort_unstable(xs: list) -> list {
+    return merge_sort(xs, 0);
+}
+
+# ---- parallel strings (§4.3) ----------------------------------------------
+
+# Split `s` on `\n` and return a ParIter over the lines.
+pub fn par_lines(s: Str) -> ParIter {
+    return par_iter(s.split("\n"));
+}
+
+# Split `s` on `sep` and return a ParIter over the pieces.
+pub fn par_str_split(s: Str, sep: Str) -> ParIter {
+    return par_iter(s.split(sep));
+}
+
+# Return a ParIter over `s`'s code points (Kirn `Str` indexes by character).
+pub fn par_bytes(s: Str) -> ParIter {
+    parts = [];
+    var i = 0;
+    while i < s.len() { parts.append(s[i]); i += 1; }
+    return par_iter(parts);
+}
+
 # ---- higher-level shapes ---------------------------------------------------
 
 # Run `f` once per thread, returning the list of results.

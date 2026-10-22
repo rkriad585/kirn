@@ -169,5 +169,21 @@ fn main() -> none {
         fn () { return 0; }, fn (_st, e) { if e < 0 { raise "neg"; } });
     assert(ran == none);
 
+    # §4.1: a Pool routes work onto the shared worker pool.
+    pool = parallel.Pool(threads: 3);
+    assert(pool.size() == 3);
+    assert(pool.install(fn () { return 6 * 7; }) == 42);
+    assert(pool.join(fn () { return 1; }, fn () { return 2; }) == [1, 2]);
+    assert(pool.broadcast(fn () { return 5; }) == [5, 5, 5]);
+    var scoped = [];
+    out = pool.scope(fn (sc) {
+        sc.spawn(fn () { scoped.append(1); });
+        sc.spawn(fn () { scoped.append(2); });
+        return "ok";
+    });
+    assert(out == "ok");
+    assert(scoped.len() == 2);
+    assert(parallel.yield_now() == none);
+
     print("parallel_test ok");
 }

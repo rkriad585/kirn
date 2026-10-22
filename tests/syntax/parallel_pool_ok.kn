@@ -1,0 +1,21 @@
+# A parallel.Pool routes work onto the shared worker pool: install runs one
+# closure and returns its value, join runs two concurrently, broadcast fans out
+# once per worker, and scope joins every task spawned through its handle.
+# Deterministic (small work stays on one worker) and identical on both engines.
+import pet.parallel as p;
+
+fn main() -> none {
+    pool = p.Pool(threads: 2);
+    print(pool.size());
+    print(pool.install(fn () { return 7; }));
+    print(pool.join(fn () { return "a"; }, fn () { return "b"; }));
+    print(pool.broadcast(fn () { return 1; }));
+    var seen = [];
+    out = pool.scope(fn (s) {
+        s.spawn(fn () { seen.append(1); });
+        s.spawn(fn () { seen.append(2); });
+        return 0;
+    });
+    print(out, seen.len());
+    print(p.yield_now());
+}

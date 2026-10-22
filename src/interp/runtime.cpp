@@ -4280,6 +4280,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 static thread_local int idx = next.fetch_add(1);
                 return Value::integer(idx);
             });
+        // POWER_PLAN §4.1: a cooperative scheduling hint for spinning workers.
+        if (name == "yield_now")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                std::this_thread::yield();
+                return Value::none();
+            });
         panicHere("parallel has no member '" + name + "'");
     }
 

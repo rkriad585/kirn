@@ -1,0 +1,159 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/86_parallel_pool.kn
+Import pet.parallel as p
+FuncDef "square"
+  Param "x" : <inferred>
+  Ret Int
+  Body
+    Return
+      Value 
+        Binary op="*"
+          Lhs Ident "x"
+          Rhs Ident "x"
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "pool"
+      Value 
+        Call
+          Callee 
+            Member name="Pool"
+              Obj Ident "p"
+          Arg name=threads
+            Value Int "4"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "size:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="size"
+                    Obj Ident "pool"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "install:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="install"
+                    Obj Ident "pool"
+                Arg
+                  Value 
+                    Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "join:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="join"
+                    Obj Ident "pool"
+                Arg
+                  Value 
+                    Lambda params=()
+                Arg
+                  Value 
+                    Lambda params=()
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "broadcast count:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj 
+                      Call
+                        Callee 
+                          Member name="broadcast"
+                            Obj Ident "pool"
+                        Arg
+                          Value 
+                            Lambda params=()
+    VarDecl
+      Target Ident "hits"
+      Value 
+        List len=0
+    Assign
+      Target Ident "label"
+      Value 
+        Call
+          Callee 
+            Member name="scope"
+              Obj Ident "pool"
+          Arg
+            Value 
+              Lambda params=(s: <inferred>)
+                Body
+                  ExprStmt
+                    Value 
+                      Call
+                        Callee 
+                          Member name="spawn"
+                            Obj Ident "s"
+                        Arg
+                          Value 
+                            Lambda params=()
+                  ExprStmt
+                    Value 
+                      Call
+                        Callee 
+                          Member name="spawn"
+                            Obj Ident "s"
+                        Arg
+                          Value 
+                            Lambda params=()
+                  ExprStmt
+                    Value 
+                      Call
+                        Callee 
+                          Member name="spawn"
+                            Obj Ident "s"
+                        Arg
+                          Value 
+                            Lambda params=()
+                  Return
+                    Value Str "scoped"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "scope:"
+          Arg
+            Value Ident "label"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "hits"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Str "yield:"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="yield_now"
+                    Obj Ident "p"
+<ROOT>/examples/86_parallel_pool.kn: OK (3 top-level statements)
+[exit 0]

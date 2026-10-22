@@ -1,0 +1,35 @@
+# 86 — parallel.Pool: install / join / broadcast / scope (POWER_PLAN §4.1)
+#
+# Kirn runs every parallel closure on the shared worker pool, so a `Pool` is a
+# logical handle that routes work there; `threads` bounds how many workers
+# `broadcast` fans out to. `scope` collects tasks handed to `scope.spawn` and
+# runs them together before returning. Small work stays on one worker, so the
+# output is deterministic.
+import pet.parallel as p;
+
+fn square(x) -> Int { return x * x; }
+
+fn main() -> none {
+    pool = p.Pool(threads: 4);
+    print("size:", pool.size());
+
+    print("install:", pool.install(fn () { return square(9); }));
+
+    print("join:", pool.join(
+        fn () { return square(3); },
+        fn () { return square(4); }));
+
+    print("broadcast count:", pool.broadcast(
+        fn () { return p.current_thread_index(); }).len());
+
+    var hits = [];
+    label = pool.scope(fn (s) {
+        s.spawn(fn () { hits.append("a"); });
+        s.spawn(fn () { hits.append("b"); });
+        s.spawn(fn () { hits.append("c"); });
+        return "scoped";
+    });
+    print("scope:", label, hits.len());
+
+    print("yield:", p.yield_now());
+}

@@ -671,3 +671,60 @@ pub fn broadcast(f) -> list {
     }
     return invoke(fns);
 }
+
+# ---- thread pool (§4.1) ----------------------------------------------------
+
+# Cooperative scheduling hint: yield the current worker so other tasks can run.
+pub fn yield_now() -> none {
+    parallel.yield_now();
+}
+
+# A logical view over the global worker pool. Kirn's parallel runtime runs every
+# closure on the shared task machinery (the same one `spawn`/`await` uses), so a
+# `Pool` routes work there and blocks until it is done; `threads` only bounds how
+# many workers `broadcast` fans out to. (A real rayon `ThreadPool` would own a
+# private registry - see the deviation note in POWER_PLAN §4.1.)
+#
+#   var pool = parallel.Pool(threads: 4);
+#   var r = pool.install(fn () { return heavy(); });
+pub struct Pool {
+    threads: Int;
+
+    fn size(self) -> Int { return self.threads; }
+
+    # Run `f` on a worker and return its result.
+    fn install(self, f) -> any {
+        var h = spawn f();
+        return h.join();
+    }
+
+    # Run two closures concurrently; return `[ra, rb]` in argument order.
+    fn join(self, a, b) -> list {
+        return parallel.join(a, b);
+    }
+
+    # Run `f` once per pool worker; return the results in worker order.
+    fn broadcast(self, f) -> list {
+        fns = [];
+        var i = 0;
+        while i < self.threads { fns.append(f); i += 1; }
+        return invoke(fns);
+    }
+
+    # Run `body(scope)`; every task handed to `scope.spawn` is run concurrently
+    # and all are joined before `scope` returns. `body`'s value is returned.
+    fn scope(self, body) -> any {
+        s = PoolScope(fns: []);
+        var out = body(s);
+        if s.fns.len() > 0 { invoke(s.fns); }
+        return out;
+    }
+}
+
+# Handle passed to a `Pool.scope` body. `spawn(f)` queues a task; the tasks run
+# together when the body returns. Closures capture shared values (lists/dicts),
+# so mutations are observable - keep tasks pure, as everywhere in `parallel`.
+pub struct PoolScope {
+    fns: list;
+    fn spawn(self, f) -> none { self.fns.append(f); }
+}

@@ -270,6 +270,27 @@ struct OneshotState {
         return none;
     }
 
+    fn recv_timeout(self, ms: Int) -> any {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if not self.st[3] and not self.st[4] {
+            var timedout = c.wait_timeout(m, ms);
+            if timedout and not self.st[3] {
+                m.unlock();
+                return ["timeout"];
+            }
+        }
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
     fn try_recv(self) -> any {
         var m = self.st[0];
         m.lock();
@@ -565,6 +586,28 @@ struct MpscReceiver {
         return v;
     }
 
+    fn recv_timeout(self, ms: Int) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if s[3].len() == 0 and not s[4] {
+            var timedout = c.wait_timeout(m, ms);
+            if timedout and s[3].len() == 0 {
+                m.unlock();
+                return ["timeout"];
+            }
+        }
+        if s[3].len() == 0 {
+            m.unlock();
+            return none;
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
     fn try_recv(self) -> any {
         var s = self.st[0];
         var m = s[0];
@@ -762,6 +805,27 @@ struct WatchRx {
         m.lock();
         while self.st[1][0] == s[3] and not s[4] {
             c.wait(m);
+        }
+        if self.st[1][0] != s[3] {
+            self.st[1][0] = s[3];
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn changed_timeout(self, ms: Int) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if self.st[1][0] == s[3] and not s[4] {
+            var timedout = c.wait_timeout(m, ms);
+            if timedout and self.st[1][0] == s[3] {
+                m.unlock();
+                return false;
+            }
         }
         if self.st[1][0] != s[3] {
             self.st[1][0] = s[3];

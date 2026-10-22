@@ -470,3 +470,31 @@ pub struct AsyncBarrier {
 pub fn Barrier(parties: Int) -> AsyncBarrier {
     return AsyncBarrier(b: psync.Barrier(parties));
 }
+
+pub fn Mpsc(capacity: Int) -> list {
+    return psync.Mpsc(capacity);
+}
+
+pub fn Unbounded() -> list {
+    return psync.Unbounded();
+}
+
+pub fn mpsc(capacity: Int) -> list {
+    return psync.Mpsc(capacity);
+}
+
+pub fn unbounded() -> list {
+    return psync.Unbounded();
+}
+
+pub fn oneshot() -> any {
+    return psync.Oneshot();
+}
+
+pub fn broadcast(capacity: Int) -> any {
+    return psync.Broadcast(capacity);
+}
+
+pub fn watch(initial: any) -> any {
+    return psync.Watch(initial);
+}

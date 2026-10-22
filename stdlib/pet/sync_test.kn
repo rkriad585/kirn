@@ -354,6 +354,51 @@ fn test_watch_close() -> none {
     print("watch close: ok");
 }
 
+# ---- Mpsc -------------------------------------------------------------------
+
+fn test_mpsc_unbounded() -> none {
+    var ch = sync.Unbounded();
+    var tx = ch[0];
+    var rx = ch[1];
+    assert(tx.try_send(1));
+    assert(tx.try_send(2));
+    assert(rx.try_recv() == 1);
+    assert(rx.try_recv() == 2);
+    assert(rx.try_recv() == none);
+    tx.close();
+    assert(rx.recv() == none);
+    print("mpsc unbounded: ok");
+}
+
+fn test_mpsc_bounded() -> none {
+    var ch = sync.Mpsc(2);
+    var tx = ch[0];
+    var rx = ch[1];
+    assert(tx.try_send(1));
+    assert(tx.try_send(2));
+    assert(not tx.try_send(3));
+    assert(rx.recv() == 1);
+    assert(tx.try_send(3));
+    assert(rx.recv() == 2);
+    assert(rx.recv() == 3);
+    print("mpsc bounded: ok");
+}
+
+fn test_mpsc_close() -> none {
+    var ch = sync.Mpsc(4);
+    var tx = ch[0];
+    var rx = ch[1];
+    tx.close();
+    assert(tx.is_closed());
+    try {
+        tx.send(1);
+        assert(false);
+    } catch _ {
+    }
+    assert(rx.recv() == none);
+    print("mpsc close: ok");
+}
+
 fn main() -> none {
     test_barrier_single_party();
     test_barrier_four_parties();
@@ -373,4 +418,7 @@ fn main() -> none {
     test_watch_borrow_vs_update();
     test_watch_mark();
     test_watch_close();
+    test_mpsc_unbounded();
+    test_mpsc_bounded();
+    test_mpsc_close();
 }

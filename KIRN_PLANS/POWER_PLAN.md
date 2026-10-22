@@ -1140,3 +1140,15 @@ Deviations / not shipped (documented):
 - **Race-free Pool examples**: `Pool.scope` tasks run concurrently, so the §4.1 examples/tests now count with `sync.Atomic` instead of appending to a shared list (the old form was an unsynchronized data race and made `86_parallel_pool.kn` flake in gate 4). Output is unchanged; only 86's lex/parse goldens changed (new `pet.sync` import).
 - **Native gate split**: `scripts/gates/11_native.sh` (one ~13–20m script that often timed out under load) is replaced by three standalone gates — `11a_native.sh` (KIRN_HAS_NATIVE surface, fast), `11b_native.sh` (new-surface + optional-param), `11c_native.sh` (const-inline + coalesce-assign) — totalling the same 11 checks. Per-build timeout raised 300s → 900s.
 - Verification: gates **357/0/0 hung** (1_runall 84, 2b_syntax 59, 4_vm_diff 102, 8_bundle 15, 11a 7, 11b 2, 11c 2, …), golden **351/0**, crosscheck **909/0**, stdlib **17/0**.
+
+### Update (2026-10-21) — §2.4 channels: `Mpsc` / `Unbounded` in `pet.sync` and `pet.async` (shipped)
+
+**Path chosen:** add bounded backpressuring mpsc and unbounded mpsc in `stdlib/pet/sync.kn` using the established `Mutex` + `Cond` + shared-list pattern (no compiler changes). The API returns `[tx, rx]`; `send`/`try_send` and `recv`/`try_recv` follow tokio-style semantics. Re-exported from `stdlib/pet/async.kn` (`Mpsc`/`Unbounded`/`mpsc`/`unbounded`) alongside the existing oneshot/broadcast/watch helpers.
+
+Delivered:
+
+- **`pet.sync`**: `Mpsc(capacity)` and `Unbounded()` returning `[MpscSender, MpscReceiver]`; sender methods `send(v)`, `try_send(v)`, `close()`, `is_closed()`; receiver methods `recv()` (returns `none` on close), `try_recv()`, `close()`, `is_closed()`, `len()`, `is_empty()`. `Unbounded` uses a shared list with no capacity limit; `Mpsc` enforces backpressure and `try_send` returns `false` when full.
+- **`pet.async`**: re-exports `Mpsc`/`Unbounded`/`mpsc`/`unbounded`/`oneshot`/`broadcast`/`watch`.
+- **Tests**: `stdlib/pet/sync_test.kn` extended with `test_mpsc_unbounded`, `test_mpsc_bounded`, `test_mpsc_close`.
+
+Verification: `kirn test stdlib/pet/sync_test.kn` PASS (1 passed); `kirnrun --no-vm stdlib/pet/sync_test.kn` and VM both report the new mpsc tests OK. Both engines produce identical behavior for the new surface.

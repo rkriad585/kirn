@@ -475,6 +475,177 @@ pub fn Broadcast(capacity: Int) -> BroadcastState {
     return b;
 }
 
+# ---- Mpsc / Unbounded --------------------------------------------------------
+
+# Multi-producer, single-consumer channel built from Mutex + Cond (tokio::sync
+# parity). `Mpsc(cap)` returns `[tx, rx]` where `tx.send(v)` blocks when full
+# (backpressuring) and `rx.recv()` blocks until a value or close returns `none`.
+# `Unbounded()` never blocks on send. Both are nonblocking via `try_send`/try_recv`.
+# Sending on a closed channel raises; receiving after close returns `none`.
+# Kirn's native `chan` covers a similar shape, but the module APIs follow the
+# tokio surface the POWER_PLAN names.
+
+struct MpscSender {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while true {
+            if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+            if s[2] < 0 {
+                break;
+            }
+            if s[3].len() < s[2] {
+                break;
+            }
+            c.wait(m);
+        }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn try_send(self, v: any) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+        if s[2] >= 0 and s[3].len() >= s[2] {
+            m.unlock();
+            return false;
+        }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+        return true;
+    }
+
+    fn close(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        s[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var closed: Bool = s[4];
+        m.unlock();
+        return closed;
+    }
+}
+
+struct MpscReceiver {
+    var st: list;
+
+    fn recv(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while s[3].len() == 0 {
+            if s[4] {
+                m.unlock();
+                return none;
+            }
+            c.wait(m);
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
+    fn try_recv(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if s[3].len() == 0 {
+            m.unlock();
+            return none;
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
+    fn close(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        s[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var closed: Bool = s[4];
+        m.unlock();
+        return closed;
+    }
+
+    fn len(self) -> Int {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var n: Int = s[3].len();
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+}
+
+pub fn Mpsc(capacity: Int) -> list {
+    if capacity < 1 { raise("sync: Mpsc capacity must be at least 1"); }
+    var m = Mutex();
+    var c = Cond();
+    # [mutex, cond, capacity, queue, closed]
+    var st = [m, c, capacity, [], false];
+    var tx = MpscSender();
+    tx.st = [st];
+    var rx = MpscReceiver();
+    rx.st = [st];
+    return [tx, rx];
+}
+
+pub fn Unbounded() -> list {
+    var m = Mutex();
+    var c = Cond();
+    # [mutex, cond, -1, queue, closed]
+    var st = [m, c, -1, [], false];
+    var tx = MpscSender();
+    tx.st = [st];
+    var rx = MpscReceiver();
+    rx.st = [st];
+    return [tx, rx];
+}
+
+pub fn mpsc(capacity: Int) -> list {
+    return Mpsc(capacity);
+}
+
+pub fn unbounded() -> list {
+    return Unbounded();
+}
+
 # ---- Watch ------------------------------------------------------------------
 
 # Single-value change tracker (tokio::sync::watch). The channel holds one value;

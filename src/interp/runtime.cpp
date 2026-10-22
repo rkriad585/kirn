@@ -10422,6 +10422,25 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
         if (recvCall) {
             pr.kind = Prepared::Recv;
             pr.cachedChan = eval(*op->lhs->lhs, env);
+        } else if (op->kind == ast::ExKind::Unary && op->op == "await") {
+            // POWER_PLAN §2.10: `case v = await expr` arms await async
+            // sources. Evaluating an async fn call or spawnable expr yields
+            // a Task/ThreadH; awaiting a Timer/sleep returns a Timer.
+            Value cv = eval(*op->rhs, env);
+            if (cv.k == VK::ThreadH) {
+                pr.kind = Prepared::Task;
+                pr.cached = cv;
+            } else if (cv.k == VK::Timer) {
+                pr.kind = Prepared::Timer;
+                pr.cached = cv;
+            } else if (cv.k == VK::Chan) {
+                pr.kind = Prepared::Recv;
+                pr.cachedChan = cv;
+            } else {
+                // Try to await anyway; if it's a task handle stored indirectly
+                pr.kind = Prepared::Task;
+                pr.cached = cv;
+            }
         } else {
             Value cv = eval(*op, env);
             if (cv.k == VK::Chan) {

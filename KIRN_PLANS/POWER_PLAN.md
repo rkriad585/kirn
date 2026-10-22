@@ -1160,3 +1160,11 @@ Verification: `kirn test stdlib/pet/sync_test.kn` PASS (1 passed); `kirnrun --no
 Delivered (`stdlib/pet/parallel.kn`): `ParIter.rev()`, `ParIter.chain(other)`, `ParIter.inspect(f)`, `ParIter.cloned()`, `ParIter.copied()`.
 
 Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/pet/parallel_test.kn` PASS, `scripts/gates/6_test.sh` green.
+
+### Update (2026-10-21) — §2.10 `select` over `await` arms (shipped)
+
+**Path chosen:** extend `Interpreter::selectExec` to recognize `case v = await EXPR`. Evaluating the awaited operand spawns async fn calls / yields task handles or timers; those are routed to the existing Task/Timer arms so the first ready await wins, with the losing task arms cancelled as before. No parser or checker changes required (await is already parsed/checked).
+
+Delivered: `src/interp/runtime.cpp` `selectExec` await-arm handling; `examples/88_select_await.kn` + three goldens. Works in both VM and `--no-vm`.
+
+Verification: `88_select_await.kn` prints `10 timer`; gates 1_runall now **85 passed, 0 failed**.

@@ -58,14 +58,14 @@ void addModuleDirs(kirn::interp::Interpreter& interp,
 // silently stop applying).
 void warnLegacyEnv() {
     std::string found;
-    if (std::getenv("KIRN_LIBS")) found = "KIRN_LIBS -> KIRN_PETS";
+    if (std::getenv("KIRN_LIBS")) found = "KIRN_LIBS";
     if (std::getenv("KIRN_STDLIB")) {
         if (!found.empty()) found += ", ";
-        found += "KIRN_STDLIB -> KIRN_STDLIB";
+        found += "KIRN_STDLIB";
     }
     if (!found.empty())
         std::cerr << "warning[W9008]: " << found
-                  << " are no longer supported; use the KIRN_* names\n";
+                  << " are no longer supported; use the KIRN_PETS name\n";
 }
 
 } // namespace

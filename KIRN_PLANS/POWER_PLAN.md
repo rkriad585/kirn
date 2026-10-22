@@ -368,6 +368,28 @@ Pool API: `Pool(n)`, `.install(f)`, `.join`, `.scope`, `.spawn`, `.broadcast`, `
 
 > Reference: rust — `ThreadPoolBuilder`/`ThreadPool` (`rust/rayon/rayon-core/src/thread_pool/mod.rs`, `rust/rayon/rayon-core/src/lib.rs`), work-stealing registry (`rust/rayon/rayon-core/src/registry.rs`), `join`/`scope` (`rust/rayon/rayon-core/src/join/mod.rs`, `scope/mod.rs`).
 
+### Update (2026-10-20) — §4.1 thread pool (shipped)
+
+**Path chosen:** Kirn already runs every parallel closure on the shared task machinery (the one behind `spawn`/`await`/`parallel.join`/`invoke`), so a `Pool` is a _logical_ handle over those workers rather than a private registry — `install`/`join`/`broadcast`/`scope` route work there and block for the result, and `threads` bounds only how many workers `broadcast` fans out to. Reference read from `langs-source-code/rust/rayon/rayon-core/src/{thread_pool/mod.rs,scope/mod.rs,join/mod.rs}`.
+
+Delivered:
+
+- **`parallel.Pool(threads: n)`** (stdlib struct in `pet/parallel.kn`) with `.size()`, `.install(f)` (run `f` on a worker, return its value, via `spawn f().join()`), `.join(a, b)` (concurrent, `[ra, rb]`), `.broadcast(f)` (once per pool worker, results in worker order), and `.scope(body)` (see below).
+- **`parallel.scope`** via `Pool.scope(body)`: `body(scope)` receives a `PoolScope` whose `.spawn(f)` queues a closure; all queued tasks run concurrently with `parallel.invoke` and are joined before `scope` returns, and `body`'s value is returned.
+- **`parallel.yield_now()`** — a cooperative scheduling hint backed by a new native `parallel.yield_now` (`std::this_thread::yield`), distinct from `pet.async.yield_now` (which is an `async fn` awaiting a zero-delay timer).
+- **Examples/tests**: `examples/86_parallel_pool.kn` + three goldens (examples gate now **83**); `tests/syntax/parallel_pool_ok.kn`; `stdlib/pet/parallel_test.kn` extended to assert `install`/`join`/`broadcast`/`scope`/`yield_now`.
+
+Verification: gates **353/0/0 hung** (1_runall 83, 2b_syntax 57, 4_vm_diff 101, 8_bundle 15, 11_native 11, …), golden **348/0** (exactly the three new files recorded), crosscheck **897/0** (148 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
+
+Deviations / not shipped (documented):
+
+- **No private work-stealing registry.** `Pool` does not own threads and `Pool(n).install` does not cap parallelism to `n`; it shares the global pool (whose width is `KIRN_NUM_THREADS` / `hardware_concurrency()`). `threads` only sizes `broadcast`. There is no per-pool `num_threads` enforcement or `ThreadPoolBuilder` surface.
+- **`scope` is not borrow-checked and does not truly overlap with the body.** There is no borrow checker or `&`/lifetime system, so `scope.spawn` closures capture shared values by handle (a captured `list`/`dict` is shared, as everywhere in `parallel`); mutations from a spawned task are observable and unsynchronized. Tasks are collected and run when the body returns, so they do not run _while_ the body executes — the join-before-return guarantee holds, the concurrency-with-body does not.
+- **No `scope_fifo`, `Scope::spawn_fifo`, panic propagation across the scope, or `ThreadPool::spawn`/`install_barrier`.** A failing task cannot abort the scope; `invoke` would surface the first panic by the task machinery's existing rules.
+- **`broadcast` returns `invoke`'s result order**, which is worker-order (deterministic per run), not rayon's unspecified `Vec<R>` order.
+- **`Pool.join(a, b)` / `parallel.join` take exactly two closures** (no variadic `join`/`join_context`), and `install` cannot return a borrowed reference — only a value.
+- **`yield_now` is a scheduling hint only** (no task re-queueing/yield-point semantics); it does not make the tree-walker and VM suspend.
+
 ### 4.2 Parallel iterators
 
 `.par_iter()` on `list[T]`, `set`, `map`, ranges; combinators: `map`, `filter`, `filter_map`, `flat_map`, `for_each`, `for_each_init`, `fold`, `reduce`, `try_reduce`, `sum`, `product`, `min`/`max`(`_by`/`_by_key`), `count`, `collect`, `find_any`/`find_first`/`find_last`, `any`/`all`, `zip`, `enumerate`, `take`/`skip`/`step_by`. Fallible combinators return `result`.

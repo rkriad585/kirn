@@ -7184,6 +7184,19 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     lk.release();              // caller keeps holding the Mutex
                     return Value::none();
                 });
+            if (name == "wait_timeout" || name == "wait_timeout_ms")
+                return bind({"mu", "ms"}, [](std::vector<Value>& a) -> Value {
+                    if (a.size() < 3 || a[1].k != VK::Mutex)
+                        panicHere("Cond.wait_timeout requires a Mutex");
+                    int64_t ms = 0;
+                    if (a[2].k == VK::Int) ms = a[2].i;
+                    else if (a[2].k == VK::Float) ms = (int64_t)a[2].d;
+                    std::unique_lock<std::mutex> lk(a[1].sync->m, std::adopt_lock);
+                    if (ms < 0) ms = 0;
+                    auto res = a[0].sync->cv.wait_for(lk, std::chrono::milliseconds(ms));
+                    lk.release();
+                    return Value::boolean(res == std::cv_status::timeout);
+                });
             if (name == "signal")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     a[0].sync->cv.notify_one();

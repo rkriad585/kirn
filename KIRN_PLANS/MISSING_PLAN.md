@@ -666,6 +666,17 @@ functions and types share one declaration namespace (matching `Mutex`/`MutexStat
 M4: implicit declaration-based RAII and the `Copy`/`Drop` conflict check (there is no `Copy` trait
 yet).
 
+**Update (2026-10-23).** The `Copy`/`Drop` conflict check is implemented, closing that deviation.
+`Copy` is a marker: `@[derive(Copy)]` on a struct, or an `impl Copy for T {}` block (the checker
+does not require a user-declared `Copy` trait, matching how marker impls already work). `Drop` is a
+`drop`/`__del__` method or `impl Drop for T`. A post-collection pass
+(`Checker::checkCopyDropConflicts`) rejects either combination with
+`type 'T' cannot be both Copy and Drop`. Marking a type `Copy` does not change its runtime
+behaviour (Kirn values are already copied by value); it exists to enforce the ownership invariant.
+Tests: `tests/syntax/copy_drop_ok.kn`, `tests/syntax/copy_drop_err.kn`,
+`tests/syntax/copy_drop_impl_err.kn` (gate 2b now 64 files). Still open from M4: implicit
+declaration-based RAII.
+
 > Reference: Python — context managers `with` (`cpython/Lib/contextlib.py`); Rust — `Drop` (`rust/library/core/src/ops/drop.rs`).
 
 **Files:** `src/parser/parser.cpp` (soft keyword `with`; `using name = expr`), `src/ast/ast.h`

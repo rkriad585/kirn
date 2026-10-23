@@ -1,0 +1,15 @@
+# M4 Copy/Drop: a type cannot be both trivially copyable and resource-owning.
+# expect: cannot be both Copy and Drop
+@[derive(Copy)]
+struct Bad {
+    id: Int;
+
+    fn drop(self) -> none {
+        print("bad", self.id);
+    }
+}
+
+fn main() -> none {
+    var b = Bad(id: 1);
+    print(b.id);
+}

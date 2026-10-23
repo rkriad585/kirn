@@ -383,6 +383,7 @@ void Checker::checkModule(const std::vector<ast::StmtP>& prog) {
     registerTopLevel(prog);
 
     for (const auto& st : prog) collectDeprecated(*st);
+    checkCopyDropConflicts(prog);
 
     for (const auto& st : prog) {
         // EnumDef is dispatched to checkStmt below (which validates its
@@ -2965,6 +2966,31 @@ void Checker::collectDeprecated(const ast::Stmt& s) {
         s.kind == StKind::ImplDef) {
         for (const auto& m : s.body)
             if (m->kind == StKind::FuncDef) collectDeprecated(*m);
+    }
+}
+
+void Checker::checkCopyDropConflicts(const std::vector<ast::StmtP>& prog) {
+    for (const auto& st : prog) {
+        if (st->kind != StKind::StructDef) continue;
+        bool isCopy = impls_.count({"Copy", st->name}) != 0;
+        for (const auto& d : st->decorators) {
+            if (d.name != "derive") continue;
+            for (const auto& a : d.args)
+                if (a.value && a.value->kind == ExKind::Ident &&
+                    a.value->text == "Copy")
+                    isCopy = true;
+        }
+        if (!isCopy) continue;
+
+        bool hasDrop = impls_.count({"Drop", st->name}) != 0 ||
+                       implMethods_[st->name].count("drop") != 0;
+        for (const auto& m : st->body)
+            if (m->kind == StKind::FuncDef &&
+                (m->name == "drop" || m->name == "__del__"))
+                hasDrop = true;
+        if (hasDrop)
+            error(st->span, "type '" + st->name +
+                                "' cannot be both Copy and Drop");
     }
 }
 

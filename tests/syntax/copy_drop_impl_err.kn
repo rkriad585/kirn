@@ -1,0 +1,17 @@
+# M4 Copy/Drop: `impl Copy` and `impl Drop` are mutually exclusive too.
+# expect: cannot be both Copy and Drop
+struct Bad {
+    id: Int;
+}
+
+impl Copy for Bad {}
+impl Drop for Bad {
+    fn drop(self) -> none {
+        print("bad", self.id);
+    }
+}
+
+fn main() -> none {
+    var b = Bad(id: 1);
+    print(b.id);
+}

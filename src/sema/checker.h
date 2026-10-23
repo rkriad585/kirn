@@ -177,6 +177,11 @@ private:
     // Pre-pass: register `@[deprecated]` names so a use earlier in the file
     // still warns (use-site warnings are order-independent).
     void collectDeprecated(const ast::Stmt& s);
+    // M4: a type may be either `Copy` (trivially copyable) or `Drop`
+    // (owns a resource and releases it), never both. `Copy` is a marker
+    // (`@[derive(Copy)]` or `impl Copy for T`); `Drop` is a `drop`/`__del__`
+    // method or `impl Drop for T`.
+    void checkCopyDropConflicts(const std::vector<ast::StmtP>& prog);
     void checkBlock(const std::vector<ast::StmtP>& body);
     void checkFuncLike(const ast::Stmt& s, TyP selfTy, SymP funcSym);
     void checkAssignTargets(const ast::Stmt& s);

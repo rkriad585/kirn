@@ -1,0 +1,31 @@
+# M4 Copy/Drop: `Copy` is a marker (`@[derive(Copy)]` / `impl Copy for T`),
+# and a `Drop` type may own a resource. They may not be combined.
+# Positive: check + run clean, no warnings, tree interpreter == VM.
+@[derive(Copy)]
+struct Point {
+    x: Int;
+    y: Int;
+}
+
+struct Marker {
+    id: Int;
+}
+
+impl Copy for Marker {}
+
+struct Res {
+    name: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.name);
+    }
+}
+
+fn main() -> none {
+    var p = Point(x: 1, y: 2);
+    var m = Marker(id: 3);
+    print(p.x + p.y + m.id);
+
+    using r = Res(name: "a");
+    print("using", r.name);
+}

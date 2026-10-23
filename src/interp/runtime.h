@@ -137,6 +137,9 @@ private:
     std::map<std::thread::id, std::vector<std::vector<Value>>> usings_;
     void registerUsing(const Value& v);
     void runUsingFrame(std::thread::id tid);
+    // Release one value's resources by calling drop/__del__/exit/__exit when
+    // the receiver has one (MISSING_PLAN M4: `using` frames + `drop(value)`).
+    void releaseValue(const Value& v);
 
     std::mutex threadsM_;
     std::vector<std::shared_ptr<ThreadImpl>> threads_;

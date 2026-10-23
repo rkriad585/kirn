@@ -2615,6 +2615,15 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(repr(a[0]));
     });
 
+    // drop(x): early, explicit release of a resource (MISSING_PLAN M4, Rust
+    // mem::drop). Calls the value's drop/__del__/exit/__exit if it has one.
+    // Values use copy semantics, so the binding stays readable; `drop` only
+    // runs the release hook ahead of the enclosing scope.
+    globals_->vars["drop"] = biFn({"x"}, [this](std::vector<Value>& a) -> Value {
+        if (!a.empty()) releaseValue(a[0]);
+        return Value::none();
+    });
+
     // ---- WHY-1 / SP-8: collection & iteration builtins ----------------------
     globals_->vars["sum"] = biFn({"xs"}, [this](std::vector<Value>& a) -> Value {
         const Value& xs = a[0];
@@ -4848,17 +4857,21 @@ void Interpreter::runUsingFrame(std::thread::id tid) {
     while (!mine.empty()) {
         Value v = std::move(mine.back());
         mine.pop_back();
-        try {
-            if (hasStructMethod(v, "drop"))
-                invokeMethod(v, "drop", {}, {}, globals_, 0, 0, nullptr);
-            else if (hasStructMethod(v, "__del__"))
-                invokeMethod(v, "__del__", {}, {}, globals_, 0, 0, nullptr);
-            else if (hasStructMethod(v, "exit"))
-                invokeMethod(v, "exit", {}, {}, globals_, 0, 0, nullptr);
-            else if (hasStructMethod(v, "__exit__"))
-                invokeMethod(v, "__exit__", {}, {}, globals_, 0, 0, nullptr);
-        } catch (...) {
-        }
+        releaseValue(v);
+    }
+}
+
+void Interpreter::releaseValue(const Value& v) {
+    try {
+        if (hasStructMethod(v, "drop"))
+            invokeMethod(v, "drop", {}, {}, globals_, 0, 0, nullptr);
+        else if (hasStructMethod(v, "__del__"))
+            invokeMethod(v, "__del__", {}, {}, globals_, 0, 0, nullptr);
+        else if (hasStructMethod(v, "exit"))
+            invokeMethod(v, "exit", {}, {}, globals_, 0, 0, nullptr);
+        else if (hasStructMethod(v, "__exit__"))
+            invokeMethod(v, "__exit__", {}, {}, globals_, 0, 0, nullptr);
+    } catch (...) {
     }
 }
 
@@ -10579,6 +10592,7 @@ void Interpreter::enableVm() {
     std::unordered_set<std::string> bi = {
         "print","len","range","panic","catch_panic","printf","strlen",
         "assert","assert_eq","type","sum","typeof",
+        "drop",
         "any","all","sorted","reversed","enumerate","map","filter","reduce",
         "upper","lower","trim","contains","starts_with","ends_with","replace",
         "split","join",

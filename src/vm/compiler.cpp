@@ -40,6 +40,7 @@ const std::unordered_set<std::string>& kBuiltins() {
         "any","all","sorted","reversed","enumerate","map","filter","reduce",
         "upper","lower","trim","contains","starts_with","ends_with","replace",
         "split","join",
+        "drop",
         // Kirn-style CapCase free builtins (CapCase + __CapCase forms)
         "__Sqrt","Ord","__Ord","Chr","__Chr",
         "BitLength","__BitLength","BitCount","__BitCount",

@@ -1,0 +1,28 @@
+# MISSING_PLAN M4: `drop(value)` releases a resource early (Rust mem::drop).
+# Positive: check + run clean, no warnings, tree interpreter == VM.
+struct Res {
+    name: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.name);
+    }
+}
+
+struct Legacy {
+    name: Str;
+
+    fn __del__(self) -> none {
+        print("del", self.name);
+    }
+}
+
+fn main() -> none {
+    var r = Res(name: "a");
+    print("before");
+    drop(r);
+    print("after");
+
+    var l = Legacy(name: "b");
+    drop(l);
+    print("done");
+}

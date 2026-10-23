@@ -5177,12 +5177,37 @@ void Interpreter::exec(const Stmt& s, Env env) {
                 else if (hasStructMethod(cm, "__exit__")) exitName = "__exit__";
                 entered.emplace_back(cm, exitName);
             };
-            auto runExits = [&](bool* suppress) {
+            auto exitArgs = [&](const Value& cm, const std::string& exitName,
+                                const Value* exc) -> std::vector<Value> {
+                int arity = structMethodArity(cm, exitName);
+                if (arity < 0) arity = 0;
+                std::vector<Value> args;
+                if (exc) {
+                    // PEP 343: Exit(exc_type, exc_value, traceback). A shorter
+                    // declared signature receives the leading arguments, so the
+                    // existing `fn exit(self) -> Bool` form keeps working.
+                    if (arity >= 1) {
+                        if (arity == 1) args.push_back(*exc);
+                        else {
+                            args.push_back(Value::str(typeName(*exc)));
+                            args.push_back(*exc);
+                            if (arity >= 3) args.push_back(Value::none());
+                        }
+                    }
+                } else if (arity > 0) {
+                    // Normal completion: (None, None, None) as in PEP 343.
+                    args.assign((size_t)arity, Value::none());
+                }
+                while ((int)args.size() < arity) args.push_back(Value::none());
+                return args;
+            };
+            auto runExits = [&](bool* suppress, const Value* exc) {
                 for (auto it = entered.rbegin(); it != entered.rend(); ++it) {
                     if (it->second.empty()) continue;
                     try {
-                        Value r = invokeMethod(it->first, it->second, {}, {}, env,
-                                               0, 0, nullptr);
+                        Value r = invokeMethod(it->first, it->second,
+                                               exitArgs(it->first, it->second, exc),
+                                               {}, env, 0, 0, nullptr);
                         if (suppress && truthy(r)) *suppress = true;
                     } catch (...) {
                     }
@@ -5195,21 +5220,24 @@ void Interpreter::exec(const Stmt& s, Env env) {
                                                         : std::string());
                 }
             } catch (...) {
-                runExits(nullptr);
+                runExits(nullptr, nullptr);
                 throw;
             }
             try {
                 execBlock(s.body, child);
-            } catch (const SignalRaise&) {
+            } catch (const SignalRaise& sr) {
                 bool sup = false;
-                runExits(&sup);
+                Value err = sr.errResult.payload.empty()
+                                ? Value::none()
+                                : sr.errResult.payload[0];
+                runExits(&sup, &err);
                 if (!sup) throw;
                 return;
             } catch (...) {
-                runExits(nullptr);
+                runExits(nullptr, nullptr);
                 throw;
             }
-            runExits(nullptr);
+            runExits(nullptr, nullptr);
             return;
         }
 
@@ -9031,6 +9059,30 @@ bool Interpreter::hasStructMethod(const Value& v, const std::string& name) {
     for (const auto& imp : impls_)
         if (imp.typeName == tn && imp.methods.count(name)) return true;
     return false;
+}
+
+int Interpreter::structMethodArity(const Value& v, const std::string& name) {
+    if (v.k != VK::Struct && v.k != VK::Heap) return -1;
+    const std::string& tn = v.k == VK::Heap ? v.heap->typeName : v.typeName;
+    const Stmt* method = nullptr;
+    auto si = structs_.find(tn);
+    if (si != structs_.end())
+        for (const auto& m : si->second->body)
+            if (m->kind == ast::StKind::FuncDef && m->name == name) {
+                method = m.get();
+                break;
+            }
+    if (!method)
+        for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+            if (it->typeName != tn) continue;
+            auto mi = it->methods.find(name);
+            if (mi != it->methods.end()) { method = mi->second; break; }
+        }
+    if (!method) return -1;
+    int n = 0;
+    for (const auto& p : method->params)
+        if (!p.selfParam) ++n;
+    return n;
 }
 
 Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,

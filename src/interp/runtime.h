@@ -140,6 +140,10 @@ private:
     // Release one value's resources by calling drop/__del__/exit/__exit when
     // the receiver has one (MISSING_PLAN M4: `using` frames + `drop(value)`).
     void releaseValue(const Value& v);
+    // Declared non-self parameter count of a struct method, or -1 when the
+    // receiver has no such method. Used by `with` to hand PEP 343 exception
+    // info to a 3-parameter exit() without breaking the 0-parameter form.
+    int structMethodArity(const Value& v, const std::string& name);
 
     std::mutex threadsM_;
     std::vector<std::shared_ptr<ThreadImpl>> threads_;

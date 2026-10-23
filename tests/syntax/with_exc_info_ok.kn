@@ -1,0 +1,25 @@
+# MISSING_PLAN M4: PEP 343 exception info reaches a three-argument exit().
+# Positive: check + run clean, no warnings, tree interpreter == VM.
+struct Guard {
+    name: Str;
+
+    fn enter(self) -> Bool {
+        print("enter", self.name);
+        return true;
+    }
+
+    fn exit(self, exc_type: any, exc_value: any, _traceback: any) -> Bool {
+        print("exit", self.name, exc_type, exc_value);
+        return exc_type == "string";
+    }
+}
+
+fn main() -> none {
+    with Guard(name: "g") {
+        print("body");
+    }
+    with Guard(name: "h") {
+        raise "boom";
+    }
+    print("after");
+}

@@ -648,6 +648,24 @@ regression: `examples/88_select_await.kn` ended with a redundant top-level `main
 not map, so gate 8b failed; removing it keeps the auto-run output identical (`10` / `timer`) and the
 example now passes HIR.
 
+**Update (2026-10-23).** The M4 context-manager helpers and PEP 343 exception forwarding are
+implemented, closing the remaining `contextlib` deviation. `with` now inspects the declared arity of
+`exit`/`__exit__` (`Interpreter::structMethodArity`): a three-parameter method receives
+`(exc_type, exc_value, traceback)` on a raise, a two-parameter one receives the leading two, a
+one-parameter one receives the raised value, and the existing zero-parameter `fn exit(self) -> Bool`
+form is unchanged; normal completion passes nils (no traceback capture). `exc_type` is the raised
+value's runtime type name and `exc_value` the raised payload. Added `stdlib/pet/contextlib.kn`
+(`nullcontext`, `closing`, `suppress(*types)` and `ExitStack()` with `enter_context`/`callback`/
+`close`) and tests `tests/syntax/with_exc_info_ok.kn` plus `stdlib/pet/contextlib_test.kn` (gate 6
+now 18 tests). Recorded deviations: the module follows the repo's `stdlib/pet/` layout rather than the
+plan's literal `stdlib/lib/`; `traceback` is always `none`; there are no exception classes, so
+`suppress` matches runtime type names (qualified or unqualified); `ExitStack` invokes registered
+managers through their zero-argument `exit()` and therefore does not forward exception info to a
+three-argument manager registered in the stack; the internal struct is `ExitStackState` because
+functions and types share one declaration namespace (matching `Mutex`/`MutexState`). Still open from
+M4: implicit declaration-based RAII and the `Copy`/`Drop` conflict check (there is no `Copy` trait
+yet).
+
 > Reference: Python — context managers `with` (`cpython/Lib/contextlib.py`); Rust — `Drop` (`rust/library/core/src/ops/drop.rs`).
 
 **Files:** `src/parser/parser.cpp` (soft keyword `with`; `using name = expr`), `src/ast/ast.h`

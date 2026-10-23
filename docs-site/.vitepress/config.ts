@@ -111,7 +111,7 @@ export default withMermaid(defineConfig({
     ],
     footer: {
       message: 'Built in the open by RK Riad Khan (RKRIAD585).',
-      copyright: 'MIT licensed · <a href="https://rkriad585.github.io/">Creator</a> · <a href="https://pets-registry.github.io/">Pets</a> · <a href="https://kirnly.github.io/">Kirnly</a> · <a href="https://kirnos-kernel.github.io/">KirnOS</a>'
+      copyright: 'MIT licensed · <a href="https://kirn-lang.github.io/">Kirn website</a> · <a href="https://pets-registry.github.io/">Pets registry</a> · <a href="https://kirnly.github.io/">Kirnly</a> · <a href="https://kirnos-kernel.github.io/">KirnOS</a> · <a href="https://rkriad585.github.io/">Creator</a> · <a href="https://rkriad585.github.io/kirn/">Kirn docs</a> · <a href="https://pets-registry.github.io/pets">Pets docs</a>'
     },
     editLink: {
       pattern: 'https://github.com/rkriad585/kirn/edit/main/docs-site/:path',

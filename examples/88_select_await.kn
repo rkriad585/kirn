@@ -17,5 +17,3 @@ async fn main() -> none {
         case _ = await a.sleep(ms: 10) { print("timer"); }
     }
 }
-
-main();

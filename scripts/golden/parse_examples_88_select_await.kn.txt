@@ -77,9 +77,5 @@ FuncDef "main" async
                 Callee Ident "print"
                 Arg
                   Value Str "timer"
-ExprStmt
-  Value 
-    Call
-      Callee Ident "main"
-<ROOT>/examples/88_select_await.kn: OK (4 top-level statements)
+<ROOT>/examples/88_select_await.kn: OK (3 top-level statements)
 [exit 0]

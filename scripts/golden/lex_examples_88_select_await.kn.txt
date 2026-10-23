@@ -107,12 +107,8 @@ Punct	17:56	;
 Punct	17:58	}
 Punct	18:5	}
 Punct	19:1	}
-Ident	21:1	main
-Punct	21:5	(
-Punct	21:6	)
-Punct	21:7	;
-Eof	22:1	
-<ROOT>/examples/88_select_await.kn: OK (112 tokens)
+Eof	20:1	
+<ROOT>/examples/88_select_await.kn: OK (108 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)
 [exit 0]

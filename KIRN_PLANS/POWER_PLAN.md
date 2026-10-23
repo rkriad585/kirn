@@ -1168,3 +1168,11 @@ Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/
 Delivered: `src/interp/runtime.cpp` `selectExec` await-arm handling; `examples/88_select_await.kn` + three goldens. Works in both VM and `--no-vm`.
 
 Verification: `88_select_await.kn` prints `10 timer`; gates 1_runall now **85 passed, 0 failed**.
+
+### Update (2026-10-21) — timed waits for sync primitives (shipped)
+
+**Path chosen:** add `Cond.wait_timeout`/`wait_timeout_ms` to native `Cond` using `std::condition_variable::wait_for`; extend `pet.sync` with `recv_timeout` on `Oneshot`/`MpscReceiver` and `changed_timeout` on `WatchRx`. Return values follow existing conventions (`none` on close/empty for channels, `['timeout']` marker on timeout, `false` for watch).
+
+Delivered: `src/interp/runtime.cpp`, `stdlib/pet/sync.kn`.
+
+Verification: timed probes return timeout as expected; `scripts/gates/6_test.sh` green.

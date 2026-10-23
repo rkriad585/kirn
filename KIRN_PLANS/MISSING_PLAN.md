@@ -634,6 +634,20 @@ scoped `Block`, `Using` → a `VarDecl`) so gates 8/9 stay green. Tests
 `tests/syntax/drop_err_no_protocol.kn`, `tests/vm_parity/context_drop.kn` and
 `examples/48_context_drop.kn`.
 
+**Update (2026-10-22).** The early-drop `drop(value)` builtin is now implemented, closing that
+recorded M4 deviation. `Interpreter::releaseValue` factors the previously inline `using`-frame
+release path (try `drop`, then `__del__`, `exit`, `__exit__`) and backs both the scope-exit frame and
+the new predeclared builtin; the hook ignores a missing protocol (a plain value is a no-op) and the
+binding stays readable because Kirn values use copy semantics. The builtin is seeded in the checker
+(`any -> none`), the bytecode-VM builtin set, and the interpreter's VM allowlist, and HIR lowers it
+as an ordinary builtin call. Tests: `tests/syntax/drop_builtin_ok.kn` (gate 2b, 60 files) covers the
+`drop` and `__del__` spellings on tree-walker and VM. Still open from M4: the
+`stdlib/lib/contextlib.kn` helpers (`ExitStack`/`suppress`/`closing`/`nullcontext`), implicit
+declaration-based RAII, and the `Copy`/`Drop` conflict check. Also fixed an incidental corpus
+regression: `examples/88_select_await.kn` ended with a redundant top-level `main();` that HIR could
+not map, so gate 8b failed; removing it keeps the auto-run output identical (`10` / `timer`) and the
+example now passes HIR.
+
 > Reference: Python — context managers `with` (`cpython/Lib/contextlib.py`); Rust — `Drop` (`rust/library/core/src/ops/drop.rs`).
 
 **Files:** `src/parser/parser.cpp` (soft keyword `with`; `using name = expr`), `src/ast/ast.h`

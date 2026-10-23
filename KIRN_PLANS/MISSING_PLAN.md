@@ -1024,15 +1024,30 @@ goldens). Deviations recorded: (1) the plan lists `stdlib/lib/sync.kn` and `impo
 repository has no `stdlib/lib` tree, so — as with M6/M7/M8 — `sync` ships as a builtin pseudo-module
 (`import sync; sync.Mutex()`) plus bare globals, and no module wrapper was added. (2) The plan's
 example grammar `count += 1 in mu` is illustrative only; locking is explicit via `mu.lock()`/
-`mu.unlock()` (no `in`-guarded-assignment form was added). (3) `select` keeps its 1 ms-backoff poll
-rather than switching to a channel condvar: select spans channels, timers and boolean gates, so the
-periodic poll is still required for the last two, and changing it was out of proportion to the
-primitive work. (4) TSan/ASan CI runs are not wired into this repository's gate scripts; correctness
-is shown by deterministic tree-walk/VM parity tests (`tests/vm_parity/sync_m9.kn`) and the
-`examples/59_sync.kn` shared-counter totals, not by a sanitizer build. (5) Full `PLAN P14`
+`mu.unlock()` (no `in`-guarded-assignment form was added). (3) `select` no longer polls every
+millisecond while waiting on channels or tasks; timer arms sleep until their nearest deadline, and a
+closed, drained channel is permanently ready and binds `none` (Go's receive-from-closed case). Gate
+arms keep the short poll (see the update below). (4) TSan/ASan CI runs are not wired into this
+repository's gate scripts; correctness is shown by deterministic tree-walk/VM parity tests
+(`tests/vm_parity/sync_m9.kn`) and the `examples/59_sync.kn` shared-counter totals, not by a
+sanitizer build. (5) Full `PLAN P14`
 "no shared mutable across threads" is not statically enforced for `spawn`/`WaitGroup.go` closures;
 the existing `chan.send` sendability gate is retained and `Atomic[T]` element types are checked for
 sendability, but the dynamic closure model leaves a sound general analysis to a later phase.
+
+**Update (2026-10-23).** The condvar `select` deviation is closed for channel/task/timer arms. A
+shared readiness bus (`SelectBus`: mutex + condition variable + generation counter) is bumped by
+`ChanImpl::send`/`close`, task completion, and `ThreadH.abort`. A select snapshots the generation
+_before_ scanning its arms, so an event racing the scan either fills the queue (observed by the scan)
+or bumps the generation (the post-scan wait returns immediately) — no lost wakeups. With no gate arm,
+the select then waits until `gen` changes or the nearest timer deadline expires, rather than waking
+every millisecond. Gate arms retain the 1 ms poll because the gate expression is evaluated once
+before the loop and has no notification source. A closed, drained channel is now ready with a `none`
+payload on every pass rather than being skipped forever. Tests: `tests/syntax/select_ok.kn` gained a
+task-driven channel send, a closed-channel arm, and a timer-only wait;
+`examples/88_select_await.kn` now uses distinct task sleeps so its winner is deterministic (equal
+sleeps raced once the 1 ms poll no longer masked scheduling jitter). Gates: 2b 64, 1_runall 85,
+4_vm_diff 103, 8b 3, 9_MIR 10, 11a 7, golden 354, crosscheck 927, stdlib 18, all 0 fail.
 
 ---
 

@@ -6,19 +6,20 @@ suite.
 
 ## Modules
 
-| Module | File | Core responsibilities |
-|--------|------|------------------------|
-| `core` | `core.kn` | Built-in types, optionals/results, primitives, helpers |
-| `io` | `io.kn` | Input/output: `print`, `input`, streams |
-| `math` | `math.kn` | `sqrt`, `pow`, `floor`, trig, constants, etc. |
-| `strings` | `strings.kn` | String building, searching, splitting, transformation |
-| `collections` | `collections.kn` | `list`, `dict`, `set`, `table`, iterators, sorting |
-| `json` | `json.kn` | JSON parse/serialize |
-| `os` | `os.kn` | Environment, filesystem, process helpers |
-| `path` | `path.kn` | Path normalization and manipulation |
-| `regexp` | `regexp.kn` | Regular expressions |
-| `time` | `time.kn` | Clocks, durations, timers |
-| `text/slug` | `text/` | String-slug utilities |
+| Module        | File             | Core responsibilities                                                      |
+| ------------- | ---------------- | -------------------------------------------------------------------------- |
+| `core`        | `core.kn`        | Built-in types, optionals/results, primitives, helpers                     |
+| `io`          | `io.kn`          | Input/output: `print`, `input`, streams                                    |
+| `math`        | `math.kn`        | `sqrt`, `pow`, `floor`, trig, constants, etc.                              |
+| `strings`     | `strings.kn`     | String building, searching, splitting, transformation                      |
+| `collections` | `collections.kn` | `list`, `dict`, `set`, `table`, iterators, sorting                         |
+| `json`        | `json.kn`        | JSON parse/serialize                                                       |
+| `os`          | `os.kn`          | Environment, filesystem, process helpers                                   |
+| `path`        | `path.kn`        | Path normalization and manipulation                                        |
+| `regexp`      | `regexp.kn`      | Regular expressions                                                        |
+| `contextlib`  | `contextlib.kn`  | Context-manager helpers: `nullcontext`, `closing`, `suppress`, `ExitStack` |
+| `time`        | `time.kn`        | Clocks, durations, timers                                                  |
+| `text/slug`   | `text/`          | String-slug utilities                                                      |
 
 ## Testing
 

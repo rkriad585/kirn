@@ -1,0 +1,73 @@
+# stdlib/pet/contextlib_test.kn - tests for pet.contextlib (MISSING_PLAN M4).
+import pet.contextlib;
+
+struct Tracked {
+    var name: Str;
+    var log: list;
+
+    fn enter(self) -> Tracked {
+        self.log.append("enter " + self.name);
+        return self;
+    }
+
+    fn exit(self) -> Bool {
+        self.log.append("exit " + self.name);
+        return false;
+    }
+}
+
+struct Closable {
+    var log: list;
+
+    fn close(self) -> none {
+        self.log.append("closed");
+    }
+}
+
+fn main() -> none {
+    # nullcontext yields its wrapped value.
+    with contextlib.nullcontext(5) as v {
+        assert_eq(v, 5);
+    }
+
+    # suppress: a matching runtime type is swallowed.
+    var out = [];
+    try {
+        with contextlib.suppress("string") {
+            raise "ignored";
+        }
+        out.append("suppressed");
+    } catch e {
+        out.append("leaked:" + e);
+    }
+    assert_eq(out, ["suppressed"]);
+
+    # suppress: a non-matching type propagates.
+    try {
+        with contextlib.suppress("int") {
+            raise "boom";
+        }
+        out.append("leaked");
+    } catch e {
+        out.append("propagated:" + e);
+    }
+    assert_eq(out, ["suppressed", "propagated:boom"]);
+
+    # closing: exit calls thing.close().
+    var closed = [];
+    with contextlib.closing(Closable(log: closed)) {
+        closed.append("body");
+    }
+    assert_eq(closed, ["body", "closed"]);
+
+    # ExitStack: managers release in reverse order, then callbacks run.
+    var log = [];
+    with contextlib.ExitStack() as stack {
+        stack.enter_context(Tracked(name: "a", log: log));
+        stack.enter_context(Tracked(name: "b", log: log));
+        stack.callback(fn () { log.append("callback"); });
+    }
+    assert_eq(log, ["enter a", "enter b", "exit b", "exit a", "callback"]);
+
+    print("contextlib_test ok");
+}

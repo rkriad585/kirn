@@ -1,17 +1,19 @@
 # examples/88_select_await.kn - select over await arms (POWER_PLAN §2.10)
 import pet.async as a;
 
-async fn work(x: Int) -> Int {
-    await a.sleep(ms: 20);
+async fn work(x: Int, ms: Int) -> Int {
+    await a.sleep(ms);
     return x * 2;
 }
 
 async fn main() -> none {
-    var t1 = work(5);
-    var t2 = work(3);
+    # Distinct sleeps keep the winner deterministic: the fast arm is ready
+    # first even though it is second in source order.
+    var slow = work(3, 40);
+    var fast = work(5, 5);
     select {
-        case v = await t1 { print(v); }
-        case w = await t2 { print(w); }
+        case v = await slow { print(v); }
+        case w = await fast { print(w); }
     }
     select {
         case _ = await a.sleep(ms: 10) { print("timer"); }

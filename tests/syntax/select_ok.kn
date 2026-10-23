@@ -8,6 +8,12 @@ async fn later(v: Int, ms: Int) -> Int {
     return v;
 }
 
+async fn produce(ch: chan[Int]) -> none {
+    await a.sleep(ms: 20);
+    ch.send(7);
+    await a.sleep(ms: 100);
+}
+
 async fn main() -> none {
     var slow = later(1, 50);
     var fast = later(2, 5);
@@ -36,5 +42,26 @@ async fn main() -> none {
     select {
         case <-a.yield_now() { print("ready"); }
         else { print("pending"); }
+    }
+
+    # A select with no ready arm sleeps until a task sends on the channel.
+    var ch2 = chan[Int]();
+    var prod = produce(ch2);
+    select {
+        case v = ch2.recv() { print("chan", v); }
+        case _ = prod { print("producer"); }
+    }
+
+    # A closed, drained channel is permanently ready and binds `none`.
+    var closed = chan[Int]();
+    closed.close();
+    select {
+        case v = closed.recv() { print("closed", v); }
+        else { print("closed empty"); }
+    }
+
+    # Timer-only select blocks until the nearest deadline.
+    select {
+        case <-a.sleep(ms: 10) { print("timer"); }
     }
 }

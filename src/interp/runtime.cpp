@@ -331,6 +331,50 @@ static int64_t nowMs() {
         .count();
 }
 
+// M9: readiness bus for `select`. A select that waits on channels/tasks would
+// otherwise have to wake every millisecond and re-scan its arms. Channel sends,
+// closes, task completion and task abort bump a generation counter; a waiting
+// select snapshots it before scanning and sleeps until the generation changes
+// or the nearest timer deadline expires. The snapshot-before-scan ordering
+// closes the lost-wakeup race: an event that lands between snapshot and scan is
+// either observed by the scan or bumps the generation, so the following wait
+// returns immediately. Gate arms still use the short poll because a cached gate
+// expression has no notification source.
+namespace {
+struct SelectBus {
+    std::mutex m;
+    std::condition_variable cv;
+    uint64_t gen = 0;
+};
+SelectBus& selectBus() {
+    static SelectBus bus;
+    return bus;
+}
+void notifySelectWaiters() {
+    SelectBus& bus = selectBus();
+    {
+        std::lock_guard<std::mutex> lk(bus.m);
+        ++bus.gen;
+    }
+    bus.cv.notify_all();
+}
+// A select gate is evaluated once before the wait loop, so only gates backed by
+// shared mutable state can change while the select sleeps. Scalar gates
+// (Bool/Int/Float/BigInt/Decimal/Bytes) are immutable snapshots and need no
+// poll; the mutable reference containers keep the short poll.
+bool selectGateCanChange(const Value& v) {
+    switch (v.k) {
+        case VK::ByteArray:
+        case VK::View:
+        case VK::Deque:
+        case VK::Counter:
+            return true;
+        default:
+            return false;
+    }
+}
+}  // namespace
+
 static void ipow64(int64_t base, int64_t exp, int64_t& out) {
     out = 1;
     while (exp > 0) {
@@ -1328,6 +1372,8 @@ void ChanImpl::send(Value v) {
     if (closed) panicHere("send on closed channel");
     q.push_back(std::move(v));
     cv.notify_all();
+    lk.unlock();
+    notifySelectWaiters();
 }
 
 ChanImpl::Slot ChanImpl::recv() {
@@ -1354,6 +1400,7 @@ ChanImpl::Slot ChanImpl::tryRecv() {
 void ChanImpl::close() {
     { std::lock_guard<std::mutex> lk(m); closed = true; }
     cv.notify_all();
+    notifySelectWaiters();
 }
 
 // ---------------------------------------------------------------------------
@@ -7011,8 +7058,10 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 });
             if (name == "abort")
                 return bind({}, [](std::vector<Value>& a) -> Value {
-                    if (!a.empty() && a[0].k == VK::ThreadH && a[0].thread)
+                    if (!a.empty() && a[0].k == VK::ThreadH && a[0].thread) {
                         a[0].thread->aborted = true;
+                        notifySelectWaiters();
+                    }
                     return Value::none();
                 });
             if (name == "is_aborted")
@@ -10470,6 +10519,7 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
             t->done = true;
         }
         t->cv.notify_all();
+        notifySelectWaiters();
         if (panicked) {
             std::string full = "panic in spawned thread: " + msg;
             for (const auto& f : frames) full += "\n  " + f;
@@ -10548,9 +10598,19 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
         (n > 0 && !s.selBiased) ? (selectTurn_++) % n : 0;
 
     for (;;) {
-        for (size_t k = 0; k < n; ++k) {
+        // M9: snapshot readiness before scanning (see SelectBus). A send that
+        // races with this scan either fills the queue (seen below) or bumps the
+        // generation (so the wait after the scan does not sleep through it).
+        uint64_t seen;
+        {
+            SelectBus& bus = selectBus();
+            std::lock_guard<std::mutex> lk(bus.m);
+            seen = bus.gen;
+        }
+        bool hasGate = false;
+        int64_t nextTimer = INT64_MAX;        for (size_t k = 0; k < n; ++k) {
             const size_t idx = (start + k) % n;
-            const auto& pr = prepared[idx];
+            auto& pr = prepared[idx];
             bool ready = false;
             Value payload;
             switch (pr.kind) {
@@ -10559,10 +10619,18 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
                     if (slot.got) {
                         ready = true;
                         payload = slot.v;
+                    } else if (slot.closed) {
+                        // A closed, drained channel is permanently ready (Go's
+                        // receive-from-closed case); bind `none` so the select
+                        // cannot hang or spin on it.
+                        ready = true;
+                        payload = Value::none();
                     }
                     break;
                 }
                 case Prepared::Timer:
+                    if (pr.cached.deadlineMs < nextTimer)
+                        nextTimer = pr.cached.deadlineMs;
                     ready = nowMs() >= pr.cached.deadlineMs;
                     break;
                 case Prepared::Task: {
@@ -10579,6 +10647,7 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
                     break;
                 }
                 case Prepared::Gate:
+                    hasGate = hasGate || selectGateCanChange(pr.cached);
                     ready = truthy(pr.cached);
                     if (ready) payload = pr.cached;
                     break;
@@ -10605,7 +10674,27 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
             execBlock(s.elseBody, makeChild(env));
             return Value::none();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // A gate backed by shared mutable state has no notification source (it
+        // is evaluated once, before the loop), so it keeps the short poll.
+        // Everything else sleeps until a channel/task event or the nearest
+        // timer deadline.
+        if (hasGate) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+        SelectBus& bus = selectBus();
+        std::unique_lock<std::mutex> lk(bus.m);
+        if (nextTimer == INT64_MAX) {
+            bus.cv.wait(lk, [&] { return bus.gen != seen; });
+        } else {
+            int64_t now = nowMs();
+            if (nextTimer <= now) continue;
+            auto deadline =
+                std::chrono::system_clock::now() +
+                std::chrono::milliseconds(nextTimer - now);
+            bus.cv.wait_until(lk, deadline,
+                              [&] { return bus.gen != seen; });
+        }
     }
 }
 

@@ -2,6 +2,7 @@ $ <ROOT>/build/kirnparse --ast <ROOT>/examples/88_select_await.kn
 Import pet.async as a
 FuncDef "work" async
   Param "x" : Int
+  Param "ms" : Int
   Ret Int
   Body
     ExprStmt
@@ -12,8 +13,8 @@ FuncDef "work" async
               Callee 
                 Member name="sleep"
                   Obj Ident "a"
-              Arg name=ms
-                Value Int "20"
+              Arg
+                Value Ident "ms"
     Return
       Value 
         Binary op="*"
@@ -23,24 +24,28 @@ FuncDef "main" async
   Ret none
   Body
     VarDecl
-      Target Ident "t1"
-      Value 
-        Call
-          Callee Ident "work"
-          Arg
-            Value Int "5"
-    VarDecl
-      Target Ident "t2"
+      Target Ident "slow"
       Value 
         Call
           Callee Ident "work"
           Arg
             Value Int "3"
+          Arg
+            Value Int "40"
+    VarDecl
+      Target Ident "fast"
+      Value 
+        Call
+          Callee Ident "work"
+          Arg
+            Value Int "5"
+          Arg
+            Value Int "5"
     Select
       SelArm bind=v
         ChanOp 
           Unary op="await"
-            Operand Ident "t1"
+            Operand Ident "slow"
         Body
           ExprStmt
             Value 
@@ -51,7 +56,7 @@ FuncDef "main" async
       SelArm bind=w
         ChanOp 
           Unary op="await"
-            Operand Ident "t2"
+            Operand Ident "fast"
         Body
           ExprStmt
             Value 

@@ -48,3 +48,18 @@ Start with **Learn** if you are new to Kirn. Use **Guides** when you are working
   <a href="https://kirn-lang.github.io/">Visit the Kirn website <span>↗</span></a>
   <a href="https://pets-registry.github.io/">Explore Pets <span>↗</span></a>
 </div>
+
+## Toolchain at a glance
+
+~~~mermaid
+flowchart LR
+  Source[".kn source"] --> Lexer["Lexer"]
+  Lexer --> Parser["Parser"]
+  Parser --> Check["Semantic checks"]
+  Check --> Run["Interpreter / VM"]
+  Check --> Native["Native backend"]
+  Run --> Output["Program output"]
+  Native --> Output
+~~~
+
+The same pipeline is available as a readable [toolchain guide](/guide/toolchain) and in the source repository.

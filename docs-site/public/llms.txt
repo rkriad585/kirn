@@ -1,0 +1,42 @@
+# Kirn
+
+> Official documentation for the Kirn programming language.
+
+Kirn is a general-purpose language created by RK Riad Khan. These docs describe verified language behavior, tooling, and standard-library material from the source repository.
+
+## Documentation
+
+- [AI-readable documentation](https://rkriad585.github.io/kirn/guide/ai) — Use the Kirn documentation as a compact, structured context source.
+- [CLI workflow](https://rkriad585.github.io/kirn/guide/cli) — Use the Kirn command-line driver to run, test, build, and manage projects.
+- [Contributing](https://rkriad585.github.io/kirn/guide/contributing) — Help improve Kirn and its documentation.
+- [Project structure](https://rkriad585.github.io/kirn/guide/project) — Understand a Kirn project scaffold and kirn.toml.
+- [Build targets](https://rkriad585.github.io/kirn/guide/toolchain) — Understand Kirn bytecode, native builds, and supported target shapes.
+- [Kirn Docs](https://rkriad585.github.io/kirn/) — Official documentation for the Kirn programming language.
+- [Functions and control flow](https://rkriad585.github.io/kirn/learn/basics/functions) — Define functions and compose expressions in Kirn.
+- [Variables and values](https://rkriad585.github.io/kirn/learn/basics/variables) — Bind values and use type annotations in Kirn.
+- [Concurrency](https://rkriad585.github.io/kirn/learn/beyond/concurrency) — Explore Kirn's spawn, channel, select, and join primitives.
+- [Optionals and results](https://rkriad585.github.io/kirn/learn/data/optionals-results) — Represent missing values and recoverable errors in Kirn.
+- [Structs and enums](https://rkriad585.github.io/kirn/learn/data/structs-enums) — Model structured data with structs and enums.
+- [Installation](https://rkriad585.github.io/kirn/learn/installation) — Build and run the Kirn toolchain from source.
+- [Introduction](https://rkriad585.github.io/kirn/learn/introduction) — What Kirn is, who it is for, and how to read the documentation.
+- [Quick start](https://rkriad585.github.io/kirn/learn/quick-start) — Write and run your first Kirn program.
+- [Lexical structure](https://rkriad585.github.io/kirn/reference/language/lexical) — Learn Kirn identifiers, comments, keywords, and literals.
+- [Syntax and operators](https://rkriad585.github.io/kirn/reference/language/syntax) — Explore Kirn expressions, statements, patterns, and operators.
+- [Types](https://rkriad585.github.io/kirn/reference/language/types) — Reference Kirn primitive, container, optional, and result types.
+- [collections](https://rkriad585.github.io/kirn/reference/stdlib/collections) — Collection helpers in the Kirn standard library.
+- [core](https://rkriad585.github.io/kirn/reference/stdlib/core) — Core values and built-in operations in Kirn.
+- [Standard library](https://rkriad585.github.io/kirn/reference/stdlib) — Overview of the Kirn standard library modules.
+- [io](https://rkriad585.github.io/kirn/reference/stdlib/io) — Input and output helpers in the Kirn standard library.
+- [json](https://rkriad585.github.io/kirn/reference/stdlib/json) — Encode and decode JSON values in Kirn.
+- [math](https://rkriad585.github.io/kirn/reference/stdlib/math) — Mathematical helpers in the Kirn standard library.
+- [os and path](https://rkriad585.github.io/kirn/reference/stdlib/os-path) — Work with process arguments, environment, and filesystem paths.
+- [regexp and time](https://rkriad585.github.io/kirn/reference/stdlib/regexp-time) — Pattern matching and time helpers in the Kirn standard library.
+- [strings](https://rkriad585.github.io/kirn/reference/stdlib/strings) — String operations in the Kirn standard library.
+
+## Ecosystem
+
+- [Kirn website](https://kirn-lang.github.io/)
+- [Pets registry](https://pets-registry.github.io/)
+- [Kirnly editor](https://kirnly.github.io/)
+- [KirnOS](https://kirnos-kernel.github.io/)
+- [Creator](https://rkriad585.github.io/)

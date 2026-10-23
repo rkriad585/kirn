@@ -4,11 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "docs:ai": "node scripts/build-ai-bundle.mjs",
     "docs:dev": "vitepress dev .",
-    "docs:build": "vitepress build .",
+    "docs:build": "npm run docs:ai && vitepress build .",
     "docs:preview": "vitepress preview ."
   },
   "devDependencies": {
-    "vitepress": "1.6.4"
+    "langium": "^4.4.0",
+    "mermaid": "^10.9.4",
+    "vitepress": "1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17"
   }
 }

@@ -1,0 +1,734 @@
+# Kirn Docs — full content bundle
+
+# AI-readable documentation
+
+Source: https://rkriad585.github.io/kirn/guide/ai
+
+Use the Kirn documentation as a compact, structured context source.
+
+# AI-readable documentation
+
+Kirn Docs publishes machine-readable context alongside the human documentation:
+
+- [`llms.txt`](/kirn/llms.txt) — a compact index of the documentation and ecosystem links.
+- [`llms-full.txt`](/kirn/llms-full.txt) — a single Markdown bundle containing the full page text.
+- [`ai/docs.json`](/kirn/ai/docs.json) — structured page metadata, canonical URLs, and stable source paths.
+
+These files are generated from the same Markdown pages used by VitePress. They are useful for coding assistants, search indexes, offline readers, and retrieval pipelines.
+
+## Recommended retrieval flow
+
+1. Fetch `llms.txt` to discover available pages.
+2. Fetch individual page URLs when focused context is needed.
+3. Use `ai/docs.json` for metadata or a complete page inventory.
+4. Use `llms-full.txt` when one context bundle is more useful than multiple requests.
+
+The source repository is [github.com/rkriad585/kirn](https://github.com/rkriad585/kirn). Documentation examples should be checked against the current compiler before being treated as implementation guarantees.
+
+---
+
+# CLI workflow
+
+Source: https://rkriad585.github.io/kirn/guide/cli
+
+Use the Kirn command-line driver to run, test, build, and manage projects.
+
+# CLI workflow
+
+The `kirn` driver is the main entry point.
+
+| Command | Purpose |
+| --- | --- |
+| `kirn run file.kn` | Run a program |
+| `kirn new name` | Scaffold a project |
+| `kirn test` | Run tests |
+| `kirn build` | Build a program |
+| `kirn install` | Install a package |
+| `kirn add` | Add a dependency |
+| `kirn update` | Update dependencies |
+| `kirn remove` | Remove a dependency |
+| `kirn doc` | Serve Markdown and API documentation |
+
+## A normal loop
+
+```bash
+kirn new hello
+cd hello
+kirn run code/main.kn
+kirn test
+kirn build --release
+```
+
+Build options include `--debug`, `--release`, `--target`, `--native`, `--asan`, `-S`, `-O`, and `-o`. Run `kirn` without arguments for the current help output.
+
+---
+
+# Contributing
+
+Source: https://rkriad585.github.io/kirn/guide/contributing
+
+Help improve Kirn and its documentation.
+
+# Contributing
+
+Kirn is built in public. The best contributions are focused, reproducible, and honest about what the compiler currently supports.
+
+## Code contributions
+
+1. Read the repository's [contributing guide](https://github.com/rkriad585/kirn/blob/main/CONTRIBUTING.md).
+2. Build the project and run the relevant example or test.
+3. Keep a change focused and explain the behavior it verifies.
+4. Open a pull request with reproduction and verification notes.
+
+## Documentation contributions
+
+Documentation examples should run with the current toolchain. If a claim compares Kirn with another language or promises a future feature, include a source or benchmark and label roadmap work clearly.
+
+The docs site lives in `docs-site/` and is deployed by GitHub Actions. Run `npm install` and `npm run docs:build` there before opening a docs pull request.
+
+---
+
+# Project structure
+
+Source: https://rkriad585.github.io/kirn/guide/project
+
+Understand a Kirn project scaffold and kirn.toml.
+
+# Project structure
+
+`kirn new demo` creates a project with a manifest, source tree, tests, and documentation:
+
+```text
+demo/
+├── kirn.toml
+├── code/
+│   └── main.kn
+├── tests/
+├── docs/
+└── .gitignore
+```
+
+The manifest describes package metadata and dependencies:
+
+```toml
+[package]
+name = "demo"
+version = "0.1.0"
+type = "bin"
+main = "code/main.kn"
+license = "MIT"
+
+[dependencies]
+```
+
+Keep examples and tests close to the project. A package is easier to understand when its source, docs, and executable checks evolve together.
+
+---
+
+# Build targets
+
+Source: https://rkriad585.github.io/kirn/guide/toolchain
+
+Understand Kirn bytecode, native builds, and supported target shapes.
+
+# Build targets
+
+Kirn's toolchain can run source directly, produce bytecode bundles, and build native artifacts. The exact backend and target support are under active development.
+
+```bash
+kirn build --debug
+kirn build --release
+kirn build --native
+kirn targets
+```
+
+The project tracks platform families across Windows, Linux, and Darwin, with amd64 and arm64 target shapes. Treat a target as supported only when the current CI or release workflow proves it.
+
+## Output forms
+
+- `.bkn` — bytecode bundle.
+- `.kirnlib` — library package.
+- Native executable output — platform-specific executable.
+
+For compiler architecture, read the source pipeline from lexer and parser through semantic analysis, VM, interpreter, and native backend.
+
+---
+
+# Kirn Docs
+
+Source: https://rkriad585.github.io/kirn/
+
+Official documentation for the Kirn programming language.
+
+<div class="home-note">
+  <span>Kirn is for people who</span>
+  <strong>build boldly.</strong>
+</div>
+
+## The shape of the docs
+
+Start with **Learn** if you are new to Kirn. Use **Guides** when you are working with the CLI, project files, or build targets. Go to **Reference** when you already know what you are looking for.
+
+> Kirn is actively evolving. These docs describe verified behavior and clearly label work that is still on the roadmap.
+
+<div class="home-links">
+  <a href="/kirn/learn/installation">Install Kirn <span>↗</span></a>
+  <a href="https://kirn-lang.github.io/">Visit the Kirn website <span>↗</span></a>
+  <a href="https://pets-registry.github.io/">Explore Pets <span>↗</span></a>
+</div>
+
+## Toolchain at a glance
+
+~~~mermaid
+flowchart LR
+  Source[".kn source"] --> Lexer["Lexer"]
+  Lexer --> Parser["Parser"]
+  Parser --> Check["Semantic checks"]
+  Check --> Run["Interpreter / VM"]
+  Check --> Native["Native backend"]
+  Run --> Output["Program output"]
+  Native --> Output
+~~~
+
+The same pipeline is available as a readable [toolchain guide](/guide/toolchain) and in the source repository.
+
+---
+
+# Functions and control flow
+
+Source: https://rkriad585.github.io/kirn/learn/basics/functions
+
+Define functions and compose expressions in Kirn.
+
+# Functions and control flow
+
+Functions use `fn`, a name, parameters, and a body. A final expression can be returned from a block.
+
+```kirn
+fn classify(value: Int) -> Str {
+    if value < 0 {
+        "negative"
+    } elif value == 0 {
+        "zero"
+    } else {
+        "positive"
+    }
+}
+```
+
+Kirn includes `if`, `elif`, and `else`, plus `while` and `for` loops. Ranges use `..` and `..=` forms.
+
+```kirn
+for number in 1..=5 {
+    print(number);
+}
+```
+
+Closures can capture values from the surrounding scope. See the verified examples in `examples/06_functions_params.kn` and `examples/07_closures_captures.kn`.
+
+---
+
+# Variables and values
+
+Source: https://rkriad585.github.io/kirn/learn/basics/variables
+
+Bind values and use type annotations in Kirn.
+
+# Variables and values
+
+Kirn supports inferred values and explicit type annotations. Bindings are immutable by default; use the language's mutable-binding forms only when the program needs them.
+
+```kirn
+count: Int = 3;
+ratio: Float = 0.5;
+label: Str = "ready";
+enabled: Bool = true;
+```
+
+Literal values include numbers, strings, booleans, characters, lists, dictionaries, and sets. The canonical primitive names are capitalized:
+
+```kirn
+age = 25;
+title = "A small program";
+scores = [10, 20, 30];
+```
+
+Use the [Types reference](/reference/language/types) for the current primitive and container families.
+
+---
+
+# Concurrency
+
+Source: https://rkriad585.github.io/kirn/learn/beyond/concurrency
+
+Explore Kirn's spawn, channel, select, and join primitives.
+
+# Concurrency
+
+Kirn includes language-level building blocks for concurrent programs. The verified example corpus covers green-thread-style `spawn`, channels, `select`, and `join`.
+
+```kirn
+channel = chan<Int>();
+
+spawn {
+    channel <- 42;
+}
+
+value = <-channel;
+print(value);
+```
+
+Concurrency behavior and runtime guarantees are still developing. Start with `examples/22_spawn_channels_join.kn` and `examples/23_select_multiplex.kn`, then test changes against the current toolchain.
+
+---
+
+# Optionals and results
+
+Source: https://rkriad585.github.io/kirn/learn/data/optionals-results
+
+Represent missing values and recoverable errors in Kirn.
+
+# Optionals and results
+
+Optional types use `?` to express that a value may be absent:
+
+```kirn
+fn find_name(id: Int) -> Str? {
+    if id == 1 { "Ada" } else { none }
+}
+```
+
+The nil-safe access operator `.?.` helps inspect an optional value without pretending it is always present.
+
+Results model success and failure explicitly. The `try` form propagates a failure to the caller:
+
+```kirn
+fn load_config(path: Str) -> Result<Config, Error> {
+    text = try read_file(path);
+    parse_config(text)
+}
+```
+
+The exact result and optional APIs are evolving; use the compiler and standard-library reference as the current authority.
+
+---
+
+# Structs and enums
+
+Source: https://rkriad585.github.io/kirn/learn/data/structs-enums
+
+Model structured data with structs and enums.
+
+# Structs and enums
+
+Use a `struct` to group named fields and behavior:
+
+```kirn
+struct User {
+    name: Str;
+    active: Bool;
+}
+
+fn main() {
+    user = User(name: "Riad", active: true);
+    print(user.name);
+}
+```
+
+Enums represent a closed set of variants and work naturally with `match`:
+
+```kirn
+enum Status {
+    Ready,
+    Done,
+}
+
+fn label(status: Status) -> Str {
+    match status {
+        case Status.Ready => "ready";
+        case Status.Done => "done";
+    }
+}
+```
+
+See [syntax and operators](/reference/language/syntax) for pattern details.
+
+---
+
+# Installation
+
+Source: https://rkriad585.github.io/kirn/learn/installation
+
+Build and run the Kirn toolchain from source.
+
+# Installation
+
+Kirn is currently developed from source. The repository is the authoritative place for supported build instructions and platform changes.
+
+## Get the source
+
+```bash
+git clone https://github.com/rkriad585/kirn.git
+cd kirn
+```
+
+Kirn uses CMake and a C++20 toolchain. Build instructions may vary by platform; check the repository README and CI workflow for the current dependency list.
+
+## Verify the checkout
+
+After building, confirm that the driver is available:
+
+```bash
+kirn
+kirn run examples/01_hello.kn
+```
+
+The example corpus is intentionally useful: it gives you small programs to run while learning the language and a concrete way to check whether a feature is implemented.
+
+## Next step
+
+Continue with the [Quick start](/learn/quick-start), or read the [CLI guide](/guide/cli) for the full workflow.
+
+---
+
+# Introduction
+
+Source: https://rkriad585.github.io/kirn/learn/introduction
+
+What Kirn is, who it is for, and how to read the documentation.
+
+# Introduction
+
+Kirn is a general-purpose programming language created by [RK Riad Khan](https://rkriad585.github.io/). Its design aims to keep readable source, explicit structure, and a compiled toolchain close together.
+
+The language is open source and actively evolving. The most useful way to understand it is to run the examples in the [official repository](https://github.com/rkriad585/kirn), then use these docs as a map.
+
+## What Kirn gives you
+
+- Familiar, expression-oriented syntax for small programs and larger systems.
+- Strong types, structs, enums, traits, generics, and optionals.
+- Functions, closures, modules, pattern matching, and error propagation.
+- Concurrency primitives including `spawn`, channels, `select`, and `join`.
+- A CLI for running, testing, building, packaging, and documenting projects.
+
+Kirn is not finished. Claims about performance, ownership, networking, IDE support, or future tooling should be treated as roadmap material unless they are backed by the source and a runnable example.
+
+## Choose your path
+
+- **New to Kirn?** Continue to [Installation](/learn/installation), then [Quick start](/learn/quick-start).
+- **Know the basics?** Read the [CLI workflow](/guide/cli) and [Project structure](/guide/project).
+- **Looking for exact syntax?** Open the [Language reference](/reference/language/lexical).
+- **Looking for packages?** Visit the [Pets registry](https://pets-registry.github.io/).
+
+## Source of truth
+
+The normative grammar lives in `grammar/kirn.ebnf`. The canonical keyword set is maintained by the lexer. Examples in `examples/` are the working corpus used to validate language behavior.
+
+---
+
+# Quick start
+
+Source: https://rkriad585.github.io/kirn/learn/quick-start
+
+Write and run your first Kirn program.
+
+# Quick start
+
+Create a file named `hello.kn`:
+
+```kirn
+fn main() {
+    name = "Kirn";
+    print(f"Hello, {name}!");
+}
+```
+
+Run it with the Kirn driver:
+
+```bash
+kirn run hello.kn
+```
+
+## A small function
+
+Kirn programs can describe a value with a function and return it to the caller:
+
+```kirn
+fn greet(name: Str) -> Str {
+    f"Hello, {name}!"
+}
+
+fn main() {
+    message = greet("builder");
+    print(message);
+}
+```
+
+The exact set of built-ins and accepted syntax follows the compiler in the source repository. When an example differs from the current compiler, trust a runnable example and report the mismatch.
+
+## Where to go next
+
+- [Variables and values](/learn/basics/variables)
+- [Functions and control flow](/learn/basics/functions)
+- [Project structure](/guide/project)
+
+---
+
+# Lexical structure
+
+Source: https://rkriad585.github.io/kirn/reference/language/lexical
+
+Learn Kirn identifiers, comments, keywords, and literals.
+
+# Lexical structure
+
+Kirn source files use the `.kn` extension. Whitespace is not significant; blocks use braces and simple statements normally end with semicolons.
+
+## Identifiers
+
+Identifiers begin with a letter or underscore and may contain numbers after the first character.
+
+```kirn
+user_name = "kirn";
+_count = 1;
+```
+
+## Comments
+
+A comment begins with `#` and continues to the end of the line.
+
+```kirn
+# This is a comment.
+value = 42;
+```
+
+## Keywords
+
+The lexer currently recognizes keywords including `fn`, `var`, `if`, `elif`, `else`, `while`, `for`, `in`, `return`, `match`, `struct`, `enum`, `trait`, `impl`, `import`, `export`, `pub`, `spawn`, `chan`, `select`, `try`, `catch`, `unsafe`, `extern`, `class`, `interface`, `record`, and `extends`.
+
+The authoritative list is `src/lex/lexer.cpp`; syntax is specified in `grammar/kirn.ebnf`.
+
+---
+
+# Syntax and operators
+
+Source: https://rkriad585.github.io/kirn/reference/language/syntax
+
+Explore Kirn expressions, statements, patterns, and operators.
+
+# Syntax and operators
+
+Kirn uses braces for blocks and semicolons for simple statements. Expressions can appear where a value is expected, including conditional and match expressions.
+
+## Operators
+
+The grammar includes arithmetic, comparison, boolean, range, assignment, bitwise, and propagation operators.
+
+```text
++  -  *  /  %       ==  !=  <  <=  >  >=
+and  or  not        ..  ..=      ?.  .?.
+->  <-              +=  -=  *=  /=  %= 
+```
+
+Operator precedence is defined by `grammar/kirn.ebnf`. When in doubt, use parentheses and consult the grammar rather than relying on a language from memory.
+
+## Pattern matching
+
+```kirn
+match value {
+    case 0 => "zero";
+    case n if n > 0 => "positive";
+    case _ => "negative";
+}
+```
+
+Patterns, guards, destructuring, and ranges are covered by the example corpus.
+
+---
+
+# Types
+
+Source: https://rkriad585.github.io/kirn/reference/language/types
+
+Reference Kirn primitive, container, optional, and result types.
+
+# Types
+
+Canonical primitive names are capitalized: `Int`, `UInt`, `Float`, `UFloat`, `Bool`, `Str`, `Char`, `BigInt`, and `Rational`.
+
+Width families include forms such as `Int32`, `UInt64`, `Float32`, `i32`, `u64`, and `f64`. The grammar also includes `usize`, `isize`, character widths, and byte forms.
+
+## Compound types
+
+Kirn supports type forms for lists, dictionaries, sets, functions, optionals, and results:
+
+```kirn
+names: list<Str>;
+lookup: dict<Str, Int>;
+maybe: Int?;
+work: fn(Int) -> Str;
+```
+
+Type syntax and accepted aliases can change before the grammar is frozen. The EBNF and checker are the source of truth.
+
+---
+
+# collections
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/collections
+
+Collection helpers in the Kirn standard library.
+
+# `collections`
+
+The collections module covers common operations on lists, sets, and related values. Source-backed helpers include `unique`, `shuffle`, and `rand_float`.
+
+Use the collection examples and tests to understand mutation, value semantics, and iteration behavior.
+
+---
+
+# core
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/core
+
+Core values and built-in operations in Kirn.
+
+# `core`
+
+Core functionality is available to every Kirn program. It includes primitive values, conversions, comparisons, and the built-in operations used by language examples.
+
+Use the current source and tests as the API authority. The core surface is intentionally small so programs can build on predictable language primitives.
+
+---
+
+# Standard library
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib
+
+Overview of the Kirn standard library modules.
+
+# Standard library
+
+The standard library is organized into small modules. The current source tree includes `core`, `io`, `math`, `strings`, `collections`, `json`, `os`, `path`, `regexp`, `time`, and `text/slug`.
+
+Each module is backed by source and test files in the repository. Use the pages in this section as a map, then inspect the module and its tests for the exact current signatures.
+
+- [core](/reference/stdlib/core)
+- [io](/reference/stdlib/io)
+- [math](/reference/stdlib/math)
+- [strings](/reference/stdlib/strings)
+- [collections](/reference/stdlib/collections)
+- [json](/reference/stdlib/json)
+- [os and path](/reference/stdlib/os-path)
+- [regexp and time](/reference/stdlib/regexp-time)
+
+---
+
+# io
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/io
+
+Input and output helpers in the Kirn standard library.
+
+# `io`
+
+The `io` module provides file and stream operations used by programs that interact with the local environment.
+
+Common source-backed operations include reading and writing files. Check the module tests for accepted arguments, error behavior, and platform details.
+
+```kirn
+text = read_file("notes.txt");
+write_file("copy.txt", text);
+```
+
+---
+
+# json
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/json
+
+Encode and decode JSON values in Kirn.
+
+# `json`
+
+The JSON module provides `dumps` and `loads` for converting between Kirn values and JSON text.
+
+```kirn
+payload = {"name": "Kirn", "active": true};
+text = dumps(payload);
+value = loads(text);
+```
+
+Use the source and tests for supported value shapes and error cases.
+
+---
+
+# math
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/math
+
+Mathematical helpers in the Kirn standard library.
+
+# `math`
+
+The math module includes source-backed helpers such as `sqrt`, `abs`, `clamp`, `min2`, `max2`, `ipow`, and `fpow`.
+
+```kirn
+root = sqrt(16.0);
+safe = clamp(root, 0.0, 3.0);
+```
+
+Check the module tests for numeric types and edge cases.
+
+---
+
+# os and path
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/os-path
+
+Work with process arguments, environment, and filesystem paths.
+
+# `os` and `path`
+
+The `os` module exposes process-oriented helpers such as arguments, environment lookup, and exit behavior. The `path` module provides path operations.
+
+```kirn
+args = args();
+home = getenv("HOME");
+```
+
+Platform-specific behavior should be verified on the target you intend to ship.
+
+---
+
+# regexp and time
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/regexp-time
+
+Pattern matching and time helpers in the Kirn standard library.
+
+# `regexp` and `time`
+
+These modules provide regular-expression and time-related building blocks. Their APIs are evolving with the standard library, so use the module source and tests as the final reference.
+
+The docs site will expand these pages as stable public signatures and verified examples are established.
+
+---
+
+# strings
+
+Source: https://rkriad585.github.io/kirn/reference/stdlib/strings
+
+String operations in the Kirn standard library.
+
+# `strings`
+
+String helpers include searching, replacing, splitting, joining, repetition, reversing, padding, and stripping.
+
+```kirn
+clean = strip("  kirn  ");
+parts = split(clean, " ");
+joined = join(parts, "-");
+```
+
+The exact signatures are maintained in the source-backed module and its tests.

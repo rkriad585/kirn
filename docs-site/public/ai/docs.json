@@ -1,0 +1,166 @@
+{
+  "name": "Kirn Docs",
+  "description": "Official documentation for the Kirn programming language.",
+  "version": "0.1.0",
+  "generatedAt": "2026-10-23T16:28:53.987Z",
+  "sourceRepository": "https://github.com/rkriad585/kirn",
+  "website": "https://rkriad585.github.io/kirn/",
+  "pages": [
+    {
+      "path": "guide/ai.md",
+      "url": "https://rkriad585.github.io/kirn/guide/ai",
+      "title": "AI-readable documentation",
+      "description": "Use the Kirn documentation as a compact, structured context source."
+    },
+    {
+      "path": "guide/cli.md",
+      "url": "https://rkriad585.github.io/kirn/guide/cli",
+      "title": "CLI workflow",
+      "description": "Use the Kirn command-line driver to run, test, build, and manage projects."
+    },
+    {
+      "path": "guide/contributing.md",
+      "url": "https://rkriad585.github.io/kirn/guide/contributing",
+      "title": "Contributing",
+      "description": "Help improve Kirn and its documentation."
+    },
+    {
+      "path": "guide/project.md",
+      "url": "https://rkriad585.github.io/kirn/guide/project",
+      "title": "Project structure",
+      "description": "Understand a Kirn project scaffold and kirn.toml."
+    },
+    {
+      "path": "guide/toolchain.md",
+      "url": "https://rkriad585.github.io/kirn/guide/toolchain",
+      "title": "Build targets",
+      "description": "Understand Kirn bytecode, native builds, and supported target shapes."
+    },
+    {
+      "path": "index.md",
+      "url": "https://rkriad585.github.io/kirn/",
+      "title": "Kirn Docs",
+      "description": "Official documentation for the Kirn programming language."
+    },
+    {
+      "path": "learn/basics/functions.md",
+      "url": "https://rkriad585.github.io/kirn/learn/basics/functions",
+      "title": "Functions and control flow",
+      "description": "Define functions and compose expressions in Kirn."
+    },
+    {
+      "path": "learn/basics/variables.md",
+      "url": "https://rkriad585.github.io/kirn/learn/basics/variables",
+      "title": "Variables and values",
+      "description": "Bind values and use type annotations in Kirn."
+    },
+    {
+      "path": "learn/beyond/concurrency.md",
+      "url": "https://rkriad585.github.io/kirn/learn/beyond/concurrency",
+      "title": "Concurrency",
+      "description": "Explore Kirn's spawn, channel, select, and join primitives."
+    },
+    {
+      "path": "learn/data/optionals-results.md",
+      "url": "https://rkriad585.github.io/kirn/learn/data/optionals-results",
+      "title": "Optionals and results",
+      "description": "Represent missing values and recoverable errors in Kirn."
+    },
+    {
+      "path": "learn/data/structs-enums.md",
+      "url": "https://rkriad585.github.io/kirn/learn/data/structs-enums",
+      "title": "Structs and enums",
+      "description": "Model structured data with structs and enums."
+    },
+    {
+      "path": "learn/installation.md",
+      "url": "https://rkriad585.github.io/kirn/learn/installation",
+      "title": "Installation",
+      "description": "Build and run the Kirn toolchain from source."
+    },
+    {
+      "path": "learn/introduction.md",
+      "url": "https://rkriad585.github.io/kirn/learn/introduction",
+      "title": "Introduction",
+      "description": "What Kirn is, who it is for, and how to read the documentation."
+    },
+    {
+      "path": "learn/quick-start.md",
+      "url": "https://rkriad585.github.io/kirn/learn/quick-start",
+      "title": "Quick start",
+      "description": "Write and run your first Kirn program."
+    },
+    {
+      "path": "reference/language/lexical.md",
+      "url": "https://rkriad585.github.io/kirn/reference/language/lexical",
+      "title": "Lexical structure",
+      "description": "Learn Kirn identifiers, comments, keywords, and literals."
+    },
+    {
+      "path": "reference/language/syntax.md",
+      "url": "https://rkriad585.github.io/kirn/reference/language/syntax",
+      "title": "Syntax and operators",
+      "description": "Explore Kirn expressions, statements, patterns, and operators."
+    },
+    {
+      "path": "reference/language/types.md",
+      "url": "https://rkriad585.github.io/kirn/reference/language/types",
+      "title": "Types",
+      "description": "Reference Kirn primitive, container, optional, and result types."
+    },
+    {
+      "path": "reference/stdlib/collections.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/collections",
+      "title": "collections",
+      "description": "Collection helpers in the Kirn standard library."
+    },
+    {
+      "path": "reference/stdlib/core.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/core",
+      "title": "core",
+      "description": "Core values and built-in operations in Kirn."
+    },
+    {
+      "path": "reference/stdlib/index.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib",
+      "title": "Standard library",
+      "description": "Overview of the Kirn standard library modules."
+    },
+    {
+      "path": "reference/stdlib/io.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/io",
+      "title": "io",
+      "description": "Input and output helpers in the Kirn standard library."
+    },
+    {
+      "path": "reference/stdlib/json.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/json",
+      "title": "json",
+      "description": "Encode and decode JSON values in Kirn."
+    },
+    {
+      "path": "reference/stdlib/math.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/math",
+      "title": "math",
+      "description": "Mathematical helpers in the Kirn standard library."
+    },
+    {
+      "path": "reference/stdlib/os-path.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/os-path",
+      "title": "os and path",
+      "description": "Work with process arguments, environment, and filesystem paths."
+    },
+    {
+      "path": "reference/stdlib/regexp-time.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/regexp-time",
+      "title": "regexp and time",
+      "description": "Pattern matching and time helpers in the Kirn standard library."
+    },
+    {
+      "path": "reference/stdlib/strings.md",
+      "url": "https://rkriad585.github.io/kirn/reference/stdlib/strings",
+      "title": "strings",
+      "description": "String operations in the Kirn standard library."
+    }
+  ]
+}

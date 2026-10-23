@@ -1,12 +1,5 @@
 import { defineConfig } from 'vitepress'
-
-const ecosystem = [
-  { text: 'Kirn website', link: 'https://kirn-lang.github.io/' },
-  { text: 'Pets registry', link: 'https://pets-registry.github.io/' },
-  { text: 'Kirnly editor', link: 'https://kirnly.github.io/' },
-  { text: 'KirnOS', link: 'https://kirnos-kernel.github.io/' },
-  { text: 'Creator', link: 'https://rkriad585.github.io/' }
-]
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 const kirnLanguage = {
   name: 'kirn',
@@ -36,7 +29,7 @@ const kirnLanguage = {
   }
 }
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Kirn Docs',
   description: 'The official documentation for the Kirn programming language.',
   lang: 'en-US',
@@ -44,6 +37,17 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   appearance: true,
+  mermaid: {
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#dce6cc',
+      primaryTextColor: '#101312',
+      primaryBorderColor: '#759f37',
+      lineColor: '#759f37',
+      secondaryColor: '#e8e4dc',
+      tertiaryColor: '#f2efe8'
+    }
+  },
   markdown: {
     languages: [kirnLanguage],
     theme: { light: 'github-light', dark: 'github-dark' }
@@ -77,6 +81,7 @@ export default defineConfig({
           { text: 'CLI workflow', link: '/guide/cli' },
           { text: 'Project structure', link: '/guide/project' },
           { text: 'Build targets', link: '/guide/toolchain' },
+          { text: 'AI-readable docs', link: '/guide/ai' },
           { text: 'Contributing', link: '/guide/contributing' }
         ] }
       ],
@@ -122,4 +127,4 @@ export default defineConfig({
     ['meta', { property: 'og:image', content: 'https://kirn-lang.github.io/kirn-logos/kirn-1280x640.png' }],
     ['link', { rel: 'icon', href: 'https://kirn-lang.github.io/kirn-logos/kirn-icon.png' }]
   ]
-})
+}))

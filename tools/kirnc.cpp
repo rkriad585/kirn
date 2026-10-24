@@ -34,7 +34,8 @@
 namespace {
 
 const char* const kUsage =
-    "usage: kirnc <check|lex|parse|run|build> <file.kn> [flags]\n"
+    "usage: kirnc [verb] <file.kn> [flags]\n"
+    "       verbs: check|lex|parse|run|hir|rt|build|llvm (default: check)\n"
     "\n"
     "verbs:\n"
     "  check   lex + parse + type-check only; exit 1 on error\n"

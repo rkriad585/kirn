@@ -1042,7 +1042,7 @@ sanitizer build. (5) Partial `PLAN P14`
 statically checked for sendability (type + reason); captures tracked per lambda boundary with
 transitive propagation. The existing `chan.send` sendability gate is retained and `Atomic[T]`
 element types are checked for sendability, but the dynamic closure model leaves broader general
-analysis open; unsynchronized shared globals remain a concern and TSan/ASan gates not fully wired.
+analysis open; unsynchronized shared globals remain a concern and TSan/ASan gates not fully wired. (6) Compatibility wrappers for `sync`/`reflect`/`collections`/`bytes`/`bigint` added under `stdlib/pet/`.
 
 **Update (2026-10-23).** The condvar `select` deviation is closed for channel/task/timer arms. A
 shared readiness bus (`SelectBus`: mutex + condition variable + generation counter) is bumped by

@@ -1,0 +1,2 @@
+# Compatibility wrapper for bigint module
+export from bigint import *

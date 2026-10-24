@@ -1,0 +1,2 @@
+# Compatibility wrapper for bytes module
+export from bytes import *

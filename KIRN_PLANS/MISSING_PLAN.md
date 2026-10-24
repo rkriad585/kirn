@@ -1037,10 +1037,12 @@ closed, drained channel is permanently ready and binds `none` (Go's receive-from
 arms keep the short poll (see the update below). (4) TSan/ASan CI runs are not wired into this
 repository's gate scripts; correctness is shown by deterministic tree-walk/VM parity tests
 (`tests/vm_parity/sync_m9.kn`) and the `examples/59_sync.kn` shared-counter totals, not by a
-sanitizer build. (5) Full `PLAN P14`
-"no shared mutable across threads" is not statically enforced for `spawn`/`WaitGroup.go` closures;
-the existing `chan.send` sendability gate is retained and `Atomic[T]` element types are checked for
-sendability, but the dynamic closure model leaves a sound general analysis to a later phase.
+sanitizer build. (5) Partial `PLAN P14`
+"no shared mutable across threads": closure captures passed to `spawn`/`WaitGroup.go` are now
+statically checked for sendability (type + reason); captures tracked per lambda boundary with
+transitive propagation. The existing `chan.send` sendability gate is retained and `Atomic[T]`
+element types are checked for sendability, but the dynamic closure model leaves broader general
+analysis open; unsynchronized shared globals remain a concern and TSan/ASan gates not fully wired.
 
 **Update (2026-10-23).** The condvar `select` deviation is closed for channel/task/timer arms. A
 shared readiness bus (`SelectBus`: mutex + condition variable + generation counter) is bumped by

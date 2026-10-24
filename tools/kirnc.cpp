@@ -212,8 +212,16 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    const std::string verb = args.front();
-    std::vector<std::string> rest(args.begin() + 1, args.end());
+    // verbs are optional: if first arg is not a verb and not -E and not a flag,
+    // default to "check"
+    const std::string verb0 = args.front();
+    bool verbIsVerb = (verb0 == "check" || verb0 == "lex" || verb0 == "parse" ||
+                       verb0 == "run" || verb0 == "hir" || verb0 == "rt" ||
+                       verb0 == "build" || verb0 == "llvm");
+    std::string verb = verbIsVerb ? verb0 : "check";
+    std::vector<std::string> rest = verbIsVerb
+                                        ? std::vector<std::string>(args.begin() + 1, args.end())
+                                        : args;
 
     // `kirnc -E file.kn` -- the gcc spelling, where -E acts as the verb. This is
     // checked before verb validation because "-E" is not a verb name, and a user

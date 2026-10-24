@@ -1,0 +1,2 @@
+# Compatibility wrapper for `import lib.reflect` -> builtin `reflect` module
+export from reflect import *

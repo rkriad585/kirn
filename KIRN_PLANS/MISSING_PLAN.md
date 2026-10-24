@@ -99,7 +99,7 @@ rational/decimal, bytes spelling+methods, deque/Counter/heap, `sync` primitives,
 out).
 
 **Implementation progress (2026-10-13).** M1, M2 and M3 are implemented in `src/` and green on the
-full gate (`scripts/gates_linux.sh`, 217), golden (`scripts/golden_linux.sh`, 224) and stdlib
+full gate (`scripts/gates_linux.sh`, 217), golden (`scripts/golden_linux.sh`, 224) and the stdpet suite
 (`kirn test stdpet`, 9) suites, so rows 1, 2, 3, 6, 7, 8, 9 and 19 above are now done. The
 audited table is kept as the historical baseline. Recorded deviations from the M3 text: safe
 navigation is spelled `.?[` / `.?(` (not `?.[` / `?.()`), and `TypeGuard` is spelled as a
@@ -140,7 +140,7 @@ and `comptime { }` force compile-time evaluation and report `E-CONST-IMPURE` whe
 constant. Executable paths treat `@comptime(expr)` as its operand and `comptime { }` as an ordinary
 scoped block (HIR lowers both), so behaviour is unchanged on the tree-walker and the VM. Green on the
 full gate (`scripts/gates_linux.sh`, 230), golden (`scripts/golden_linux.sh`, 230), crosscheck
-(`scripts/crosscheck_linux.sh`, 545+) and stdlib (`kirn test stdpet`, 9) suites. Recorded scope
+(`scripts/crosscheck_linux.sh`, 545+) and stdpet (`kirn test stdpet`, 9) suites. Recorded scope
 deviations: const-eval supports scalars, lists/tuples, and bounded comprehensions but not
 dicts/sets/structs, method calls, string methods, or I/O; `sizeof`/`alignof` are not builtins, so the
 plan's `@comptime(alignof(Point))` form is out of scope for this stage; the constant table is not
@@ -150,8 +150,8 @@ emitted as a separate data section (folding rewrites the AST literal instead).
 (runtime values + checker); `big_int`/`rational` already existed, so the new work is `complex` and
 `decimal` plus the promotion lattice `Integral < Rational < Real < Complex`. Green on the full gate
 (`scripts/gates_linux.sh`, 236), golden (`scripts/golden_linux.sh`, 233), crosscheck
-(`scripts/crosscheck_linux.sh`, 555) and stdlib (`kirn test stdpet`, 9) suites. See the M6 phase
-note for the recorded scope deviations (different transcendental path for `decimal`, no `stdpet`
+(`scripts/crosscheck_linux.sh`, 555) and stdpet (`kirn test stdpet`, 9) suites. See the M6 phase
+note for the recorded scope deviations (different transcendental path for `decimal`, no `stdpet/lib`
 modules, property vs method accessors).
 
 **Implementation progress (2026-10-16).** M7 (bytes/bytearray + buffer protocol) is implemented in
@@ -159,23 +159,23 @@ modules, property vs method accessors).
 `bytearray`, the zero-copy `memoryview` view, the buffer `VK::ByteArray`/`VK::View` values, Int
 indexing, `+`/`*`/`in`, and the buffer method surface. Green on the full gate
 (`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 236), crosscheck
-(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdpet`, 9) suites. See the M7 phase
-note for the recorded scope deviations (no `stdpet` module).
+(`scripts/crosscheck_linux.sh`, 561) and stdpet (`kirn test stdpet`, 9) suites. See the M7 phase
+note for the recorded scope deviations (no `stdpet/lib` module).
 
 **Implementation progress (2026-10-16).** M8 (Deque / Counter / heap + collection free-functions) is
 implemented in `src/` (runtime values + checker). The new work is `VK::Deque`/`VK::Counter`, their
 method surfaces, the min/max binary-heap helpers, and the free functions
 `group_by`/`chunk`/`flatten`/`count`/`find`/`binary_search`/`partition`. Green on the full gate
 (`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 239), crosscheck
-(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdpet`, 9) suites. See the M8 phase
-note for the recorded scope deviations (no `stdpet` module; builtins are shadowable).
+(`scripts/crosscheck_linux.sh`, 561) and stdpet (`kirn test stdpet`, 9) suites. See the M8 phase
+note for the recorded scope deviations (no `stdpet/lib` module; builtins are shadowable).
 
 **Implementation progress (2026-10-16).** M9 (`sync` module: mutex/waitgroup/atomic) is implemented
 in `src/` (runtime values + checker). The new work is `VK::Mutex`/`RwMutex`/`WaitGroup`/`Once`/
 `Cond`/`Atomic` sharing one `SyncImpl` allocation, their method surfaces, `sync.Atomic[T](v)` /
 `Atomic[T](v)` construction, `WaitGroup.go` = spawn + add, and the `sync` pseudo-module. Green on
 the full gate (`scripts/gates_linux.sh`, 251), golden (`scripts/golden_linux.sh`, 242), crosscheck
-(`scripts/crosscheck_linux.sh`, 573) and stdlib (`kirn test stdpet`, 9) suites. See the M9 phase
+(`scripts/crosscheck_linux.sh`, 573) and stdpet (`kirn test stdpet`, 9) suites. See the M9 phase
 note for the recorded scope deviations.
 
 **Implementation progress (2026-10-16).** M10 (`reflect` module: runtime introspection) is implemented
@@ -183,8 +183,8 @@ in `src/interp/runtime.cpp` (runtime metadata over `VK`/the struct/impl tables).
 `reflect` pseudo-module — `type`/`kind_of`/`fields`/`field_names`/`methods`/`is_of_type`/`get_field`/
 `set_field`/`has_field`/`deep_equal`/`new`/`sizeof` — backed by two new helpers (`kindName`,
 `typeRefName`) and the existing `valEq` deep-equality (`typeof` is the same name query). Verified:
-gates 255, golden 245, crosscheck 579, stdlib 9, all 0 fail. See the M10 phase note for recorded
-scope deviations (no `stdpet` module; `reflect.new` builds structs with type-based zero defaults).
+gates 255, golden 245, crosscheck 579, stdpet 9, all 0 fail. See the M10 phase note for recorded
+scope deviations (no `stdpet/lib` module; `reflect.new` builds structs with type-based zero defaults).
 
 **Implementation progress (2026-10-16).** M11 (native AOT & polish for the new surface) is implemented
 for the tractable scalar core. `src/backend/native.cpp` now lowers scalar optionals (`T?` →
@@ -193,7 +193,7 @@ dump hook in `src/driver/driver.cpp` (`KIRN_DUMP_NATIVE=<path>`) writes the emit
 before the toolchain, and a new `check_codegen` stage in `scripts/golden_linux.sh` (plus gate 11 in
 `scripts/gates_linux.sh`) snapshots and differentially tests it. Tests added:
 `tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` and `examples/61_native_new_surface.kn`.
-Verified: gates 261, golden 251, crosscheck 579, stdlib 9, all 0 fail. See the M11 phase note for the
+Verified: gates 261, golden 251, crosscheck 579, stdpet 9, all 0 fail. See the M11 phase note for the
 recorded deviations (aggregate/container locals and comprehension bodies, `@` matmul, and safe-chain
 remain interpreter-only by design; `const fn` folding and scalar `??=` were later closed — see the
 M11 `Update (2026-10-17b)` note).
@@ -205,7 +205,7 @@ and C-style `?:` with rationale, sanctioned forms (`x += 1`, `if c { a } else { 
 the parser emits `warning[W-nosugar]` (with a note + `+= 1` fix-it) on an adjacent `++`/`--` whose next
 token terminates the expression — never on valid `a + +b` / `a - -b` / `a++b`. No syntax was added.
 New negative test `tests/negative/n19_nosugar_incdec.kn`. Suites: gates 263, golden 254, crosscheck
-591, stdlib 9, all 0 fail.
+591, stdpet 9, all 0 fail.
 
 **Implementation progress (2026-10-16).** M13 (reopen sugar rows 4/5 + `None` + warning hygiene) is
 implemented in `src/`. Rows 4 and 5 are no longer rejected: `src/lex/lexer.cpp` adds `++`/`--` to
@@ -224,7 +224,7 @@ hygiene: driver.cpp's dead duplicate `cmd*`/`mdToHtml`/`pageHtml` helpers are ma
 spellings in `parser.cpp` were split. Test churn: `tests/negative/n19_nosugar_incdec.kn` and its
 goldens were retired (the form is now accepted, so it can no longer fail) and replaced by
 `examples/62_incdec_ternary.kn` (+3 goldens) whose `check` golden records the live `W-nosugar`.
-Suites: gates 263, golden 254, crosscheck 591, stdlib 9, all 0 fail. Recorded deviation (closed
+Suites: gates 263, golden 254, crosscheck 591, stdpet 9, all 0 fail. Recorded deviation (closed
 2026-10-24): nested ternary/if-expression chains used to fail the MIR `rt` verifier (`block: phi
 incoming ... does not match predecessors`) — a pre-existing conditional-lowering gap shared with
 nested `if` expressions, not introduced here.
@@ -255,7 +255,17 @@ parameters (and the registration thunk) to `std::optional<scalar>`, forced inter
 function that reads or writes a module-level binding (fixing a build-breaking undefined-`v_NAME` bug),
 and made native function registration deterministic (ordered by name) so codegen goldens no longer
 depend on pointer-hashed `unordered_map` iteration order. Suites: gates 273, golden 262, crosscheck
-603, stdlib 9, all 0 fail.
+603, stdpet 9, all 0 fail.
+
+**Standard-library directory rename (2026-10-24).** The repository's Kirn-source standard library
+directory was renamed from `stdlib/` to `stdpet/`; the Kirn pet modules keep their package layout
+under `stdpet/pet/` (so `import pet.sync` etc. are unchanged), and the `text/` tree lives at
+`stdpet/text/`. Module search paths (`libDirsFor`, `kirn run`, `kirnrun`, app bundling), the gate
+and golden scripts (`kirn test stdpet/pet`, crosscheck over `stdpet/`), the release workflow, and
+the installer's `KIRN_STDLIB` target all point at `stdpet/`. `KIRN_STDLIB` and the driver's internal
+`stdlibDirs_`/`addStdlibDir` names are kept for compatibility; only the on-disk directory changed.
+Verified after the rename: 1_runall 85/0, 2b 64/0, 4_vm_diff 104/0, 6_test 18/0, 9_MIR 10/0,
+golden 354/0, crosscheck 927/0.
 
 ---
 
@@ -910,8 +920,8 @@ widening, and a static "cannot assign into immutable `bytes`"). Immutability is 
 time and mirrored at run time. Tests: `tests/syntax/bytes_ok.kn`,
 `tests/syntax/bytes_err_immutable.kn`, `tests/syntax/bytes_err_concat_str.kn`,
 `tests/vm_parity/bytes.kn`, `examples/57_bytes.kn` (+3 recorded goldens). Deviations recorded:
-(1) the plan lists `stdpet/bytes.kn` (`STD P4a`), but the repository's stdlib is the
-`stdpet` package tree (there is no `stdpet`), so — as with M6 — the buffer API ships as
+(1) the plan lists `stdpet/bytes.kn` (`STD P4a`), but the repository's standard library is the
+`stdpet/pet` package tree (there is no `stdpet/lib`), so — as with M6 — the buffer API ships as
 builtins/methods and no module wrapper was added. (2) `memoryview` writes are permitted (and flow
 back to the source) unless the view is marked read-only, matching Python's writable-buffer default;
 the plan's "zero-copy view" requirement is met by sharing the underlying buffer. (3) Tests live under
@@ -968,8 +978,8 @@ Counter algebra (positive counts only). The checker gained `TyK::Deque`/`TyK::Co
 (interpreter-only). Tests: `tests/syntax/collections_ok.kn`,
 `tests/syntax/collections_err_deque_index.kn`, `tests/vm_parity/collections_m8.kn`,
 `examples/58_collections.kn` (+3 recorded goldens). Deviations recorded: (1) the plan lists
-`stdpet/collections.kn` (`STD P2c`), but the repository's stdlib is the `stdpet` package tree
-(there is no `stdpet`), so — as with M6/M7 — the collections API ships as builtins/methods and no
+`stdpet/collections.kn` (`STD P2c`), but the repository's standard library is the `stdpet/pet` package tree
+(there is no `stdpet/lib`), so — as with M6/M7 — the collections API ships as builtins/methods and no
 module wrapper (or `SortedList`) was added. (2) `VK::Heap` was not added as a distinct value: heaps
 are ordinary lists manipulated by `heappush`/`heappop`/`heapify`, matching Python's `heapq` module.
 (3) To keep the plan's global free-function names (`count`, `find`, …) from colliding with existing
@@ -1025,7 +1035,7 @@ condvar combined with the caller's `Mutex`, adopting the lock so the wait is ato
 `Atomic.load/store/swap/add/sub/inc/dec/compare_exchange` over `std::atomic<int64_t|bool|double>`
 with sequential consistency. `sync.Atomic[T](v)` (and the bracketless `Atomic(v)`) type the element
 by `T`/the initial value; `Atomic[T]` also runs the `isSendable(T)` gate. The checker registers the
-primitives as dynamic handles (verified: gate 251, golden 242, crosscheck 573, stdlib 9, all 0 fail).
+primitives as dynamic handles (verified: gate 251, golden 242, crosscheck 573, stdpet 9, all 0 fail).
 Tests: `tests/syntax/sync_ok.kn`, `tests/vm_parity/sync_m9.kn`, `examples/59_sync.kn` (+3 recorded
 goldens). Deviations recorded: (1) the plan lists `stdpet/sync.kn` and `import lib.sync`, but the
 repository has no `stdpet` tree, so — as with M6/M7/M8 — `sync` ships as a builtin pseudo-module
@@ -1105,7 +1115,7 @@ heap fields), `reflect.has_field(x, name)`, `reflect.deep_equal(a, b)` (reuses `
 `reflect` to `importRoots_` so `import reflect;` resolves and member calls type as dynamic handles
 (same treatment as `sync`/`math`). Tests: `tests/syntax/reflect_ok.kn`,
 `tests/vm_parity/reflect_m10.kn`, `examples/60_reflect.kn` (+3 recorded goldens); gate 255, golden
-245, crosscheck 579, stdlib 9, all 0 fail; tree-walk and VM outputs are byte-identical. Deviations
+245, crosscheck 579, stdpet 9, all 0 fail; tree-walk and VM outputs are byte-identical. Deviations
 recorded: (1) the plan lists `stdpet/reflect.kn` + `import lib.reflect`, but the repository has no
 `stdpet` tree, so — as with M6–M9 — `reflect` ships as a builtin pseudo-module (`import reflect;`)
 and no module wrapper was added. (2) `reflect.fields` returns an ordered `dict` (name→value) rather
@@ -1171,7 +1181,7 @@ stage that records/verifies `scripts/golden/codegen_*.txt`, and gate 11 in `scri
 asserts lowerability (`KIRN_HAS_NATIVE`) plus native-binary == interpreter. Tests added:
 `tests/codegen/{scalar_core,new_surface,reject_non_scalar}.kn` (3 goldens) and
 `examples/61_native_new_surface.kn` (+3 front-end goldens). Suites: gates 261, golden 251, crosscheck
-579, stdlib 9, all 0 fail.
+579, stdpet 9, all 0 fail.
 **Update (2026-10-17).** Optional-scalar **parameters** now lower (`T?` param → `std::optional<scalar>`
 in the C++ signature and the registration thunk), and the analyzer tracks each function's bound names
 so a free identifier (module-level `const`/`var`) forces an interpreter fallback instead of emitting a
@@ -1187,7 +1197,7 @@ so a function that reads a folded scalar `const` lowers instead of falling back
 `var` to keep guarding it). `x ??= v` on a scalar optional lowers to `if (!x) x = v;`
 (`tests/codegen/coalesce_assign.kn`, `KIRN_HAS_NATIVE 1`), matching the VM. Gate 11 gained both
 spec-list entries and native-binary == interpreter differentials for both. Suites: gates 277, golden
-264, crosscheck 603, stdlib 9, all 0 fail. Verified at the same time: M2 (`@` matmul:
+264, crosscheck 603, stdpet 9, all 0 fail. Verified at the same time: M2 (`@` matmul:
 `tests/syntax/matmul_ok.kn`, `matmul_dunder_ok.kn`, `matmul_err_scalar.kn`, `examples/46_matmul.kn`)
 and M3 (dict/set comps + `*`/`**` unpacking, `.?.`/`.?[`/`.?(` safe navigation, `is`-narrowing,
 `typeof`) are **complete** on the tree-walker/VM execution paths — the earlier cross-check that
@@ -1247,7 +1257,7 @@ It does **not** add syntax: the parse still fails on the token after the acciden
 the user sees the nudge alongside the error; warnings alone never fail (`errorCount()`, matching
 `W-narrow`). Genuine `a + +b`, `a - -b`, and the valid `a++b` (= `a + (+b)`) are deliberately not
 flagged. Negative test `tests/negative/n19_nosugar_incdec.kn` (`# expect: W-nosugar`). Suites: gates
-263, golden 254, crosscheck 591, stdlib 9, all 0 fail. **Not done (recorded):** a ternary-specific
+263, golden 254, crosscheck 591, stdpet 9, all 0 fail. **Not done (recorded):** a ternary-specific
 nudge — `c ? a : b` is indistinguishable from postfix `c?` propagation plus a following expression
 until the absent `;`, so the grammar comment + §4.1 note are the contract; no `W-nosugar` is emitted
 for `?:`.

@@ -1597,7 +1597,7 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                 // gatherEmbedded's probing dirs resolve against CWD (= libDest
                 // here); hand it the tool's own stdlib explicitly
                 gatherEmbedded(entry, mainSrc, embedded,
-                               {(fs::path(selfExeDir()) / ".." / "stdlib")
+                               {(fs::path(selfExeDir()) / ".." / "stdpet")
                                     .generic_string()});
                 fs::current_path(old, cec);
                 std::string runner = ensureRunner();

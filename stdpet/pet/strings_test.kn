@@ -1,0 +1,18 @@
+# stdlib/pet/strings_test.kn - tests for pet.strings.
+import pet.strings;
+
+fn main() -> none {
+    assert(strings.contains("hello world", "world"));
+    assert(not strings.contains("hello", "xyz"));
+    assert(strings.starts_with("kirn", "kir"));
+    assert(strings.ends_with("kirn", "irn"));
+    assert_eq(strings.replace_all("a-b-c", "-", "+"), "a+b+c");
+    assert_eq(strings.join(["a", "b", "c"], ","), "a,b,c");
+    assert_eq(strings.repeat("ab", 3), "ababab");
+    assert_eq(strings.reverse("abc"), "cba");
+    assert_eq(strings.pad_left("7", 3, "0"), "007");
+    assert_eq(strings.pad_right("7", 3, "0"), "700");
+    assert_eq(strings.strip("  hi  "), "hi");
+
+    print("strings_test ok");
+}

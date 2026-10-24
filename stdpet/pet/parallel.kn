@@ -1,0 +1,887 @@
+# stdlib/pet/parallel.kn — rayon-like data parallelism (POWER_PLAN §4).
+#
+# Backed by the native `parallel` module (which runs Kirn closures on OS
+# threads via the task machinery that also powers `spawn`/`await`). Combinators
+# split work into per-thread chunks, run the chunks concurrently, and reassemble
+# the results in order. Like rayon, parallel closures must not mutate shared
+# state (there is no sendability checker yet); keep them pure.
+#
+#   import pet.parallel as parallel;
+#   var total = parallel.par_iter([1,2,3,4]).map(fn (x) { return x * x; }).sum();
+
+import parallel;
+
+# ---- pool / thread info ----------------------------------------------------
+
+pub fn current_num_threads() -> Int {
+    return parallel.current_num_threads();
+}
+
+pub fn current_thread_index() -> Int {
+    return parallel.current_thread_index();
+}
+
+# ---- low-level combinators -------------------------------------------------
+
+# Run two closures concurrently on separate threads; return `[ra, rb]`.
+pub fn join(a: fn() -> any, b: fn() -> any) -> list {
+    return parallel.join(a, b);
+}
+
+# Run every closure in `fns` concurrently; return their results in order.
+pub fn invoke(fns: list) -> list {
+    return parallel.invoke(fns);
+}
+
+# ---- parallel iterators ----------------------------------------------------
+
+struct ParIter {
+    xs: list;
+    # true when `xs` already holds groups (chunks / windows / split runs), so the
+    # downstream combinators fan out per group instead of waiting for the 4096
+    # element grain - otherwise a handful of chunks would never leave one thread.
+    divided: Bool;
+    fn init(self, xs: list) -> none { self.xs = xs; self.divided = false; }
+
+    # Minimum element count before it is worth splitting across threads.
+    fn grain(self) -> Int {
+        if self.divided { return 2; }
+        return 4096;
+    }
+
+    fn map(self, f) -> ParIter {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            out = [];
+            for e in xs { out.append(f(e)); }
+            return ParIter(xs: out, divided: false);
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> list {
+                part = [];
+                for e in c { part.append(f(e)); }
+                return part;
+            });
+            i = end;
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn filter(self, f) -> ParIter {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            out = [];
+            for e in xs {
+                if f(e) { out.append(e); }
+            }
+            return ParIter(xs: out, divided: self.divided);
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    if f(e) { part.append(e); }
+                }
+                return part;
+            });
+            i = end;
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: self.divided);
+    }
+
+    # ---- grouping (POWER_PLAN 4.3) ---------------------------------------
+    # These only reshape `xs` - the reshaping is a cheap sequential scan - but
+    # they mark the iterator `divided`, so the resulting groups are what fans
+    # out across the pool: `par_iter(rows).chunks(1024).for_each(ingest)` runs
+    # one chunk per worker instead of one row.
+
+    # Fixed-size sublists; the last one holds the remainder (`< n` if the length
+    # is not a multiple of `n`). `n <= 0` raises rather than looping forever.
+    fn chunks(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.chunks: size must be > 0"; }
+        xs = self.xs;
+        out = [];
+        var i = 0;
+        while i < xs.len() {
+            end = i + n;
+            if end > xs.len() { end = xs.len(); }
+            out.append(xs[i..end]);
+            i = end;
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Sliding windows of length `n` advancing one element at a time, so windows
+    # overlap. Empty when the list is shorter than `n`.
+    fn windows(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.windows: size must be > 0"; }
+        xs = self.xs;
+        out = [];
+        var i = 0;
+        while i + n <= xs.len() {
+            out.append(xs[i..i + n]);
+            i += 1;
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Split on every occurrence of `sep` (compared with `==`); the separators are
+    # dropped, and a run of adjacent separators yields empty groups - the same
+    # shape a string `split` gives you.
+    fn split(self, sep) -> ParIter {
+        out = [];
+        cur = [];
+        for e in self.xs {
+            if e == sep {
+                out.append(cur);
+                cur = [];
+            } else {
+                cur.append(e);
+            }
+        }
+        out.append(cur);
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Group *consecutive* elements for which `f` returns an equal value (like
+    # rayon's `chunk_by`): the scan is order-dependent, so building the groups is
+    # sequential, but consuming them with for_each/map is parallel.
+    fn chunk_by(self, f) -> ParIter {
+        out = [];
+        xs = self.xs;
+        if xs.len() > 0 {
+            cur = [xs[0]];
+            var key = f(xs[0]);
+            var i = 1;
+            while i < xs.len() {
+                e = xs[i];
+                k = f(e);
+                if k == key {
+                    cur.append(e);
+                } else {
+                    out.append(cur);
+                    cur = [e];
+                    key = k;
+                }
+                i += 1;
+            }
+            out.append(cur);
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    # Split `xs` into at most one contiguous slice per worker. The building
+    # blocks for the fan-out combinators below; grouping ops mark the iterator
+    # `divided`, whose smaller grain lets a handful of groups fan out.
+    fn slices(self) -> list {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            return [xs];
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        out = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            out.append(xs[i..end]);
+            i = end;
+        }
+        return out;
+    }
+
+    # ---- combining / searching (POWER_PLAN 4.2) --------------------------
+    # The item-preserving adaptors fan out per slice and reassemble in order, so
+    # the result equals the sequential one. `f` returns a value (kept) or `none`
+    # (dropped) for `filter_map`; Kirn has no `Option` wrapper to unwrap.
+
+    fn filter_map(self, f) -> ParIter {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    m = f(e);
+                    if m != none { part.append(m); }
+                }
+                return part;
+            });
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # `f(e)` returns an iterable; the iterables are concatenated in element
+    # order (rayon's `flat_map`). The empty input still runs one (trivial) task.
+    fn flat_map(self, f) -> ParIter {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> list {
+                part = [];
+                for e in c {
+                    for y in f(e) { part.append(y); }
+                }
+                return part;
+            });
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # Flatten one level: a list of lists becomes a flat list.
+    fn flatten(self) -> ParIter {
+        return self.flat_map(fn (g) { return g; });
+    }
+
+    # Keep the first element (in order) for which `f` is true; `none` if none.
+    fn find_any(self, f) -> any {
+        for e in self.xs {
+            if f(e) { return e; }
+        }
+        return none;
+    }
+
+    # `find_first`/`find_last` differ only in direction (rayon's indexed forms);
+    # both are deterministic scans, since Kirn's fan-out reassembles in order.
+    fn find_first(self, f) -> any {
+        return self.find_any(f);
+    }
+
+    fn find_last(self, f) -> any {
+        xs = self.xs;
+        var i = xs.len() - 1;
+        while i >= 0 {
+            if f(xs[i]) { return xs[i]; }
+            i -= 1;
+        }
+        return none;
+    }
+
+    # Indices whose element satisfies `f` (rayon's `positions`).
+    fn positions(self, f) -> list {
+        out = [];
+        var i = 0;
+        for e in self.xs {
+            if f(e) { out.append(i); }
+            i += 1;
+        }
+        return out;
+    }
+
+    # `min_by`/`max_by` take a comparison function `(a, b) -> Int` (negative when
+    # `a` orders before `b`), like rayon's `min_by`/`max_by`; the `_key` forms
+    # order by a key function, like `min_by_key`/`max_by_key`.
+    fn min_by(self, cmp) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and cmp(e, best) < 0 { best = e; }
+        }
+        return best;
+    }
+
+    fn max_by(self, cmp) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and cmp(e, best) > 0 { best = e; }
+        }
+        return best;
+    }
+
+    fn min_by_key(self, key) -> any {
+        var best = none;
+        var bestk = none;
+        var first = true;
+        for e in self.xs {
+            k = key(e);
+            if first {
+                best = e;
+                bestk = k;
+                first = false;
+            }
+            if not first and k < bestk {
+                best = e;
+                bestk = k;
+            }
+        }
+        return best;
+    }
+
+    fn max_by_key(self, key) -> any {
+        var best = none;
+        var bestk = none;
+        var first = true;
+        for e in self.xs {
+            k = key(e);
+            if first {
+                best = e;
+                bestk = k;
+                first = false;
+            }
+            if not first and k > bestk {
+                best = e;
+                bestk = k;
+            }
+        }
+        return best;
+    }
+
+    # Zip two iterators into `[a, b]` pairs, truncated to the shorter length
+    # (rayon's `zip` requires equal lengths; Kirn truncates instead of raising).
+    fn zip(self, other: ParIter) -> list {
+        a = self.xs;
+        b = other.xs;
+        n = a.len();
+        if b.len() < n { n = b.len(); }
+        out = [];
+        var i = 0;
+        while i < n {
+            out.append([a[i], b[i]]);
+            i += 1;
+        }
+        return out;
+    }
+
+    # Pair each element with its index: `[i, e]` (rayon yields tuples; Kirn has
+    # no tuple value, so a two-element list stands in, as the tagging codec does).
+    fn enumerate(self) -> list {
+        out = [];
+        var i = 0;
+        for e in self.xs {
+            out.append([i, e]);
+            i += 1;
+        }
+        return out;
+    }
+
+    # `take`/`skip`/`step_by` are index-space rewrites (rayon's take/skip/step_by
+    # on indexed iterators); the result is a fresh, undivided iterator.
+    fn take(self, n: Int) -> ParIter {
+        xs = self.xs;
+        if n < 0 { n = 0; }
+        if n > xs.len() { n = xs.len(); }
+        return ParIter(xs: xs[0..n], divided: false);
+    }
+
+    fn skip(self, n: Int) -> ParIter {
+        xs = self.xs;
+        if n < 0 { n = 0; }
+        if n > xs.len() { n = xs.len(); }
+        return ParIter(xs: xs[n..xs.len()], divided: false);
+    }
+
+    fn step_by(self, n: Int) -> ParIter {
+        if n <= 0 { raise "parallel.step_by: step must be > 0"; }
+        out = [];
+        xs = self.xs;
+        var i = 0;
+        while i < xs.len() {
+            out.append(xs[i]);
+            i += n;
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn rev(self) -> ParIter {
+        out = [];
+        var i = self.xs.len() - 1;
+        while i >= 0 {
+            out.append(self.xs[i]);
+            i -= 1;
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn chain(self, other: ParIter) -> ParIter {
+        out = [];
+        var i = 0;
+        var xs = self.xs;
+        while i < xs.len() { out.append(xs[i]); i += 1; }
+        i = 0;
+        var ys = other.xs;
+        while i < ys.len() { out.append(ys[i]); i += 1; }
+        return ParIter(xs: out, divided: true);
+    }
+
+    fn inspect(self, f) -> ParIter {
+        return self.map(fn (x) { f(x); return x; });
+    }
+
+    fn cloned(self) -> ParIter {
+        return self.map(fn (x) { return x; });
+    }
+
+    fn copied(self) -> ParIter {
+        return self.map(fn (x) { return x; });
+    }
+
+    fn map_with(self, init, map_fn) -> ParIter {
+        # map with per-worker state via for_each_init not possible to return iter;
+        # materialize per-slice then map serially over results
+        out = [];
+        for c in self.slices() {
+            st = init();
+            var i = 0;
+            while i < c.len() {
+                out.append(map_fn(st, c[i]));
+                i += 1;
+            }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn interleave(self, other: ParIter) -> ParIter {
+        out = [];
+        a = self.xs;
+        b = other.xs;
+        var i = 0;
+        var n = a.len();
+        if b.len() < n { n = b.len(); }
+        while i < n {
+            out.append(a[i]);
+            out.append(b[i]);
+            i += 1;
+        }
+        if a.len() > b.len() {
+            var j = n;
+            while j < a.len() { out.append(a[j]); j += 1; }
+        } else if b.len() > a.len() {
+            var j = n;
+            while j < b.len() { out.append(b[j]); j += 1; }
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    fn flatten_iter(self) -> ParIter {
+        out = [];
+        for c in self.xs {
+            if type(c) == "list" {
+                var i = 0;
+                while i < c.len() { out.append(c[i]); i += 1; }
+            } else {
+                out.append(c);
+            }
+        }
+        return ParIter(xs: out, divided: true);
+    }
+
+    fn while_some(self, f) -> ParIter {
+        out = [];
+        for c in self.xs {
+            var v = f(c);
+            if v == none { break; }
+            out.append(v);
+        }
+        return ParIter(xs: out, divided: false);
+    }
+
+    # Per-thread stateful traversal (rayon's `for_each_init`): each worker calls
+    # `init()` once, then `f(state, e)` for its slice. Mutating `state` is safe
+    # because it never crosses a task; mutating captured `self.xs` is not.
+    fn for_each_init(self, seed, f) -> none {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> none {
+                var st = seed();
+                for e in c { f(st, e); }
+            });
+        }
+        parallel.invoke(fns);
+    }
+
+    # Parallel tree reduce with a per-slice seed: each slice folds from
+    # `identity()`, then the partials are combined pairwise with `op`. `op` must
+    # be associative for a stable result (rayon's `fold` has the same caveat).
+    fn fold(self, identity, op) -> any {
+        fns = [];
+        for c in self.slices() {
+            fns.append(fn () -> any {
+                var acc = identity();
+                for e in c { acc = op(acc, e); }
+                return acc;
+            });
+        }
+        parts = parallel.invoke(fns);
+        if parts.len() == 0 { return identity(); }
+        var acc = parts[0];
+        var i = 1;
+        while i < parts.len() {
+            acc = op(acc, parts[i]);
+            i += 1;
+        }
+        return acc;
+    }
+
+    # Fallible reduce (rayon's `try_reduce`): `op(acc, e)` returns `ok(acc)` or
+    # `err(e)`. The first `err` encountered in order short-circuits the whole
+    # reduce and is returned; otherwise `ok(final)`.
+    fn try_reduce(self, init, op) -> any {
+        var acc = init;
+        for e in self.xs {
+            var r = op(acc, e);
+            if r.is_err() { return r; }
+            acc = r.unwrap();
+        }
+        return ok(acc);
+    }
+
+    fn collect(self) -> list { return self.xs; }
+
+    fn count(self) -> Int { return self.xs.len(); }
+
+    fn sum(self) -> Int {
+        var total = 0;
+        for e in self.xs { total += e; }
+        return total;
+    }
+
+    fn product(self) -> Int {
+        var total = 1;
+        for e in self.xs { total *= e; }
+        return total;
+    }
+
+    fn for_each(self, f) -> none {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            for e in xs { f(e); }
+            return;
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var i = 0;
+        while i < total {
+            end = i + size;
+            if end > total { end = total; }
+            c = xs[i..end];
+            fns.append(fn () -> none {
+                for e in c { f(e); }
+            });
+            i = end;
+        }
+        parallel.invoke(fns);
+    }
+
+    fn reduce(self, init, f) -> any {
+        var acc = init;
+        for e in self.xs { acc = f(acc, e); }
+        return acc;
+    }
+
+    fn min(self) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and e < best { best = e; }
+        }
+        return best;
+    }
+
+    fn max(self) -> any {
+        var best = none;
+        var first = true;
+        for e in self.xs {
+            if first {
+                best = e;
+                first = false;
+            }
+            if not first and e > best { best = e; }
+        }
+        return best;
+    }
+
+    fn any(self, f) -> Bool {
+        for e in self.xs {
+            if f(e) { return true; }
+        }
+        return false;
+    }
+
+    fn all(self, f) -> Bool {
+        for e in self.xs {
+            if not f(e) { return false; }
+        }
+        return true;
+    }
+}
+
+# Build a parallel iterator over a list or a range (`1..=n`).
+pub fn par_iter(xs) -> ParIter {
+    list_xs = [];
+    for e in xs { list_xs.append(e); }
+    return ParIter(xs: list_xs, divided: false);
+}
+
+# ---- grouping entry points (POWER_PLAN 4.3) -------------------------------
+
+# `par_chunks(xs, n)` == `par_iter(xs).chunks(n)`; likewise for the rest.
+pub fn par_chunks(xs, n: Int) -> ParIter {
+    return par_iter(xs).chunks(n);
+}
+
+pub fn par_windows(xs, n: Int) -> ParIter {
+    return par_iter(xs).windows(n);
+}
+
+pub fn par_split(xs, sep) -> ParIter {
+    return par_iter(xs).split(sep);
+}
+
+pub fn par_chunk_by(xs, f) -> ParIter {
+    return par_iter(xs).chunk_by(f);
+}
+
+# ---- parallel sort ---------------------------------------------------------
+
+fn merge(a, b) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if b[j] < a[i] { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort(xs: list, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort(left, depth + 1);
+        var r = merge_sort(right, depth + 1);
+        var l = h.join();
+        return merge(l, r);
+    }
+    return merge(merge_sort(left, depth + 1), merge_sort(right, depth + 1));
+}
+
+# Stable parallel sort (ascending).
+pub fn par_sort(xs: list) -> list {
+    return merge_sort(xs, 0);
+}
+
+fn merge_key(a, b, key) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if key(b[j]) < key(a[i]) { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort_key(xs: list, key, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort_key(left, key, depth + 1);
+        var r = merge_sort_key(right, key, depth + 1);
+        var l = h.join();
+        return merge_key(l, r, key);
+    }
+    return merge_key(merge_sort_key(left, key, depth + 1),
+                     merge_sort_key(right, key, depth + 1), key);
+}
+
+# Stable parallel sort by a key function.
+pub fn par_sort_by_key(xs: list, key) -> list {
+    return merge_sort_key(xs, key, 0);
+}
+
+fn merge_cmp(a, b, cmp) -> list {
+    out = [];
+    var i = 0;
+    var j = 0;
+    while i < a.len() and j < b.len() {
+        if cmp(b[j], a[i]) < 0 { out.append(b[j]); j += 1; }
+        else { out.append(a[i]); i += 1; }
+    }
+    while i < a.len() { out.append(a[i]); i += 1; }
+    while j < b.len() { out.append(b[j]); j += 1; }
+    return out;
+}
+
+fn merge_sort_cmp(xs: list, cmp, depth: Int) -> list {
+    n = xs.len();
+    if n <= 1 { return xs; }
+    mid = n // 2;
+    left = xs[0..mid];
+    right = xs[mid..n];
+    if depth < 3 and n > 8192 {
+        var h = spawn merge_sort_cmp(left, cmp, depth + 1);
+        var r = merge_sort_cmp(right, cmp, depth + 1);
+        var l = h.join();
+        return merge_cmp(l, r, cmp);
+    }
+    return merge_cmp(merge_sort_cmp(left, cmp, depth + 1),
+                     merge_sort_cmp(right, cmp, depth + 1), cmp);
+}
+
+# Stable parallel sort by a `(a, b) -> Int` comparator (negative = `a` first).
+pub fn par_sort_by(xs: list, cmp) -> list {
+    return merge_sort_cmp(xs, cmp, 0);
+}
+
+# Parallel sort. Kirn's merge sort is stable, so this is `par_sort`; it does not
+# sort in place (see the deviation note in POWER_PLAN §4.3).
+pub fn par_sort_unstable(xs: list) -> list {
+    return merge_sort(xs, 0);
+}
+
+# ---- parallel strings (§4.3) ----------------------------------------------
+
+# Split `s` on `\n` and return a ParIter over the lines.
+pub fn par_lines(s: Str) -> ParIter {
+    return par_iter(s.split("\n"));
+}
+
+# Split `s` on `sep` and return a ParIter over the pieces.
+pub fn par_str_split(s: Str, sep: Str) -> ParIter {
+    return par_iter(s.split(sep));
+}
+
+# Return a ParIter over `s`'s code points (Kirn `Str` indexes by character).
+pub fn par_bytes(s: Str) -> ParIter {
+    parts = [];
+    var i = 0;
+    while i < s.len() { parts.append(s[i]); i += 1; }
+    return par_iter(parts);
+}
+
+# ---- higher-level shapes ---------------------------------------------------
+
+pub fn par_bridge(xs) -> ParIter {
+    return par_iter(xs);
+}
+
+# Run `f` once per thread, returning the list of results.
+pub fn broadcast(f) -> list {
+    n = current_num_threads();
+    fns = [];
+    var i = 0;
+    while i < n {
+        fns.append(f);
+        i = i + 1;
+    }
+    return invoke(fns);
+}
+
+# ---- thread pool (§4.1) ----------------------------------------------------
+
+# Cooperative scheduling hint: yield the current worker so other tasks can run.
+pub fn yield_now() -> none {
+    parallel.yield_now();
+}
+
+# A logical view over the global worker pool. Kirn's parallel runtime runs every
+# closure on the shared task machinery (the same one `spawn`/`await` uses), so a
+# `Pool` routes work there and blocks until it is done; `threads` only bounds how
+# many workers `broadcast` fans out to. (A real rayon `ThreadPool` would own a
+# private registry - see the deviation note in POWER_PLAN §4.1.)
+#
+#   var pool = parallel.Pool(threads: 4);
+#   var r = pool.install(fn () { return heavy(); });
+pub struct Pool {
+    threads: Int;
+
+    fn size(self) -> Int { return self.threads; }
+
+    # Run `f` on a worker and return its result.
+    fn install(self, f) -> any {
+        var h = spawn f();
+        return h.join();
+    }
+
+    # Run two closures concurrently; return `[ra, rb]` in argument order.
+    fn join(self, a, b) -> list {
+        return parallel.join(a, b);
+    }
+
+    # Run `f` once per pool worker; return the results in worker order.
+    fn broadcast(self, f) -> list {
+        fns = [];
+        var i = 0;
+        while i < self.threads { fns.append(f); i += 1; }
+        return invoke(fns);
+    }
+
+    # Run `body(scope)`; every task handed to `scope.spawn` is run concurrently
+    # and all are joined before `scope` returns. `body`'s value is returned.
+    fn scope(self, body) -> any {
+        s = PoolScope(fns: []);
+        var out = body(s);
+        if s.fns.len() > 0 { invoke(s.fns); }
+        return out;
+    }
+}
+
+# Handle passed to a `Pool.scope` body. `spawn(f)` queues a task; the tasks run
+# together when the body returns. Closures capture shared values (lists/dicts),
+# so mutations are observable - keep tasks pure, as everywhere in `parallel`.
+pub struct PoolScope {
+    fns: list;
+    fn spawn(self, f) -> none { self.fns.append(f); }
+}

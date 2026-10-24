@@ -1,0 +1,138 @@
+# stdlib/pet/contextlib.kn — context-manager utilities (MISSING_PLAN M4).
+#
+# PEP 343 helpers mirroring Python's `contextlib`, built on the `with`
+# Enter/Exit protocol the runtime already executes:
+#
+#   with nullcontext(5) as v { print(v); }
+#   with suppress("string") { raise "ignored"; }
+#   with closing(file) as f { print(f.read()); }
+#   with ExitStack() as stack {
+#       var cm = stack.enter_context(open_thing());
+#       stack.callback(fn () { print("cleanup"); });
+#   }
+#
+# `exit` receives `(exc_type, exc_value, traceback)` when it declares three
+# parameters; the runtime passes the raised value as `exc_value`. There are no
+# exception classes in Kirn, so `exc_type` is the raised value's runtime type
+# name and `suppress` matches it by name (qualified or unqualified).
+
+# `nullcontext(value)`: enter yields `value`, exit never suppresses.
+pub struct NullContext {
+    var value: any;
+
+    fn enter(self) -> any {
+        return self.value;
+    }
+
+    fn exit(self, _exc_type: Str, _exc_value: any, _traceback: any) -> Bool {
+        return false;
+    }
+}
+
+pub fn nullcontext(value: any) -> NullContext {
+    return NullContext(value: value);
+}
+
+# `closing(thing)`: enter yields `thing`, exit calls `thing.close()`.
+pub struct Closing {
+    var thing: any;
+
+    fn enter(self) -> any {
+        return self.thing;
+    }
+
+    fn exit(self, _exc_type: Str, _exc_value: any, _traceback: any) -> Bool {
+        self.thing.close();
+        return false;
+    }
+}
+
+pub fn closing(thing: any) -> Closing {
+    return Closing(thing: thing);
+}
+
+# `suppress(*types)`: swallow a raised error when its runtime type matches one
+# of `types` (type references or name strings); no types suppresses everything.
+pub struct Suppress {
+    var types: list;
+
+    fn enter(self) -> Suppress {
+        return self;
+    }
+
+    fn exit(self, exc_type: Str, _exc_value: any, _traceback: any) -> Bool {
+        if self.types.len() == 0 {
+            return true;
+        }
+        for t in self.types {
+            var n = Str(t);
+            if n == exc_type {
+                return true;
+            }
+            if n.ends_with("." + exc_type) {
+                return true;
+            }
+            if exc_type.ends_with("." + n) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+pub fn suppress(*types: any) -> Suppress {
+    return Suppress(types: types);
+}
+
+# `ExitStack()`: a dynamically grown stack of context managers and callbacks.
+# Entries release in reverse registration order; an `exit` returning true
+# suppresses a raised error. Registered managers are invoked through their
+# zero-argument `exit()` (see the plan note on exception-info forwarding).
+pub struct ExitStackState {
+    var cms: list;
+    var callbacks: list;
+
+    fn enter(self) -> ExitStackState {
+        return self;
+    }
+
+    fn exit(self, _exc_type: Str, _exc_value: any, _traceback: any) -> Bool {
+        return self.close();
+    }
+
+    fn enter_context(self, cm: any) -> any {
+        var entered = cm.enter();
+        self.cms.append(cm);
+        return entered;
+    }
+
+    fn callback(self, f: any) -> any {
+        self.callbacks.append(f);
+        return f;
+    }
+
+    fn close(self) -> Bool {
+        var suppressed = false;
+        var i = self.cms.len() - 1;
+        while i >= 0 {
+            var cm = self.cms[i];
+            if cm.exit() {
+                suppressed = true;
+            }
+            i = i - 1;
+        }
+        var j = self.callbacks.len() - 1;
+        while j >= 0 {
+            var f = self.callbacks[j];
+            f();
+            j = j - 1;
+        }
+        self.cms.clear();
+        self.callbacks.clear();
+        return suppressed;
+    }
+}
+
+pub fn ExitStack() -> ExitStackState {
+    return ExitStackState(cms: [], callbacks: []);
+}

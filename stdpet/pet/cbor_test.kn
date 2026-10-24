@@ -1,0 +1,80 @@
+import pet.cbor as cbor;
+import reflect;
+
+struct Point { x: Int; y: Int; }
+struct User { name: Str; age: Int; home: Point; tags: list[Str]; pi: Float; live: Bool; note: none; }
+enum Shape { Circle(r: Float); Rect(w: Float, h: Float); Empty; }
+struct Bag { items: list[Shape]; }
+
+fn main() -> none {
+    # RFC 8949 appendix A encodings stay byte-exact.
+    assert(cbor.to_bytes(0).hex() == "00");
+    assert(cbor.to_bytes(1).hex() == "01");
+    assert(cbor.to_bytes(10).hex() == "0a");
+    assert(cbor.to_bytes(23).hex() == "17");
+    assert(cbor.to_bytes(24).hex() == "1818");
+    assert(cbor.to_bytes(25).hex() == "1819");
+    assert(cbor.to_bytes(100).hex() == "1864");
+    assert(cbor.to_bytes(1000).hex() == "1903e8");
+    assert(cbor.to_bytes(1000000).hex() == "1a000f4240");
+    assert(cbor.to_bytes(-1).hex() == "20");
+    assert(cbor.to_bytes(-10).hex() == "29");
+    assert(cbor.to_bytes(-100).hex() == "3863");
+    assert(cbor.to_bytes(-1000).hex() == "3903e7");
+    assert(cbor.to_bytes(true).hex() == "f5");
+    assert(cbor.to_bytes(false).hex() == "f4");
+    assert(cbor.to_bytes(none).hex() == "f6");
+    assert(cbor.to_bytes(1.5).hex() == "fb3ff8000000000000");
+    assert(cbor.to_bytes("hi").hex() == "626869");
+    assert(cbor.to_bytes([1, 2, 3]).hex() == "83010203");
+    assert(cbor.to_bytes({"a": 1}).hex() == "a1616101");
+
+    # Decoder accepts the same vectors.
+    assert(cbor.loads(bytes([0x19, 0x04, 0x00])) == 1024);
+    assert(cbor.loads(bytes([0x63, 0x61, 0x62, 0x63])) == "abc");
+    assert(cbor.loads(bytes([0x82, 0x01, 0x82, 0x02, 0x03]))[1][1] == 3);
+
+    # float64 round-trips (hand-rolled IEEE754 codec).
+    fl = [0.0, 1.0, 2.5, -1.5, 3.14159265358979, 1e100, 1e-100, 1024.5, -2099.25];
+    for f in fl {
+        assert(cbor.from_bytes(any, cbor.to_bytes(f)) == f);
+    }
+    assert(Str(cbor.from_bytes(any, cbor.to_bytes(-0.0))) == "0.0");
+
+    # ints survive signed/unsigned width boundaries.
+    for n in [0, 1, 23, 24, 255, 256, 65535, 65536, 4294967295, 4294967296,
+              -1, -24, -25, -256, -257, -65536, -65537, 1000000007] {
+        assert(cbor.from_bytes(any, cbor.to_bytes(n)) == n);
+    }
+
+    # struct/enum round-trip through the codec tree.
+    u = User(name: "ada", age: 36, home: Point(x: 1, y: 2),
+             tags: ["a", "b"], pi: 3.5, live: true, note: none);
+    back = cbor.from_bytes(User, cbor.to_bytes(u));
+    assert(back.name == "ada");
+    assert(back.age == 36);
+    assert(back.home.x == 1 and back.home.y == 2);
+    assert(back.tags.len() == 2 and back.tags[1] == "b");
+    assert(back.pi == 3.5);
+    assert(back.live);
+    assert(back.note == none);
+
+    # Enums: externally tagged; unit variants survive (null-preserving format).
+    sh = cbor.from_bytes(Shape, cbor.to_bytes(Shape.Rect(w: 2.0, h: 3.0)));
+    assert(reflect.variant(sh) == "Rect");
+    assert(reflect.payload(sh)[0] == 2.0 and reflect.payload(sh)[1] == 3.0);
+    bag = cbor.from_bytes(Bag, cbor.to_bytes(Bag(items: [Shape.Circle(r: 1.5), Shape.Empty])));
+    assert(reflect.variant(bag.items[0]) == "Circle");
+    assert(reflect.payload(bag.items[0])[0] == 1.5);
+    assert(reflect.variant(bag.items[1]) == "Empty");
+
+    # Nested containers.
+    deep = {"k": [[1, {"z": -500}], []], "e": [], "s": "x"};
+    d = cbor.from_bytes(any, cbor.to_bytes(deep));
+    assert(d["k"][0][1]["z"] == -500);
+    assert(d["k"][1].len() == 0);
+    assert(d["e"].len() == 0);
+    assert(d["s"] == "x");
+
+    print("cbor_test ok");
+}

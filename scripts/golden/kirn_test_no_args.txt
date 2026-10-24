@@ -1,17 +1,17 @@
 $ <ROOT>/build/kirn test
-test ./stdlib/pet/async_test.kn ... async_test ok
+test ./stdpet/pet/async_test.kn ... async_test ok
 PASS
-test ./stdlib/pet/cbor_test.kn ... cbor_test ok
+test ./stdpet/pet/cbor_test.kn ... cbor_test ok
 PASS
-test ./stdlib/pet/collections_test.kn ... collections_test ok
+test ./stdpet/pet/collections_test.kn ... collections_test ok
 PASS
-test ./stdlib/pet/contextlib_test.kn ... contextlib_test ok
+test ./stdpet/pet/contextlib_test.kn ... contextlib_test ok
 PASS
-test ./stdlib/pet/error_test.kn ... error_test ok
+test ./stdpet/pet/error_test.kn ... error_test ok
 PASS
-test ./stdlib/pet/io_test.kn ... io_test ok
+test ./stdpet/pet/io_test.kn ... io_test ok
 PASS
-test ./stdlib/pet/json_test.kn ... N1 kirn
+test ./stdpet/pet/json_test.kn ... N1 kirn
 N2 42
 N3 true
 N4 v
@@ -19,21 +19,21 @@ N5 3
 N6 3
 json_test ok
 PASS
-test ./stdlib/pet/math_test.kn ... math_test ok
+test ./stdpet/pet/math_test.kn ... math_test ok
 PASS
-test ./stdlib/pet/os_test.kn ... os_test ok
+test ./stdpet/pet/os_test.kn ... os_test ok
 PASS
-test ./stdlib/pet/parallel_test.kn ... parallel_test ok
+test ./stdpet/pet/parallel_test.kn ... parallel_test ok
 PASS
-test ./stdlib/pet/path_test.kn ... path_test ok
+test ./stdpet/pet/path_test.kn ... path_test ok
 PASS
-test ./stdlib/pet/regexp_test.kn ... regexp_test ok
+test ./stdpet/pet/regexp_test.kn ... regexp_test ok
 PASS
-test ./stdlib/pet/serde_test.kn ... serde_test ok
+test ./stdpet/pet/serde_test.kn ... serde_test ok
 PASS
-test ./stdlib/pet/strings_test.kn ... strings_test ok
+test ./stdpet/pet/strings_test.kn ... strings_test ok
 PASS
-test ./stdlib/pet/sync_test.kn ... barrier single party: ok
+test ./stdpet/pet/sync_test.kn ... barrier single party: ok
 barrier four parties: ok
 semaphore counts: ok
 semaphore blocking acquire: ok
@@ -55,11 +55,11 @@ mpsc unbounded: ok
 mpsc bounded: ok
 mpsc close: ok
 PASS
-test ./stdlib/pet/time_test.kn ... time_test ok
+test ./stdpet/pet/time_test.kn ... time_test ok
 PASS
-test ./stdlib/pet/toml_test.kn ... toml_test ok
+test ./stdpet/pet/toml_test.kn ... toml_test ok
 PASS
-test ./stdlib/pet/yaml_test.kn ... yaml_test ok
+test ./stdpet/pet/yaml_test.kn ... yaml_test ok
 PASS
 18 passed, 0 failed
 [exit 0]

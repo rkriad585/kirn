@@ -1,0 +1,26 @@
+# stdlib/pet/io.kn - file I/O helpers (Kirn-written, Phase 6).
+# Built on the runtime `io` pseudo-module (open) and the File value methods
+# (read/write/close). Import with: import pet.io;
+#
+# NOTE: the substrate File.write appends, there is no truncate primitive, and
+# missing files read back as "" (no existence probe), so write_file is
+# append-oriented for now.
+#
+# The pseudo-module is captured at load time (the module's own namespace is
+# bound under the same name `io` in the consumer, which would otherwise shadow
+# it for the module body).
+
+priv_open = io.open;
+
+# Read an entire file as text; "" if the file cannot be opened.
+pub fn read_file(path: Str) -> Str {
+    f = priv_open(path);
+    return f.read();
+}
+
+# Append data to the end of a file (creating it if needed).
+pub fn append_file(path: Str, data: Str) -> none {
+    f = priv_open(path);
+    f.write(data);
+    f.close();
+}

@@ -725,7 +725,7 @@ kirn/
 │   ├── interp/                 # tree-walk interpreter
 │   └── support/                # diag engine, arena, hashing, paths
 ├── rt/                         # libkirn_rt (C11): sched, chan, arc, panics
-├── stdlib/                     # std modules written IN KIRN (§13)
+├── stdpet/                     # std modules written IN KIRN (§13)
 ├── tests/                      # §15 layout
 ├── tools/                      # fmt, lsp, bindgen, bench-runner
 ├── third_party/{llvm,fmt,utf8proc,...}

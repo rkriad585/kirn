@@ -1,0 +1,50 @@
+# stdlib/pet/path.kn - path manipulation (Kirn-written, Phase 6).
+# Pure-Kirn helpers; platform separator defaults to '/'. Import with:
+#   import pet.path;
+
+# Join path segments with the separator, collapsing empty parts.
+pub fn join(parts: list) -> Str {
+    out = "";
+    first = true;
+    for p in parts {
+        s = Str(p);
+        if s == "" { continue; }
+        if not first { out = out + "/"; }
+        out = out + s;
+        first = false;
+    }
+    return out;
+}
+
+# Everything up to (excluding) the last separator; "" if none.
+pub fn dirname(p: Str) -> Str {
+    parts = p.split("/");
+    if parts.len() <= 1 { return ""; }
+    drops = parts[0..parts.len() - 1];
+    out = join(drops);
+    if out == "" { return "/"; }
+    if p[0..1] == "/" { out = "/" + out; }
+    return out;
+}
+
+# The final component after the last separator.
+pub fn basename(p: Str) -> Str {
+    parts = p.split("/");
+    return Str(parts[parts.len() - 1]);
+}
+
+# File extension including the leading dot ("" if none).
+pub fn extname(p: Str) -> Str {
+    base = basename(p);
+    dots = base.split(".");
+    if dots.len() == 1 { return ""; }
+    return "." + Str(dots[dots.len() - 1]);
+}
+
+# Filename without its extension.
+pub fn stem(p: Str) -> Str {
+    base = basename(p);
+    e = extname(base);
+    if e == "" { return base; }
+    return base[0..base.len() - e.len()];
+}

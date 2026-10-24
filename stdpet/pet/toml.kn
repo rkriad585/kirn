@@ -1,0 +1,703 @@
+# stdlib/pet/toml.kn - TOML subset encode/decode (POWER_PLAN §3.3).
+#
+# A self-contained recursive-descent parser and renderer over the
+# `pet.codec` tree, so structs/enums/lists/maps round-trip the same way
+# they do through JSON. Import with:
+#   import pet.toml as toml;
+#   var s = toml.to_string(v);
+#   var back = toml.from_string(User, s);
+#
+# Supported subset: bare/quoted/dotted keys, [table] and [[array-of-tables]]
+# headers, inline tables, arrays (trailing comma allowed, comments/newlines
+# inside), basic ("..." with \" \\ \n \t \r), literal ('...'), and multiline
+# ("""...""" / '''...''') strings, integers (decimal with _, 0x/0o/0b),
+# floats (incl. inf/nan/exponents), booleans, RFC3339-ish date/time tokens
+# kept as strings, and comments. Deliberately out of scope: \b \f \uXXXX
+# escapes (no chr/ord in Kirn v1), the space-separated datetime form, and
+# TOML datetimes as native values. `none` values are omitted (TOML has no
+# null); they come back as zero/default fields.
+#
+# Round-trip guarantee: dump(tree) parses back to an equal tree; to_string /
+# from_string add the struct/enum reflection layers from pet.codec.
+
+import pet.codec as codec;
+import reflect;
+
+# ---- serde-facing API (POWER_PLAN §3.3) ------------------------------------
+
+# Serialize any value, struct/enum fields included, to TOML text.
+pub fn to_string(v: any) -> Str {
+    return dumps(codec.enc_tree(v));
+}
+
+# Parse TOML and rebuild `T` (a struct/enum type reference) from it.
+pub fn from_string(T: any, s: Str) -> any {
+    return codec.coerce_type(T, loads(s));
+}
+
+# ---- tree API --------------------------------------------------------------
+
+# Parse TOML text into a tree (dict/list/str/int/float/bool). Raises on
+# malformed input.
+pub fn loads(s: Str) -> any {
+    t = Toml();
+    t.init(s);
+    return t.parse_doc();
+}
+
+# Render a tree as TOML text.
+pub fn dumps(tree: any) -> Str {
+    return render_doc(tree);
+}
+
+# ---- parser ----------------------------------------------------------------
+
+struct Toml {
+    var src: Str;
+    var i: Int;
+    var depth: Int;
+    var root: dict;
+    var cur: dict;
+
+    fn init(self, s: Str) -> none {
+        self.src = s;
+        self.i = 0;
+        self.depth = 0;
+        self.root = {};
+        self.cur = self.root;
+    }
+
+    fn peek(self) -> Str {
+        if self.i >= self.src.len() { return ""; }
+        return self.src[self.i..self.i + 1];
+    }
+
+    fn peek2(self) -> Str {
+        if self.i + 1 >= self.src.len() { return ""; }
+        return self.src[self.i + 1..self.i + 2];
+    }
+
+    fn advance(self) -> none {
+        self.i = self.i + 1;
+    }
+
+    fn at_end(self) -> Bool {
+        return self.i >= self.src.len();
+    }
+
+    fn skip_inline_ws(self) -> none {
+        while not self.at_end() {
+            c = self.peek();
+            if c == " " or c == "\t" { self.advance(); } else { break; }
+        }
+    }
+
+    # Whitespace, newlines, and full-line comments (between top-level items).
+    fn skip_ws_comments(self) -> none {
+        while not self.at_end() {
+            c = self.peek();
+            if c == " " or c == "\t" or c == "\n" or c == "\r" {
+                self.advance();
+            } else {
+                if c == "#" {
+                    while not self.at_end() {
+                        c2 = self.peek();
+                        self.advance();
+                        if c2 == "\n" { break; }
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn eat(self, c: Str) -> none {
+        self.skip_inline_ws();
+        if self.peek() != c { raise("toml: expected '" + c + "'"); }
+        self.advance();
+    }
+
+    fn parse_doc(self) -> any {
+        while true {
+            self.skip_ws_comments();
+            if self.at_end() { break; }
+            if self.peek() == "[" {
+                self.parse_header();
+            } else {
+                path = self.parse_key_path();
+                self.eat("=");
+                self.skip_inline_ws();
+                v = self.parse_value();
+                self.set_path(self.cur, path, v);
+            }
+            self.finish_line();
+        }
+        return self.root;
+    }
+
+    # After a value/header: only whitespace, an optional comment, then a
+    # newline or EOF may follow.
+    fn finish_line(self) -> none {
+        self.skip_inline_ws();
+        if self.at_end() { return; }
+        c = self.peek();
+        if c == "#" {
+            while not self.at_end() {
+                c2 = self.peek();
+                self.advance();
+                if c2 == "\n" { return; }
+            }
+            return;
+        }
+        if c == "\n" { self.advance(); return; }
+        if c == "\r" {
+            self.advance();
+            if self.peek() == "\n" { self.advance(); }
+            return;
+        }
+        raise("toml: trailing content after value");
+    }
+
+    fn parse_header(self) -> none {
+        self.advance();
+        var aot = false;
+        if self.peek() == "[" {
+            aot = true;
+            self.advance();
+        }
+        self.skip_inline_ws();
+        path = self.parse_key_path();
+        self.eat("]");
+        if aot { self.eat("]"); }
+        if aot {
+            self.cur = self.go_aot(self.root, path);
+        } else {
+            self.cur = self.go_desc(self.root, path);
+        }
+    }
+
+    # A dotted key path: bare ("key", a-b_c) or quoted ("a.b", 'x.y') segments
+    # separated by '.'.
+    fn parse_key_path(self) -> list {
+        out = [];
+        out.append(self.parse_key_segment());
+        while true {
+            save = self.i;
+            self.skip_inline_ws();
+            if self.peek() != "." {
+                self.i = save;
+                break;
+            }
+            self.advance();
+            self.skip_inline_ws();
+            out.append(self.parse_key_segment());
+        }
+        return out;
+    }
+
+    fn parse_key_segment(self) -> Str {
+        c = self.peek();
+        if c == "\"" { return self.parse_basic_string(); }
+        if c == "'" { return self.parse_literal_string(); }
+        start = self.i;
+        while not self.at_end() {
+            c2 = self.peek();
+            if self.is_bare_char(c2) { self.advance(); } else { break; }
+        }
+        if self.i == start { raise("toml: expected a key"); }
+        return self.src[start..self.i];
+    }
+
+    fn parse_value(self) -> any {
+        self.depth = self.depth + 1;
+        if self.depth > 128 { raise("toml: nested too deep"); }
+        self.skip_inline_ws();
+        var out = none;
+        c = self.peek();
+        if c == "\"" {
+            if self.peek2() == "\"" and self.src.len() >= self.i + 3 {
+                out = self.parse_multiline_basic();
+            } else {
+                out = self.parse_basic_string();
+            }
+        } else {
+            if c == "'" {
+                if self.peek2() == "'" and self.src.len() >= self.i + 3 {
+                    out = self.parse_multiline_literal();
+                } else {
+                    out = self.parse_literal_string();
+                }
+            } else {
+                if c == "[" {
+                    out = self.parse_array();
+                } else {
+                    if c == "{" {
+                        out = self.parse_inline_table();
+                    } else {
+                        out = self.parse_scalar();
+                    }
+                }
+            }
+        }
+        self.depth = self.depth - 1;
+        return out;
+    }
+
+    # Basic string with escapes; consumes the closing quote.
+    fn parse_basic_string(self) -> Str {
+        self.advance();
+        out = "";
+        while true {
+            if self.at_end() { raise("toml: unterminated string"); }
+            c = self.peek();
+            if c == "\"" { self.advance(); break; }
+            if c == "\\" {
+                self.advance();
+                esc = self.peek();
+                if esc == "n" { out = out + "\n"; }
+                if esc == "t" { out = out + "\t"; }
+                if esc == "r" { out = out + "\r"; }
+                if esc == "\"" { out = out + "\""; }
+                if esc == "\\" { out = out + "\\"; }
+                if esc == "b" or esc == "f" or esc == "u" or esc == "U" {
+                    raise("toml: escape not supported in this subset: \\" + esc);
+                }
+                if esc != "n" and esc != "t" and esc != "r" and esc != "\"" and esc != "\\" {
+                    out = out + esc;
+                }
+                self.advance();
+            } else {
+                out = out + c;
+                self.advance();
+            }
+        }
+        return out;
+    }
+
+    # Multiline basic ("""..."""): leading newline skipped, line-ending
+    # backslash swallows following whitespace, same escapes as basic.
+    fn parse_multiline_basic(self) -> Str {
+        self.i = self.i + 3;
+        if self.peek() == "\n" { self.advance(); }
+        if self.peek() == "\r" and self.peek2() == "\n" { self.i = self.i + 2; }
+        out = "";
+        while true {
+            if self.at_end() { raise("toml: unterminated multiline string"); }
+            c = self.peek();
+            if c == "\"" and self.peek2() == "\"" and self.src.len() > self.i + 2 {
+                if self.src[self.i + 2..self.i + 3] == "\"" {
+                    self.i = self.i + 3;
+                    break;
+                }
+            }
+            if c == "\\" {
+                save = self.i;
+                self.advance();
+                var j = self.i;
+                var only_ws = true;
+                while j < self.src.len() {
+                    c2 = self.src[j..j + 1];
+                    if c2 == " " or c2 == "\t" or c2 == "\n" or c2 == "\r" {
+                        j = j + 1;
+                    } else {
+                        only_ws = false;
+                        break;
+                    }
+                }
+                if only_ws {
+                    self.i = j;
+                } else {
+                    self.i = save + 1;
+                    out = out + self.parse_escape_body();
+                }
+                continue;
+            }
+            out = out + c;
+            self.advance();
+        }
+        return out;
+    }
+
+    # Handles one escape body (backslash already consumed).
+    fn parse_escape_body(self) -> Str {
+        esc = self.peek();
+        var out = "";
+        if esc == "n" { out = "\n"; }
+        if esc == "t" { out = "\t"; }
+        if esc == "r" { out = "\r"; }
+        if esc == "\"" { out = "\""; }
+        if esc == "\\" { out = "\\"; }
+        if esc == "b" or esc == "f" or esc == "u" or esc == "U" {
+            raise("toml: escape not supported in this subset: \\" + esc);
+        }
+        if esc == "" { raise("toml: dangling escape"); }
+        if out == "" { out = esc; }
+        self.advance();
+        return out;
+    }
+
+    # Literal string ('...'): no escapes at all.
+    fn parse_literal_string(self) -> Str {
+        self.advance();
+        start = self.i;
+        while true {
+            if self.at_end() { raise("toml: unterminated literal string"); }
+            if self.peek() == "'" {
+                var out = self.src[start..self.i];
+                self.advance();
+                return out;
+            }
+            self.advance();
+        }
+    }
+
+    # Multiline literal ('''...'''): leading newline skipped, verbatim body.
+    fn parse_multiline_literal(self) -> Str {
+        self.i = self.i + 3;
+        if self.peek() == "\n" { self.advance(); }
+        if self.peek() == "\r" and self.peek2() == "\n" { self.i = self.i + 2; }
+        start = self.i;
+        while true {
+            if self.at_end() { raise("toml: unterminated multiline literal"); }
+            if self.peek() == "'" and self.peek2() == "'" and self.src.len() > self.i + 2 {
+                if self.src[self.i + 2..self.i + 3] == "'" {
+                    var out = self.src[start..self.i];
+                    self.i = self.i + 3;
+                    return out;
+                }
+            }
+            self.advance();
+        }
+    }
+
+    fn parse_array(self) -> list {
+        self.advance();
+        out = [];
+        while true {
+            self.skip_ws_comments();
+            if self.at_end() { raise("toml: unterminated array"); }
+            if self.peek() == "]" { self.advance(); break; }
+            out.append(self.parse_value());
+            self.skip_ws_comments();
+            if self.peek() == "," { self.advance(); }
+        }
+        return out;
+    }
+
+    fn parse_inline_table(self) -> dict {
+        self.advance();
+        out = {};
+        self.skip_inline_ws();
+        if self.peek() == "}" { self.advance(); return out; }
+        while true {
+            self.skip_inline_ws();
+            path = self.parse_key_path();
+            self.eat("=");
+            self.skip_inline_ws();
+            v = self.parse_value();
+            self.set_path(out, path, v);
+            self.skip_inline_ws();
+            c = self.peek();
+            if c == "," { self.advance(); }
+            if c == "}" { self.advance(); break; }
+            if self.at_end() { raise("toml: unterminated inline table"); }
+        }
+        return out;
+    }
+
+    # Numbers, booleans, inf/nan, and date/time tokens (kept as strings).
+    fn parse_scalar(self) -> any {
+        tok = self.read_token();
+        if tok == "" { raise("toml: expected a value"); }
+        if tok == "true" { return true; }
+        if tok == "false" { return false; }
+        if self.is_date_tok(tok) {
+            save = self.i;
+            self.skip_inline_ws();
+            if not self.at_end() {
+                c = self.peek();
+                if "0123456789".find(c) >= 0 {
+                    tok2 = self.read_token();
+                    return tok + " " + tok2;
+                }
+            }
+            self.i = save;
+            return tok;
+        }
+        return self.num_parse(tok);
+    }
+
+    fn read_token(self) -> Str {
+        start = self.i;
+        while not self.at_end() {
+            c = self.peek();
+            if c == " " or c == "\t" or c == "," or c == "]" or c == "}" or c == "#" or c == "\n" or c == "\r" {
+                break;
+            }
+            self.advance();
+        }
+        return self.src[start..self.i];
+    }
+
+    fn is_bare_char(self, c: Str) -> Bool {
+        if "0123456789".find(c) >= 0 { return true; }
+        if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".find(c) >= 0 { return true; }
+        if c == "_" or c == "-" { return true; }
+        return false;
+    }
+
+    fn is_date_tok(self, tok: Str) -> Bool {
+        if tok.len() >= 10 and tok[4..5] == "-" and tok[7..8] == "-" { return true; }
+        if tok.len() >= 5 and tok[2..3] == ":" { return true; }
+        return false;
+    }
+
+    fn strip_us(self, s: Str) -> Str {
+        out = "";
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1];
+            if c != "_" { out = out + c; }
+            i = i + 1;
+        }
+        return out;
+    }
+
+    fn digit_base(self, s: Str, base: Int) -> Int {
+        var val = 0;
+        var i = 0;
+        while i < s.len() {
+            c = s[i..i + 1].lower();
+            d = "0123456789abcdef".find(c);
+            if d < 0 or d >= base { raise("toml: bad digit for base " + Str(base)); }
+            val = val * base + d;
+            i = i + 1;
+        }
+        return val;
+    }
+
+    # Numbers, booleans, inf/nan, and date/time tokens (kept as strings).
+    fn num_parse(self, tok: Str) -> any {
+        var body = tok;
+        var sign = 1;
+        if body.len() > 0 and body[0..1] == "+" { body = body[1..body.len()]; }
+        if body.len() > 0 and body[0..1] == "-" { sign = -1; body = body[1..body.len()]; }
+        if body == "inf" { return Float("inf") * Float(sign); }
+        if body == "nan" { return Float("nan"); }
+        body = self.strip_us(body);
+        var base = 10;
+        if body.len() > 2 and body[0..2] == "0x" { base = 16; body = body[2..body.len()]; }
+        if body.len() > 2 and body[0..2] == "0o" { base = 8; body = body[2..body.len()]; }
+        if body.len() > 2 and body[0..2] == "0b" { base = 2; body = body[2..body.len()]; }
+        if base != 10 { return sign * self.digit_base(body, base); }
+        var is_float = false;
+        var i = 0;
+        while i < body.len() {
+            c = body[i..i + 1];
+            if c == "." or c == "e" or c == "E" { is_float = true; }
+            i = i + 1;
+        }
+        if is_float {
+            if sign < 0 { return Float("-" + body); }
+            return Float(body);
+        }
+        return sign * Int(body);
+    }
+
+    fn has_kv(self, d: any, k: Str) -> Bool {
+        if reflect.kind_of(d) != "dict" { return false; }
+        for kk in d {
+            if kk == k { return true; }
+        }
+        return false;
+    }
+
+    fn set_path(self, tbl: any, path: list, v: any) -> none {
+        var cur = tbl;
+        var i = 0;
+        while i + 1 < path.len() {
+            seg = path[i];
+            if not self.has_kv(cur, seg) { cur[seg] = {}; }
+            cur = cur[seg];
+            i = i + 1;
+        }
+        cur[path[path.len() - 1]] = v;
+    }
+
+    fn go_desc(self, root: any, path: list) -> any {
+        var cur = root;
+        for seg in path {
+            if not self.has_kv(cur, seg) { cur[seg] = {}; }
+            cur = cur[seg];
+        }
+        return cur;
+    }
+
+    fn go_aot(self, root: any, path: list) -> any {
+        var cur = root;
+        var i = 0;
+        while i + 1 < path.len() {
+            seg = path[i];
+            if not self.has_kv(cur, seg) { cur[seg] = {}; }
+            cur = cur[seg];
+            i = i + 1;
+        }
+        seg = path[path.len() - 1];
+        if not self.has_kv(cur, seg) { cur[seg] = []; }
+        lst = cur[seg];
+        if reflect.kind_of(lst) != "list" { raise("toml: not an array of tables"); }
+        tbl = {};
+        lst.append(tbl);
+        return tbl;
+    }
+}
+
+# ---- renderer --------------------------------------------------------------
+
+fn is_aot(v: any) -> Bool {
+    if reflect.kind_of(v) != "list" { return false; }
+    if v.len() == 0 { return false; }
+    for e in v {
+        if reflect.kind_of(e) != "dict" { return false; }
+    }
+    return true;
+}
+
+fn render_doc(tree: any) -> Str {
+    if reflect.kind_of(tree) == "dict" {
+        return render_section([], tree, "");
+    }
+    if tree == none { return ""; }
+    return render_value(tree) + "\n";
+}
+
+fn render_section(path: list, tbl: dict, out: Str) -> Str {
+    var acc = out;
+    if path.len() > 0 {
+        acc = acc + "[" + render_path(path) + "]\n";
+    }
+    for k in tbl {
+        v = tbl[k];
+        if v == none { continue; }
+        if reflect.kind_of(v) == "dict" { continue; }
+        if is_aot(v) { continue; }
+        acc = acc + render_key(k) + " = " + render_value(v) + "\n";
+    }
+    for k in tbl {
+        v = tbl[k];
+        if v == none { continue; }
+        if reflect.kind_of(v) == "dict" {
+            acc = render_section(append_seg(path, k), v, acc);
+        }
+        if is_aot(v) {
+            for t in v {
+                acc = acc + "[[" + render_path(append_seg(path, k)) + "]]\n";
+                acc = render_section([], t, acc);
+            }
+        }
+    }
+    return acc;
+}
+
+fn append_seg(path: list, k: Str) -> list {
+    out = [];
+    for p in path { out.append(p); }
+    out.append(k);
+    return out;
+}
+
+fn render_path(path: list) -> Str {
+    out = "";
+    var first = true;
+    for p in path {
+        if not first { out = out + "."; }
+        first = false;
+        out = out + render_key(p);
+    }
+    return out;
+}
+
+fn is_bare_key(k: Str) -> Bool {
+    if k.len() == 0 { return false; }
+    var i = 0;
+    while i < k.len() {
+        c = k[i..i + 1];
+        var ok = false;
+        if "0123456789".find(c) >= 0 { ok = true; }
+        if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".find(c) >= 0 { ok = true; }
+        if c == "_" or c == "-" { ok = true; }
+        if not ok { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn render_key(k: Str) -> Str {
+    if is_bare_key(k) { return k; }
+    return render_string(k);
+}
+
+fn render_string(s: Str) -> Str {
+    out = "\"";
+    var i = 0;
+    while i < s.len() {
+        c = s[i..i + 1];
+        matched = false;
+        if c == "\"" { out = out + "\\\""; matched = true; }
+        if c == "\\" { out = out + "\\\\"; matched = true; }
+        if c == "\n" { out = out + "\\n"; matched = true; }
+        if c == "\t" { out = out + "\\t"; matched = true; }
+        if c == "\r" { out = out + "\\r"; matched = true; }
+        if not matched { out = out + c; }
+        i = i + 1;
+    }
+    return out + "\"";
+}
+
+fn render_value(v: any) -> Str {
+    k = reflect.kind_of(v);
+    if k == "none" { raise("toml: none has no TOML representation"); }
+    if k == "bool" {
+        if v { return "true"; }
+        return "false";
+    }
+    if k == "int" { return Str(v); }
+    if k == "float" { return render_float(v); }
+    if k == "string" { return render_string(v); }
+    if k == "list" { return render_array(v); }
+    if k == "dict" { return render_inline_table(v); }
+    return render_string(Str(v));
+}
+
+fn render_float(v: any) -> Str {
+    s = Str(v);
+    if s == "inf" or s == "nan" or s == "-inf" { return s; }
+    if s.find(".") < 0 and s.find("e") < 0 and s.find("E") < 0 {
+        return s + ".0";
+    }
+    return s;
+}
+
+fn render_array(v: list) -> Str {
+    out = "[";
+    var first = true;
+    for e in v {
+        if not first { out = out + ", "; }
+        first = false;
+        out = out + render_value(e);
+    }
+    return out + "]";
+}
+
+fn render_inline_table(v: dict) -> Str {
+    out = "{ ";
+    var first = true;
+    for k in v {
+        if v[k] == none { continue; }
+        if not first { out = out + ", "; }
+        first = false;
+        out = out + render_key(k) + " = " + render_value(v[k]);
+    }
+    return out + " }";
+}

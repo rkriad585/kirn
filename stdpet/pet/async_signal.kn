@@ -1,0 +1,44 @@
+# stdlib/pet/async_signal.kn — async signal handling (POWER_PLAN §2.9).
+#
+# Kirn installs a SIGINT handler that only raises a flag (`os.install_ctrl_c`),
+# so waiting for Ctrl-C is cooperative: `ctrl_c()` polls the flag with a timer
+# and yields between checks. Reach it through `pet.async` (`a.signal.ctrl_c()`).
+#
+#   import pet.async as a;
+#   await a.signal.ctrl_c();
+#   print("interrupted");
+import os;
+import time;
+
+# Install the SIGINT handler (idempotent).
+pub fn install() -> none {
+    os.install_ctrl_c();
+}
+
+# `true` once Ctrl-C has been pressed since the last `reset`.
+pub fn pending() -> Bool {
+    return os.ctrl_c_pending() != 0;
+}
+
+# Clear the pending flag.
+pub fn reset() -> none {
+    os.reset_ctrl_c();
+}
+
+# Wait until Ctrl-C is pressed.
+pub async fn ctrl_c() -> none {
+    os.install_ctrl_c();
+    while os.ctrl_c_pending() == 0 {
+        await time.after(10);
+    }
+}
+
+# Wait for one occurrence of signal `sig` and return `[sig]` (a one-item batch,
+# since Kirn has no stream type). Only SIGINT (2) is supported today.
+pub async fn stream(sig: Int) -> list {
+    if sig != 2 {
+        raise "signal.stream: only SIGINT (2) is supported";
+    }
+    await ctrl_c();
+    return [sig];
+}

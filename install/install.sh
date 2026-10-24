@@ -204,7 +204,7 @@ Kirn installed to $PREFIX
 Note: the standard library is resolved relative to the script you run, or via
 KIRN_STDLIB. Add this to your profile so imports work from any directory:
 
-  export KIRN_STDLIB="$PREFIX/stdlib"
+  export KIRN_STDLIB="$PREFIX/stdpet"
 
 Try it:
   $bindir/kirn run https://github.com/$REPO/raw/main/examples/01_hello.kn

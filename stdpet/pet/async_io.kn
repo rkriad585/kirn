@@ -1,0 +1,177 @@
+# stdlib/pet/async_io.kn — async byte I/O (POWER_PLAN §2.6).
+#
+# `File` is a cursor over a path; its `path` and position live in a shared dict,
+# so the state survives the receiver copy made by every method call (and by the
+# task an `async fn` runs on). The byte-oriented read methods return `bytes`;
+# `read_to_string` decodes UTF-8. Reach it through `pet.async` as `a.io`:
+#
+#   import pet.async as a;
+#   var f = a.io.open("notes.txt");
+#   var line = await f.read_line();
+#
+# Kirn has no formal `AsyncRead`/`AsyncWrite`/`AsyncSeek` traits here: the
+# methods below are the structural interface, and `copy` accepts any value with
+# `read_to_end`/`write_all`.
+import os;
+
+pub struct File {
+    h: dict;   # {path: Str, pos: Int}
+
+    # Read up to `n` bytes from the cursor; advances by what was read.
+    async fn read(self, n: Int) -> any {
+        path = self.h["path"];
+        off = self.h["pos"];
+        b = os.read_at(path, off, n);
+        self.h["pos"] = off + b.len();
+        return b;
+    }
+
+    # Read exactly `n` bytes or raise on EOF.
+    async fn read_exact(self, n: Int) -> any {
+        b = await self.read(n);
+        if b.len() != n { raise "read_exact: unexpected end of file"; }
+        return b;
+    }
+
+    # Read from the cursor to EOF and return `bytes`.
+    async fn read_to_end(self) -> any {
+        path = self.h["path"];
+        off = self.h["pos"];
+        b = os.read_at(path, off, -1);
+        self.h["pos"] = off + b.len();
+        return b;
+    }
+
+    # Read to EOF and decode as UTF-8.
+    async fn read_to_string(self) -> Str {
+        b = await self.read_to_end();
+        return b.decode("utf-8");
+    }
+
+    # Read one line (up to and excluding '\n'); "" at EOF.
+    async fn read_line(self) -> Str {
+        line = "";
+        while true {
+            c = await self.read(1);
+            if c.len() == 0 { break; }
+            ch = c.decode("utf-8");
+            if ch == "\n" { break; }
+            line = line + ch;
+        }
+        return line;
+    }
+
+    # All remaining lines (a trailing newline does not add an empty line).
+    async fn lines(self) -> list {
+        text = await self.read_to_string();
+        if text.len() == 0 { return []; }
+        parts = text.split("\n");
+        if parts[parts.len() - 1] == "" { parts.pop(); }
+        return parts;
+    }
+
+    # Write `data` (Str or bytes) at the cursor; advances by bytes written.
+    async fn write(self, data: any) -> Int {
+        path = self.h["path"];
+        off = self.h["pos"];
+        n = os.write_at(path, off, data);
+        self.h["pos"] = off + n;
+        return n;
+    }
+
+    # Write all of `data` (the native write already loops).
+    async fn write_all(self, data: any) -> none {
+        await self.write(data);
+    }
+
+    # Writes are unbuffered; kept for interface parity.
+    async fn flush(self) -> none {
+        return none;
+    }
+
+    # Move the cursor to `pos`; returns the new position.
+    async fn seek(self, pos: Int) -> Int {
+        self.h["pos"] = pos;
+        return pos;
+    }
+
+    fn position(self) -> Int {
+        return self.h["pos"];
+    }
+
+    async fn size(self) -> Int {
+        return os.file_size(self.h["path"]);
+    }
+
+    fn close(self) -> none {
+        return none;
+    }
+}
+
+# Open an existing file at position 0. Raises if it does not exist.
+pub fn open(path: Str) -> File {
+    return File(h: {"path": path, "pos": 0});
+}
+
+# Open for append: the cursor starts at EOF (creating the file if absent).
+pub fn append(path: Str) -> File {
+    pos = 0;
+    if os.exists(path) { pos = os.file_size(path); }
+    return File(h: {"path": path, "pos": pos});
+}
+
+# Create/truncate `path` and return a file cursor at 0.
+pub fn create(path: Str) -> File {
+    os.write_file(path, "");
+    return File(h: {"path": path, "pos": 0});
+}
+
+# Copy everything from `reader` to `writer`; returns the number of bytes.
+pub async fn copy(reader: any, writer: any) -> Int {
+    data = await reader.read_to_end();
+    await writer.write_all(data);
+    return data.len();
+}
+
+# A reader with the same interface as File (buffering is not needed: whole-file
+# reads come from one syscall). Kept as a distinct type for API parity.
+pub struct BufReader {
+    f: File;
+    async fn read(self, n: Int) -> any { return await self.f.read(n); }
+    async fn read_exact(self, n: Int) -> any { return await self.f.read_exact(n); }
+    async fn read_to_end(self) -> any { return await self.f.read_to_end(); }
+    async fn read_to_string(self) -> Str { return await self.f.read_to_string(); }
+    async fn read_line(self) -> Str { return await self.f.read_line(); }
+    async fn lines(self) -> list { return await self.f.lines(); }
+    fn position(self) -> Int { return self.f.position(); }
+    async fn seek(self, pos: Int) -> Int { return await self.f.seek(pos); }
+}
+
+pub fn buffered_reader(f: File) -> BufReader {
+    return BufReader(f: f);
+}
+
+# A writer that accumulates chunks until `flush`, then writes them in order.
+pub struct BufWriter {
+    f: File;
+    b: dict;   # {chunks: list}
+    fn write(self, data: Str) -> none {
+        self.b["chunks"].append(data);
+    }
+    fn write_line(self, data: Str) -> none {
+        self.b["chunks"].append(data + "\n");
+    }
+    async fn flush(self) -> none {
+        if self.b["chunks"].len() > 0 {
+            s = "";
+            for c in self.b["chunks"] { s = s + c; }
+            await self.f.write_all(s);
+            self.b["chunks"] = [];
+        }
+    }
+    fn position(self) -> Int { return self.f.position(); }
+}
+
+pub fn buffered_writer(f: File) -> BufWriter {
+    return BufWriter(f: f, b: {"chunks": []});
+}

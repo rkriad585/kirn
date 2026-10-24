@@ -217,7 +217,7 @@ create a Pet, validate it, publish a release, fork the registry, and open a PR.
 | Path | Purpose |
 | --- | --- |
 | `src/` | Compiler source: lexer, parser, sema, VM, interpreter, backend |
-| `stdlib/pet/` | Standard-library modules and tests |
+| `stdpet/pet/` | Standard-library modules and tests |
 | `examples/` | Runnable language examples |
 | `grammar/` | Normative EBNF grammar |
 | `tools/` | CLI and companion tools |

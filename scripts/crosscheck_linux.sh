@@ -87,11 +87,11 @@ done
 # The same three corpora the golden suite uses, so a divergence here cannot be
 # explained by "we only checked the easy input".
 FILES=()
-for d in examples tests/negative stdlib; do
+for d in examples tests/negative stdpet; do
     [ -d "$d" ] && while IFS= read -r f; do FILES+=("$f"); done \
         < <(find "$d" -name '*.kn' -type f | sort)
 done
-echo "crosscheck: ${#FILES[@]} .kn files across examples/ tests/negative/ stdlib/"
+echo "crosscheck: ${#FILES[@]} .kn files across examples/ tests/negative/ stdpet/"
 
 # ------------------------------------------------------------------ lex verb
 # kirnlex has no --emit-tokens; its dump is on by default via --dump.
@@ -102,7 +102,7 @@ for f in "${FILES[@]}"; do
                        "$BIN/kirnc" lex "$f"
 done
 # A directory walk: exercises collect() + sort + the N/M denominator.
-for d in examples tests/negative stdlib; do
+for d in examples tests/negative stdpet; do
     [ -d "$d" ] && run "lex <dir> $d" "$BIN/kirnlex" "$d" -- "$BIN/kirnc" lex "$d"
 done
 # --dump is a no-op for >1 file, so it must stay a no-op in kirnc too.

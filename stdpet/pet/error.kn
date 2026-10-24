@@ -1,0 +1,63 @@
+# stdlib/pet/error.kn — anyhow/thiserror-style errors (POWER_PLAN §5).
+#
+# The `Error` value, its Display/chain/downcast support, the `?` conversion, and
+# `@[derive(Error)]` are implemented natively (they need runtime type identity
+# and Display hooks that a `.kn` module cannot express). This file is the
+# file-backed `pet.error` module: it re-exports the native surface under the
+# same names so `import pet.error;` behaves like the other `pet` modules, and
+# the prelude keeps the bare `error` binding available without an import.
+#
+#   import pet.error;
+#   var e = error.msg("boom");
+#
+# `error.new` stays native-only: `new` is a reserved keyword, so it cannot be
+# redeclared as a module function here. Use `error.msg` (or raise a derived
+# error) instead; `Error.new` is still reachable through the prelude `error`
+# when no import shadows it.
+
+import error as native_error;
+
+# Wrap a message in a dynamic `Error`.
+pub fn msg(s: Str) -> any {
+    return native_error.msg(s);
+}
+
+# Lay `ctx` over an error result (`r.context(c)` also exists as a value method).
+pub fn context(r, ctx: Str) -> any {
+    return native_error.context(r, ctx);
+}
+
+# The Display messages from an error down its `source` chain, outermost first.
+pub fn chain(e) -> list {
+    return native_error.chain(e);
+}
+
+# The innermost error in the chain.
+pub fn root_cause(e) -> any {
+    return native_error.root_cause(e);
+}
+
+# True when `e` originated from a value of runtime type `name`.
+pub fn is(e, name: Str) -> Bool {
+    return native_error.is(e, name);
+}
+
+# The original value when it originated from runtime type `name`, else `none`.
+pub fn downcast(e, name: Str) -> any {
+    return native_error.downcast(e, name);
+}
+
+# Render an error (or any value) for display.
+pub fn display(e) -> Str {
+    return native_error.display(e);
+}
+
+# Raise `err(error.msg(s))` from the enclosing result function.
+pub fn bail(s: Str) -> none {
+    native_error.bail(s);
+}
+
+# Raise unless `cond` holds.
+pub fn ensure(cond: Bool, s: Str) -> none {
+    native_error.ensure(cond, s);
+}

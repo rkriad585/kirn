@@ -1,0 +1,65 @@
+# stdlib/pet/async_fs.kn — async filesystem (POWER_PLAN §2.9).
+#
+# The underlying syscalls are blocking (`os.*`); each wrapper is an `async fn`,
+# so the work runs on a task thread and `await` yields to the caller instead of
+# blocking it — the same spawn-blocking shape tokio::fs uses. Reach `fs` through
+# `pet.async` (`a.fs.read(...)`) or import this module directly:
+#
+#   import pet.async as a;
+#   var s = await a.fs.read_to_string("notes.txt");
+#
+# Errors (missing file, permission denied) raise, matching the rest of the
+# stdlib; wrap the `await` in `try/catch` to handle them.
+import os;
+
+# Entire file as `bytes`.
+pub async fn read(path: Str) -> any {
+    return os.read_bytes(path);
+}
+
+# Entire file as text. Kirn `Str` holds arbitrary bytes, so this is byte-safe.
+pub async fn read_to_string(path: Str) -> Str {
+    return os.read_file(path);
+}
+
+# Write `contents` (a `Str` or a bytes buffer), replacing the file (creating it
+# if absent).
+pub async fn write(path: Str, contents: any) -> none {
+    os.write_file(path, contents);
+}
+
+# Copy `from` to `to`, overwriting an existing destination; returns the number
+# of bytes copied.
+pub async fn copy(from: Str, to: Str) -> Int {
+    return os.copy_file(from, to);
+}
+
+# Rename or move a file/directory.
+pub async fn rename(from: Str, to: Str) -> none {
+    os.rename(from, to);
+}
+
+# Remove a single file.
+pub async fn remove_file(path: Str) -> none {
+    os.remove_file(path);
+}
+
+# Create `path` and any missing parent directories.
+pub async fn create_dir_all(path: Str) -> none {
+    os.create_dir_all(path);
+}
+
+# `true` if `path` exists (file or directory).
+pub async fn exists(path: Str) -> Bool {
+    return os.exists(path);
+}
+
+# Metadata as a dict: `is_file`, `is_dir`, `size` (bytes), `modified_ms`.
+pub async fn metadata(path: Str) -> dict {
+    return os.metadata(path);
+}
+
+# Entry names (not full paths) directly inside a directory.
+pub async fn read_dir(path: Str) -> list {
+    return os.read_dir(path);
+}

@@ -1,0 +1,53 @@
+# stdlib/pet/regexp.kn - pattern matching (Kirn-written, Phase 6).
+# No native regex engine exists in the substrate yet, so this provides an
+# honest subset: glob-style wildcard matching (`*` = any run, `?` = one char)
+# plus literal find/split helpers. Import with: import pet.regexp;
+#
+# A full PCRE-style engine can replace these later; the call sites
+# (match/find/split/replace) keep their signatures.
+
+# Glob-style match: `*` matches any (possibly empty) run, `?` one char,
+# everything else literal.
+pub fn match(pat: Str, s: Str) -> Bool {
+    return glob(pat, s);
+}
+
+# First index of `sub` in s, or -1 if absent (via split on the needle).
+pub fn find(s: Str, sub: Str) -> Int {
+    if sub == "" { return 0; }
+    parts = s.split(sub);
+    if parts.len() <= 1 { return -1; }
+    return Str(parts[0]).len();
+}
+
+# True if `sub` is present in s.
+pub fn contains(s: Str, sub: Str) -> Bool {
+    return s.contains(sub);
+}
+
+# Replace every literal occurrence of `from` with `to`.
+pub fn replace(s: Str, from: Str, to: Str) -> Str {
+    return s.replace(from, to);
+}
+
+# Split on a literal separator.
+pub fn split(s: Str, sep: Str) -> list {
+    return s.split(sep);
+}
+
+# Internal recursive glob matcher. Uses 1-char substrings so no char vs
+# string hazards arise.
+fn glob(pat: Str, s: Str) -> Bool {
+    if pat == "" { return s == ""; }
+    pc = pat[0..1];
+    if pc == "*" {
+        if glob(pat[1..pat.len()], s) { return true; }
+        if s == "" { return false; }
+        return glob(pat, s[1..s.len()]);
+    }
+    if s == "" { return false; }
+    sc = s[0..1];
+    if pc == "?" { return glob(pat[1..pat.len()], s[1..s.len()]); }
+    if pc == sc { return glob(pat[1..pat.len()], s[1..s.len()]); }
+    return false;
+}

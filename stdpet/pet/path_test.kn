@@ -1,0 +1,15 @@
+# stdlib/pet/path_test.kn - tests for pet.path.
+import pet.path;
+
+fn main() -> none {
+    assert_eq(path.basename("/a/b/c.txt"), "c.txt");
+    assert_eq(path.dirname("/a/b/c.txt"), "/a/b");
+    assert_eq(path.dirname("top.txt"), "");
+    assert_eq(path.extname("/a/b/c.txt"), ".txt");
+    assert_eq(path.extname("noext"), "");
+    assert_eq(path.stem("/a/b/c.txt"), "c");
+    assert_eq(path.join(["a", "b", "c.txt"]), "a/b/c.txt");
+    assert_eq(path.join(["a", "", "b"]), "a/b");
+
+    print("path_test ok");
+}

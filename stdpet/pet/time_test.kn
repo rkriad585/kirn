@@ -1,0 +1,16 @@
+# stdlib/pet/time_test.kn - tests for pet.time.
+import pet.time;
+
+fn main() -> none {
+    a = time.now();
+    assert(a > 1.0e6);            # very roughly "is a time", non-zero epoch
+    b = time.now_ms();
+    assert(b > 0);
+    assert_eq(time.ordinal(1), "1st");
+    assert_eq(time.ordinal(2), "2nd");
+    assert_eq(time.ordinal(11), "11th");
+    assert_eq(time.ordinal(21), "21st");
+    time.sleep(1);                # must not hang or error
+
+    print("time_test ok");
+}

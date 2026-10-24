@@ -1,2 +1,0 @@
-# Compatibility wrapper for `import lib.collections`
-export from collections import *

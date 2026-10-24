@@ -1,2 +1,0 @@
-# Compatibility wrapper for sync module
-export from sync import *

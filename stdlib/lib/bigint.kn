@@ -1,2 +1,0 @@
-# Compatibility wrapper for `import lib.bigint`
-export from bigint import *

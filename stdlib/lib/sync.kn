@@ -1,2 +1,0 @@
-# Compatibility wrapper for `import lib.sync` -> builtin `sync` module
-export from sync import *

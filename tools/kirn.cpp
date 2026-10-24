@@ -1161,8 +1161,10 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
     if (std::find(dirs.begin(), dirs.end(), ".") == dirs.end())
         dirs.push_back(".");
     // the repo ships its stdlib as Kirn source under ./stdlib; tests import it
-    if (std::find(dirs.begin(), dirs.end(), "./stdlib") == dirs.end())
-        dirs.push_back("./stdlib");
+    if (std::find(dirs.begin(), dirs.end(), "./stdpet") == dirs.end())
+        dirs.push_back("./stdpet");
+    if (std::find(dirs.begin(), dirs.end(), "stdpet") == dirs.end())
+        dirs.push_back("stdpet");
     int pass = 0, fail = 0;
     for (const auto& f : files) {
         std::cout << "test " << f.string() << " ... " << std::flush;

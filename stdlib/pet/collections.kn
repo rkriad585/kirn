@@ -1,2 +1,0 @@
-# Compatibility wrapper for collections module
-export from collections import *

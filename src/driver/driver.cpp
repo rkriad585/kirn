@@ -423,8 +423,8 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     // slashes / relative prefixes like "./proj".
     //
     // A bare filename ("main.kn", no directory component) has an EMPTY
-    // parent_path(). Using that as `dir` builds "/pets", "/../stdlib" and
-    // "/../../stdlib" -- absolute paths off the filesystem root, so the
+    // parent_path(). Using that as `dir` builds "/pets", "/../stdpet" and
+    // "/../../stdpet" -- absolute paths off the filesystem root, so the
     // sibling module next to the entry file is never found and the program
     // panics with `unknown module`. An empty parent means "the CWD", so map
     // it to "."; that is also what `kirn run` already passes explicitly.
@@ -444,8 +444,8 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir());
     }
-    dirs.push_back(dir + "/../stdlib");
-    dirs.push_back(dir + "/../../stdlib");
+    dirs.push_back(dir + "/../stdpet");
+    dirs.push_back(dir + "/../../stdpet");
     if (const char* env = std::getenv("KIRN_STDLIB")) dirs.push_back(env);
     dirs.push_back(dir);   // a project/package can import itself
     return dirs;
@@ -2055,8 +2055,10 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
     if (std::find(dirs.begin(), dirs.end(), ".") == dirs.end())
         dirs.push_back(".");
     // the repo ships its stdlib as Kirn source under ./stdlib; tests import it
-    if (std::find(dirs.begin(), dirs.end(), "./stdlib") == dirs.end())
-        dirs.push_back("./stdlib");
+    if (std::find(dirs.begin(), dirs.end(), "./stdpet") == dirs.end())
+        dirs.push_back("./stdpet");
+    if (std::find(dirs.begin(), dirs.end(), "stdpet") == dirs.end())
+        dirs.push_back("stdpet");
     int pass = 0, fail = 0;
     for (const auto& f : files) {
         std::cout << "test " << f.string() << " ... " << std::flush;
@@ -2804,8 +2806,8 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir());
     }
-    dirs.push_back("../stdlib");
-    dirs.push_back("../../stdlib");
+    dirs.push_back("../stdpet");
+    dirs.push_back("../../stdpet");
     // De-duplicate, keeping the FIRST occurrence so precedence stays exactly
     // what the list above reads as: caller-supplied, then the shared resolver
     // (env override, then entry-relative), then project conventions.

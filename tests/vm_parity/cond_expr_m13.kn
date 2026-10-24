@@ -1,0 +1,19 @@
+# Conditional expressions nested in another conditional's arm, and in a match
+# arm's value. Both used to produce a MIR phi whose incoming set named the
+# outer arm entry instead of the inner join, which failed verification with
+# "phi incoming {...} does not match predecessors {...}".
+fn classify(n: Int) -> Str {
+    return n > 0 ? (n > 10 ? "big" : "small") : "neg";
+}
+
+fn pick(n: Int) -> Str {
+    return match n {
+        case 0 { "zero"; }
+        case _ { n > 10 ? (n > 100 ? "huge" : "big") : "small"; }
+    };
+}
+
+fn main() -> none {
+    print(classify(-3), classify(4), classify(40));
+    print(pick(0), pick(4), pick(40), pick(400));
+}

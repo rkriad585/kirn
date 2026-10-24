@@ -224,10 +224,17 @@ hygiene: driver.cpp's dead duplicate `cmd*`/`mdToHtml`/`pageHtml` helpers are ma
 spellings in `parser.cpp` were split. Test churn: `tests/negative/n19_nosugar_incdec.kn` and its
 goldens were retired (the form is now accepted, so it can no longer fail) and replaced by
 `examples/62_incdec_ternary.kn` (+3 goldens) whose `check` golden records the live `W-nosugar`.
-Suites: gates 263, golden 254, crosscheck 591, stdlib 9, all 0 fail. Recorded deviation: nested
-ternary/if-expression chains still fail the MIR `rt` verifier (`block: phi incoming ... does not
-match predecessors`) — a pre-existing conditional-lowering gap shared with nested `if` expressions,
-not introduced here.
+Suites: gates 263, golden 254, crosscheck 591, stdlib 9, all 0 fail. Recorded deviation (closed
+2026-10-24): nested ternary/if-expression chains used to fail the MIR `rt` verifier (`block: phi
+incoming ... does not match predecessors`) — a pre-existing conditional-lowering gap shared with
+nested `if` expressions, not introduced here.
+
+**Update (2026-10-24).** The nested-conditional MIR deviation is closed. `Cond` lowering now records
+the block each arm actually ends in (a nested conditional leaves `cur` in its own join) and uses
+those blocks for the result phi's incoming edges instead of the arm entry blocks. Match-expression
+arm values are lowered _before_ their end block is recorded, for the same reason. Regression
+`tests/vm_parity/cond_expr_m13.kn` covers nested ternaries in arms and as a match arm value on the
+tree-walker, VM, and MIR. Gates: 4_vm_diff 104/0, 9_MIR 10/0.
 
 **Implementation progress (2026-10-17).** A post-M13 pass closed several recorded deviations and
 added two feature groups. (1) The lowercase numeric aliases were removed: the constructors

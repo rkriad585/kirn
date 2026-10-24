@@ -551,9 +551,16 @@ struct Builder {
             emit(std::move(br));
             setBlock(tb);
             Value tv = p.then ? lower(*p.then) : NO_VALUE;
+            // The arm may end in a block created by a nested conditional, so the
+            // join's predecessor is wherever lowering actually finished -- not
+            // `tb`. Using `tb` here makes the phi's incoming set disagree with
+            // the CFG (`block 3: phi incoming {1, 2} does not match predecessors
+            // {2, 6}` for `c ? (x ? a : b) : d`).
+            BlockId tend = cur;
             Inst j; j.op = Op::Br; j.succ = join; j.span = s; emit(std::move(j));
             setBlock(fb);
             Value fv = p.otherwise ? lower(*p.otherwise) : NO_VALUE;
+            BlockId fend = cur;
             Inst j2; j2.op = Op::Br; j2.succ = join; j2.span = s; emit(std::move(j2));
             setBlock(join);
             if (tv == NO_VALUE || fv == NO_VALUE) return NO_VALUE;
@@ -563,7 +570,7 @@ struct Builder {
             in.result = phi;
             in.type = t;
             in.span = s;
-            in.incoming = {{tb, tv}, {fb, fv}};
+            in.incoming = {{tend, tv}, {fend, fv}};
             emit(std::move(in));
             return phi;
         } else if constexpr (std::is_same_v<T, hir::payload::Comp>) {
@@ -628,8 +635,12 @@ struct Builder {
                 setBlock(ab);
                 for (auto& st : p.arms[i].body)
                     if (st) lower(*st);
+                Value av = p.arms[i].value ? lower(*p.arms[i].value) : NO_VALUE;
+                // As with the ternary above, a nested conditional in the arm's
+                // value leaves `cur` in a fresh join block; that block is the
+                // real predecessor of this arm's join.
                 armEnds.push_back(cur);
-                armVals.push_back(p.arms[i].value ? lower(*p.arms[i].value) : NO_VALUE);
+                armVals.push_back(av);
             }
             BlockId join = fn->newBlock();
             for (BlockId e : armEnds) {

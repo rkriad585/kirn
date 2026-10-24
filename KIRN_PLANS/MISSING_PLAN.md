@@ -100,7 +100,7 @@ out).
 
 **Implementation progress (2026-10-13).** M1, M2 and M3 are implemented in `src/` and green on the
 full gate (`scripts/gates_linux.sh`, 217), golden (`scripts/golden_linux.sh`, 224) and stdlib
-(`kirn test stdlib/pet`, 9) suites, so rows 1, 2, 3, 6, 7, 8, 9 and 19 above are now done. The
+(`kirn test stdpet`, 9) suites, so rows 1, 2, 3, 6, 7, 8, 9 and 19 above are now done. The
 audited table is kept as the historical baseline. Recorded deviations from the M3 text: safe
 navigation is spelled `.?[` / `.?(` (not `?.[` / `?.()`), and `TypeGuard` is spelled as a
 generic return type `fn f(x: any) -> TypeGuard[T]` (the plan only said "TypeGuard-like
@@ -124,7 +124,7 @@ unchanged. See the per-phase notes below.
 `Enter`/`Exit` protocol) is implemented in `src/` (parser → AST → checker → tree-walker, with HIR
 lowering and a bytecode-VM interpreted fallback) and green on the full gate (`scripts/gates_linux.sh`,
 225), golden (`scripts/golden_linux.sh`, 227), crosscheck (`scripts/crosscheck_linux.sh`, 543) and
-stdlib (`kirn test stdlib/pet`, 9) suites. See the M4 phase note for the recorded scope deviations
+stdlib (`kirn test stdpet`, 9) suites. See the M4 phase note for the recorded scope deviations
 (no implicit declaration-based RAII, no `drop(value)` builtin, no `contextlib.kn`, no `Copy`/`Drop`
 conflict check).
 
@@ -140,7 +140,7 @@ and `comptime { }` force compile-time evaluation and report `E-CONST-IMPURE` whe
 constant. Executable paths treat `@comptime(expr)` as its operand and `comptime { }` as an ordinary
 scoped block (HIR lowers both), so behaviour is unchanged on the tree-walker and the VM. Green on the
 full gate (`scripts/gates_linux.sh`, 230), golden (`scripts/golden_linux.sh`, 230), crosscheck
-(`scripts/crosscheck_linux.sh`, 545+) and stdlib (`kirn test stdlib/pet`, 9) suites. Recorded scope
+(`scripts/crosscheck_linux.sh`, 545+) and stdlib (`kirn test stdpet`, 9) suites. Recorded scope
 deviations: const-eval supports scalars, lists/tuples, and bounded comprehensions but not
 dicts/sets/structs, method calls, string methods, or I/O; `sizeof`/`alignof` are not builtins, so the
 plan's `@comptime(alignof(Point))` form is out of scope for this stage; the constant table is not
@@ -150,8 +150,8 @@ emitted as a separate data section (folding rewrites the AST literal instead).
 (runtime values + checker); `big_int`/`rational` already existed, so the new work is `complex` and
 `decimal` plus the promotion lattice `Integral < Rational < Real < Complex`. Green on the full gate
 (`scripts/gates_linux.sh`, 236), golden (`scripts/golden_linux.sh`, 233), crosscheck
-(`scripts/crosscheck_linux.sh`, 555) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M6 phase
-note for the recorded scope deviations (different transcendental path for `decimal`, no `stdlib/lib`
+(`scripts/crosscheck_linux.sh`, 555) and stdlib (`kirn test stdpet`, 9) suites. See the M6 phase
+note for the recorded scope deviations (different transcendental path for `decimal`, no `stdpet`
 modules, property vs method accessors).
 
 **Implementation progress (2026-10-16).** M7 (bytes/bytearray + buffer protocol) is implemented in
@@ -159,23 +159,23 @@ modules, property vs method accessors).
 `bytearray`, the zero-copy `memoryview` view, the buffer `VK::ByteArray`/`VK::View` values, Int
 indexing, `+`/`*`/`in`, and the buffer method surface. Green on the full gate
 (`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 236), crosscheck
-(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M7 phase
-note for the recorded scope deviations (no `stdlib/lib` module).
+(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdpet`, 9) suites. See the M7 phase
+note for the recorded scope deviations (no `stdpet` module).
 
 **Implementation progress (2026-10-16).** M8 (Deque / Counter / heap + collection free-functions) is
 implemented in `src/` (runtime values + checker). The new work is `VK::Deque`/`VK::Counter`, their
 method surfaces, the min/max binary-heap helpers, and the free functions
 `group_by`/`chunk`/`flatten`/`count`/`find`/`binary_search`/`partition`. Green on the full gate
 (`scripts/gates_linux.sh`, 242), golden (`scripts/golden_linux.sh`, 239), crosscheck
-(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M8 phase
-note for the recorded scope deviations (no `stdlib/lib` module; builtins are shadowable).
+(`scripts/crosscheck_linux.sh`, 561) and stdlib (`kirn test stdpet`, 9) suites. See the M8 phase
+note for the recorded scope deviations (no `stdpet` module; builtins are shadowable).
 
 **Implementation progress (2026-10-16).** M9 (`sync` module: mutex/waitgroup/atomic) is implemented
 in `src/` (runtime values + checker). The new work is `VK::Mutex`/`RwMutex`/`WaitGroup`/`Once`/
 `Cond`/`Atomic` sharing one `SyncImpl` allocation, their method surfaces, `sync.Atomic[T](v)` /
 `Atomic[T](v)` construction, `WaitGroup.go` = spawn + add, and the `sync` pseudo-module. Green on
 the full gate (`scripts/gates_linux.sh`, 251), golden (`scripts/golden_linux.sh`, 242), crosscheck
-(`scripts/crosscheck_linux.sh`, 573) and stdlib (`kirn test stdlib/pet`, 9) suites. See the M9 phase
+(`scripts/crosscheck_linux.sh`, 573) and stdlib (`kirn test stdpet`, 9) suites. See the M9 phase
 note for the recorded scope deviations.
 
 **Implementation progress (2026-10-16).** M10 (`reflect` module: runtime introspection) is implemented
@@ -184,7 +184,7 @@ in `src/interp/runtime.cpp` (runtime metadata over `VK`/the struct/impl tables).
 `set_field`/`has_field`/`deep_equal`/`new`/`sizeof` — backed by two new helpers (`kindName`,
 `typeRefName`) and the existing `valEq` deep-equality (`typeof` is the same name query). Verified:
 gates 255, golden 245, crosscheck 579, stdlib 9, all 0 fail. See the M10 phase note for recorded
-scope deviations (no `stdlib/lib` module; `reflect.new` builds structs with type-based zero defaults).
+scope deviations (no `stdpet` module; `reflect.new` builds structs with type-based zero defaults).
 
 **Implementation progress (2026-10-16).** M11 (native AOT & polish for the new surface) is implemented
 for the tractable scalar core. `src/backend/native.cpp` now lowers scalar optionals (`T?` →
@@ -633,7 +633,7 @@ protocol (`E-CTXMGR-NO-PROTOCOL`), a `using` value without a drop/exit method
 contextual keywords, not reserved. Recorded deviations from the M4 text: implicit
 declaration-based RAII (a bare `{ h = FileHandle(...) }` dropping at block end) is **not**
 implemented — release is driven by `using` (and `with`); the early-drop `drop(value)` builtin and the
-`stdlib/lib/contextlib.kn` helpers (`ExitStack`, `suppress`, `closing`, `nullcontext`) are not
+`stdpet/contextlib.kn` helpers (`ExitStack`, `suppress`, `closing`, `nullcontext`) are not
 included yet; `Copy`/`Drop` mutual exclusion is not enforced. Parser/AST/checker/tree-walker are done;
 `with`/`using` are marked interpreted in the bytecode VM and HIR lowers the bindings (`With` → a
 scoped `Block`, `Using` → a `VarDecl`) so gates 8/9 stay green. Tests
@@ -649,7 +649,7 @@ binding stays readable because Kirn values use copy semantics. The builtin is se
 (`any -> none`), the bytecode-VM builtin set, and the interpreter's VM allowlist, and HIR lowers it
 as an ordinary builtin call. Tests: `tests/syntax/drop_builtin_ok.kn` (gate 2b, 60 files) covers the
 `drop` and `__del__` spellings on tree-walker and VM. Still open from M4: the
-`stdlib/lib/contextlib.kn` helpers (`ExitStack`/`suppress`/`closing`/`nullcontext`), implicit
+`stdpet/contextlib.kn` helpers (`ExitStack`/`suppress`/`closing`/`nullcontext`), implicit
 declaration-based RAII, and the `Copy`/`Drop` conflict check. Also fixed an incidental corpus
 regression: `examples/88_select_await.kn` ended with a redundant top-level `main();` that HIR could
 not map, so gate 8b failed; removing it keeps the auto-run output identical (`10` / `timer`) and the
@@ -661,11 +661,11 @@ implemented, closing the remaining `contextlib` deviation. `with` now inspects t
 `(exc_type, exc_value, traceback)` on a raise, a two-parameter one receives the leading two, a
 one-parameter one receives the raised value, and the existing zero-parameter `fn exit(self) -> Bool`
 form is unchanged; normal completion passes nils (no traceback capture). `exc_type` is the raised
-value's runtime type name and `exc_value` the raised payload. Added `stdlib/pet/contextlib.kn`
+value's runtime type name and `exc_value` the raised payload. Added `stdpet/contextlib.kn`
 (`nullcontext`, `closing`, `suppress(*types)` and `ExitStack()` with `enter_context`/`callback`/
-`close`) and tests `tests/syntax/with_exc_info_ok.kn` plus `stdlib/pet/contextlib_test.kn` (gate 6
-now 18 tests). Recorded deviations: the module follows the repo's `stdlib/pet/` layout rather than the
-plan's literal `stdlib/lib/`; `traceback` is always `none`; there are no exception classes, so
+`close`) and tests `tests/syntax/with_exc_info_ok.kn` plus `stdpet/contextlib_test.kn` (gate 6
+now 18 tests). Recorded deviations: the module follows the repo's `stdpet/` layout rather than the
+plan's literal `stdpet/`; `traceback` is always `none`; there are no exception classes, so
 `suppress` matches runtime type names (qualified or unqualified); `ExitStack` invokes registered
 managers through their zero-argument `exit()` and therefore does not forward exception info to a
 three-argument manager registered in the stack; the internal struct is `ExitStackState` because
@@ -689,7 +689,7 @@ declaration-based RAII.
 **Files:** `src/parser/parser.cpp` (soft keyword `with`; `using name = expr`), `src/ast/ast.h`
 (`StKind::With`, protocol bindings), `src/sema/checker.cpp` (`Enter`/`Exit`/`Drop` method resolution),
 `src/interp/runtime.cpp` (scope-exit hook executing `drop`; `with` → `try/finally`; `Drop` registry),
-`stdlib/lib/contextlib.kn` (new: `ExitStack`, `suppress`, `closing`, `nullcontext`), `EXP P3`.
+`stdpet/contextlib.kn` (new: `ExitStack`, `suppress`, `closing`, `nullcontext`), `EXP P3`.
 
 **Architectural changes:**
 
@@ -792,7 +792,7 @@ than emitting a separate data section".
 **Files:** `src/interp/value.h` (`VK::BigInt/Rational/Complex/Decimal` + fields), `src/interp/
 runtime.cpp` (`toStr`/`repr`/`truthy`/`len`/`binop` cases; operators), `src/sema/type.h` +
 `checker.cpp` (`big_int`, `complex`, `rational`, `decimal` type spellings + promotion
-`Integral<Rational<Real<Complex`), `stdlib/lib/` `math`/`bigint` modules (`STD P3/P8`), `DATA P2-5`.
+`Integral<Rational<Real<Complex`), `stdpet/` `math`/`bigint` modules (`STD P3/P8`), `DATA P2-5`.
 
 **Architectural changes:**
 
@@ -845,7 +845,7 @@ Decimal is exact for `+`/`-`/`*` via `bignum::Big`, with `/` rounded to 28 signi
 `complex` uses `.real`/`.imag` as properties (matching the plan example) with `absolute`/conjugate as
 methods. (2) `decimal` `sqrt`/`ln`/`exp` are computed through `double` (documented precision limit),
 not full arbitrary-precision transcendentals; `+`/`-`/`*` are exact and `/` is rounded to 28
-significant digits. (3) There is no `stdlib/lib` directory in the tree, so the plan's `lib.bigint`/
+significant digits. (3) There is no `stdpet` directory in the tree, so the plan's `lib.bigint`/
 `lib.math` module wrappers were not added; the builtins are globally registered as before. (The plan's
 `tests/numbers/` path was not used because the gate discovers `tests/syntax/*_ok*.kn` / `*_err*.kn`
 and `tests/vm_parity/*.kn`; the tests live there so they are actually run.)
@@ -870,7 +870,7 @@ accessor/precision/stdlib deviations above are otherwise unchanged.
 **Files:** `src/lex/lexer.cpp` (`b"..."` string literal), `src/sema/type.h` + `checker.cpp`
 (**add the missing `bytes` type spelling** — DATA:81 known gap; also `bytearray`), `src/interp/
 runtime.cpp` (`VK::Bytes` is mutable vs immutable variants; `binop` `+`/`*`/`in`/`len`; `__getitem__`
-returns int; `.decode/.encode/.hex/.fromhex`; buffer protocol `VK::View`), `stdlib/lib/bytes.kn`
+returns int; `.decode/.encode/.hex/.fromhex`; buffer protocol `VK::View`), `stdpet/bytes.kn`
 (`STD P4a` API), `DATA P6`.
 
 **Architectural changes:** split the existing `VK::Bytes` into immutable `bytes` (hashable → dict key)
@@ -910,8 +910,8 @@ widening, and a static "cannot assign into immutable `bytes`"). Immutability is 
 time and mirrored at run time. Tests: `tests/syntax/bytes_ok.kn`,
 `tests/syntax/bytes_err_immutable.kn`, `tests/syntax/bytes_err_concat_str.kn`,
 `tests/vm_parity/bytes.kn`, `examples/57_bytes.kn` (+3 recorded goldens). Deviations recorded:
-(1) the plan lists `stdlib/lib/bytes.kn` (`STD P4a`), but the repository's stdlib is the
-`stdlib/pet` package tree (there is no `stdlib/lib`), so — as with M6 — the buffer API ships as
+(1) the plan lists `stdpet/bytes.kn` (`STD P4a`), but the repository's stdlib is the
+`stdpet` package tree (there is no `stdpet`), so — as with M6 — the buffer API ships as
 builtins/methods and no module wrapper was added. (2) `memoryview` writes are permitted (and flow
 back to the source) unless the view is marked read-only, matching Python's writable-buffer default;
 the plan's "zero-copy view" requirement is met by sharing the underlying buffer. (3) Tests live under
@@ -930,7 +930,7 @@ so the existing gates pick them up.
 > Reference: Python — `deque`/`Counter` (`cpython/Lib/collections/__init__.py`); Zig — `std/deque.zig`, `std/heap.zig`.
 
 **Files:** `src/interp/value.h` (`VK::Deque`, `VK::Counter`, `VK::Heap`), `runtime.cpp` (method
-surfaces), `stdlib/lib/collections.kn` (`STD P2c`: `Deque`, `Counter`, `SortedList`), `DATA P10`.
+surfaces), `stdpet/collections.kn` (`STD P2c`: `Deque`, `Counter`, `SortedList`), `DATA P10`.
 
 **Architectural changes:** `deque` = ring buffer (O(1) append/append_left/pop/pop_left/rotate); `Counter`
 = multiset (`most_common`, `total()`, `+/-/max/min`); `heap` = binary heap (min + max variants,
@@ -968,8 +968,8 @@ Counter algebra (positive counts only). The checker gained `TyK::Deque`/`TyK::Co
 (interpreter-only). Tests: `tests/syntax/collections_ok.kn`,
 `tests/syntax/collections_err_deque_index.kn`, `tests/vm_parity/collections_m8.kn`,
 `examples/58_collections.kn` (+3 recorded goldens). Deviations recorded: (1) the plan lists
-`stdlib/lib/collections.kn` (`STD P2c`), but the repository's stdlib is the `stdlib/pet` package tree
-(there is no `stdlib/lib`), so — as with M6/M7 — the collections API ships as builtins/methods and no
+`stdpet/collections.kn` (`STD P2c`), but the repository's stdlib is the `stdpet` package tree
+(there is no `stdpet`), so — as with M6/M7 — the collections API ships as builtins/methods and no
 module wrapper (or `SortedList`) was added. (2) `VK::Heap` was not added as a distinct value: heaps
 are ordinary lists manipulated by `heappush`/`heappop`/`heapify`, matching Python's `heapq` module.
 (3) To keep the plan's global free-function names (`count`, `find`, …) from colliding with existing
@@ -991,7 +991,7 @@ gates pick them up.
 > Reference: Go — `sync` (`go/src/sync/waitgroup.go`, `go/src/sync/mutex.go`, `go/src/sync/atomic/`).
 
 **Files:** `src/interp/value.h` (`VK::Mutex/RwMutex/WaitGroup/Once/Cond/Atomic`), `runtime.cpp`
-(implementations; `spawn` + WaitGroup integration), `stdlib/lib/sync.kn` (`STD §7`),
+(implementations; `spawn` + WaitGroup integration), `stdpet/sync.kn` (`STD §7`),
 `DATA P12`, `PLAN P14` (sendability + scheduler), `DO_FIRST P11`.
 
 **Architectural changes:** implement the `sync` module per `DATA P12`; `WaitGroup.go(f)` = spawn + add
@@ -1027,8 +1027,8 @@ with sequential consistency. `sync.Atomic[T](v)` (and the bracketless `Atomic(v)
 by `T`/the initial value; `Atomic[T]` also runs the `isSendable(T)` gate. The checker registers the
 primitives as dynamic handles (verified: gate 251, golden 242, crosscheck 573, stdlib 9, all 0 fail).
 Tests: `tests/syntax/sync_ok.kn`, `tests/vm_parity/sync_m9.kn`, `examples/59_sync.kn` (+3 recorded
-goldens). Deviations recorded: (1) the plan lists `stdlib/lib/sync.kn` and `import lib.sync`, but the
-repository has no `stdlib/lib` tree, so — as with M6/M7/M8 — `sync` ships as a builtin pseudo-module
+goldens). Deviations recorded: (1) the plan lists `stdpet/sync.kn` and `import lib.sync`, but the
+repository has no `stdpet` tree, so — as with M6/M7/M8 — `sync` ships as a builtin pseudo-module
 (`import sync; sync.Mutex()`) plus bare globals, and no module wrapper was added. (2) The plan's
 example grammar `count += 1 in mu` is illustrative only; locking is explicit via `mu.lock()`/
 `mu.unlock()` (no `in`-guarded-assignment form was added). (3) `select` no longer polls every
@@ -1042,7 +1042,7 @@ sanitizer build. (5) Partial `PLAN P14`
 statically checked for sendability (type + reason); captures tracked per lambda boundary with
 transitive propagation. The existing `chan.send` sendability gate is retained and `Atomic[T]`
 element types are checked for sendability, but the dynamic closure model leaves broader general
-analysis open; unsynchronized shared globals remain a concern and TSan/ASan gates not fully wired. (6) Compatibility wrappers for `sync`/`reflect`/`collections`/`bytes`/`bigint` added under `stdlib/pet/`.
+analysis open; unsynchronized shared globals remain a concern and TSan/ASan gates not fully wired. (6) Compatibility wrappers for `sync`/`reflect`/`collections`/`bytes`/`bigint` added under `stdpet/`.
 
 **Update (2026-10-23).** The condvar `select` deviation is closed for channel/task/timer arms. A
 shared readiness bus (`SelectBus`: mutex + condition variable + generation counter) is bumped by
@@ -1069,7 +1069,7 @@ sleeps raced once the 1 ms poll no longer masked scheduling jitter). Gates: 2b 6
 
 > Reference: Odin — `core/reflect` (`Odin/core/reflect/reflect.odin`); Python — `types`.
 
-**Files:** `stdlib/lib/reflect.kn` + `src/interp/runtime.cpp` (runtime metadata over `VK`/type table:
+**Files:** `stdpet/reflect.kn` + `src/interp/runtime.cpp` (runtime metadata over `VK`/type table:
 `type/fields/methods/kind_of/variants/get_field/set_field/deep_equal/new`), `src/sema/type.h`
 (type-descriptor), `EXP P7`, `DATA P14`, `PLAN P5.2`.
 
@@ -1106,8 +1106,8 @@ heap fields), `reflect.has_field(x, name)`, `reflect.deep_equal(a, b)` (reuses `
 (same treatment as `sync`/`math`). Tests: `tests/syntax/reflect_ok.kn`,
 `tests/vm_parity/reflect_m10.kn`, `examples/60_reflect.kn` (+3 recorded goldens); gate 255, golden
 245, crosscheck 579, stdlib 9, all 0 fail; tree-walk and VM outputs are byte-identical. Deviations
-recorded: (1) the plan lists `stdlib/lib/reflect.kn` + `import lib.reflect`, but the repository has no
-`stdlib/lib` tree, so — as with M6–M9 — `reflect` ships as a builtin pseudo-module (`import reflect;`)
+recorded: (1) the plan lists `stdpet/reflect.kn` + `import lib.reflect`, but the repository has no
+`stdpet` tree, so — as with M6–M9 — `reflect` ships as a builtin pseudo-module (`import reflect;`)
 and no module wrapper was added. (2) `reflect.fields` returns an ordered `dict` (name→value) rather
 than a list of descriptors; `field_names`/`methods` return `list(Str)`. (3) `reflect.new(t)` takes only
 a type reference and fills fields from their declared defaults (or a type-appropriate zero: `0`/`0.0`/

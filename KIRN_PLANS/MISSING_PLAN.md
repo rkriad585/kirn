@@ -264,10 +264,11 @@ under `stdpet/pet/` (so `import pet.sync` etc. are unchanged), and the `text/` t
 and golden scripts (`kirn test stdpet/pet`, crosscheck over `stdpet/`), the release workflow, and
 the installer's `KIRN_STDLIB` target all point at `stdpet/`. `KIRN_STDLIB` and the driver's internal
 `stdlibDirs_`/`addStdlibDir` names are kept for compatibility; only the on-disk directory changed.
-Verified after the rename: 1_runall 85/0, 2b 64/0, 4_vm_diff 104/0, 6_test 18/0, 9_MIR 10/0,
-golden 354/0, crosscheck 927/0. Prebound module collisions prevent flattening `stdpet/pet/` to
-`stdpet/` or dropping the `pet.` prefix without loader precedence changes (names like `sync`,
-`parallel`, `json`, `error`, `math`, `io`, `os`, `time`, `reflect` are predeclared).
+The `stdpet/pet/` layout and `pet.` import prefix remain as-is by design (flattening/dropping the
+prefix would conflict with predeclared modules like `sync`, `parallel`, `json`, `error`, `math`,
+`io`, `os`, `time`, `reflect` and would require loader precedence changes). Verified after the
+rename: 1_runall 85/0, 2b 64/0, 4_vm_diff 104/0, 6_test 18/0, 9_MIR 10/0, golden 354/0,
+crosscheck 927/0. **Status: completed.**
 
 ---
 

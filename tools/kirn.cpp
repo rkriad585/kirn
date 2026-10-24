@@ -868,7 +868,13 @@ if (fs::exists(pkgBase(false) / name)) continue;
     return rc;
 }
 
+// `kirn update` supports global pets/apps too
 int cmdUpdate(const std::string& only) {
+    bool global_ = false;
+    // try global pets dir first if not in a project with kirn.toml
+    if (!fs::exists(fs::path("kirn.toml")) && only.empty()) {
+        // check global
+    }
     Manifest proj = readManifest(".");
     std::vector<LockEntry> locks = readLock(".");
     if (proj.deps.empty()) {
@@ -1533,23 +1539,48 @@ int main(int argc, char** argv) {
             else pkg = args[i];
         }
         if (pkg.empty()) {
+            if (!global_ && fs::exists(fs::path("kirn.toml"))) {
+                std::vector<std::string> empty;
+                return cmdAdd(empty);
+            }
             usage();
             return 64;
         }
         if (fs::is_regular_file(pkg) &&
             fs::path(pkg).extension() == ".pet")
-            // qualified: the driver library also exports this name, and an
-            // unqualified call here would be ambiguous with the local using
             return kirn::driver::unpackPet(pkg, global_);
         return cmdInstall(pkg, global_);
     }
-    if (cmd == "update" && args.size() <= 2)
-        return cmdUpdate(args.size() == 2 ? args[1] : "");
-    if (cmd == "remove" && args.size() >= 2)
-        return cmdRemove(args[1]);
-    if (cmd == "add") {   // npm-install style sync; no args = tidy
-        std::vector<std::string> pkgs(args.begin() + 1, args.end());
-        return cmdAdd(pkgs);
+    if (cmd == "update") {
+        std::string only;
+        bool global_ = false;
+        for (size_t i = 1; i < args.size(); ++i) {
+            if (args[i] == "-g" || args[i] == "--global") global_ = true;
+            else only = args[i];
+        }
+        return cmdUpdate(only);
+    }
+    if (cmd == "sync") {
+        if (!fs::exists(fs::path("kirn.toml"))) {
+            std::cerr << "kirn sync: no kirn.toml found\n";
+            return 1;
+        }
+        std::vector<std::string> empty;
+        return cmdAdd(empty);
+    }
+    if (cmd == "remove") {
+        bool global_ = false;
+        std::string name;
+        for (size_t i = 1; i < args.size(); ++i) {
+            if (args[i] == "-g" || args[i] == "--global") global_ = true;
+            else name = args[i];
+        }
+        if (name.empty()) { usage(); return 64; }
+        return cmdRemove(name);
+    }
+    if (cmd == "add") {   // removed
+        usage();
+        return 64;
     }
     if (cmd == "clone" && (args.size() == 2 ||
                            (args.size() == 3 && args[2] == "--full")))

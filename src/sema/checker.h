@@ -202,6 +202,12 @@ private:
     // recorded in typeCache_ so codegen can query it later.
     TyP checkExpr(const ast::Expr& e);
     TyP checkExprImpl(const ast::Expr& e);
+    // Resolves a name and records it as a capture when it crosses the innermost
+    // lambda boundary (M11/P14). Returns nullptr when the name is not bound.
+    Symbol* resolveName(const std::string& name);
+    // Pops the innermost lambda frame, stores its captures on the Lambda node,
+    // and merges transitive captures into the enclosing lambda.
+    void finishLambda(const ast::Expr& e);
     TyP checkCall(const ast::Expr& e);
     TyP checkMemberCall(const TyP& recv, const std::string& name,
                         const std::vector<ast::CallArg>& args, uint32_t line,
@@ -263,6 +269,10 @@ private:
     bool isSendable(const TyP& t, std::string* why);
     bool isSendableVisit(const TyP& t, std::string* why,
                          std::set<std::string>& seeing);
+    // M11/P14: a closure passed to `spawn`/`WaitGroup.go` runs on another
+    // thread, so every variable it captured must be sendable. Reports one error
+    // per non-sendable capture; no-op for non-lambda expressions.
+    void checkClosureSendable(const ast::Expr& e, const char* what);
 
     // ---- M5: compile-time evaluation (const fn / comptime) ----
     // Interpreter for the pure, side-effect-free subset of the language that a
@@ -336,6 +346,20 @@ private:
     // M1 pipe topic: type of `%` inside each enclosing `|>` body, innermost
     // last. Empty outside a pipe (a `%` there is E-PIPE-TOPIC).
     std::vector<TyP> topicStack_;
+    // M11/P14: lambda capture tracking. Each frame records the lambda's own
+    // scope (the boundary) and the symbols it captures from enclosing scopes.
+    // Captures include transitive captures of nested lambdas that are not
+    // bound inside this lambda, so a spawned closure's set is complete.
+    struct LambdaCaptureFrame {
+        Scope* boundary = nullptr;
+        std::map<std::string, TyP> caps;
+    };
+    std::vector<LambdaCaptureFrame> lambdaFrames_;
+    // Types of each lambda expression's captured names, keyed by the Lambda
+    // node. Used by the `spawn`/`WaitGroup.go` sendability check, which may
+    // run where the captured names are no longer in lexical scope.
+    std::map<const ast::Expr*, std::vector<std::pair<std::string, TyP>>>
+        lambdaCaptureTypes_;
     // M3 flow-sensitive narrowing facts, keyed by Symbol*. Scoped with
     // push()/pop() (narrowedStack_) so facts about a scope's bindings die with
     // it -- otherwise a destroyed Symbol's address could be reused by a later

@@ -3298,6 +3298,9 @@ void Checker::checkStmt(const ast::Stmt& s) {
                                       " to 'spawn': " + why +
                                       " is not sendable");
                     }
+                    checkClosureSendable(call, "spawn");
+                } else if (s.kind == StKind::Spawn && call.kind == ExKind::Lambda) {
+                    checkClosureSendable(call, "spawn");
                 }
             }
             break;
@@ -3704,6 +3707,70 @@ const ConstVal* Checker::constValue(const std::string& name) const {
     return it != constVals_.end() ? &it->second : nullptr;
 }
 
+Symbol* Checker::resolveName(const std::string& name) {
+    if (lambdaFrames_.empty()) return scope_->find(name);
+    // Walk the scope chain by hand so we know whether the binding sits inside
+    // the innermost lambda (a local/param) or outside it (a capture).
+    Scope* boundary = lambdaFrames_.back().boundary;
+    bool pastBoundary = false;
+    for (Scope* s = scope_; s; s = s->parent) {
+        auto it = s->syms.find(name);
+        if (it != s->syms.end()) {
+            Symbol* sym = it->second.get();
+            if (pastBoundary &&
+                (sym->kind == SymK::Var || sym->kind == SymK::Param ||
+                 sym->kind == SymK::Const)) {
+                TyP ty = sym->type ? sym->type : unkTy();
+                auto nit = narrowed_.find(sym);
+                if (nit != narrowed_.end()) ty = nit->second;
+                lambdaFrames_.back().caps[name] = ty;
+            }
+            return sym;
+        }
+        if (s == boundary) pastBoundary = true;
+    }
+    return nullptr;
+}
+
+void Checker::finishLambda(const ast::Expr& e) {
+    LambdaCaptureFrame frame = std::move(lambdaFrames_.back());
+    lambdaFrames_.pop_back();
+    if (!frame.caps.empty()) {
+        std::vector<std::pair<std::string, TyP>> types;
+        types.reserve(frame.caps.size());
+        for (const auto& [name, ty] : frame.caps)
+            types.emplace_back(name, ty);
+        lambdaCaptureTypes_[&e] = std::move(types);
+    }
+    if (lambdaFrames_.empty()) return;
+    // A nested lambda's captures that are not bound inside the enclosing lambda
+    // are captures of the enclosing lambda too (transitive closure). Those that
+    // name an enclosing local stay local and must not leak upward.
+    LambdaCaptureFrame& outer = lambdaFrames_.back();
+    for (const auto& [name, ty] : frame.caps) {
+        bool local = false;
+        for (Scope* s = scope_; s; s = s->parent) {
+            if (s->syms.count(name)) { local = true; break; }
+            if (s == outer.boundary) break;
+        }
+        if (!local) outer.caps[name] = ty;
+    }
+}
+
+void Checker::checkClosureSendable(const ast::Expr& e, const char* what) {
+    if (e.kind != ExKind::Lambda) return;
+    auto it = lambdaCaptureTypes_.find(&e);
+    if (it == lambdaCaptureTypes_.end()) return;
+    for (const auto& [name, ty] : it->second) {
+        std::string why;
+        if (!isSendable(ty, &why))
+            error(e.span.line, e.span.col,
+                  std::string("cannot pass closure to '") + what +
+                      "': captured variable '" + name + "' of type " +
+                      toString(*ty) + " is not sendable (" + why + ")");
+    }
+}
+
 TyP Checker::checkExpr(const ast::Expr& e) {
     TyP t = checkExprImpl(e);
     typeCache_[&e] = t;
@@ -3726,7 +3793,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             return strTy();
 
         case ExKind::Ident: {
-            Symbol* sym = scope_->find(e.text);
+            Symbol* sym = resolveName(e.text);
             if (!sym) {
                 if (importRoots_.count(e.text)) return unkTy();
                 // `bucket` names live in the separate bucket store; still allow
@@ -3795,7 +3862,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     e.rhs->kind != ExKind::Lambda)
                     error(e.span,
                           "spawn expects a function call or closure");
-                if (e.rhs) checkExpr(*e.rhs);
+                if (e.rhs) { checkExpr(*e.rhs); checkClosureSendable(*e.rhs, "spawn"); }
                 return nominalWithArgs(TyK::Struct, "thread", {});
             }
             if (op == "await") {
@@ -4161,6 +4228,7 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 currentRet_ = e.retType ? resolveType(e.retType) : nullptr;
                 loopDepth_ = 0;
                 push();
+                lambdaFrames_.push_back({scope_, {}});
                 std::vector<TyP> ps;
                 for (const auto& p : e.closureParams) {
                     TyP pt = p.type ? resolveType(p.type) : unkTy();
@@ -4169,15 +4237,18 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     ps.push_back(std::move(pt));
                 }
                 checkBlock(e.lambdaBody);
+                finishLambda(e);
                 pop();
                 TyP ret = e.retType ? resolveType(e.retType) : unkTy();
                 return fnTy(std::move(ps), ret);
             }
             push();
+            lambdaFrames_.push_back({scope_, {}});
             for (const auto& p : e.lambdaParams)
                 declareLocal(SymK::Param, p, unkTy(), true, e.span.line,
                              e.span.col);
             TyP bodyT = e.rhs ? checkExpr(*e.rhs) : unkTy();
+            finishLambda(e);
             pop();
             std::vector<TyP> ps(e.lambdaParams.size(), unkTy());
             return fnTy(std::move(ps), bodyT);
@@ -4621,6 +4692,18 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
             error(args[0].value->span.line, args[0].value->span.col,
                   "cannot send " + toString(*at) +
                       " across threads: " + why + " is not sendable");
+    }
+    if (recv && name == "go" && !args.empty()) {
+        // WaitGroup.go(f) / Barrier.go(f) -- run f on a new thread
+        ++quiet_;
+        TyP ft = checkExpr(*args[0].value);
+        --quiet_;
+        if (ft && ft->is(TyK::Fn)) { /* handled as callable */ }
+        // Check closure captures for sendability
+        if (!args.empty() && args[0].value &&
+            args[0].value->kind == ExKind::Lambda) {
+            checkClosureSendable(*args[0].value, "go");
+        }
     }
     return sig->ret;
 }

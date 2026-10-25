@@ -28,6 +28,15 @@ if(KIRN_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
+option(KIRN_TSAN "Build with ThreadSanitizer" OFF)
+if(KIRN_TSAN)
+    if(KIRN_ASAN)
+        message(FATAL_ERROR "KIRN_ASAN and KIRN_TSAN cannot be enabled together")
+    endif()
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=thread)
+endif()
+
 # Phase 4: opt-in LLVM codegen backend (-DKIRN_WITH_LLVM=ON). Off by default so
 # a normal build stays dependency-free; the driver library never links LLVM --
 # only kirnc does, behind KIRN_HAS_LLVM.

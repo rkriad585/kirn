@@ -37,6 +37,12 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: ASan corpus (examples)
+        run: bash scripts/asanall.sh 2>&1 | tail -30
+
+      - name: TSan corpus (examples)
+        run: bash scripts/tsanall.sh 2>&1 | tail -30
+
       # Phase 1 verification. These two were the missing oracles until now:
       # the gate scripts assert exit codes and substring greps, so they stay
       # green while whitespace, ordering and stderr wording change freely -- and

@@ -83,7 +83,7 @@ bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 // uses zig-style single dash in one place and gcc-style in another; dropping
 // either would make it a filename. -emit-llvm landed with the LLVM backend
 // (phase 4) but is NOT in this list: it is a real verb below (`llvm`).
-const char* const kLaterFlags[] = {"-c", "-###", "-v", "--verbose",
+const char* const kLaterFlags[] = {"-S", "-s", "-c", "-###", "-v", "--verbose",
                                    "-emit-sasm", "--emit-sasm"};
 
 bool isLaterFlag(const std::string& a) {
@@ -216,13 +216,49 @@ int main(int argc, char** argv) {
     // verbs are optional: if first arg is not a verb and not -E and not a flag,
     // default to "check"
     const std::string verb0 = args.front();
+    auto isFlag = [](const std::string& a) { return !a.empty() && a[0] == '-'; };
     bool verbIsVerb = (verb0 == "check" || verb0 == "lex" || verb0 == "parse" ||
                        verb0 == "run" || verb0 == "hir" || verb0 == "rt" ||
-                       verb0 == "build" || verb0 == "llvm");
+                       verb0 == "build" || verb0 == "llvm" || verb0 == "-E");
     std::string verb = verbIsVerb ? verb0 : "check";
     std::vector<std::string> rest = verbIsVerb
                                         ? std::vector<std::string>(args.begin() + 1, args.end())
                                         : args;
+
+    // if -S/-c appear as verb position after default? handled
+
+    // also handle -S as first flag when no verb given? already handled above
+    if (verb == "-S" || verb == "-s") {
+        verb = "build";
+        rest.insert(rest.begin(), "-S");
+    } else if (verb == "--asm") {
+        verb = "build";
+        rest.insert(rest.begin(), "-S");
+    } else if (verb == "-c") {
+        std::cerr << "kirnc: '-c' is not implemented yet\n"
+                  << "  -c lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
+        return 2;
+    } else if (verb == "-###") {
+        std::cerr << "kirnc: '-###' is not implemented yet\n"
+                  << "  -### lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
+        return 2;
+    } else if (verb == "-v" || verb == "--verbose") {
+        std::cerr << "kirnc: '-v' is not implemented yet\n"
+                  << "  -v lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
+        return 2;
+    } else if (isFlag(verb)) {
+        // unknown flag as verb
+        std::cerr << "kirnc: unknown option '" << verb << "'\n";
+        std::cerr << kUsage;
+        return 2;
+    }
+
+    if (verb != "check" && verb != "lex" && verb != "parse" && verb != "run" &&
+        verb != "hir" && verb != "rt" && verb != "build" && verb != "llvm" && verb != "-E") {
+        std::cerr << "kirnc: unknown verb '" << verb << "'\n";
+        std::cerr << kUsage;
+        return 2;
+    }
 
     // `kirnc -E file.kn` -- the gcc spelling, where -E acts as the verb. This is
     // checked before verb validation because "-E" is not a verb name, and a user
@@ -240,12 +276,20 @@ int main(int argc, char** argv) {
 
     for (const auto& a : rest) {
         if (!isLaterFlag(a)) continue;
-        std::cerr << "kirnc " << verb << ": '" << a
-                  << "' is not implemented yet\n"
-                  << "  -emit-sasm lands with codegen, and -S/-c/-###/-v with the "
-                     "driver grammar; see BUILDER-PLAN.md section 6\n";
-        return 2;
+        if (a == "-S" || a == "-s" || a == "--asm" || a == "-emit-sasm" || a == "--emit-sasm") {
+            if (verb == "build" || verb == "run" || verb == "check") {
+                // allow -S through to build for check? no, handle below
+            }
+        }
+        if (a == "-c" || a == "-###" || a == "-v" || a == "--verbose") {
+            std::cerr << "kirnc " << verb << ": '" << a
+                      << "' is not implemented yet\n"
+                      << "  -c/-###/-v land with the assembler+linker phase; see BUILDER-PLAN.md\n";
+            return 2;
+        }
     }
+
+    // -E handled earlier; -D/-U only with -E handled.
 
     // `-fbackend=llvm` is now a real selector (phase 4). A codegen verb would
     // have to assemble and link the module before it could run or build
@@ -375,12 +419,27 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    // `build` goes through the existing build driver, so there is exactly one
-    // implementation of the pipeline. cmdBuild's `from` skips argv[0] (the
-    // program name), so the verb occupies slot 0 and the real arguments begin
-    // at index 1.
-    std::vector<std::string> forwarded;
-    forwarded.push_back(verb);
-    for (const auto& a : rest) forwarded.push_back(a);
-    return kirn::driver::cmdBuild(forwarded, 1);
+    if (verb == "build" || verb == "run") {
+        // forward to existing build driver; -S/-s/--asm map to opts.sasm
+        std::vector<std::string> forwarded;
+        forwarded.push_back(verb == "run" ? std::string("build") : verb);
+        for (const auto& a : rest) {
+            if (a == "--emit-sasm") { forwarded.push_back("-S"); continue; }
+            if (a == "-emit-sasm") { forwarded.push_back("-S"); continue; }
+            if (a == "--verbose" || a == "-v") continue; // no-op for now
+            forwarded.push_back(a);
+        }
+        return kirn::driver::cmdBuild(forwarded, 1);
+    }
+    if (verb == "check" && (hasFlag("-S") || hasFlag("-s") || hasFlag("--asm") || hasFlag("--emit-sasm") || hasFlag("-emit-sasm"))) {
+        std::vector<std::string> forwarded;
+        forwarded.push_back("build");
+        for (const auto& a : rest) {
+            if (a == "--emit-sasm") { forwarded.push_back("-S"); continue; }
+            if (a == "-emit-sasm") { forwarded.push_back("-S"); continue; }
+            forwarded.push_back(a);
+        }
+        // add a dummy file if needed
+        return kirn::driver::cmdBuild(forwarded, 1);
+    }
 }

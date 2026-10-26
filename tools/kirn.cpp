@@ -91,6 +91,7 @@ using kirn::driver::bundleBinary;
 using kirn::driver::bundleTail;
 using kirn::driver::buildAppShim;
 using kirn::driver::cmdBuild;
+using kirn::driver::cmdCheck;
 using kirn::driver::cmdTargets;
 using kirn::driver::ensureRunner;
 using kirn::driver::gatherEmbedded;
@@ -1653,6 +1654,10 @@ int main(int argc, char** argv) {
     }
     if (cmd == "test" && args.size() >= 1) return cmdTest(args, 1);
     if (cmd == "fmt") return cmdFmt(args);
+    if (cmd == "check") {
+        std::vector<std::string> checkArgs(args.begin() + 1, args.end());
+        return cmdCheck(checkArgs, "kirn check");
+    }
     if (cmd == "install" || cmd == "i") {
         bool global_ = false;
         std::string pkg;

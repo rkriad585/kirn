@@ -107,6 +107,7 @@ using kirn::driver::readManifest;
 using kirn::driver::regenerateDocs;
 using kirn::driver::resolveEntry;
 using kirn::driver::runProgram;
+using kirn::driver::runProgramSrc;
 using kirn::driver::selfExeDir;
 using kirn::driver::shellNullDevice;
 using kirn::driver::trimSlashes;
@@ -1301,6 +1302,96 @@ int cmdFmt(const std::vector<std::string>& args) {
     return 0;
 }
 
+bool replStatementLike(const std::string& text) {
+    size_t first = text.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return true;
+    std::string head = text.substr(first);
+    for (const char* kw : {"var ", "const ", "local ", "global ", "temp ",
+                           "bucket ", "if ", "while ", "for ", "match ",
+                           "try ", "defer ", "return ", "raise ", "print("})
+        if (head.rfind(kw, 0) == 0) return true;
+    size_t eq = head.find('=');
+    return eq != std::string::npos &&
+           (eq + 1 == head.size() || head[eq + 1] != '=') &&
+           (eq == 0 || head[eq - 1] != '=' && head[eq - 1] != '<' &&
+            head[eq - 1] != '>');
+}
+
+int replBraceDelta(const std::string& text) {
+    int depth = 0;
+    bool string = false, escape = false;
+    for (char c : text) {
+        if (escape) { escape = false; continue; }
+        if (c == '\\' && string) { escape = true; continue; }
+        if (c == '"' && !string) { string = true; continue; }
+        if (c == '"' && string) { string = false; continue; }
+        if (!string && c == '{') ++depth;
+        if (!string && c == '}') --depth;
+    }
+    return depth;
+}
+
+std::string replNormalizeStatements(const std::string& text) {
+    std::istringstream in(text);
+    std::ostringstream out;
+    std::string line;
+    while (std::getline(in, line)) {
+        size_t first = line.find_first_not_of(" \t");
+        size_t last = line.find_last_not_of(" \t\r");
+        if (first != std::string::npos && last != std::string::npos &&
+            line.compare(first, 6, "print(") == 0 && line[last] == ')')
+            line.push_back(';');
+        out << line << '\n';
+    }
+    return out.str();
+}
+
+int cmdRepl() {
+    std::cout << "Kirn REPL (:help for help, :quit to exit)\n";
+    std::string buffer;
+    std::string declarations;
+    int braces = 0;
+    auto dirs = libDirsFor(".");
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (buffer.empty() && line == ":help") {
+            std::cout << ":help  show this help\n:quit  exit the REPL\n"
+                         "Enter an expression to print its value, or a Kirn statement.\n";
+            continue;
+        }
+        if (buffer.empty() && (line == ":quit" || line == ":q")) break;
+        if (buffer.empty() && line.empty()) continue;
+
+        buffer += line;
+        buffer.push_back('\n');
+        braces += replBraceDelta(line);
+        if (braces > 0) continue;
+
+        bool hasMain = buffer.find("fn main") != std::string::npos ||
+                       buffer.find("async fn main") != std::string::npos;
+        bool declaration = buffer.find("fn ") == 0 ||
+                           buffer.find("struct ") == 0 ||
+                           buffer.find("enum ") == 0 ||
+                           buffer.find("trait ") == 0;
+        std::string source;
+        if (hasMain) source = buffer;
+        else if (declaration) {
+            declarations += buffer;
+            source = declarations + "\nfn main() -> none {}\n";
+        } else if (replStatementLike(buffer))
+            source = declarations + "fn main() -> none {\n" +
+                    replNormalizeStatements(buffer) + "}\n";
+        else
+            source = declarations + "fn main() -> none {\nprint(" + buffer + ");\n}\n";
+
+        int rc = runProgramSrc("<repl>", source, dirs, {});
+        if (rc != 0) std::cout << "repl: evaluation failed (rc=" << rc << ")\n";
+        buffer.clear();
+        braces = 0;
+    }
+    return 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // kirn doc — markdown viewer over HTTP
@@ -1661,6 +1752,13 @@ int main(int argc, char** argv) {
     if (cmd == "lint") {
         std::vector<std::string> lintArgs(args.begin() + 1, args.end());
         return cmdCheck(lintArgs, "kirn lint");
+    }
+    if (cmd == "repl") {
+        if (args.size() != 1) {
+            std::cerr << "usage: kirn repl\n";
+            return 64;
+        }
+        return cmdRepl();
     }
     if (cmd == "install" || cmd == "i") {
         bool global_ = false;

@@ -71,12 +71,12 @@ touching a phase.
 
 | Feature                     | In plan docs?               | In source today | Source evidence                                                                                    |
 | --------------------------- | --------------------------- | --------------- | -------------------------------------------------------------------------------------------------- |
-| 1 Walrus `:=`               | SYNTAX SP-2, EXP P5         | **No**          | `:=` absent from `kOps2` (`src/lex/lexer.cpp:59-62`); no `ExKind::AssignExpr`                      |
-| 2 Pipe `\|>`                | EXP P5                      | **No**          | `\|>` absent from lexer op tables                                                                  |
-| 3 Elvis `??`/`??=`          | SYNTAX SP-4, EXP P6         | **No**          | `??` absent from `kOps2`; only `.?.` exists (`kOps3`, lexer:58)                                    |
+| 1 Walrus `:=`               | SYNTAX SP-2, EXP P5         | **Complete**    | `src/lex/lexer.cpp`, `ExKind::AssignExpr`, parser/checker/interpreter/VM/native tests              |
+| 2 Pipe `\|>`                | EXP P5                      | **Complete**    | `src/lex/lexer.cpp`, `ExKind::Pipe`/`Topic`, parser/checker/interpreter/VM/native tests            |
+| 3 Elvis `??`/`??=`          | SYNTAX SP-4, EXP P6         | **Complete**    | `src/lex/lexer.cpp`, `ExKind::Coalesce`, lazy `??=` assignment, parser/checker/VM/native tests     |
 | 4 `++`/`--`                 | PLAN §5.4, EXP §2           | **Rejected**    | grammar §4.9 keeps them out; use `+= 1`                                                            |
 | 5 Ternary `?:`              | EXP §2 (§A4.9)              | **Rejected**    | `if c { a } else { b }` conditional-expression exists instead                                      |
-| 6 `@` matrix mult           | EXP P13                     | **No**          | `@` is only a pattern-alias token today; no MatMul trait                                           |
+| 6 `@` matrix mult           | EXP P13                     | **Complete**    | `MatMul`/`matmul`, `__matmul__`, `__rmatmul__`, `__imatmul__`, promotion and scalar diagnostics    |
 | 7 Dict/set comps            | SYNTAX SP-9, EXP P12        | **Partial**     | `ListComp`+`CompClause` exist (`src/ast/ast.h:84,95`); no dict/set builders, no `*`/`**` unpacking |
 | 8 Optional chain `?.`       | SYNTAX SP-4, EXP P6         | **Partial**     | `.?.` member form exists; no chaining, no `a?.[i]`, no `a?.()`                                     |
 | 9 Smart casts               | EXP P6/P8, SYNTAX SP-5      | **No**          | `is` tests exist (`operatorIs`), but no branch-narrowing of static type                            |
@@ -502,6 +502,12 @@ precedence and short-circuit verified; `native_main.kn` still green.
 ---
 
 ### Phase M2 — Matrix multiply `@` _(feature 6)_
+
+**Status: COMPLETE** — `@` and `@=` use the `MatMul` trait with Python-style
+dunder aliases and reflected dispatch. Scalar operands receive
+`E-MATMUL-SCALAR`; vector/matrix promotion is covered by the matrix corpus;
+tree-walker and VM outputs agree, and native code generation correctly keeps
+aggregate matrix operations on the interpreter fallback path.
 
 **Goal:** `a @ b` matrix product via the operator-trait machinery.
 

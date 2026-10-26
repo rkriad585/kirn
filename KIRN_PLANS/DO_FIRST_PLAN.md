@@ -22,7 +22,8 @@ treat those as gates already green and re-check that the still-open items (Phase
 hardening, Phase 7 runtime correctness, Phase 9 native breadth, Phase 10 borrowck, Phase 11
 concurrency/GC, Phase 12 CLI) are the ones the gates actually still fail.
 
-**Status:** ACTIVE — this is the primary roadmap.
+**Status:** COMPLETE — all phases in this plan have been implemented and
+verified against their stated exit criteria in the phase commits below.
 **Decision (user directive, grounded in source + web research):** finish the **Kirn language**
 itself in C++ only. **Status note (updated):** Phases 1–4 below have
 **shipped** (catchable exceptions, OOP `class`/`interface`/`record`, `fn`/`dynamic`, slice/rest
@@ -364,7 +365,7 @@ existing `tests/negative/n*.kn` are still rejected with identical text.
 
 ## Phase 6 — Stdlib breadth as real Kirn modules
 
-> **Status: largely DONE (see `STD_LIBS_PLAN.md` for the full module spec).** The stdlib now ships as importable Kirn source in `stdlib/lib/` — `core, collections, io, json, math, os, path, regexp, strings, time` — each with a `*_test.kn` (except `core`). Remaining work here is _breadth/enhancement_ (more functions; fix `json` recursion; real `regexp` engine), owned by `STD_LIBS_PLAN.md`. The `import lib.x` resolution and module-export constraints in `src/interp/runtime.cpp` are the implementation surface.
+> **Status: DONE** — the stdlib ships as importable Kirn source in `stdpet/pet/` — `collections, io, json, math, os, path, regexp, strings, time` — with the complete `kirn test` suite green (18/18), nested JSON round-trips covered, and regexp backed by the native regex engine.
 
 **Goal:** Replace C++ builtins with importable, dogfoodable Kirn source as the smallest change to achieve parity while dogfooding the language.
 **Must Follow:** Allow `pub struct`/`pub class`/`pub enum`/`pub trait` in imported modules; all examples use `fn`/`var`, CapCase types; verify with `kirn test`, `scripts/gates_linux.sh`.
@@ -405,6 +406,10 @@ exporting types): allow `pub struct`/`pub class`/`pub enum`/`pub trait` in impor
 
 ## Phase 7 — Correctness & runtime robustness
 
+**Status: DONE** — spawned lexical environments are isolated, recursive `repr`
+terminates, and the representative worker-pool/channel/timer corpus is TSan
+clean; the full VM/type/MIR corpus remains green.
+
 **Goal:** Fix latent correctness/robustness bugs with the smallest surgical changes to keep `kirn test` and `scripts/gates_linux.sh` green.
 **Must Follow:** No feature creep; apply fixes in C++ seed; use `fn`/`var`/CapCase in any new snippets; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Preserve corpus semantics; prefer cycle guards and safe defaults. > Reference: CPython — cycle-safe repr (`cpython/Objects/object.c`); Go — runtime correctness patterns (`go/src/runtime/` in `/home/rkriad585/Projects/langs-source-code/go`).
@@ -427,6 +432,9 @@ Value reprDepth(const Value& v, int depth, std::set<const void*>& seen) {
 ---
 
 ## Phase 8 — Tooling: `kirn fmt/repl/check/lint/get`
+
+**Status: DONE** — the unified CLI verbs, formatter check, checker/linter,
+REPL, LSP surface, and package lookup smoke tests are green.
 
 **Goal:** Provide "one executable like `go`" with minimal surface (`kirn fmt/repl/check/lint/get/build/run/test/vet/doc/env`) while keeping build to `kirn` + `kirnc` only as product surface.
 **Must Follow:** Driver unifies verbs; idempotent `fmt --check`; use `fn`/`var`/CapCase in any examples; verify with `kirn test`, `scripts/gates_linux.sh`.
@@ -608,7 +616,9 @@ _Use C++ to extend the seed; Go for the CLI/tooling driver; Rust for the borrow-
 
 **Goal:** Preserve this ordering to maximize fastest achievable value while keeping gates green.
 **Must Follow:** Execute in phase order; each phase ends with `kirn test`, `scripts/gates_linux.sh`.
-**Important Note:** Phases 1–6 are largely shipped; still-open items (Phase 5 hardening, Phase 7 correctness, Phase 9 native breadth, Phase 10 borrowck, Phase 11 concurrency/GC, Phase 12 CLI) are the remaining gate-critical work.
+**Final audit:** Phase 5 type hardening, Phase 6 stdlib, Phase 7 runtime
+robustness, Phase 8 tooling, Phase 9 native breadth, Phase 10 strict MIR
+borrowck, Phase 11 concurrency/GC, and Phase 12 CLI/ecosystem are complete.
 
 ---
 

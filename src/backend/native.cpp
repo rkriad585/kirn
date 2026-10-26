@@ -46,8 +46,9 @@ static bool isOptScalarTy(const TyP& t) {
 // The set of types the native scalar backend can lower: plain scalars plus
 // optionals of scalars (elvis `??` short-circuits to the inner scalar).
 static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
+static bool isListTy(const TyP& t) { return t && t->k == TyK::List; }
 static bool isNativeTy(const TyP& t) {
-    return isScalarTy(t) || isOptScalarTy(t) || isStringTy(t);
+    return isScalarTy(t) || isOptScalarTy(t) || isStringTy(t) || isListTy(t);
 }
 
 // M11: value type `v` is storable into target type `t`. Scalars-to-optional
@@ -107,6 +108,7 @@ static std::string cppTy(const TyP& t) {
         case TyK::Bool:  return "bool";
         case TyK::Char:  return "char32_t";
         case TyK::Str:   return "std::string";
+        case TyK::List:  return "std::vector<kirn::interp::Value>";
         case TyK::Opt: {
             std::string in = cppTy(optInner(t));
             if (in.empty()) return "";
@@ -123,6 +125,8 @@ static TyP declTy(const ast::TypeP& t) {
     if (t->kind == ast::TyKind::Optional) return sema::optTy(declTy(t->inner));
     if (t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
+    if (n == "list" && t->generics.size() == 1)
+        return sema::listTy(declTy(t->generics[0]));
     static const char* kInts[] = {"i4", "i8", "i16", "i32", "i64", "i128",
                                   "i256", "u4", "u8", "u16", "u32", "u64",
                                   "u128", "u256", "isize", "usize",
@@ -338,6 +342,10 @@ private:
             case ExKind::Str:
                 return e.flavor == ast::StrFlavor::Normal ||
                        e.flavor == ast::StrFlavor::Raw;
+            case ExKind::List:
+                for (const auto& item : e.elems)
+                    if (!item || !exprLowerable(*item, cur)) return false;
+                return isListTy(t);
             case ExKind::Ident:
                 // `none` is only lowerable in an optional-scalar slot; the
                 // surrounding statement/return checks the target type.
@@ -520,6 +528,7 @@ public:
         out_ << "#include <cmath>\n"
              << "#include <optional>\n"
              << "#include <string>\n"
+             << "#include <vector>\n"
              << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
                 "kirn::interp::panicHere(m); }\n"
@@ -654,7 +663,21 @@ private:
         if (ty.rfind("std::optional<", 0) == 0) return "std::nullopt";
         return ty == "int64_t" ? "0"
              : ty == "double" ? "0.0"
-             : ty == "std::string" ? "std::string()" : "false";
+             : ty == "std::string" ? "std::string()"
+             : ty == "std::vector<kirn::interp::Value>" ? "{}" : "false";
+    }
+
+    std::string boxExpr(const ast::Expr& e) {
+        TyP t = typeOf(e);
+        if (t && t->k == TyK::Str)
+            return "kirn::interp::Value::str(" + emitExpr(e) + ")";
+        if (t && t->k == TyK::Float)
+            return "kirn::interp::Value::floating(" + emitExpr(e) + ")";
+        if (t && t->k == TyK::Bool)
+            return "kirn::interp::Value::boolean(" + emitExpr(e) + ")";
+        if (t && t->k == TyK::List)
+            return "kirn::interp::Value::list(" + emitExpr(e) + ")";
+        return "kirn::interp::Value::integer(" + emitExpr(e) + ")";
     }
 
     const NativeFunc* findCallee(const std::string& name) const {
@@ -822,6 +845,14 @@ private:
                     else out += static_cast<char>(c);
                 }
                 return out + "\")";
+            }
+            case ExKind::List: {
+                std::string out = "std::vector<kirn::interp::Value>{";
+                for (size_t i = 0; i < e.elems.size(); ++i) {
+                    if (i) out += ", ";
+                    out += boxExpr(*e.elems[i]);
+                }
+                return out + "}";
             }
             case ExKind::Ident:
                 if (e.text == "true") return "true";
@@ -1031,6 +1062,10 @@ void out_registerAll(
                        "interp.nativeEnvVar(e, \""
                     << nf.params[i] << "\"); if (!__p.isNone()) " << v
                     << " = __p." << envField(inner) << "; }\n";
+            } else if (pt == "std::vector<kirn::interp::Value>") {
+                out << "        " << pt << " " << v
+                    << " = *interp.nativeEnvVar(e, \""
+                    << nf.params[i] << "\").vec;\n";
             } else {
                 out << "        " << pt << " " << v
                     << " = interp.nativeEnvVar(e, \"" << nf.params[i]
@@ -1055,7 +1090,10 @@ void out_registerAll(
                 << "; if (!__r) return kirn::interp::Value::none();"
                    " return kirn::interp::Value::"
                 << valueCtor(inner) << "(*__r); }\n";
-        } else
+        } else if (nf.retCpp == "std::vector<kirn::interp::Value>")
+            out << "        return kirn::interp::Value::list(" << call
+                << ");\n";
+        else
             out << "        return kirn::interp::Value::" << valueCtor(nf.retCpp)
                 << "(" << call << ");\n";
         out << "    }); }\n";

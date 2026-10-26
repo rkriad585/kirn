@@ -1,0 +1,8 @@
+# Native list lowering: list literals can cross the native/interpreter boundary.
+fn values() -> list[Int] {
+    return [1, 2, 3];
+}
+
+fn main() -> none {
+    print(values());
+}

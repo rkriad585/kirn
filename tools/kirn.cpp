@@ -1780,6 +1780,22 @@ int main(int argc, char** argv) {
             return kirn::driver::unpackPet(pkg, global_);
         return cmdInstall(pkg, global_);
     }
+    if (cmd == "get") {
+        bool global_ = false;
+        std::string pkg;
+        for (size_t i = 1; i < args.size(); ++i) {
+            if (args[i] == "-g" || args[i] == "--global") global_ = true;
+            else if (args[i] == "--scan") {
+                std::cerr << "kirn get: --scan is not implemented yet\n";
+                return 64;
+            } else pkg = args[i];
+        }
+        if (pkg.empty()) {
+            std::cerr << "usage: kirn get [-g] <pkg>\n";
+            return 64;
+        }
+        return cmdInstall(pkg, global_);
+    }
     if (cmd == "update") {
         std::string only;
         bool global_ = false;

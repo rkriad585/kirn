@@ -1,0 +1,27 @@
+# M1 edge coverage: coalesce is right-associative and lazy, and a pipe topic
+# can occupy any call argument position.
+fn fallback() -> Int? {
+    print("fallback-called");
+    return 9;
+}
+
+fn pair(left: Int, right: Int) -> Int {
+    return left * 10 + right;
+}
+
+fn maybe(flag: Int) -> Int? {
+    if flag == 1 { return 5; }
+    return none;
+}
+
+fn main() -> none {
+    # The RHS must not run when the LHS is present.
+    print(Str(maybe(1) ?? fallback()));
+    print(Str(maybe(0) ?? fallback()));
+
+    # Right-association: none ?? (none ?? 7).
+    print(Str(maybe(0) ?? maybe(0) ?? 7));
+
+    # `%` can be used in a non-final argument position.
+    print(Str(5 |> pair(%, 2)));
+}

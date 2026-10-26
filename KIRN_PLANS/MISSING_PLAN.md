@@ -434,6 +434,12 @@ handling / Security / Cross-platform / Examples / Testing / Expected result`). E
 
 ### Phase M1 — Expression operators: walrus `:=`, pipe `|>`, elvis `??`/`??=` _(features 1,2,3)_
 
+**Status: COMPLETE** — the lexer, parser, checker, tree interpreter, bytecode VM,
+and scalar native path implement walrus, placeholder/unary pipe, elvis, and
+elvis-assignment semantics. Positive/negative syntax tests, the edge cases for
+short-circuiting/right-association/topic placement, VM parity, and native
+code-generation coverage are green.
+
 **Goal:** land the three high-value expression operators as pure sugar that lowers to existing AST/VM,
 zero new runtime cost.
 

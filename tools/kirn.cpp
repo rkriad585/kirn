@@ -1658,6 +1658,10 @@ int main(int argc, char** argv) {
         std::vector<std::string> checkArgs(args.begin() + 1, args.end());
         return cmdCheck(checkArgs, "kirn check");
     }
+    if (cmd == "lint") {
+        std::vector<std::string> lintArgs(args.begin() + 1, args.end());
+        return cmdCheck(lintArgs, "kirn lint");
+    }
     if (cmd == "install" || cmd == "i") {
         bool global_ = false;
         std::string pkg;

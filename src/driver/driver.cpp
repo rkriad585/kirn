@@ -3888,6 +3888,7 @@ void usage() {
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
         << "  kirn fmt [--check|-d|-w] [path] format .kn files deterministically\n"
         << "  kirn check [flags] <file.kn>     lex, parse, and type-check one file\n"
+        << "  kirn lint [flags] <file.kn>      type-check and report lint diagnostics\n"
         << "  kirn install|i [-g] <pkg>        install into ./pets (no pkg = sync in project with kirn.toml)\n"
         << "      [github.com/]user/repo[@tag] | <path> | <registry-"
                "name> | file.pet\n"

@@ -50,13 +50,11 @@
 //
 // ## Values and memory
 //
-// No SSA construction. The plan's own §4.6 says the right thing: "the front end
-// never builds SSA by hand; it emits allocas + stores, and the `mem2reg` pass
-// produces SSA". So MIR is alloca/load/store shaped -- memory is explicit,
-// values are single-assignment -- and Phase 4's LLVM backend gets SSA for free
-// from mem2reg. Hand-rolled dominance analysis is therefore not needed here
-// either, which is a large amount of code avoided rather than a feature
-// deferred.
+// MIR is SSA-compatible rather than hand-built SSA: the front end emits
+// alloca/load/store memory operations and each produced value is defined once.
+// The LLVM backend's mem2reg pass promotes this form to SSA. Strict ownership
+// checking runs on the same CFG with explicit block dataflow, so it does not
+// depend on a linear source-order approximation.
 //
 // Dominance IS still checked, and cheaply: the research is clear that dominance is
 // a real correctness property (LLVM: "Instruction does not dominate all uses!")

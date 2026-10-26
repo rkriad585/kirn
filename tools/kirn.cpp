@@ -25,6 +25,8 @@
 // share one implementation of the pipeline rather than two that drift.
 
 #include "driver/driver.h"
+#include "ast/ast.h"
+#include "support/diag.h"
 
 #include "util/tomlmini.h"
 
@@ -1434,6 +1436,123 @@ int cmdGetScan() {
     return 0;
 }
 
+std::string lspJsonEscape(const std::string& s) {
+    std::string out;
+    for (unsigned char c : s) {
+        if (c == '"') out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else if (c < 0x20) {
+            char buf[7];
+            snprintf(buf, sizeof buf, "\\u%04x", c);
+            out += buf;
+        } else out.push_back((char)c);
+    }
+    return out;
+}
+
+std::string lspStringField(const std::string& json, const std::string& key) {
+    std::string needle = "\"" + key + "\"";
+    size_t p = json.find(needle);
+    if (p == std::string::npos) return {};
+    p = json.find(':', p + needle.size());
+    if (p == std::string::npos) return {};
+    p = json.find('"', p + 1);
+    if (p == std::string::npos) return {};
+    std::string out;
+    bool esc = false;
+    for (++p; p < json.size(); ++p) {
+        char c = json[p];
+        if (esc) {
+            if (c == 'n') out.push_back('\n');
+            else if (c == 'r') out.push_back('\r');
+            else if (c == 't') out.push_back('\t');
+            else out.push_back(c);
+            esc = false;
+        } else if (c == '\\') esc = true;
+        else if (c == '"') break;
+        else out.push_back(c);
+    }
+    return out;
+}
+
+std::string lspId(const std::string& json) {
+    size_t p = json.find("\"id\"");
+    if (p == std::string::npos) return "null";
+    p = json.find(':', p + 4);
+    if (p == std::string::npos) return "null";
+    ++p;
+    while (p < json.size() && std::isspace((unsigned char)json[p])) ++p;
+    if (p < json.size() && json[p] == '"') {
+        size_t e = json.find('"', p + 1);
+        return e == std::string::npos ? "null" : json.substr(p, e - p + 1);
+    }
+    size_t e = p;
+    while (e < json.size() && (std::isdigit((unsigned char)json[e]) ||
+                               json[e] == '-')) ++e;
+    return e == p ? "null" : json.substr(p, e - p);
+}
+
+void lspReply(const std::string& body) {
+    std::cout << "Content-Length: " << body.size() << "\r\n\r\n" << body
+              << std::flush;
+}
+
+int cmdLsp() {
+    std::map<std::string, std::string> open;
+    std::string header, payload;
+    while (std::getline(std::cin, header)) {
+        if (header.rfind("Content-Length:", 0) != 0) continue;
+        size_t len = std::stoul(header.substr(15));
+        while (std::getline(std::cin, header) && !header.empty() && header != "\r") {}
+        payload.assign(len, '\0');
+        std::cin.read(payload.data(), (std::streamsize)len);
+        if ((size_t)std::cin.gcount() != len) break;
+
+        std::string method = lspStringField(payload, "method");
+        std::string id = lspId(payload);
+        if (method == "initialize") {
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":{\"capabilities\":{\"textDocumentSync\":1}}}");
+        } else if (method == "shutdown") {
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":null}");
+        } else if (method == "exit") {
+            return 0;
+        } else if (method == "textDocument/didOpen") {
+            std::string uri = lspStringField(payload, "uri");
+            std::string text = lspStringField(payload, "text");
+            if (!uri.empty()) open[uri] = std::move(text);
+        } else if (method == "textDocument/diagnostic") {
+            std::string uri = lspStringField(payload, "uri");
+            std::string source = open[uri];
+            kirn::DiagEngine diags;
+            if (!source.empty()) kirn::driver::frontEnd(uri, source, diags);
+            std::string items = "[";
+            for (size_t i = 0; i < diags.diags().size(); ++i) {
+                const auto& d = diags.diags()[i];
+                if (i) items += ",";
+                int severity = d.sev == kirn::Sev::Warning ? 2 : 1;
+                items += "{\"range\":{\"start\":{\"line\":" +
+                         std::to_string(d.line ? d.line - 1 : 0) +
+                         ",\"character\":" + std::to_string(d.col ? d.col - 1 : 0) +
+                         "},\"end\":{\"line\":" +
+                         std::to_string(d.span.endLine ? d.span.endLine - 1 : 0) +
+                         ",\"character\":" + std::to_string(d.span.endCol ? d.span.endCol - 1 : 0) +
+                         "}},\"severity\":" + std::to_string(severity) +
+                         ",\"message\":\"" + lspJsonEscape(d.message) +
+                         "\",\"source\":\"kirn\"}";
+            }
+            items += "]";
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":{\"kind\":\"full\",\"items\":" + items + "}}");
+        }
+    }
+    return 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // kirn doc — markdown viewer over HTTP
@@ -1801,6 +1920,13 @@ int main(int argc, char** argv) {
             return 64;
         }
         return cmdRepl();
+    }
+    if (cmd == "lsp") {
+        if (args.size() != 1) {
+            std::cerr << "usage: kirn lsp\n";
+            return 64;
+        }
+        return cmdLsp();
     }
     if (cmd == "install" || cmd == "i") {
         bool global_ = false;

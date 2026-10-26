@@ -3891,6 +3891,7 @@ void usage() {
         << "  kirn lint [flags] <file.kn>      type-check and report lint diagnostics\n"
         << "  kirn repl                        evaluate snippets interactively\n"
         << "  kirn get [-g] <pkg>              install a package (alias for install)\n"
+        << "  kirn lsp                        serve diagnostics over JSON-RPC stdio\n"
         << "  kirn install|i [-g] <pkg>        install into ./pets (no pkg = sync in project with kirn.toml)\n"
         << "      [github.com/]user/repo[@tag] | <path> | <registry-"
                "name> | file.pet\n"

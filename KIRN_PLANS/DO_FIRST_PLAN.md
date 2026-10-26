@@ -41,7 +41,10 @@ real code in the relevant language so the plan is executable, not prose.
 
 ## 0. Evidence the language is not done (source-backed) — _historical; items 1–2 now RESOLVED_
 
-> Revised: items 1–3 below were the original rationale. Items **1 (keywords + catchable exceptions) and 2 (stdlib)** have been **shipped** (see Phase 1/2/3.5 status notes and `stdlib/lib/`). Item **3** is partially resolved (patterns, closures, and generators landed in Phases 3/3.5/4); the remaining parts (borrow/move checker, default generic params, `iota` discriminants, crypto/extensive stdlib, `kirn fmt/repl/check/lint`) are still open. Item **4** (scalar-only native backend) is still accurate. Kept below for provenance.
+> Revised: items 1–3 below were the original rationale and are now resolved by the
+> shipped phases. The remaining crypto/extensive-stdlib work belongs to the later
+> plans, not this do-first sequence. Item 4 is retained as historical provenance;
+> Phase 9 now covers strings, lists, hybrid fallback, and `main`.
 
 **Goal:** Document provenance while moving do-first items forward; no changes required.
 **Must Follow:** Treat as historical; use `fn`/`var` in any edits; verify with `kirn test`, `scripts/gates_linux.sh` only if changing behavior.
@@ -60,9 +63,9 @@ regexp, strings, time` as importable Kirn modules (see `STD_LIBS_PLAN.md`).
    patterns, multi-statement closures, borrow/move checker, default generic params,
    `iota`-like discriminants, collections/strings/regexp/path stdlib, `kirn fmt/repl/check/lint`.
    **[PARTIALLY RESOLVED]** — slice/rest patterns, multi-statement closures, and generators
-   landed in Phases 3/3.5/4; collections/strings/regexp/path now exist in `stdlib/lib/`. Still
-   open: borrow/move checker (Phase 5.5/10), default generic params + iota discriminants
-   (Phase 5), `kirn fmt/repl/check/lint` (Phase 8).
+   landed in Phases 3/3.5/4; collections/strings/regexp/path now exist in `stdpet/pet/`;
+   borrow/move checking, default generic params, enum discriminants, and
+   `kirn fmt/repl/check/lint` are complete in Phases 5, 8, and 10.
 4. **Native backend** `src/backend/native.cpp` lowers only _scalar_ functions; not strings/lists/`main`.
 
 The plan below closes all of these, with code at every step.
@@ -494,18 +497,19 @@ JSON benchmarks within documented factor of C.
 ## Phase 10 — Full borrow checker & memory safety v1
 
 **Status: DONE** — strict MIR borrow checking is wired through `kirnc rt
---strict`, tracks local borrows across loads/stores/calls/returns, and MIR now
-records `del` as an explicit move for move-liveness. Positive/negative borrow
-fixtures, MIR/type/negative gates, and ASan representatives are green; the
-default runtime path remains unchanged.
+--strict`, tracks local borrows and explicit `del` moves with CFG dataflow,
+joins states at control-flow merges, and reports stable source diagnostics.
+Positive/negative borrow fixtures, MIR/type/negative gates, and ASan
+representatives are green; the default runtime path remains unchanged.
 
 **Goal:** Deliver staged memory safety ("safe like Rust") with smallest viable pass first (conservative) then MIR+borrowck under `--strict`.
 **Must Follow:** Phase-5.5 conservative pass default-on; non-strict runtime unchanged; use `fn`/`var`/CapCase; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Keep staged delivery to avoid over-engineering. > Reference: Rust — `rustc_borrowck`/MIR (`rustc_borrowck/src/` in `/home/rkriad585/Projects/langs-source-code/rust`).
 
 **Rust reference architecture (our model):** `MIR` + `borrowck` in `rustc_borrowck`.
-**Staged:** (a) the conservative Phase-5.5 pass default-on; (b) a real **SSA MIR**
-(`src/mir/`) with move-liveness + region inference enforced under `--strict`.
+**Staged:** (a) the conservative Phase-5.5 pass default-on; (b) the
+SSA-compatible alloca MIR (`src/mir/`) promoted by mem2reg, with move-liveness
+and CFG borrow-region inference enforced under `--strict`.
 
 ```rust
 // tools/mir_borrowck (Rust, optional accelerator) — rule engine skeleton
@@ -555,9 +559,9 @@ func (m *Mutex) Unlock()     { <-m.ch }
 ## Phase 12 — CLI/UX & ecosystem
 
 **Status: DONE** — the documented `kirn` verbs, 21-line help, `KIRNCACHE`,
-`kirn.mod`, publish/install flow, and checksum sidecars are verified on Linux;
-the publish checksum path also uses Windows `certutil` and a macOS-compatible
-`shasum -a 256` fallback.
+`kirn.mod`, publish/install flow, and canonical checksum sidecars are verified.
+Checksum generation is implemented in portable C++ so Windows, Linux, and
+macOS produce the same `sha256sum`-compatible sidecar format.
 
 **Goal:** Deliver standards-aligned CLI + minimal registry while keeping toolchain to exactly `kirn` + `kirnc`.
 **Must Follow:** Verbs `<build|run|test|vet|fmt|doc|env|check|lint|get|publish/install>` surface via `kirn`; config `KIRNCACHE`, `kirn.mod`, `kirn env`; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
@@ -574,13 +578,13 @@ the publish checksum path also uses Windows `certutil` and a macOS-compatible
 ## Milestones
 
 - **M0 (P1-4):** catchable errors; OOP `class/interface/record/fn/dynamic`; patterns at Rust parity; memory/scoping keywords; multi-statement closures. **[COMPLETE — see status notes on Phases 1/2/3/3.5 and examples 35–44.]**
-- **M1 (P4-6):** closures/expressions; type system; stdlib in Kirn. **[P4 closures + P6 stdlib largely DONE; P5 type-system hardening in progress.]**
-- **M2 (P7-9):** runtime correctness; tooling; native breadth.
-- **M3 (P10-12):** borrow checker, concurrency/GC, standard CLI.
+- **M1 (P4-6):** closures/expressions; type system; stdlib in Kirn. **[COMPLETE]**
+- **M2 (P7-9):** runtime correctness; tooling; native breadth. **[COMPLETE]**
+- **M3 (P10-12):** borrow checker; concurrency/GC; standard CLI. **[COMPLETE]**
 
 **Goal:** Keep gating aligned with these milestones and ensure `kirn test`, `scripts/gates_linux.sh` pass at each gate.
 **Must Follow:** Verify milestone completion against gates; use `fn`/`var`, CapCase types.
-**Important Note:** Ordering/priority preserved; focus on still-open items for fastest value. > Reference: Go — milestone-based release model (`go/RELEASE.md` in `/home/rkriad585/Projects/langs-source-code/go`).
+**Important Note:** Ordering/priority preserved; all milestones in this do-first plan are complete. > Reference: Go — milestone-based release model (`go/RELEASE.md` in `/home/rkriad585/Projects/langs-source-code/go`).
 
 ---
 

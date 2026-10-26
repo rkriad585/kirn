@@ -1,0 +1,6 @@
+# expect: escape: '&x' must not be returned or stored
+# A generator must not suspend while holding a borrow of its local frame.
+fn bad() -> gen[*Int] {
+    x = 42;
+    yield &x;
+}

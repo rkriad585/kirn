@@ -112,6 +112,12 @@ static void checkStmtEscapes(DiagEngine& diags, const ast::Stmt& s,
             for (const auto& e : s.exprs)
                 checkExprEscapes(diags, *e, locals, true);
             break;
+        case ast::StKind::Yield:
+            // Yielded values are stored in the generator frame and may be
+            // consumed after the producing function has suspended or returned.
+            for (const auto& e : s.exprs)
+                checkExprEscapes(diags, *e, locals, true);
+            break;
         case ast::StKind::VarDecl:
             if (s.value) checkExprEscapes(diags, *s.value, locals, true);
             if (s.target) checkExprEscapes(diags, *s.target, locals, false);

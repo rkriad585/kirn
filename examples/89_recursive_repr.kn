@@ -1,0 +1,13 @@
+# 89 — recursive container rendering must terminate (DO_FIRST_PLAN Phase 7)
+
+fn main() -> none {
+    xs = [];
+    xs.append(xs);
+    print(xs);
+
+    d = {};
+    d["self"] = d;
+    print(d);
+
+    print(repr([xs, d]));
+}

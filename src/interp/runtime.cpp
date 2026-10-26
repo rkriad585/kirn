@@ -24,6 +24,7 @@
 #include <iostream>
 #include <sstream>
 #include <atomic>
+#include <set>
 
 #ifndef _WIN32
 #include <csignal>
@@ -965,7 +966,7 @@ static std::string bytesData(const Value& v) {
     return std::string();
 }
 
-std::string repr(const Value& v) {
+static std::string reprImpl(const Value& v, std::set<const void*>& active) {
     auto escBytes = [](const std::string& s) {
         std::string o = "b'";
         for (unsigned char c : s) {
@@ -985,65 +986,87 @@ std::string repr(const Value& v) {
         case VK::ByteArray: return "bytearray(" + escBytes(v.bstr ? *v.bstr : std::string()) + ")";
         case VK::View: return "memoryview(" + escBytes(bytesData(v)) + ")";
         case VK::List: {
+            if (!v.vec) return "[]";
+            if (!active.insert(v.vec.get()).second) return "[...]";
             std::string o = "[";
             for (size_t i = 0; i < v.vec->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.vec)[i]);
+                o += (i ? ", " : "") + reprImpl((*v.vec)[i], active);
+            active.erase(v.vec.get());
             return o + "]";
         }
         case VK::Tuple: {
+            if (!v.vec) return "()";
+            if (!active.insert(v.vec.get()).second) return "(...)";
             std::string o = "(";
             for (size_t i = 0; i < v.vec->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.vec)[i]);
+                o += (i ? ", " : "") + reprImpl((*v.vec)[i], active);
             if (v.vec->size() == 1) o += ",";
+            active.erase(v.vec.get());
             return o + ")";
         }
         case VK::Set: {
+            if (!v.vec) return "{}";
+            if (!active.insert(v.vec.get()).second) return "{...}";
             std::string o = "{";
             for (size_t i = 0; i < v.vec->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.vec)[i]);
+                o += (i ? ", " : "") + reprImpl((*v.vec)[i], active);
+            active.erase(v.vec.get());
             return o + "}";
         }
         case VK::Dict: {
+            if (!v.map) return "{}";
+            if (!active.insert(v.map.get()).second) return "{...}";
             std::string o = "{";
             for (size_t i = 0; i < v.map->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.map)[i].first) + ": " +
-                     repr((*v.map)[i].second);
+                o += (i ? ", " : "") + reprImpl((*v.map)[i].first, active) + ": " +
+                     reprImpl((*v.map)[i].second, active);
+            active.erase(v.map.get());
             return o + "}";
         }
         case VK::Range:
             return std::to_string(v.lo) + (v.inclusive ? "..=" : "..") +
                    std::to_string(v.hi);
         case VK::Deque: {
+            if (!v.vec) return "deque([])";
+            if (!active.insert(v.vec.get()).second) return "deque([...])";
             std::string o = "deque([";
             for (size_t i = 0; i < v.vec->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.vec)[i]);
+                o += (i ? ", " : "") + reprImpl((*v.vec)[i], active);
+            active.erase(v.vec.get());
             o += "]";
             if (v.i >= 0) o += ", maxlen=" + std::to_string(v.i);
             return o + ")";
         }
         case VK::Counter: {
+            if (!v.map) return "Counter({})";
+            if (!active.insert(v.map.get()).second) return "Counter({...})";
             std::string o = "Counter({";
             bool first = true;
             for (auto& kv : *v.map) {
                 if (kv.second.k == VK::Int && kv.second.i == 0) continue;
                 if (!first) o += ", ";
                 first = false;
-                o += repr(kv.first) + ": " + repr(kv.second);
+                o += reprImpl(kv.first, active) + ": " + reprImpl(kv.second, active);
             }
+            active.erase(v.map.get());
             return o + "})";
         }
         case VK::Struct: {
             std::string o = v.typeName + "(";
             for (size_t i = 0; i < v.fields.size(); ++i)
                 o += (i ? ", " : "") + v.fields[i].first + ": " +
-                     repr(v.fields[i].second);
+                     reprImpl(v.fields[i].second, active);
             return o + ")";
         }
         case VK::Heap: {
+            if (!v.heap) return "new <unknown>()";
+            if (!active.insert(v.heap.get()).second) return "<cycle>";
             std::string o = "new " + v.heap->typeName + "(";
             auto& f = v.heap->fields;
             for (size_t i = 0; i < f.size(); ++i)
-                o += (i ? ", " : "") + f[i].first + ": " + repr(f[i].second);
+                o += (i ? ", " : "") + f[i].first + ": " +
+                     reprImpl(f[i].second, active);
+            active.erase(v.heap.get());
             return o + ")";
         }
         case VK::EnumV: {
@@ -1051,22 +1074,33 @@ std::string repr(const Value& v) {
             if (!v.payload.empty()) {
                 o += "(";
                 for (size_t i = 0; i < v.payload.size(); ++i)
-                    o += (i ? ", " : "") + repr(v.payload[i]);
+                    o += (i ? ", " : "") + reprImpl(v.payload[i], active);
                 o += ")";
             }
             return o;
         }
         case VK::Result:
-            return v.variant == "ok" ? "ok(" + repr(v.payload[0]) + ")"
-                                     : "err(" + repr(v.payload[0]) + ")";
+            if (v.payload.empty())
+                return v.variant == "ok" ? "ok()" : "err()";
+            return v.variant == "ok"
+                       ? "ok(" + reprImpl(v.payload[0], active) + ")"
+                       : "err(" + reprImpl(v.payload[0], active) + ")";
         case VK::Gen: {
+            if (!v.vec) return "gen()";
+            if (!active.insert(v.vec.get()).second) return "gen(...)";
             std::string o = "gen(";
             for (size_t i = 0; i < v.vec->size(); ++i)
-                o += (i ? ", " : "") + repr((*v.vec)[i]);
+                o += (i ? ", " : "") + reprImpl((*v.vec)[i], active);
+            active.erase(v.vec.get());
             return o + ")";
         }
         default: return toStr(v);
     }
+}
+
+std::string repr(const Value& v) {
+    std::set<const void*> active;
+    return reprImpl(v, active);
 }
 
 bool truthy(const Value& v) {

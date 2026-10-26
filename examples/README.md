@@ -51,6 +51,7 @@ keep working. Numbered files (`n_*.kn`) each demonstrate a focused feature;
 | 42  | `42_control_goto_gather.kn`     | `goto`/labeled control and `gather`                                                              |
 | 43  | `43_nested_constructs.kn`       | deeply nested compound constructs                                                                |
 | 44  | `44_block_closures.kn`          | block-scoped closures                                                                            |
+| 89  | `89_recursive_repr.kn`          | cycle-safe rendering of recursive lists and dictionaries                                         |
 
 Plus:
 

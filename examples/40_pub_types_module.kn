@@ -12,3 +12,7 @@ pub record Point(x: Int, y: Int) { }
 class Hidden {
     value: Int;
 }
+
+# The file is also a directly runnable corpus fixture; keep its exported
+# declarations above while giving the standalone runner a harmless entrypoint.
+fn main() -> none { }

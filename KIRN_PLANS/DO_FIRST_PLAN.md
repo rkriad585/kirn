@@ -321,6 +321,11 @@ oracle for the precedence table; corpus green.
 
 ## Phase 5 — Type-system hardening
 
+**Status: DONE** — default generic parameters, enum discriminants,
+exhaustiveness, and the conservative borrow diagnostics pass the complete
+positive/negative type corpus (39/39); the public cross-module type fixture is
+also runnable as a standalone corpus example.
+
 **Goal:** Add opt-in strictness and default-on safety with the smallest unblocking changes.
 **Must Follow:** Keep Kirn-style spellings (`fn`/`var`, CapCase types); ship no extra executables; verify each subitem via `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Preserve existing `tests/negative/n*.kn` rejection texts. > Reference: Rust — type defaults/generics (`rustc_middle/src/ty/generics.rs`) and match exhaustiveness (`rustc_mir_build/src/thir/pattern/check_match.rs`) in `/home/rkriad585/Projects/langs-source-code/rust`.

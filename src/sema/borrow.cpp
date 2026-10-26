@@ -72,6 +72,9 @@ static void flagBorrow(DiagEngine& diags, const ast::Span& span,
         .emit();
 }
 
+static void checkStmtEscapes(DiagEngine& diags, const ast::Stmt& s,
+                             const std::set<std::string>& locals);
+
 static void checkExprEscapes(DiagEngine& diags, const ast::Expr& e,
                              const std::set<std::string>& locals,
                              bool escapable) {
@@ -79,6 +82,20 @@ static void checkExprEscapes(DiagEngine& diags, const ast::Expr& e,
         e.rhs->kind == ast::ExKind::Ident && escapable &&
         locals.count(e.rhs->text))
         flagBorrow(diags, e.span, e.rhs->text);
+    if (e.kind == ast::ExKind::Lambda) {
+        // A closure retains its captures independently of the current stack
+        // frame. Walk both block-bodied and expression-bodied closures with
+        // the enclosing locals in scope, so `fn () { return &x; }` cannot hide
+        // an escaping borrow behind a lambda node.
+        std::set<std::string> nested = locals;
+        for (const auto& p : e.lambdaParams) nested.insert(p);
+        for (const auto& p : e.closureParams)
+            if (!p.name.empty()) nested.insert(p.name);
+        for (const auto& s : e.lambdaBody) collectStmtLocals(*s, nested);
+        for (const auto& s : e.lambdaBody) checkStmtEscapes(diags, *s, nested);
+        if (e.rhs) checkExprEscapes(diags, *e.rhs, nested, true);
+        return;
+    }
     if (e.lhs) checkExprEscapes(diags, *e.lhs, locals, false);
     if (e.rhs) checkExprEscapes(diags, *e.rhs, locals, false);
     if (e.cond) checkExprEscapes(diags, *e.cond, locals, false);

@@ -1,0 +1,9 @@
+# expect: escape: '&x' must not be returned or stored
+# A closure capture can outlive the stack frame that owns x.
+fn main() -> none {
+    x = 42;
+    var f = fn () -> *Int {
+        return &x;
+    };
+    print(f());
+}

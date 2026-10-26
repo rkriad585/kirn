@@ -210,8 +210,19 @@ int cmdPublish() {
     std::string command = "sha256sum \"" + cached.string() + "\" > \"" +
                           sum.string() + "\"";
 #endif
-    if (std::system(command.c_str()) != 0) {
-        std::cerr << "kirn publish: sha256sum is unavailable\n";
+    int checksumRc = std::system(command.c_str());
+#ifndef _WIN32
+    // macOS ships `shasum` in its base toolchain rather than GNU
+    // `sha256sum`. Keep the same sidecar format and use it when the GNU
+    // spelling is unavailable.
+    if (checksumRc != 0) {
+        command = "shasum -a 256 \"" + cached.string() + "\" > \"" +
+                  sum.string() + "\"";
+        checksumRc = std::system(command.c_str());
+    }
+#endif
+    if (checksumRc != 0) {
+        std::cerr << "kirn publish: no SHA-256 utility is available\n";
         return 1;
     }
     std::cout << "published " << cached << "\n"

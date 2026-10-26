@@ -546,6 +546,11 @@ func (m *Mutex) Unlock()     { <-m.ch }
 
 ## Phase 12 — CLI/UX & ecosystem
 
+**Status: DONE** — the documented `kirn` verbs, 21-line help, `KIRNCACHE`,
+`kirn.mod`, publish/install flow, and checksum sidecars are verified on Linux;
+the publish checksum path also uses Windows `certutil` and a macOS-compatible
+`shasum -a 256` fallback.
+
 **Goal:** Deliver standards-aligned CLI + minimal registry while keeping toolchain to exactly `kirn` + `kirnc`.
 **Must Follow:** Verbs `<build|run|test|vet|fmt|doc|env|check|lint|get|publish/install>` surface via `kirn`; config `KIRNCACHE`, `kirn.mod`, `kirn env`; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Help < 40 lines; cross-platform install/publish. > Reference: Go — CLI UX (`go/src/cmd/go/`); V — package manager (`v/cmd/v` in `/home/rkriad585/Projects/langs-source-code/v`).

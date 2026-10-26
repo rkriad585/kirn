@@ -1495,6 +1495,72 @@ std::string lspId(const std::string& json) {
     return e == p ? "null" : json.substr(p, e - p);
 }
 
+int lspIntField(const std::string& json, const std::string& key, int fallback) {
+    std::string needle = "\"" + key + "\"";
+    size_t p = json.find(needle);
+    if (p == std::string::npos) return fallback;
+    p = json.find(':', p + needle.size());
+    if (p == std::string::npos) return fallback;
+    ++p;
+    while (p < json.size() && std::isspace((unsigned char)json[p])) ++p;
+    char* end = nullptr;
+    long value = std::strtol(json.c_str() + p, &end, 10);
+    return end == json.c_str() + p ? fallback : (int)value;
+}
+
+std::string lspWordAt(const std::string& source, int line, int character) {
+    size_t start = 0;
+    for (int i = 0; i < line && start < source.size(); ++i) {
+        size_t nl = source.find('\n', start);
+        if (nl == std::string::npos) return {};
+        start = nl + 1;
+    }
+    if (start > source.size()) return {};
+    size_t pos = std::min(start + (size_t)std::max(character, 0), source.size());
+    size_t left = pos;
+    while (left > start && (std::isalnum((unsigned char)source[left - 1]) ||
+                            source[left - 1] == '_')) --left;
+    size_t right = pos;
+    while (right < source.size() && (std::isalnum((unsigned char)source[right]) ||
+                                     source[right] == '_')) ++right;
+    return source.substr(left, right - left);
+}
+
+std::string lspCompletionItems(const std::string& prefix) {
+    static const char* names[] = {
+        "fn", "var", "const", "if", "else", "while", "for", "match",
+        "return", "raise", "try", "catch", "defer", "struct", "enum",
+        "trait", "impl", "import", "pub", "true", "false", "none",
+        "print", "len", "range", "panic", "spawn", "await"
+    };
+    std::string out = "[";
+    bool first = true;
+    for (const char* name : names) {
+        if (!prefix.empty() && std::string(name).rfind(prefix, 0) != 0) continue;
+        if (!first) out += ",";
+        first = false;
+        out += "{\"label\":\"" + std::string(name) + "\",\"kind\":14}";
+    }
+    return out + "]";
+}
+
+std::string lspHover(const std::string& word) {
+    static const std::map<std::string, std::string> docs = {
+        {"fn", "Declares a function: `fn name(params) -> Type { ... }`."},
+        {"var", "Declares a mutable local binding."},
+        {"const", "Declares an immutable compile-time binding."},
+        {"print", "Prints values using Kirn's `toStr` representation."},
+        {"len", "Returns the length of a collection or string."},
+        {"range", "Creates an integer range for iteration."},
+        {"spawn", "Starts a task and returns a task handle."},
+        {"await", "Waits for a task or timer and yields its result."}
+    };
+    auto it = docs.find(word);
+    if (it == docs.end()) return "null";
+    return "{\"contents\":{\"kind\":\"markdown\",\"value\":\"" +
+           lspJsonEscape(it->second) + "\"}}";
+}
+
 void lspReply(const std::string& body) {
     std::cout << "Content-Length: " << body.size() << "\r\n\r\n" << body
               << std::flush;
@@ -1515,7 +1581,7 @@ int cmdLsp() {
         std::string id = lspId(payload);
         if (method == "initialize") {
             lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
-                     ",\"result\":{\"capabilities\":{\"textDocumentSync\":1}}}");
+                     ",\"result\":{\"capabilities\":{\"textDocumentSync\":1,\"completionProvider\":{},\"hoverProvider\":true,\"documentFormattingProvider\":true}}}");
         } else if (method == "shutdown") {
             lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
                      ",\"result\":null}");
@@ -1525,6 +1591,39 @@ int cmdLsp() {
             std::string uri = lspStringField(payload, "uri");
             std::string text = lspStringField(payload, "text");
             if (!uri.empty()) open[uri] = std::move(text);
+        } else if (method == "textDocument/completion") {
+            std::string uri = lspStringField(payload, "uri");
+            int line = lspIntField(payload, "line", 0);
+            int character = lspIntField(payload, "character", 0);
+            std::string prefix = lspWordAt(open[uri], line, character);
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":{\"isIncomplete\":false,\"items\":" +
+                     lspCompletionItems(prefix) + "}}");
+        } else if (method == "textDocument/hover") {
+            std::string uri = lspStringField(payload, "uri");
+            int line = lspIntField(payload, "line", 0);
+            int character = lspIntField(payload, "character", 0);
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":" + lspHover(lspWordAt(open[uri], line, character)) + "}");
+        } else if (method == "textDocument/formatting") {
+            std::string uri = lspStringField(payload, "uri");
+            const std::string& source = open[uri];
+            std::string formatted = formatSource(source);
+            std::string edits = "[]";
+            if (source != formatted) {
+                int endLine = 0;
+                for (char c : source) if (c == '\n') ++endLine;
+                int endChar = 0;
+                size_t last = source.rfind('\n');
+                if (last == std::string::npos) endChar = (int)source.size();
+                else endChar = (int)(source.size() - last - 1);
+                edits = "[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":" +
+                        std::to_string(endLine) + ",\"character\":" +
+                        std::to_string(endChar) + "}},\"newText\":\"" +
+                        lspJsonEscape(formatted) + "\"}]";
+            }
+            lspReply("{\"jsonrpc\":\"2.0\",\"id\":" + id +
+                     ",\"result\":" + edits + "}");
         } else if (method == "textDocument/diagnostic") {
             std::string uri = lspStringField(payload, "uri");
             std::string source = open[uri];

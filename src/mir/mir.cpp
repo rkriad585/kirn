@@ -156,6 +156,7 @@ struct Binding {
     uint32_t local = 0;                       // Alloca index, for memory
     Value current = NO_VALUE;                 // value of the last write
     bool isParam = false;
+    bool moved = false;
 };
 
 struct LoopCtx {
@@ -350,6 +351,7 @@ struct Builder {
         Binding* b = bind(d);
         if (!b) return;
         b->current = v;
+        b->moved = false;
         if (b->local < fn->localTypes.size()) {
             Inst in;
             in.op = Op::Store;
@@ -923,6 +925,24 @@ struct Builder {
             if (p.value) lower(*p.value);
         } else if constexpr (std::is_same_v<T, hir::payload::Assign> ||
                              std::is_same_v<T, hir::payload::AugAssign>) {
+            // Kirn permits an assignment to introduce a local (`x = 1`). The
+            // checker has already assigned that name a DeclId, so MIR must
+            // materialize the alloca here before strict move/borrow analysis
+            // can associate later loads and `del` operations with it.
+            if (p.target && p.target->kind == hir::ExprKind::Name) {
+                const auto& np = std::get<hir::payload::Name>(p.target->p);
+                if (np.decl != hir::NO_DECL && !binds.count(np.decl)) {
+                    const hir::Decl* d = hctx.get(np.decl);
+                    Binding b;
+                    b.decl = np.decl;
+                    if (d) b.name = d->name;
+                    b.local = allocLocal(b.name,
+                                         p.value ? tyOf(p.value->type)
+                                                 : tyOf(p.target->type),
+                                         s.span);
+                    binds[np.decl] = b;
+                }
+            }
             Value v = p.value ? lower(*p.value) : NO_VALUE;
             if (v == NO_VALUE) return;
             if (p.target && p.target->kind == hir::ExprKind::Name) {
@@ -1045,8 +1065,18 @@ struct Builder {
             for (const auto& tg : p.targets)
                 if (tg && tg->kind == hir::ExprKind::Name) {
                     const auto& np = std::get<hir::payload::Name>(tg->p);
-                    if (np.decl != hir::NO_DECL && bind(np.decl))
-                        binds.erase(np.decl);
+                    if (np.decl != hir::NO_DECL) {
+                        if (Binding* b = bind(np.decl)) {
+                            Inst move;
+                            move.op = Op::Move;
+                            move.type = fn->localTypes[b->local];
+                            move.opName = std::to_string(b->local);
+                            move.span = sp(s.span);
+                            emit(std::move(move));
+                            b->moved = true;
+                            b->current = NO_VALUE;
+                        }
+                    }
                 }
         } else if constexpr (std::is_same_v<T, hir::payload::GatherLoop>) {
             BlockId top = cur;

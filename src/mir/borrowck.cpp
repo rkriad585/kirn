@@ -19,10 +19,12 @@ bool localIndex(const Inst& in, uint32_t& out) {
 struct FunctionBorrowState {
     std::vector<bool> valueIsBorrow;
     std::vector<bool> localIsBorrow;
+    std::vector<bool> localMoved;
 
     explicit FunctionBorrowState(const Func& f)
         : valueIsBorrow(f.valueTypes.size(), false),
-          localIsBorrow(f.localTypes.size(), false) {}
+          localIsBorrow(f.localTypes.size(), false),
+          localMoved(f.localTypes.size(), false) {}
 
     bool isBorrow(Value v) const {
         return v != NO_VALUE && v < valueIsBorrow.size() && valueIsBorrow[v];
@@ -56,6 +58,17 @@ struct Checker {
                     }
                     return false;
                 }();
+                if (in.op == Op::Move) {
+                    uint32_t local = 0;
+                    if (localIndex(in, local) && local < state.localMoved.size())
+                        state.localMoved[local] = true;
+                }
+                if (in.op == Op::Load) {
+                    uint32_t local = 0;
+                    if (localIndex(in, local) && local < state.localMoved.size() &&
+                        state.localMoved[local])
+                        bad(in, "use of moved local after del");
+                }
                 if (in.result != NO_VALUE && in.result < state.valueIsBorrow.size())
                     state.valueIsBorrow[in.result] = resultBorrow;
                 functionTakesAddress = functionTakesAddress || resultBorrow;
@@ -65,6 +78,8 @@ struct Checker {
                     const bool isLocalStore = localIndex(in, local);
                     if (isLocalStore && local < state.localIsBorrow.size())
                         state.localIsBorrow[local] = state.isBorrow(in.args[0]);
+                    if (isLocalStore && local < state.localMoved.size())
+                        state.localMoved[local] = false;
                     if (!isLocalStore && state.isBorrow(in.args[0]))
                         bad(in, "borrow stored in a local; the referent may outlive its scope");
                 }

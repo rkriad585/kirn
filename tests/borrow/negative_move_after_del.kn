@@ -1,0 +1,7 @@
+# The source checker rejects this use; the MIR still records `del` as a Move
+# instruction so strict borrow checking has explicit move-liveness semantics.
+fn main() -> none {
+    x = 1;
+    del x;
+    print(x);
+}

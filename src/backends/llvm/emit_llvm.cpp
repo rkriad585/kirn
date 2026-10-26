@@ -62,6 +62,7 @@ static const char* opLabel(mir::Op o) {
         case mir::Op::Alloca:         return "alloca";
         case mir::Op::Load:           return "load";
         case mir::Op::Store:          return "store";
+        case mir::Op::Move:           return "move";
         case mir::Op::Const:          return "constant";
         case mir::Op::Unary:          return "unary";
         case mir::Op::Binary:         return "binary";

@@ -485,6 +485,12 @@ JSON benchmarks within documented factor of C.
 
 ## Phase 10 — Full borrow checker & memory safety v1
 
+**Status: DONE** — strict MIR borrow checking is wired through `kirnc rt
+--strict`, tracks local borrows across loads/stores/calls/returns, and MIR now
+records `del` as an explicit move for move-liveness. Positive/negative borrow
+fixtures, MIR/type/negative gates, and ASan representatives are green; the
+default runtime path remains unchanged.
+
 **Goal:** Deliver staged memory safety ("safe like Rust") with smallest viable pass first (conservative) then MIR+borrowck under `--strict`.
 **Must Follow:** Phase-5.5 conservative pass default-on; non-strict runtime unchanged; use `fn`/`var`/CapCase; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Keep staged delivery to avoid over-engineering. > Reference: Rust — `rustc_borrowck`/MIR (`rustc_borrowck/src/` in `/home/rkriad585/Projects/langs-source-code/rust`).

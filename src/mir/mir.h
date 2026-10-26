@@ -120,6 +120,7 @@ enum class Op : uint8_t {
     Alloca,
     Load,
     Store,
+    Move,       // consume a local binding (used by strict move-liveness)
 
     // Values.
     Const,      // an integer/float/char/str constant

@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <atomic>
 #include <set>
@@ -3116,6 +3117,49 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }, globals_);
         return Value::str(out);
     });
+
+    // Native regular-expression substrate used by pet.regexp. The public
+    // module remains Kirn while std::regex supplies real regex semantics.
+    auto regexArgs = [](const std::vector<Value>& a) -> std::pair<std::string, std::string> {
+        if (a.size() < 2 || a[0].k != VK::Str || a[1].k != VK::Str)
+            panicHere("regexp: expected pattern and string");
+        return {a[0].s, a[1].s};
+    };
+    globals_->vars["__regex_match"] = biFn({"pattern", "s"},
+        [regexArgs](std::vector<Value>& a) -> Value {
+            auto [pattern, s] = regexArgs(a);
+            try { return Value::boolean(std::regex_match(s, std::regex(pattern))); }
+            catch (const std::regex_error&) { panicHere("regexp: invalid pattern"); }
+        });
+    globals_->vars["__regex_find"] = biFn({"pattern", "s"},
+        [regexArgs](std::vector<Value>& a) -> Value {
+            auto [pattern, s] = regexArgs(a);
+            try {
+                std::smatch m;
+                if (!std::regex_search(s, m, std::regex(pattern)))
+                    return Value::integer(-1);
+                return Value::integer((int64_t)m.position());
+            } catch (const std::regex_error&) { panicHere("regexp: invalid pattern"); }
+        });
+    globals_->vars["__regex_replace"] = biFn({"pattern", "s", "to"},
+        [regexArgs](std::vector<Value>& a) -> Value {
+            if (a.size() < 3 || a[2].k != VK::Str)
+                panicHere("regexp: expected replacement string");
+            auto [pattern, s] = regexArgs(a);
+            try { return Value::str(std::regex_replace(s, std::regex(pattern), a[2].s)); }
+            catch (const std::regex_error&) { panicHere("regexp: invalid pattern"); }
+        });
+    globals_->vars["__regex_split"] = biFn({"pattern", "s"},
+        [regexArgs](std::vector<Value>& a) -> Value {
+            auto [pattern, s] = regexArgs(a);
+            try {
+                std::vector<Value> out;
+                std::regex re(pattern);
+                std::sregex_token_iterator it(s.begin(), s.end(), re, -1), end;
+                for (; it != end; ++it) out.push_back(Value::str(*it));
+                return Value::list(std::move(out));
+            } catch (const std::regex_error&) { panicHere("regexp: invalid pattern"); }
+        });
 
     // Phase-3 bigint surface ------------------------------------------------
     globals_->vars["BigInt"] = biFn({"s"}, [](std::vector<Value>& a) -> Value {

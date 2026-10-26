@@ -693,6 +693,14 @@ void Checker::predeclareBuiltins() {
                     false, 2);
     makeBuiltinFunc("join", {strTy(), unkTy()}, {"sep", "xs"}, strTy(), false,
                     2);
+    makeBuiltinFunc("__regex_match", {strTy(), strTy()}, {"pattern", "s"},
+                    boolTy(), false, 2);
+    makeBuiltinFunc("__regex_find", {strTy(), strTy()}, {"pattern", "s"},
+                    intTy(), false, 2);
+    makeBuiltinFunc("__regex_replace", {strTy(), strTy(), strTy()},
+                    {"pattern", "s", "to"}, strTy(), false, 3);
+    makeBuiltinFunc("__regex_split", {strTy(), strTy()}, {"pattern", "s"},
+                    listTy(strTy()), false, 2);
 
     // keyword constants
     declareConst("true", boolTy());
@@ -6166,4 +6174,3 @@ void Checker::checkConstFnPurity(const ast::Stmt& fn) {
 
 } // namespace sema
 } // namespace kirn
-

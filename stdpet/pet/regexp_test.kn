@@ -4,14 +4,17 @@ import pet.regexp;
 fn main() -> none {
     assert(regexp.match("a*b", "ab"));
     assert(regexp.match("a*b", "aaab"));
-    assert(regexp.match("a*b", "acb") and not regexp.match("a*bx", "acb"));
-    assert(regexp.match("a?c", "abc"));
-    assert(not regexp.match("a?c", "ac"));
+    assert(regexp.match("a.*b", "acb") and not regexp.match("a.*bx", "acb"));
+    assert(regexp.match("a.c", "abc"));
+    assert(not regexp.match("a.c", "ac"));
     assert(regexp.match("hello", "hello"));
-    assert_eq(regexp.find("hello world", "world"), 6);
-    assert_eq(regexp.find("hello", "zz"), -1);
-    assert(regexp.contains("hello world", "lo wo"));
-    assert_eq(regexp.replace("banana", "a", "o"), "bonono");
+    assert(regexp.match("^[A-Z][a-z]+$", "Kirn"));
+    assert(regexp.match("colou?r", "color"));
+    assert_eq(regexp.find("hello 123", "[0-9]+"), 6);
+    assert_eq(regexp.find("hello", "zz+"), -1);
+    assert(regexp.contains("hello 123", "[0-9]+"));
+    assert_eq(regexp.replace("banana", "a+", "o"), "bonono");
+    assert_eq(regexp.split("a,b;c", "[,;]").len(), 3);
 
     print("regexp_test ok");
 }

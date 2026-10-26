@@ -1,0 +1,8 @@
+# Native arithmetic must match the checked integer semantics of the interpreter.
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+
+fn main() -> none {
+    print(add(9223372036854775807, 1));
+}

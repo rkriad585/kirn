@@ -526,24 +526,51 @@ public:
 
     void emitPreamble() {
         out_ << "#include <cmath>\n"
+             << "#include <limits>\n"
              << "#include <optional>\n"
              << "#include <string>\n"
              << "#include <vector>\n"
              << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
                 "kirn::interp::panicHere(m); }\n"
+             << "static inline int64_t co_iadd(int64_t a,int64_t b){"
+                " if((b>0&&a>std::numeric_limits<int64_t>::max()-b)||"
+                "(b<0&&a<std::numeric_limits<int64_t>::min()-b))"
+                "co_panic(\"integer overflow\"); return a+b; }\n"
+             << "static inline int64_t co_isub(int64_t a,int64_t b){"
+                " if((b<0&&a>std::numeric_limits<int64_t>::max()+b)||"
+                "(b>0&&a<std::numeric_limits<int64_t>::min()+b))"
+                "co_panic(\"integer overflow\"); return a-b; }\n"
+             << "static inline int64_t co_imul(int64_t a,int64_t b){"
+                " if(a==0||b==0)return 0;"
+                " if((a==std::numeric_limits<int64_t>::min()&&b==-1)||"
+                "(b==std::numeric_limits<int64_t>::min()&&a==-1))"
+                "co_panic(\"integer overflow\");"
+                " if(a>0 ? (b>0 ? a>std::numeric_limits<int64_t>::max()/b : "
+                "b<std::numeric_limits<int64_t>::min()/a) : "
+                "(b>0 ? a<std::numeric_limits<int64_t>::min()/b : "
+                "a!=0&&b<std::numeric_limits<int64_t>::max()/a))"
+                "co_panic(\"integer overflow\"); return a*b; }\n"
+             << "static inline int64_t co_ineg(int64_t a){"
+                " if(a==std::numeric_limits<int64_t>::min())"
+                "co_panic(\"integer overflow\"); return -a; }\n"
              << "static inline int64_t co_floordiv(int64_t a,int64_t b){"
-                " if(b==0)co_panic(\"division by zero\"); int64_t q=a/b;"
+                " if(b==0)co_panic(\"division by zero\");"
+                " if(a==std::numeric_limits<int64_t>::min()&&b==-1)"
+                "co_panic(\"integer overflow\"); int64_t q=a/b;"
                 " if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }\n"
              << "static inline int64_t co_mod(int64_t a,int64_t b){"
-                " if(b==0)co_panic(\"modulo by zero\"); int64_t m=a%b;"
+                " if(b==0)co_panic(\"modulo by zero\");"
+                " if(a==std::numeric_limits<int64_t>::min()&&b==-1)"
+                "co_panic(\"integer overflow\"); int64_t m=a%b;"
                 " if(m!=0&&((m<0)!=(b<0)))m+=b; return m; }\n"
              << "static inline double co_fdiv(double a,double b){"
                 " if(b==0.0)co_panic(\"division by zero\"); return a/b; }\n"
              << "static inline double co_fmodm(double a,double b){"
                 " return std::fmod(std::fmod(a,b)+b,b); }\n"
              << "static inline int64_t co_ipow(int64_t b,int64_t e){"
-                " int64_t o=1; while(e>0){ if(e&1)o*=b; e>>=1; if(e)b*=b;}"
+                " int64_t o=1; while(e>0){ if(e&1)o=co_imul(o,b);"
+                " e>>=1; if(e)b=co_imul(b,b);}"
                 " return o; }\n"
              << "static inline int64_t co_shl(int64_t a,int64_t b){"
                 " if(b<0||b>=63)kirn::interp::panicHere(\"shift\");"
@@ -869,6 +896,8 @@ private:
                 return cIdent(e.text, "v_");
             case ExKind::Unary: {
                 std::string r = emitExpr(*e.rhs);
+                if (e.op == "-" && t && t->k == TyK::Int)
+                    return "kirn_native::co_ineg(" + r + ")";
                 if (e.op == "-") return "(-(" + r + "))";
                 if (e.op == "+") return "(+(" + r + "))";
                 if (e.op == "not") return "(!(" + r + "))";
@@ -945,6 +974,11 @@ private:
 
         // arithmetic
         if (op == "+" || op == "-" || op == "*") {
+            if (lint && rint) {
+                if (op == "+") return "kirn_native::co_iadd(" + le + "," + re + ")";
+                if (op == "-") return "kirn_native::co_isub(" + le + "," + re + ")";
+                return "kirn_native::co_imul(" + le + "," + re + ")";
+            }
             if (mixed) return "((" + le + ") " + op + " (" + re + "))";
             return "(" + le + " " + op + " " + re + ")";
         }

@@ -1,0 +1,14 @@
+pub interface Named {
+    fn name(self) -> Str;
+}
+
+pub class Dog implements Named {
+    name: Str;
+    fn speak(self) -> Str { return "woof:" + self.name; }
+}
+
+pub record Point(x: Int, y: Int) { }
+
+class Hidden {
+    value: Int;
+}

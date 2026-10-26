@@ -1,0 +1,9 @@
+import "40_pub_types_module.kn" as shapes;
+
+fn main() -> none {
+    d = shapes.Dog(name: "Rex");
+    print(d.speak());
+    p = shapes.Point(x: 2, y: 3);
+    print(p == shapes.Point(x: 2, y: 3));
+    print(typeof(shapes.Named));
+}

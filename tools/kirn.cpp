@@ -138,6 +138,87 @@ std::string todayIso() {
     return buf;
 }
 
+std::string kirnCacheDir() {
+    if (const char* v = std::getenv("KIRNCACHE"); v && *v) return v;
+    const char* home = std::getenv("USERPROFILE");
+    if (!home) home = std::getenv("HOME");
+    return home ? std::string(home) + "/.kirn/cache" : ".kirn/cache";
+}
+
+int cmdEnv() {
+    auto show = [](const char* name, const std::string& fallback) {
+        const char* value = std::getenv(name);
+        std::cout << name << "=" << (value && *value ? value : fallback)
+                  << "\n";
+    };
+    show("KIRNCACHE", kirnCacheDir());
+    show("KIRN_PETS", "");
+    show("KIRN_STDLIB", "");
+    show("KIRN_CXX", "");
+    show("KIRN_TARGET", "host");
+    return 0;
+}
+
+int cmdPublish() {
+    Manifest m = readManifest(".");
+    if (m.name.empty()) {
+        std::cerr << "kirn publish: no kirn.mod or kirn.toml found\n";
+        return 1;
+    }
+    std::vector<std::string> buildArgs{"build", "pet"};
+    int rc = cmdBuild(buildArgs, 1);
+    if (rc != 0) return rc;
+
+    fs::path artifact;
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it("build", ec), end;
+         !ec && it != end; it.increment(ec)) {
+        if (ec || !it->is_regular_file(ec) || it->path().extension() != ".pet")
+            continue;
+        if (it->path().filename().string().rfind(m.name + "-", 0) == 0) {
+            artifact = it->path();
+            break;
+        }
+    }
+    if (artifact.empty()) {
+        std::cerr << "kirn publish: build produced no .pet artifact\n";
+        return 1;
+    }
+
+    fs::path registry = kirnCacheDir();
+    fs::create_directories(registry, ec);
+    if (ec) {
+        std::cerr << "kirn publish: cannot create cache: " << ec.message() << "\n";
+        return 1;
+    }
+    fs::path cached = registry / artifact.filename();
+    fs::copy_file(artifact, cached, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        std::cerr << "kirn publish: cannot cache artifact: " << ec.message() << "\n";
+        return 1;
+    }
+
+    // Keep a checksum sidecar beside every published artifact.  Use the
+    // platform-native verifier so publishing does not depend on a Unix-only
+    // utility on Windows.
+    fs::path sum = cached;
+    sum += ".sha256";
+#ifdef _WIN32
+    std::string command = "certutil -hashfile \"" + cached.string() +
+                          "\" SHA256 > \"" + sum.string() + "\"";
+#else
+    std::string command = "sha256sum \"" + cached.string() + "\" > \"" +
+                          sum.string() + "\"";
+#endif
+    if (std::system(command.c_str()) != 0) {
+        std::cerr << "kirn publish: sha256sum is unavailable\n";
+        return 1;
+    }
+    std::cout << "published " << cached << "\n"
+              << "checksum " << sum << "\n";
+    return 0;
+}
+
 // ---------------------------------------------------------------------------
 // manifests: kirn.toml
 // ---------------------------------------------------------------------------
@@ -877,7 +958,8 @@ if (fs::exists(pkgBase(false) / name)) continue;
 int cmdUpdate(const std::string& only) {
     bool global_ = false;
     // try global pets dir first if not in a project with kirn.toml
-    if (!fs::exists(fs::path("kirn.toml")) && only.empty()) {
+    if (!fs::exists(fs::path("kirn.mod")) &&
+        !fs::exists(fs::path("kirn.toml")) && only.empty()) {
         // check global
     }
     Manifest proj = readManifest(".");
@@ -2020,6 +2102,20 @@ int main(int argc, char** argv) {
         }
         return cmdRepl();
     }
+    if (cmd == "env") {
+        if (args.size() != 1) {
+            std::cerr << "usage: kirn env\n";
+            return 64;
+        }
+        return cmdEnv();
+    }
+    if (cmd == "publish") {
+        if (args.size() != 1) {
+            std::cerr << "usage: kirn publish\n";
+            return 64;
+        }
+        return cmdPublish();
+    }
     if (cmd == "lsp") {
         if (args.size() != 1) {
             std::cerr << "usage: kirn lsp\n";
@@ -2035,7 +2131,8 @@ int main(int argc, char** argv) {
             else pkg = args[i];
         }
         if (pkg.empty()) {
-            if (!global_ && fs::exists(fs::path("kirn.toml"))) {
+        if (!global_ && (fs::exists(fs::path("kirn.mod")) ||
+                         fs::exists(fs::path("kirn.toml")))) {
                 std::vector<std::string> empty;
                 return cmdAdd(empty);
             }
@@ -2079,8 +2176,9 @@ int main(int argc, char** argv) {
         return cmdUpdate(only);
     }
     if (cmd == "sync") {
-        if (!fs::exists(fs::path("kirn.toml"))) {
-            std::cerr << "kirn sync: no kirn.toml found\n";
+        if (!fs::exists(fs::path("kirn.mod")) &&
+            !fs::exists(fs::path("kirn.toml"))) {
+            std::cerr << "kirn sync: no kirn.mod or kirn.toml found\n";
             return 1;
         }
         std::vector<std::string> empty;

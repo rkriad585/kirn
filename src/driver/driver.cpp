@@ -157,14 +157,15 @@ std::string todayIso() {
 }
 
 // ---------------------------------------------------------------------------
-// manifests: kirn.toml
+// manifests: kirn.mod (kirn.toml remains accepted for compatibility)
 // ---------------------------------------------------------------------------
 
 
 Manifest readManifest(const fs::path& dir) {
     Manifest m;
     std::string text;
-    if (!readFile((dir / "kirn.toml").string(), text)) {
+    if (!readFile((dir / "kirn.mod").string(), text) &&
+        !readFile((dir / "kirn.toml").string(), text)) {
         return m;
     }
     Doc d = kirn::tomlmini::parse(text);
@@ -290,7 +291,7 @@ void writeManifest(const fs::path& dir, const Manifest& m) {
             o << " }\n";
         }
     }
-    writeFile(dir / "kirn.toml", o.str());
+    writeFile(dir / "kirn.mod", o.str());
 }
 
 // ---------------------------------------------------------------------------
@@ -3674,7 +3675,8 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     std::ostringstream o;
     o << "PETLIB/1\n";
     std::vector<fs::path> files;
-    files.push_back(fs::path("kirn.toml"));
+    files.push_back(fs::is_regular_file("kirn.mod") ? fs::path("kirn.mod")
+                                                     : fs::path("kirn.toml"));
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
          it.increment(ec))
         if (!ec && it->is_regular_file(ec)) files.push_back(it->path());
@@ -3838,7 +3840,7 @@ int unpackPet(const std::string& raw, bool global_) {
     }
     std::string name;
     for (const auto& s : sections)
-        if (s.path == "kirn.toml") {
+        if (s.path == "kirn.mod" || s.path == "kirn.toml") {
             Doc d = kirn::tomlmini::parse(s.body);
             name = kirn::tomlmini::get(d, "package", "name");
         }
@@ -3902,7 +3904,7 @@ void usage() {
     std::cout
         << "kirn - the Kirn language driver\n\n"
         << "usage:\n"
-        << "  kirn run .|<file.kn>|<dir>       run a project (requires kirn.toml) or a single .kn file\n"
+        << "  kirn run .|<file.kn>|<dir>       run a project (requires kirn.mod) or a single .kn file\n"
         << "  kirn new <name>                  scaffold an application\n"
         << "  kirn new pet <name>              scaffold a package (pet)\n"
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
@@ -3910,38 +3912,16 @@ void usage() {
         << "  kirn check [flags] <file.kn>     lex, parse, and type-check one file\n"
         << "  kirn lint [flags] <file.kn>      type-check and report lint diagnostics\n"
         << "  kirn repl                        evaluate snippets interactively\n"
-        << "  kirn get [-g] <pkg>              install a package (alias for install)\n"
+        << "  kirn env                         print effective toolchain and cache settings\n"
+        << "  kirn get|install [-g] <pkg>      install a package\n"
         << "  kirn lsp                        serve diagnostics, completion, hover, and formatting over JSON-RPC stdio\n"
-        << "  kirn install|i [-g] <pkg>        install into ./pets (no pkg = sync in project with kirn.toml)\n"
-        << "      [github.com/]user/repo[@tag] | <path> | <registry-"
-               "name> | file.pet\n"
-        << "      -g installs globally into ~/.kirn/pets\n"
-        << "         (apps get ~/.kirn/apps/bin binaries + PATH entry)\n"
-        << "  kirn sync                        install/update missing deps (requires kirn.toml)\n"
-        << "  kirn update [name]               update deps (global pets/apps supported)\n"
-        << "  kirn remove [-g] <name>         remove a pet or app (local or global)\n"
-        << "  kirn clone <repo> [--full]       clone any repo (shorthand:"
-               " user/repo)\n"
-        << "  kirn build                       compile project (needs "
-               "kirn.toml)\n"
-        << "  kirn build <file.kn>             compile one file -> ./<stem>"
-               "\n"
-        << "           [--release|--debug]     optimization profile\n"
-        << "           [--target=<os>-<arch>]    default "
-               "$KIRN_TARGET or host\n"
-         << "           [-S|-O]                    -S asm listing, -O .obj+."
-               "lib\n"
-         << "           [--native]                 lower scalar user fns to "
-               "real C++\n"
-         << "           [--asan]                   build with AddressSanitizer\n"
-         << "           [-o <path>]               output path\n"
-        << "  kirn targets                     list all supported target "
-               "triples\n"
-        << "  kirn build pet                   check + pack -> "
-               "build/<profile>/<t>/<n>-<v>.pet\n"
-        << "  kirn doc <pet|dir> [--port N]    serve markdown docs + API ref\n"
-        << "  kirn list                        list installed pets\n"
-        << "  kirn list online                 browse the Pets Registry\n";
+        << "  kirn sync|update|remove <name>   manage project dependencies\n"
+        << "  kirn clone <repo>                clone a repository\n"
+        << "  kirn build [file.kn|pet]         compile or package a project\n"
+        << "  kirn publish                     package, cache, and checksum a pet\n"
+        << "  kirn targets                     list supported target triples\n"
+        << "  kirn doc <pet|dir>               serve generated API docs\n"
+        << "  kirn list [online]               list installed or registry pets\n";
 }
 
 }  // anonymous namespace

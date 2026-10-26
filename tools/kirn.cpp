@@ -93,6 +93,7 @@ using kirn::driver::buildAppShim;
 using kirn::driver::cmdBuild;
 using kirn::driver::cmdCheck;
 using kirn::driver::cmdTargets;
+using kirn::driver::collectImports;
 using kirn::driver::ensureRunner;
 using kirn::driver::gatherEmbedded;
 using kirn::driver::globalAppsBinDir;
@@ -1392,6 +1393,47 @@ int cmdRepl() {
     return 0;
 }
 
+int cmdGetScan() {
+    Manifest manifest = readManifest(".");
+    if (manifest.name.empty()) {
+        std::cerr << "kirn get --scan: no kirn.toml found\n";
+        return 66;
+    }
+    std::set<std::string> used;
+    size_t files = 0;
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(".", ec), end; !ec && it != end;
+         it.increment(ec)) {
+        if (ec) break;
+        const fs::path& path = it->path();
+        std::string name = path.filename().string();
+        if (name == ".git" || name == "build" || name == ".cache" ||
+            name == "node_modules" || name == "pets") {
+            it.disable_recursion_pending();
+            continue;
+        }
+        if (!it->is_regular_file(ec) || path.extension() != ".kn") continue;
+        std::string src;
+        if (!readFile(path.string(), src)) continue;
+        ++files;
+        std::vector<std::string> imports;
+        collectImports(path.string(), src, imports);
+        for (const auto& imp : imports) {
+            size_t dot = imp.find('.');
+            used.insert(dot == std::string::npos ? imp : imp.substr(0, dot));
+        }
+    }
+    int unused = 0;
+    std::cout << "scanned " << files << " source file(s)\n";
+    for (const auto& dep : manifest.deps) {
+        if (used.count(dep.first)) continue;
+        std::cout << "unused dependency: " << dep.first << "\n";
+        ++unused;
+    }
+    if (unused == 0) std::cout << "no unused dependencies\n";
+    return 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // kirn doc — markdown viewer over HTTP
@@ -1783,12 +1825,18 @@ int main(int argc, char** argv) {
     if (cmd == "get") {
         bool global_ = false;
         std::string pkg;
+        bool scan = false;
         for (size_t i = 1; i < args.size(); ++i) {
             if (args[i] == "-g" || args[i] == "--global") global_ = true;
-            else if (args[i] == "--scan") {
-                std::cerr << "kirn get: --scan is not implemented yet\n";
+            else if (args[i] == "--scan") scan = true;
+            else pkg = args[i];
+        }
+        if (scan) {
+            if (!pkg.empty() || global_) {
+                std::cerr << "kirn get: --scan cannot be combined with a package or --global\n";
                 return 64;
-            } else pkg = args[i];
+            }
+            return cmdGetScan();
         }
         if (pkg.empty()) {
             std::cerr << "usage: kirn get [-g] <pkg>\n";

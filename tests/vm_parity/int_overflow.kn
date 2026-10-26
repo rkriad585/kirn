@@ -1,0 +1,6 @@
+# Default integer arithmetic is checked; wrapping is explicit via wrapping_*.
+fn main() -> none {
+    var max: Int = 9223372036854775807;
+    var one: Int = 1;
+    print(max + one);
+}

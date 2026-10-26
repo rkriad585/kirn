@@ -377,12 +377,22 @@ bool selectGateCanChange(const Value& v) {
 }  // namespace
 
 static void ipow64(int64_t base, int64_t exp, int64_t& out) {
-    out = 1;
+    i128 result = 1;
+    i128 factor = base;
     while (exp > 0) {
-        if (exp & 1) out *= base;
+        if (exp & 1) result *= factor;
         exp >>= 1;
-        if (exp) base *= base;
+        if (exp) factor *= factor;
     }
+    if (result < i128(LLONG_MIN) || result > i128(LLONG_MAX))
+        panicHere("integer overflow");
+    out = (int64_t)result;
+}
+
+static int64_t checkedInt(i128 value) {
+    if (value < i128(LLONG_MIN) || value > i128(LLONG_MAX))
+        panicHere("integer overflow");
+    return (int64_t)value;
 }
 
 static std::vector<std::string> splitDots(const std::string& dotted) {
@@ -5739,7 +5749,7 @@ Value Interpreter::eval(const Expr& e, Env env) {
             if (e.op == "&" || e.op == "*") return eval(*e.rhs, env);
             Value v = eval(*e.rhs, env);
             if (e.op == "-") {
-                if (v.k == VK::Int) { v.i = -v.i; return v; }
+                if (v.k == VK::Int) { v.i = checkedInt(-i128(v.i)); return v; }
                 if (v.k == VK::Float) { v.d = -v.d; return v; }
                 panicHere("unary '-' expects a number");
             }
@@ -9338,7 +9348,8 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
                                                  : toStr(l) + r.s);
             return bigRes(toBigNum(l).add(toBigNum(r)));
         }
-        if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i + r.i);
+        if (l.k == VK::Int && r.k == VK::Int)
+            return Value::integer(checkedInt(i128(l.i) + i128(r.i)));
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
             return Value::floating(numL() + numR());
@@ -9384,7 +9395,8 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
     if (op == "-") {
         if (isBig(l.k) || isBig(r.k))
             return bigRes(toBigNum(l).sub(toBigNum(r)));
-        if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i - r.i);
+        if (l.k == VK::Int && r.k == VK::Int)
+            return Value::integer(checkedInt(i128(l.i) - i128(r.i)));
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
             return Value::floating(numL() - numR());
@@ -9411,7 +9423,8 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         if (isBig(l.k) || isBig(r.k)) {
             return bigRes(toBigNum(l).mul(toBigNum(r)));
         }
-        if (l.k == VK::Int && r.k == VK::Int) return Value::integer(l.i * r.i);
+        if (l.k == VK::Int && r.k == VK::Int)
+            return Value::integer(checkedInt(i128(l.i) * i128(r.i)));
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
             return Value::floating(numL() * numR());
@@ -9455,9 +9468,10 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
         if (l.k == VK::Int && r.k == VK::Int) {
             if (r.i == 0) panicHere("division by zero");
-            int64_t q = l.i / r.i;
-            if ((l.i % r.i != 0) && ((l.i < 0) != (r.i < 0))) --q;
-            return Value::integer(q);
+            i128 q = i128(l.i) / i128(r.i);
+            i128 rem = i128(l.i) % i128(r.i);
+            if (rem != i128(0) && ((l.i < 0) != (r.i < 0))) --q;
+            return Value::integer(checkedInt(q));
         }
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float)) {
@@ -9473,9 +9487,9 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         }
         if (l.k == VK::Int && r.k == VK::Int) {
             if (r.i == 0) panicHere("modulo by zero");
-            int64_t mres = l.i % r.i;
-            if (mres != 0 && ((mres < 0) != (r.i < 0))) mres += r.i;
-            return Value::integer(mres);
+            i128 mres = i128(l.i) % i128(r.i);
+            if (mres != i128(0) && ((l.i < 0) != (r.i < 0))) mres += i128(r.i);
+            return Value::integer(checkedInt(mres));
         }
         if ((l.k == VK::Int || l.k == VK::Float) &&
             (r.k == VK::Int || r.k == VK::Float))
@@ -10997,17 +11011,18 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                     out.k = VK::Float; out.u.d = res; return true;
                 }
                 int64_t a = l.u.i, b = r.u.i, res;
-                if (k == B_ADD) res = a + b;
-                else if (k == B_SUB) res = a - b;
-                else if (k == B_MUL) res = a * b;
+                if (k == B_ADD) res = checkedInt(i128(a) + i128(b));
+                else if (k == B_SUB) res = checkedInt(i128(a) - i128(b));
+                else if (k == B_MUL) res = checkedInt(i128(a) * i128(b));
                 else if (k == B_DIV) {
                     if (b == 0) return false;
                     out.k = VK::Float; out.u.d = (double)a / (double)b; return true;
                 }
                 else if (k == B_MOD) {
                     if (b == 0) return false;
-                    res = a % b;
-                    if (res != 0 && ((res < 0) != (b < 0))) res += b;
+                    i128 m = i128(a) % i128(b);
+                    if (m != i128(0) && ((a < 0) != (b < 0))) m += i128(b);
+                    res = checkedInt(m);
                 }
                 else { out.k = VK::Float; out.u.d = std::pow((double)a, (double)b); return true; }
                 out.k = VK::Int; out.u.i = res; return true;
@@ -11199,7 +11214,11 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
 
             case OP_NEG: {
                 VmVal v = pop();
-                if (v.k == VK::Int) { v.u.i = -v.u.i; push(std::move(v)); break; }
+                if (v.k == VK::Int) {
+                    v.u.i = checkedInt(-i128(v.u.i));
+                    push(std::move(v));
+                    break;
+                }
                 if (v.k == VK::Float) { v.u.d = -v.u.d; push(std::move(v)); break; }
                 panicHere("unary operator expects a number");
                 break;

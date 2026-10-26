@@ -1181,6 +1181,125 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
     return fail == 0 ? 0 : 1;
 }
 
+// Phase 8 slice: a conservative, deterministic formatter foundation.  It does
+// not rewrite syntax yet; it normalizes the file-level invariants that every
+// later AST formatter can preserve: LF endings, no trailing horizontal
+// whitespace, and exactly one final newline.  Keeping this operation
+// idempotent gives CI and editors a useful `kirn fmt --check` today without
+// risking semantic changes in the unfinished pretty-printer.
+std::string formatSource(const std::string& src) {
+    std::string out;
+    out.reserve(src.size() + 1);
+    size_t lineStart = 0;
+    while (lineStart < src.size()) {
+        size_t end = src.find('\n', lineStart);
+        if (end == std::string::npos) end = src.size();
+        size_t lineEnd = end;
+        if (lineEnd > lineStart && src[lineEnd - 1] == '\r') --lineEnd;
+        while (lineEnd > lineStart &&
+               (src[lineEnd - 1] == ' ' || src[lineEnd - 1] == '\t'))
+            --lineEnd;
+        out.append(src, lineStart, lineEnd - lineStart);
+        out.push_back('\n');
+        lineStart = end == src.size() ? src.size() : end + 1;
+    }
+    if (out.empty() && !src.empty()) out = "\n";
+    while (out.size() > 1 && out[out.size() - 1] == '\n' &&
+           out[out.size() - 2] == '\n')
+        out.pop_back();
+    return out;
+}
+
+bool isFmtSource(const fs::path& p) {
+    return fs::is_regular_file(p) && p.extension() == ".kn";
+}
+
+void collectFmtFiles(const fs::path& root, std::vector<fs::path>& out) {
+    if (isFmtSource(root)) {
+        out.push_back(root);
+        return;
+    }
+    if (!fs::is_directory(root)) return;
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end;
+         it.increment(ec)) {
+        if (ec) break;
+        const fs::path& p = it->path();
+        std::string name = p.filename().string();
+        if (name == ".git" || name == "build" || name == ".cache" ||
+            name == "node_modules" || name == "pets") {
+            it.disable_recursion_pending();
+            continue;
+        }
+        if (isFmtSource(p)) out.push_back(p);
+    }
+}
+
+void printFmtDiff(const fs::path& path, const std::string& oldText,
+                  const std::string& newText) {
+    std::cout << "--- " << path.string() << "\n"
+              << "+++ " << path.string() << " (formatted)\n";
+    std::istringstream oldLines(oldText), newLines(newText);
+    std::string line;
+    while (std::getline(oldLines, line)) std::cout << "-" << line << "\n";
+    while (std::getline(newLines, line)) std::cout << "+" << line << "\n";
+}
+
+int cmdFmt(const std::vector<std::string>& args) {
+    bool check = false, write = false, diff = false;
+    std::vector<fs::path> roots;
+    for (size_t i = 1; i < args.size(); ++i) {
+        if (args[i] == "--check") check = true;
+        else if (args[i] == "-w" || args[i] == "--write") write = true;
+        else if (args[i] == "-d" || args[i] == "--diff") diff = true;
+        else if (!args[i].empty() && args[i][0] == '-') {
+            std::cerr << "kirn fmt: unknown option '" << args[i] << "'\n";
+            return 64;
+        } else roots.emplace_back(args[i]);
+    }
+    if (roots.empty()) roots.emplace_back(".");
+    if (!write && !check && !diff && roots.size() != 1) {
+        std::cerr << "kirn fmt: multiple inputs require --check, --diff, or -w\n";
+        return 64;
+    }
+
+    std::vector<fs::path> files;
+    for (const auto& root : roots) {
+        if (!fs::exists(root)) {
+            std::cerr << "kirn fmt: no such file or directory: " << root.string()
+                      << "\n";
+            return 66;
+        }
+        collectFmtFiles(root, files);
+    }
+    std::sort(files.begin(), files.end());
+    files.erase(std::unique(files.begin(), files.end()), files.end());
+
+    int changed = 0;
+    for (const auto& path : files) {
+        std::string oldText;
+        if (!readFile(path.string(), oldText)) {
+            std::cerr << "kirn fmt: cannot read " << path.string() << "\n";
+            return 66;
+        }
+        std::string newText = formatSource(oldText);
+        if (oldText == newText) {
+            if (!check && !write && !diff) std::cout << oldText;
+            continue;
+        }
+        ++changed;
+        if (check) std::cout << "would reformat " << path.string() << "\n";
+        if (diff) printFmtDiff(path, oldText, newText);
+        if (write && !writeFile(path, newText)) {
+            std::cerr << "kirn fmt: cannot write " << path.string() << "\n";
+            return 66;
+        }
+        if (!check && !write && !diff) std::cout << newText;
+    }
+    if (check) return changed == 0 ? 0 : 1;
+    return 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // kirn doc — markdown viewer over HTTP
@@ -1533,6 +1652,7 @@ int main(int argc, char** argv) {
         return cmdNew(rest(nameIdx), pet);
     }
     if (cmd == "test" && args.size() >= 1) return cmdTest(args, 1);
+    if (cmd == "fmt") return cmdFmt(args);
     if (cmd == "install" || cmd == "i") {
         bool global_ = false;
         std::string pkg;

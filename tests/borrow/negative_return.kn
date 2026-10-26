@@ -1,0 +1,5 @@
+# The front end rejects this before MIR; it remains a required negative fixture.
+fn main() -> *Int {
+    x = 42;
+    return &x;
+}

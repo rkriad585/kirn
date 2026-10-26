@@ -23,6 +23,7 @@
 #include "prepro/prepro.h"
 #include "hir/hir.h"
 #include "mir/mir.h"
+#include "mir/borrowck.h"
 #include "sema/checker.h"
 #include "util/tomlmini.h"
 
@@ -1010,7 +1011,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
   // failures). On rc != 0, `o.err` carries the fully rendered, ready-to-print
   // text; on rc == 0 the program fills `o.prog` with the verified MIR. Bytes
   // match exactly what `cmdRt` produced historically -- goldens pin that text.
-  MirOutcome produceMir(const std::string& file, const char* toolName) {
+  MirOutcome produceMir(const std::string& file, const char* toolName, bool strict) {
       MirOutcome o;
       if (!readSourceVerbatim(file, o.src)) {
           o.rc = 66;
@@ -1074,6 +1075,19 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
           bail("MIR verification failure(s)", sp, ms);
           return o;
       }
+
+      if (strict) {
+          auto bv = kirn::mir::borrowCheck(mp);
+          if (!bv.empty()) {
+              std::vector<kirn::ast::Span> sp;
+              std::vector<std::string> ms;
+              for (const auto& v : bv) { sp.push_back(v.span); ms.push_back(v.message); }
+              bail("strict borrow checking failure(s)", sp, ms);
+              o.err = std::string("strict borrow checking failure(s): ") +
+                      std::to_string(bv.size()) + " violation(s)\n" + o.err;
+              return o;
+          }
+      }
   
       o.prog = std::make_unique<kirn::mir::Program>(std::move(mp));
       o.rc = 0;
@@ -1082,12 +1096,15 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
   
   int cmdRt(const std::vector<std::string>& args, const char* toolName) {
       std::vector<std::string> files;
+      bool strict = false;
       for (const auto& a : args) {
           if (a == "-h" || a == "--help") {
-              std::cout << "usage: " << toolName << " <file.kn>\n"
-                        << "  lower through HIR to MIR, verify the CFG, print the dump\n";
+              std::cout << "usage: " << toolName << " rt [--strict] <file.kn>\n"
+                        << "  lower through HIR to MIR, verify the CFG, print the dump\n"
+                        << "  --strict also runs the MIR borrow checker\n";
               return 0;
           }
+          if (a == "--strict") { strict = true; continue; }
           if (!a.empty() && a[0] == '-') continue;
           files.push_back(a);
       }
@@ -1100,7 +1117,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
           return 2;
       }
       const std::string& file = files[0];
-      MirOutcome m = produceMir(file, toolName);
+      MirOutcome m = produceMir(file, toolName, strict);
       if (m.rc == 66) {
           std::cerr << m.err;
           return m.rc;
@@ -4058,8 +4075,8 @@ int cmdRt(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdRt(args, toolName);
 }
 
-MirOutcome produceMir(const std::string& file, const char* toolName) {
-    return ::produceMir(file, toolName);
+MirOutcome produceMir(const std::string& file, const char* toolName, bool strict) {
+    return ::produceMir(file, toolName, strict);
 }
 
 MirOutcome::~MirOutcome() = default;

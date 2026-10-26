@@ -96,6 +96,7 @@ target_link_libraries(kirn_hir PUBLIC kirn_sema)
 add_library(kirn_mir STATIC
     src/mir/mir.cpp
     src/mir/mir_verify.cpp
+    src/mir/borrowck.cpp
 )
 target_link_libraries(kirn_mir PUBLIC kirn_hir)
 

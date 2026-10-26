@@ -1,0 +1,9 @@
+# Strict MIR borrow checking rejects a borrow loaded from a local and passed on.
+fn read_local(p: *Int) -> Int {
+    return *p;
+}
+fn main() -> none {
+    x = 42;
+    p = &x;
+    print(read_local(p));
+}

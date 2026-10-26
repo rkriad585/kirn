@@ -186,7 +186,7 @@ struct MirOutcome {
     // driver.cpp sees the complete type.
     ~MirOutcome();
 };
-MirOutcome produceMir(const std::string& file, const char* toolName);
+MirOutcome produceMir(const std::string& file, const char* toolName, bool strict = false);
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

@@ -1,0 +1,6 @@
+# Strict MIR borrow checking accepts a borrow used only within its scope.
+fn main() -> none {
+    x = 42;
+    p = &x;
+    print(*p);
+}

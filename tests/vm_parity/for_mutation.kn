@@ -1,0 +1,11 @@
+# `for` observes mutations to the shared backing vector in both runtimes.
+fn main() -> none {
+    var xs = [1, 2];
+    var seen = [];
+    for x in xs {
+        seen.append(x);
+        if x == 1 { xs.append(3); }
+    }
+    print(xs);
+    print(seen);
+}

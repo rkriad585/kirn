@@ -9714,10 +9714,12 @@ void Interpreter::iterateSeq(const Value& seq,
         case VK::Set:
         case VK::Tuple:
         case VK::Gen: {
-            std::vector<Value> snapshot = *seq.vec;
-            for (auto& item : snapshot) {
+            // Iterate the shared backing vector directly.  A shallow Value
+            // copy still shares this storage, so snapshotting here would
+            // hide mutations made by the loop body from later iterations.
+            for (size_t i = 0; i < seq.vec->size(); ++i) {
                 Env child = makeChild(env);
-                if (!body(item, child)) return;
+                if (!body((*seq.vec)[i], child)) return;
             }
             return;
         }
@@ -9758,10 +9760,9 @@ void Interpreter::iterateSeq(const Value& seq,
             return;
         }
         case VK::Deque: {
-            std::vector<Value> snapshot = *seq.vec;
-            for (auto& item : snapshot) {
+            for (size_t i = 0; i < seq.vec->size(); ++i) {
                 Env child = makeChild(env);
-                if (!body(item, child)) return;
+                if (!body((*seq.vec)[i], child)) return;
             }
             return;
         }
@@ -11062,7 +11063,7 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
     size_t sp = 0;
     struct VmIter {
         enum Kind { Vec, Range } kind = Vec;
-        std::vector<Value> vec;   // Vec mode: materialized elements
+        std::shared_ptr<std::vector<Value>> vecRef; // Vec mode: backing vector
         size_t idx = 0;           // Vec mode: next read position
         int64_t cur = 0, end = 0; // Range mode: next value / exclusive end
     };
@@ -11524,44 +11525,49 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                     iters.push_back(std::move(it));
                     break;
                 }
-                std::vector<Value> items;
+                std::shared_ptr<std::vector<Value>> items;
                 switch (seq.k) {
                     case VK::List: case VK::Set: case VK::Tuple: case VK::Gen:
-                        items = *seq.vec;
+                    case VK::Deque:
+                        items = seq.vec;
                         break;
-                    case VK::Dict:
-                        for (const auto& kv : *seq.map) items.push_back(kv.first);
+                    case VK::Dict: {
+                        items = std::make_shared<std::vector<Value>>();
+                        for (const auto& kv : *seq.map) items->push_back(kv.first);
                         break;
+                    }
                     case VK::Str:
+                        items = std::make_shared<std::vector<Value>>();
                         for (char c : seq.s)
-                            items.push_back(Value::chr((char32_t)(unsigned char)c));
+                            items->push_back(Value::chr((char32_t)(unsigned char)c));
                         break;
                     case VK::Bytes:
+                        items = std::make_shared<std::vector<Value>>();
                         for (char c : seq.s)
-                            items.push_back(Value::integer((int64_t)(unsigned char)c));
-                        break;
-                    case VK::Deque:
-                        items = *seq.vec;
+                            items->push_back(Value::integer((int64_t)(unsigned char)c));
                         break;
                     case VK::Counter:
+                        items = std::make_shared<std::vector<Value>>();
                         for (const auto& kv : *seq.map)
-                            if (kv.second.i != 0) items.push_back(kv.first);
+                            if (kv.second.i != 0) items->push_back(kv.first);
                         break;
                     case VK::Chan: {
+                        items = std::make_shared<std::vector<Value>>();
                         for (;;) {
                             auto s = seq.chan->recv();
                             if (!s.got) break;
-                            items.push_back(std::move(s.v));
+                            items->push_back(std::move(s.v));
                         }
                         break;
                     }
                     case VK::Struct: case VK::Heap: {
+                        items = std::make_shared<std::vector<Value>>();
                         Value selfCopy = seq;
                         for (;;) {
                             Value nv = invokeMethod(selfCopy, "next", {}, {}, env,
                                                     0, 0, &selfCopy);
                             if (nv.isNone()) break;
-                            items.push_back(nv);
+                            items->push_back(nv);
                         }
                         break;
                     }
@@ -11569,7 +11575,7 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                         panicHere("value is not iterable");
                 }
                 it.kind = VmIter::Vec;
-                it.vec = std::move(items);
+                it.vecRef = std::move(items);
                 it.idx = 0;
                 iters.push_back(std::move(it));
                 break;
@@ -11585,8 +11591,8 @@ Value Interpreter::vmRunBody(const vm::VmFunction& vf, Env fenv) {
                         push(mkScalar(VK::Bool,0,0,false,0));
                     }
                 } else {
-                    if (it.idx < it.vec.size()) {
-                        push(fromVal(std::move(it.vec[it.idx++])));
+                    if (it.idx < it.vecRef->size()) {
+                        push(fromVal(Value((*it.vecRef)[it.idx++])));
                         push(mkScalar(VK::Bool,0,0,true,0));
                     } else {
                         push(mkScalar(VK::Bool,0,0,false,0));

@@ -3443,8 +3443,12 @@ int buildProgram(const std::string& name, const std::string& version,
       << "#ifdef KIRN_HAS_NATIVE\n"
       << "        kirn_native_register(interp, root.body);\n"
       << "#endif\n"
-      << "        auto r = interp.run();\n"
-      << "        return r.k == kirn::interp::VK::Int ? (int)r.i : 0;\n"
+      // A compiled application owns the process entry point; a Kirn `main`
+      // return value is a language result, not an OS status code. Returning
+      // it directly truncated values such as 350 to 94 on POSIX, making
+      // otherwise successful native builds look like failures.
+      << "        (void)interp.run();\n"
+      << "        return 0;\n"
       << "    } catch (const kirn::interp::PanicSignal& p) {\n"
       << "        fflush(stdout);\n"
       << "        fputs((\"panic: \" + p.msg + \"\\n\").c_str(), stderr);\n"

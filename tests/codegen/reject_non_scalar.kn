@@ -1,4 +1,5 @@
-# M11 codegen: non-scalar signatures must NOT lower -- the interpreter runs them.
+# Native string signatures lower; the interpreter still owns the non-lowerable
+# print/main entry point.
 fn greet(name: Str) -> Str {
     return "hi " + name;
 }

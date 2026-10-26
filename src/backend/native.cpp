@@ -1,5 +1,6 @@
 // Implementation of the Phase 8.2 scalar-native backend. See native.h.
 #include "backend/native.h"
+#include "interp/escapes.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -44,7 +45,10 @@ static bool isOptScalarTy(const TyP& t) {
 
 // The set of types the native scalar backend can lower: plain scalars plus
 // optionals of scalars (elvis `??` short-circuits to the inner scalar).
-static bool isNativeTy(const TyP& t) { return isScalarTy(t) || isOptScalarTy(t); }
+static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
+static bool isNativeTy(const TyP& t) {
+    return isScalarTy(t) || isOptScalarTy(t) || isStringTy(t);
+}
 
 // M11: value type `v` is storable into target type `t`. Scalars-to-optional
 // widen (and `none` stores into any optional); otherwise kinds must match.
@@ -102,6 +106,7 @@ static std::string cppTy(const TyP& t) {
         case TyK::Float: return "double";
         case TyK::Bool:  return "bool";
         case TyK::Char:  return "char32_t";
+        case TyK::Str:   return "std::string";
         case TyK::Opt: {
             std::string in = cppTy(optInner(t));
             if (in.empty()) return "";
@@ -330,6 +335,9 @@ private:
             case ExKind::Int:
             case ExKind::Float:
                 return true;
+            case ExKind::Str:
+                return e.flavor == ast::StrFlavor::Normal ||
+                       e.flavor == ast::StrFlavor::Raw;
             case ExKind::Ident:
                 // `none` is only lowerable in an optional-scalar slot; the
                 // surrounding statement/return checks the target type.
@@ -390,7 +398,7 @@ private:
         if (op == "+" || op == "-" || op == "*" || op == "/" || op == "//" ||
             op == "%" || op == "**" || op == "<<" || op == ">>" || op == "&" ||
             op == "|" || op == "^")
-            return isScalarTy(t);
+            return (op == "+" && isStringTy(t)) || isScalarTy(t);
         return false;
     }
 
@@ -511,6 +519,7 @@ public:
     void emitPreamble() {
         out_ << "#include <cmath>\n"
              << "#include <optional>\n"
+             << "#include <string>\n"
              << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
                 "kirn::interp::panicHere(m); }\n"
@@ -634,14 +643,18 @@ private:
 
     static const char* valueCtor(const std::string& ty) {
         return ty == "int64_t" ? "integer" : ty == "double" ? "floating"
-                                                            : "boolean";
+               : ty == "std::string" ? "str" : "boolean";
     }
     static const char* envField(const std::string& ty) {
-        return ty == "int64_t" ? "i" : ty == "double" ? "d" : "b";
+        return ty == "int64_t" ? "i"
+             : ty == "double" ? "d"
+             : ty == "std::string" ? "s" : "b";
     }
     static const char* zeroOf(const std::string& ty) {
         if (ty.rfind("std::optional<", 0) == 0) return "std::nullopt";
-        return ty == "int64_t" ? "0" : ty == "double" ? "0.0" : "false";
+        return ty == "int64_t" ? "0"
+             : ty == "double" ? "0.0"
+             : ty == "std::string" ? "std::string()" : "false";
     }
 
     const NativeFunc* findCallee(const std::string& name) const {
@@ -795,6 +808,20 @@ private:
                 std::string s = e.text;
                 if (s.find_first_of(".eE") == std::string::npos) s += ".0";
                 return s;
+            }
+            case ExKind::Str: {
+                const std::string value = e.flavor == ast::StrFlavor::Raw
+                    ? e.text : kirn::decodeEscapes(e.text);
+                std::string out = "std::string(\"";
+                for (unsigned char c : value) {
+                    if (c == '\\' || c == '"') out += '\\';
+                    if (c == '\n') out += "\\n";
+                    else if (c == '\r') out += "\\r";
+                    else if (c == '\t') out += "\\t";
+                    else if (c == '\0') out += "\\0";
+                    else out += static_cast<char>(c);
+                }
+                return out + "\")";
             }
             case ExKind::Ident:
                 if (e.text == "true") return "true";
@@ -966,11 +993,13 @@ void out_registerAll(
     std::ostream& out,
     const std::unordered_map<const ast::Stmt*, NativeFunc>& lowered) {
     auto envField = [](const std::string& t) -> const char* {
-        return t == "int64_t" ? "i" : t == "double" ? "d" : "b";
+        return t == "int64_t" ? "i"
+             : t == "double" ? "d"
+             : t == "std::string" ? "s" : "b";
     };
     auto valueCtor = [](const std::string& t) -> const char* {
         return t == "int64_t" ? "integer" : t == "double" ? "floating"
-                                                          : "boolean";
+               : t == "std::string" ? "str" : "boolean";
     };
     out << "inline void kirn_native_register(kirn::interp::Interpreter& interp,"
            " const std::vector<kirn::ast::StmtP>& prog) {\n";

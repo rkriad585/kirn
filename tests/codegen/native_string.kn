@@ -1,0 +1,13 @@
+# Native string lowering: string parameters, literals, concatenation, and
+# equality stay on the native path while the interpreter owns print/main.
+fn join(prefix: Str, name: Str) -> Str {
+    return prefix + name;
+}
+
+fn same(value: Str) -> Bool {
+    return value == "kirn";
+}
+
+fn main() -> none {
+    print(join("hello ", "kirn"), same("kirn"), same("other"));
+}

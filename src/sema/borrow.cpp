@@ -105,6 +105,13 @@ static void checkStmtEscapes(DiagEngine& diags, const ast::Stmt& s,
             for (const auto& e : s.exprs)
                 checkExprEscapes(diags, *e, locals, true);
             break;
+        case ast::StKind::Raise:
+            // A raised value leaves the current function unless a local catch
+            // handles it, so conservatively treat borrows in the payload as
+            // escaping just like returned values.
+            for (const auto& e : s.exprs)
+                checkExprEscapes(diags, *e, locals, true);
+            break;
         case ast::StKind::VarDecl:
             if (s.value) checkExprEscapes(diags, *s.value, locals, true);
             if (s.target) checkExprEscapes(diags, *s.target, locals, false);

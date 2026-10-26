@@ -1,0 +1,6 @@
+# expect: escape: '&x' must not be returned or stored
+# Raising a borrow can outlive the function just like returning it.
+fn main() -> none {
+    x = 42;
+    raise(&x);
+}

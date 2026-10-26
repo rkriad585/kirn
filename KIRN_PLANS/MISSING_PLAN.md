@@ -77,9 +77,9 @@ touching a phase.
 | 4 `++`/`--`                 | PLAN §5.4, EXP §2           | **Rejected**    | grammar §4.9 keeps them out; use `+= 1`                                                            |
 | 5 Ternary `?:`              | EXP §2 (§A4.9)              | **Rejected**    | `if c { a } else { b }` conditional-expression exists instead                                      |
 | 6 `@` matrix mult           | EXP P13                     | **Complete**    | `MatMul`/`matmul`, `__matmul__`, `__rmatmul__`, `__imatmul__`, promotion and scalar diagnostics    |
-| 7 Dict/set comps            | SYNTAX SP-9, EXP P12        | **Partial**     | `ListComp`+`CompClause` exist (`src/ast/ast.h:84,95`); no dict/set builders, no `*`/`**` unpacking |
-| 8 Optional chain `?.`       | SYNTAX SP-4, EXP P6         | **Partial**     | `.?.` member form exists; no chaining, no `a?.[i]`, no `a?.()`                                     |
-| 9 Smart casts               | EXP P6/P8, SYNTAX SP-5      | **No**          | `is` tests exist (`operatorIs`), but no branch-narrowing of static type                            |
+| 7 Dict/set comps            | SYNTAX SP-9, EXP P12        | **Complete**    | Dict/set builders, `*`/`**` unpacking, last-write-wins dicts, and unique sets in checker/runtime   |
+| 8 Optional chain `?.`       | SYNTAX SP-4, EXP P6         | **Complete**    | `.?.`, `.?[ ]`, and `.?()` are implemented with receiver/argument short-circuiting               |
+| 9 Smart casts               | EXP P6/P8, SYNTAX SP-5      | **Complete**    | Stable-binding branch narrowing with `W-narrow` and strict escalation                            |
 | 10 `with`/CM                | EXP P3, SYNTAX SP-4/7       | **Partial**     | `defer` exists (parser:1126); no `with expr as x {}` enter/exit protocol                           |
 | 11 Drop/RAII                | EXP P3 (trait), DATA traits | **Partial**     | `defer` exists; no `Drop` trait scope-exit hook                                                    |
 | 12 `const fn`/comptime      | EXP P4, SYNTAX SP-14/15     | **Partial**     | `const` keyword exists; no `const fn`, no full const-eval, no `comptime`                           |
@@ -550,6 +550,13 @@ dot = v1 @ v2;        # vector @ vector -> scalar
 ---
 
 ### Phase M3 — Collections & access sugar: dict/set comps + `*/**` unpacking, `?.` chaining, smart casts, `typeof` _(features 7,8,9,19)_
+
+**Status: COMPLETE** — dict/set comprehensions and unpacking, nil-safe member/index/call
+navigation, stable-binding smart casts, and `typeof` are implemented and verified on
+the tree-walker and VM paths. Edge coverage proves short-circuiting, dict overwrite
+order, set uniqueness, negative diagnostics, and parity. Aggregate M3 expressions
+intentionally remain interpreter/VM fallback paths until the later native-AOT
+polish phase.
 
 **Goal:** the Python/TS ergonomics bundle — richer comprehension builders, safe-call chaining, and
 type narrowing + `typeof`.

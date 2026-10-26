@@ -1,0 +1,22 @@
+# M3 edge coverage: nil-safe access short-circuits its argument, dict spreads
+# are last-write-wins, and set spreads preserve set uniqueness.
+fn index_probe() -> Int {
+    print("index-called");
+    return 0;
+}
+
+fn maybe_list(flag: Int) -> list? {
+    if flag == 1 { return [10]; }
+    return none;
+}
+
+fn main() -> none {
+    gone = maybe_list(0);
+    print(gone .?[index_probe()]);       # prints none; index_probe is not called
+
+    merged = {"name": "old", **{"name": "new", "ok": true}};
+    print(merged["name"], merged["ok"]);
+
+    unique = {1, *[1, 2, 2, 3]};
+    print(unique.len());
+}

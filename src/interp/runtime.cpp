@@ -170,6 +170,19 @@ static Env makeChild(Env parent) {
     return e;
 }
 
+// A spawned task must not retain the caller's live lexical frame. The caller
+// continues declaring bindings after the spawn expression, while the task may
+// resolve captures concurrently. Copy the environment chain at the spawn
+// boundary; Values themselves keep their intentional sharing semantics for
+// channels, locks, and other runtime handles.
+static Env snapshotEnv(const Env& source) {
+    if (!source) return nullptr;
+    Env parent = snapshotEnv(source->parent);
+    Env copy = makeChild(std::move(parent));
+    copy->vars = source->vars;
+    return copy;
+}
+
 // ---- AST deep-clone (used by single-inheritance merging, mergeInheritance) --
 // Structs have unique_ptr members (no default copy); these cloners cover
 // precisely the node shapes a class/struct declaration can carry.
@@ -10470,6 +10483,7 @@ Value Interpreter::spawnCall(const Expr& callExpr, Env env) {
         threads_.push_back(t);
     }
     Value calleeCopy = callee;
+    calleeCopy.env = snapshotEnv(callee.env ? callee.env : globals_);
     t->th = std::thread([this, calleeCopy, args, t]() {
         threadEntry(calleeCopy, args, t);
     });
@@ -10487,6 +10501,7 @@ Value Interpreter::spawnTask(Value callee, std::vector<Value> args) {
         threads_.push_back(t);
     }
     if (!callee.env) callee.env = globals_;
+    callee.env = snapshotEnv(callee.env);
     t->th = std::thread([this, callee, args, t]() {
         threadEntry(callee, args, t);
     });

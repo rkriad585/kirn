@@ -3416,6 +3416,18 @@ int buildProgram(const std::string& name, const std::string& version,
             }
             return 0;
         }
+
+        // A scalar, zero-argument `main` is safe to invoke directly from the
+        // generated process entry point. Keep the interpreter launcher for
+        // non-lowerable mains so strings, collections, imports, and runtime
+        // features retain their existing behavior.
+        for (const auto& fn : prog.funcs) {
+            if (fn.name == "main" && fn.params.empty()) {
+                o << "#define KIRN_HAS_NATIVE_MAIN 1\n"
+                  << "#define KIRN_NATIVE_MAIN_NAME " << fn.cName << "\n";
+                break;
+            }
+        }
     }
     o << "int main(int argc, char** argv) {\n"
       << "    if (argc > 1 && (std::strcmp(argv[1], \"--version\") == 0 ||\n"
@@ -3424,6 +3436,10 @@ int buildProgram(const std::string& name, const std::string& version,
       << "                    KIRN_APP_VERSION, KIRN_APP_TARGET);\n"
       << "        return 0;\n"
       << "    }\n"
+      << "#ifdef KIRN_HAS_NATIVE_MAIN\n"
+      << "    (void)kirn_native::KIRN_NATIVE_MAIN_NAME();\n"
+      << "    return 0;\n"
+      << "#endif\n"
       << "    kirn::DiagEngine diags;\n"
 << "    auto toks = kirn::Lexer(kMainSrc, \"main.kn\", diags).lexAll();\n"
        << "    if (diags.errorCount()) { std::cerr << \"embedded source error\\n\"; "

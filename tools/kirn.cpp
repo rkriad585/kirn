@@ -124,6 +124,121 @@ namespace {
 
 using kirn::tomlmini::Doc;
 
+// A tiny dependency-free SHA-256 writer for published artifacts. Keeping the
+// digest in the driver makes the sidecar format identical on POSIX and
+// Windows; shelling out to certutil produced a different, human-readable
+// format from sha256sum and made verification platform-dependent.
+class Sha256 {
+public:
+    void update(const unsigned char* data, size_t len) {
+        for (size_t i = 0; i < len; ++i) {
+            block_[used_++] = data[i];
+            if (used_ == sizeof block_) {
+                transform();
+                total_ += sizeof block_;
+                used_ = 0;
+            }
+        }
+    }
+
+    std::string finish() {
+        const uint64_t bits = (total_ + used_) * 8;
+        block_[used_++] = 0x80;
+        if (used_ > 56) {
+            while (used_ < sizeof block_) block_[used_++] = 0;
+            transform();
+            used_ = 0;
+        }
+        while (used_ < 56) block_[used_++] = 0;
+        for (int i = 7; i >= 0; --i) block_[used_++] =
+            static_cast<unsigned char>(bits >> (i * 8));
+        transform();
+
+        static constexpr char hex[] = "0123456789abcdef";
+        std::string out;
+        out.reserve(64);
+        for (uint32_t word : state_)
+            for (int i = 7; i >= 0; --i)
+                out.push_back(hex[(word >> (i * 4)) & 0xf]);
+        return out;
+    }
+
+private:
+    static uint32_t rotr(uint32_t x, unsigned n) {
+        return (x >> n) | (x << (32 - n));
+    }
+
+    void transform() {
+        static constexpr uint32_t k[] = {
+            0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,
+            0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+            0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,
+            0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+            0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,
+            0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+            0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,
+            0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+            0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,
+            0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+            0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,
+            0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+            0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,
+            0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+            0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,
+            0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u,
+        };
+        uint32_t w[64]{};
+        for (int i = 0; i < 16; ++i)
+            for (int j = 0; j < 4; ++j)
+                w[i] = (w[i] << 8) | block_[i * 4 + j];
+        for (int i = 16; i < 64; ++i) {
+            const uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^
+                                 (w[i - 15] >> 3);
+            const uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^
+                                 (w[i - 2] >> 10);
+            w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+        }
+        uint32_t a=state_[0], b=state_[1], c=state_[2], d=state_[3];
+        uint32_t e=state_[4], f=state_[5], g=state_[6], h=state_[7];
+        for (int i = 0; i < 64; ++i) {
+            const uint32_t S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+            const uint32_t ch = (e & f) ^ (~e & g);
+            const uint32_t t1 = h + S1 + ch + k[i] + w[i];
+            const uint32_t S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+            const uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+            const uint32_t t2 = S0 + maj;
+            h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
+        }
+        state_[0]+=a; state_[1]+=b; state_[2]+=c; state_[3]+=d;
+        state_[4]+=e; state_[5]+=f; state_[6]+=g; state_[7]+=h;
+    }
+
+    uint32_t state_[8] = {0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,
+                          0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u};
+    unsigned char block_[64]{};
+    size_t used_ = 0;
+    uint64_t total_ = 0;
+};
+
+bool writeSha256Sidecar(const fs::path& artifact, const fs::path& sidecar) {
+    std::ifstream in(artifact, std::ios::binary);
+    if (!in) return false;
+    Sha256 sha;
+    char buf[64 * 1024];
+    while (in) {
+        in.read(buf, sizeof buf);
+        const std::streamsize got = in.gcount();
+        if (got > 0)
+            sha.update(reinterpret_cast<const unsigned char*>(buf),
+                       static_cast<size_t>(got));
+    }
+    if (!in.eof()) return false;
+    std::ofstream out(sidecar, std::ios::trunc);
+    if (!out) return false;
+    out << sha.finish() << "  " << artifact.filename().string() << "\n";
+    return static_cast<bool>(out);
+}
+
 
 std::string todayIso() {
     time_t t = time(nullptr);
@@ -198,31 +313,11 @@ int cmdPublish() {
         return 1;
     }
 
-    // Keep a checksum sidecar beside every published artifact.  Use the
-    // platform-native verifier so publishing does not depend on a Unix-only
-    // utility on Windows.
+    // Keep a canonical checksum sidecar beside every published artifact.
     fs::path sum = cached;
     sum += ".sha256";
-#ifdef _WIN32
-    std::string command = "certutil -hashfile \"" + cached.string() +
-                          "\" SHA256 > \"" + sum.string() + "\"";
-#else
-    std::string command = "sha256sum \"" + cached.string() + "\" > \"" +
-                          sum.string() + "\"";
-#endif
-    int checksumRc = std::system(command.c_str());
-#ifndef _WIN32
-    // macOS ships `shasum` in its base toolchain rather than GNU
-    // `sha256sum`. Keep the same sidecar format and use it when the GNU
-    // spelling is unavailable.
-    if (checksumRc != 0) {
-        command = "shasum -a 256 \"" + cached.string() + "\" > \"" +
-                  sum.string() + "\"";
-        checksumRc = std::system(command.c_str());
-    }
-#endif
-    if (checksumRc != 0) {
-        std::cerr << "kirn publish: no SHA-256 utility is available\n";
+    if (!writeSha256Sidecar(cached, sum)) {
+        std::cerr << "kirn publish: cannot write SHA-256 sidecar\n";
         return 1;
     }
     std::cout << "published " << cached << "\n"
@@ -466,7 +561,7 @@ int cmdNew(const std::string& name, bool lib) {
         writeFile(root / ".gitignore", gitignore);
 
         std::cout << "created pet '" << name << "'\n"
-                  << "  " << name << "/kirn.toml      manifest\n"
+                  << "  " << name << "/kirn.mod       manifest\n"
                   << "  code/pin.kn   package initializer + pub API\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           markdown docs\n"
@@ -515,7 +610,7 @@ int cmdNew(const std::string& name, bool lib) {
         writeFile(root / ".gitignore", gitignore);
 
         std::cout << "created project '" << name << "'\n"
-                  << "  " << name << "/kirn.toml      manifest\n"
+                  << "  " << name << "/kirn.mod       manifest\n"
                   << "  code/main.kn    entry point\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           project docs\n"

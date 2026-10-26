@@ -46,6 +46,21 @@ else
     report FAIL "native optional-param build" "$(tail -1 "$G11/op.log")"
 fi
 
+mainnat="$G11/native_main.bin"
+if timeout 900 "$KIRN" build --native "$ROOT/examples/native_main.kn" -o "$mainnat" \
+        >"$G11/main.log" 2>&1; then
+    main_native=$(timeout "$WATCH" "$mainnat" 2>&1); mnr=$?
+    main_interp=$(timeout "$WATCH" "$CR" "$ROOT/examples/native_main.kn" 2>&1); mir=$?
+    if [ "$mnr" = "$mir" ] && [ "$main_native" = "$main_interp" ]; then
+        report PASS "native lowered-main == interpreter" "rc=$mnr"
+    else
+        report FAIL "native lowered-main == interpreter" \
+            "native rc=$mnr: $main_native | interp rc=$mir: $main_interp"
+    fi
+else
+    report FAIL "native lowered-main build" "$(tail -1 "$G11/main.log")"
+fi
+
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))
 GATE_M=$((GATE_DUR / 60))

@@ -455,6 +455,16 @@ func main() {
 
 ## Phase 9 — Native backend breadth
 
+**Status: DONE** — native string/list lowering and hybrid fallback remain
+covered by gates 11a/11c, and lowered zero-argument `Int main` now returns its
+native result so the native/interpreter differential also passes for
+`examples/native_main.kn` (rc 94 on Linux, i.e. Kirn result 350 modulo 256).
+The full example corpus is green (90/90); ASan is clean across the corpus with
+leak detection disabled for this ptrace-constrained environment, UBSan
+representatives are clean, and the Release benchmark smoke set is green:
+`fib(25)` tree 4029 ms vs VM 448 ms (both 75025), string 53/59 ms, JSON
+45/35 ms.
+
 **Goal:** Widen native lowering to strings/lists and `main` itself with smallest surface, to reduce interpretation while keeping `kirn` + `kirnc` minimal.
 **Must Follow:** Hybrid calls for non-scalar; keep VM/tree-walker parity; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Fix lowered-`main` exit-code discrepancy; aim ASan/UBSan clean; measure against corpus. > Reference: LLVM — lowering patterns (`llvm/lib/CodeGen/` in `/home/rkriad585/Projects/langs-source-code/llvm`); Zig — backend lowering (`zig/src/codegen/` in `/home/rkriad585/Projects/langs-source-code/zig`).

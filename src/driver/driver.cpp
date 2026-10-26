@@ -3446,6 +3446,8 @@ int buildProgram(const std::string& name, const std::string& version,
             if (fn.name == "main" && fn.params.empty()) {
                 o << "#define KIRN_HAS_NATIVE_MAIN 1\n"
                   << "#define KIRN_NATIVE_MAIN_NAME " << fn.cName << "\n";
+                if (fn.retCpp == "int64_t")
+                    o << "#define KIRN_NATIVE_MAIN_RET_INT 1\n";
                 break;
             }
         }
@@ -3458,8 +3460,12 @@ int buildProgram(const std::string& name, const std::string& version,
       << "        return 0;\n"
       << "    }\n"
       << "#ifdef KIRN_HAS_NATIVE_MAIN\n"
+      << "#ifdef KIRN_NATIVE_MAIN_RET_INT\n"
+      << "    return (int)kirn_native::KIRN_NATIVE_MAIN_NAME();\n"
+      << "#else\n"
       << "    (void)kirn_native::KIRN_NATIVE_MAIN_NAME();\n"
       << "    return 0;\n"
+      << "#endif\n"
       << "#endif\n"
       << "    kirn::DiagEngine diags;\n"
 << "    auto toks = kirn::Lexer(kMainSrc, \"main.kn\", diags).lexAll();\n"

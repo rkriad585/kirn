@@ -277,7 +277,7 @@ int cmdEnv() {
 int cmdPublish() {
     Manifest m = readManifest(".");
     if (m.name.empty()) {
-        std::cerr << "kirn publish: no kirn.mod or kirn.toml found\n";
+        std::cerr << "kirn publish: no kirn.toml found\n";
         return 1;
     }
     std::vector<std::string> buildArgs{"build", "pet"};
@@ -561,7 +561,7 @@ int cmdNew(const std::string& name, bool lib) {
         writeFile(root / ".gitignore", gitignore);
 
         std::cout << "created pet '" << name << "'\n"
-                  << "  " << name << "/kirn.mod       manifest\n"
+                  << "  " << name << "/kirn.toml      manifest\n"
                   << "  code/pin.kn   package initializer + pub API\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           markdown docs\n"
@@ -610,7 +610,7 @@ int cmdNew(const std::string& name, bool lib) {
         writeFile(root / ".gitignore", gitignore);
 
         std::cout << "created project '" << name << "'\n"
-                  << "  " << name << "/kirn.mod       manifest\n"
+                  << "  " << name << "/kirn.toml      manifest\n"
                   << "  code/main.kn    entry point\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           project docs\n"
@@ -1064,8 +1064,7 @@ if (fs::exists(pkgBase(false) / name)) continue;
 int cmdUpdate(const std::string& only) {
     bool global_ = false;
     // try global pets dir first if not in a project with kirn.toml
-    if (!fs::exists(fs::path("kirn.mod")) &&
-        !fs::exists(fs::path("kirn.toml")) && only.empty()) {
+    if (!fs::exists(fs::path("kirn.toml")) && only.empty()) {
         // check global
     }
     Manifest proj = readManifest(".");
@@ -2239,8 +2238,7 @@ int main(int argc, char** argv) {
             else pkg = args[i];
         }
         if (pkg.empty()) {
-        if (!global_ && (fs::exists(fs::path("kirn.mod")) ||
-                         fs::exists(fs::path("kirn.toml")))) {
+            if (!global_ && fs::exists(fs::path("kirn.toml"))) {
                 std::vector<std::string> empty;
                 return cmdAdd(empty);
             }
@@ -2284,9 +2282,8 @@ int main(int argc, char** argv) {
         return cmdUpdate(only);
     }
     if (cmd == "sync") {
-        if (!fs::exists(fs::path("kirn.mod")) &&
-            !fs::exists(fs::path("kirn.toml"))) {
-            std::cerr << "kirn sync: no kirn.mod or kirn.toml found\n";
+        if (!fs::exists(fs::path("kirn.toml"))) {
+            std::cerr << "kirn sync: no kirn.toml found\n";
             return 1;
         }
         std::vector<std::string> empty;
@@ -2302,9 +2299,9 @@ int main(int argc, char** argv) {
         if (name.empty()) { usage(); return 64; }
         return cmdRemove(name);
     }
-    if (cmd == "add") {   // removed
-        usage();
-        return 64;
+    if (cmd == "add") {
+        std::vector<std::string> packages(args.begin() + 1, args.end());
+        return cmdAdd(packages);
     }
     if (cmd == "clone" && (args.size() == 2 ||
                            (args.size() == 3 && args[2] == "--full")))

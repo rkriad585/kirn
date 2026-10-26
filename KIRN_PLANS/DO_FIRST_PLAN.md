@@ -559,15 +559,15 @@ func (m *Mutex) Unlock()     { <-m.ch }
 ## Phase 12 — CLI/UX & ecosystem
 
 **Status: DONE** — the documented `kirn` verbs, 21-line help, `KIRNCACHE`,
-`kirn.mod`, publish/install flow, and canonical checksum sidecars are verified.
+`kirn.toml`, `kirn.lock`, publish/install flow, and canonical checksum sidecars are verified.
 Checksum generation is implemented in portable C++ so Windows, Linux, and
 macOS produce the same `sha256sum`-compatible sidecar format.
 
 **Goal:** Deliver standards-aligned CLI + minimal registry while keeping toolchain to exactly `kirn` + `kirnc`.
-**Must Follow:** Verbs `<build|run|test|vet|fmt|doc|env|check|lint|get|publish/install>` surface via `kirn`; config `KIRNCACHE`, `kirn.mod`, `kirn env`; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
+**Must Follow:** Verbs `<build|run|test|vet|fmt|doc|env|check|lint|get|publish/install>` surface via `kirn`; config `KIRNCACHE`, `kirn.toml`, `kirn.lock`, `kirn env`; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Help < 40 lines; cross-platform install/publish. > Reference: Go — CLI UX (`go/src/cmd/go/`); V — package manager (`v/cmd/v` in `/home/rkriad585/Projects/langs-source-code/v`).
 
-- `kirn <build|run|test|vet|fmt|doc|env|check|lint>`; config via `KIRNCACHE`, `kirn.mod`,
+- `kirn <build|run|test|vet|fmt|doc|env|check|lint>`; config via `KIRNCACHE`, `kirn.toml`,
   `kirn env`.
 - Package ecosystem: `kirn publish/install/get`, registries, checksums, `pin.kn`.
 

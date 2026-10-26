@@ -158,15 +158,14 @@ std::string todayIso() {
 }
 
 // ---------------------------------------------------------------------------
-// manifests: kirn.mod (kirn.toml remains accepted for compatibility)
+// manifests: kirn.toml
 // ---------------------------------------------------------------------------
 
 
 Manifest readManifest(const fs::path& dir) {
     Manifest m;
     std::string text;
-    if (!readFile((dir / "kirn.mod").string(), text) &&
-        !readFile((dir / "kirn.toml").string(), text)) {
+    if (!readFile((dir / "kirn.toml").string(), text)) {
         return m;
     }
     Doc d = kirn::tomlmini::parse(text);
@@ -292,7 +291,7 @@ void writeManifest(const fs::path& dir, const Manifest& m) {
             o << " }\n";
         }
     }
-    writeFile(dir / "kirn.mod", o.str());
+    writeFile(dir / "kirn.toml", o.str());
 }
 
 // ---------------------------------------------------------------------------
@@ -3701,8 +3700,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     std::ostringstream o;
     o << "PETLIB/1\n";
     std::vector<fs::path> files;
-    files.push_back(fs::is_regular_file("kirn.mod") ? fs::path("kirn.mod")
-                                                     : fs::path("kirn.toml"));
+    files.push_back(fs::path("kirn.toml"));
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
          it.increment(ec))
         if (!ec && it->is_regular_file(ec)) files.push_back(it->path());
@@ -3866,7 +3864,7 @@ int unpackPet(const std::string& raw, bool global_) {
     }
     std::string name;
     for (const auto& s : sections)
-        if (s.path == "kirn.mod" || s.path == "kirn.toml") {
+        if (s.path == "kirn.toml") {
             Doc d = kirn::tomlmini::parse(s.body);
             name = kirn::tomlmini::get(d, "package", "name");
         }
@@ -3930,7 +3928,7 @@ void usage() {
     std::cout
         << "kirn - the Kirn language driver\n\n"
         << "usage:\n"
-        << "  kirn run .|<file.kn>|<dir>       run a project (requires kirn.mod) or a single .kn file\n"
+        << "  kirn run .|<file.kn>|<dir>       run a project (requires kirn.toml) or a single .kn file\n"
         << "  kirn new <name>                  scaffold an application\n"
         << "  kirn new pet <name>              scaffold a package (pet)\n"
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
@@ -3944,6 +3942,7 @@ void usage() {
         << "  kirn sync|update|remove <name>   manage project dependencies\n"
         << "  kirn clone <repo>                clone a repository\n"
         << "  kirn build [file.kn|pet]         compile or package a project\n"
+        << "      flags: --debug --release --target <triple> --native --asan -S -O -o <path>\n"
         << "  kirn publish                     package, cache, and checksum a pet\n"
         << "  kirn targets                     list supported target triples\n"
         << "  kirn doc <pet|dir>               serve generated API docs\n"

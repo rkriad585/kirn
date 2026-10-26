@@ -1,0 +1,8 @@
+# Native list parameters: a list argument crosses into native code and back.
+fn echo(items: list[Int]) -> list[Int] {
+    return items;
+}
+
+fn main() -> none {
+    print(echo([4, 5, 6]));
+}

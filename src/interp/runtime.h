@@ -241,8 +241,14 @@ public:
     // body is inside the VM core slice runs on the VM instead of the tree-walker;
     // all other functions keep their exact tree-walker behaviour.
     void enableVm();
+    // Optional cycle collection. Reference counting remains the default;
+    // --gc enables trial-deletion collection at explicit gc_collect() calls
+    // and interpreter shutdown.
+    void enableGc() { gcEnabled_ = true; }
+    size_t collectGc();
     std::unique_ptr<vm::CompileResult> vmProg_;
     bool vmEnabled_ = false;
+    bool gcEnabled_ = false;
     const vm::VmFunction* vmFuncFor(const Stmt* fn) const;
     Value vmRunBody(const vm::VmFunction& vf, Env fenv);
     Value makeEnumVPos(const std::string& enumName, const std::string& variant,

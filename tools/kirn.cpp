@@ -2038,9 +2038,11 @@ int main(int argc, char** argv) {
     if ((cmd == "run" || cmd == "r") && !args.empty()) {
         // bare `kirn run` targets the current directory (the scaffold hint
         // tells users to `cd <project> && kirn run`).
-        bool hasTarget = args.size() >= 2;
-        std::string target = hasTarget ? args[1] : std::string(".");
-        std::vector<std::string> progArgs(args.begin() + (hasTarget ? 2 : 1),
+        bool gc = args.size() >= 2 && args[1] == "--gc";
+        size_t targetIndex = gc ? 2 : 1;
+        bool hasTarget = args.size() > targetIndex;
+        std::string target = hasTarget ? args[targetIndex] : std::string(".");
+        std::vector<std::string> progArgs(args.begin() + (hasTarget ? targetIndex + 1 : targetIndex),
                                           args.end());
         fs::path file(target);
         if (fs::is_directory(file)) {
@@ -2070,7 +2072,7 @@ int main(int argc, char** argv) {
             if (!parent.empty() && parent != "." && parent != scriptDir)
                 dirs.insert(dirs.begin(), parent);
         }
-        return runProgram(file.string(), dirs, {}, progArgs);
+        return runProgram(file.string(), dirs, {}, progArgs, gc);
     }
     if (cmd == "new" && args.size() >= 2) {
         if (args[1] == "lib") {

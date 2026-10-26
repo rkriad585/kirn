@@ -134,11 +134,13 @@ void printDiags(const std::string& path, const kirn::DiagEngine& diags);
 int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
-                  const std::vector<std::string>& progArgs = {});
+                  const std::vector<std::string>& progArgs = {},
+                  bool gc = false);
 int runProgram(const std::string& entryPath,
                const std::vector<std::string>& dirs,
                const std::map<std::string, std::string>& embedded = {},
-               const std::vector<std::string>& progArgs = {});
+               const std::vector<std::string>& progArgs = {},
+               bool gc = false);
 
 // --- stage-oracle verbs (phase 1) -------------------------------------------
 // Extracted from the kirnlex / kirnparse / kirncheck main()s so `kirnc

@@ -304,7 +304,10 @@ pub struct MutexState {
     var m: any;      # native sync.Mutex
     var v: list;     # [value] - reference field, shared across receiver copies
 
-    async fn lock(self) -> MutexGuard {
+    # Lock acquisition and release must happen on the same OS thread because
+    # the native mutex is an ownership mutex. `await` accepts completed values,
+    # so callers may keep the ergonomic `await m.lock()` spelling.
+    fn lock(self) -> MutexGuard {
         self.m.lock();
         return MutexGuard(m: self.m, v: self.v);
     }
@@ -321,7 +324,7 @@ pub struct MutexState {
     }
 
     # Run `f(value)` under the lock; unlocks even if `f` raises.
-    async fn with(self, f: any) -> any {
+    fn with(self, f: any) -> any {
         self.m.lock();
         defer self.m.unlock();
         return f(self.v[0]);

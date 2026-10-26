@@ -26,6 +26,7 @@
 #include <sstream>
 #include <atomic>
 #include <set>
+#include <unordered_set>
 
 #ifndef _WIN32
 #include <csignal>
@@ -356,6 +357,117 @@ static int64_t nowMs() {
 // returns immediately. Gate arms still use the short poll because a cached gate
 // expression has no notification source.
 namespace {
+struct HeapRegistry {
+    std::mutex m;
+    std::vector<std::weak_ptr<HeapObj>> objects;
+};
+
+HeapRegistry& heapRegistry() {
+    static HeapRegistry r;
+    return r;
+}
+
+void registerHeapObject(const std::shared_ptr<HeapObj>& object) {
+    auto& r = heapRegistry();
+    std::lock_guard<std::mutex> lock(r.m);
+    r.objects.emplace_back(object);
+}
+
+// Enumerate strong Heap handles nested in a runtime value. Weak handles are
+// intentionally not followed: their purpose is to break ownership cycles.
+template <class F>
+void visitHeapRefs(const Value& value, F&& fn,
+                  std::unordered_set<const void*>& seen) {
+    if (value.k == VK::Heap && value.heap) {
+        fn(value.heap.get());
+        return;
+    }
+    if (value.k == VK::List || value.k == VK::Tuple || value.k == VK::Set ||
+        value.k == VK::Deque || value.k == VK::Gen) {
+        if (!value.vec || !seen.insert(value.vec.get()).second) return;
+        for (const auto& item : *value.vec) visitHeapRefs(item, fn, seen);
+        return;
+    }
+    if (value.k == VK::Dict || value.k == VK::Counter) {
+        if (!value.map || !seen.insert(value.map.get()).second) return;
+        for (const auto& pair : *value.map) {
+            visitHeapRefs(pair.first, fn, seen);
+            visitHeapRefs(pair.second, fn, seen);
+        }
+        return;
+    }
+    if (value.k == VK::Struct || value.k == VK::Result || value.k == VK::EnumV) {
+        for (const auto& field : value.fields) visitHeapRefs(field.second, fn, seen);
+        for (const auto& item : value.payload) visitHeapRefs(item, fn, seen);
+    }
+}
+
+size_t collectHeapCycles() {
+    auto& r = heapRegistry();
+    std::vector<std::shared_ptr<HeapObj>> objects;
+    {
+        std::lock_guard<std::mutex> lock(r.m);
+        auto out = r.objects.begin();
+        for (auto it = r.objects.begin(); it != r.objects.end(); ++it) {
+            if (auto object = it->lock()) {
+                objects.push_back(std::move(object));
+                *out++ = *it;
+            }
+        }
+        r.objects.erase(out, r.objects.end());
+    }
+    if (objects.empty()) return 0;
+
+    std::unordered_map<const HeapObj*, size_t> index;
+    for (size_t i = 0; i < objects.size(); ++i) index[objects[i].get()] = i;
+    std::vector<std::vector<size_t>> edges(objects.size());
+    std::vector<size_t> incoming(objects.size(), 0);
+    for (size_t i = 0; i < objects.size(); ++i) {
+        std::unordered_set<const void*> seen;
+        auto add = [&](const HeapObj* target) {
+            auto it = index.find(target);
+            if (it != index.end()) {
+                edges[i].push_back(it->second);
+                ++incoming[it->second];
+            }
+        };
+        for (const auto& field : objects[i]->fields)
+            visitHeapRefs(field.second, add, seen);
+    }
+
+    std::vector<bool> reachable(objects.size(), false);
+    std::vector<size_t> work;
+    for (size_t i = 0; i < objects.size(); ++i) {
+        // `objects` contributes exactly one strong reference to each object.
+        // Anything beyond that and the graph's incoming edges is an external
+        // root (a live binding, argument, task, or container).
+        const size_t owned = objects[i].use_count() > 0
+                                 ? objects[i].use_count() - 1
+                                 : 0;
+        if (owned > incoming[i]) {
+            reachable[i] = true;
+            work.push_back(i);
+        }
+    }
+    while (!work.empty()) {
+        size_t i = work.back();
+        work.pop_back();
+        for (size_t next : edges[i])
+            if (!reachable[next]) {
+                reachable[next] = true;
+                work.push_back(next);
+            }
+    }
+
+    size_t collected = 0;
+    for (size_t i = 0; i < objects.size(); ++i) {
+        if (reachable[i]) continue;
+        objects[i]->fields.clear();
+        ++collected;
+    }
+    return collected;
+}
+
 struct SelectBus {
     std::mutex m;
     std::condition_variable cv;
@@ -1525,7 +1637,15 @@ Interpreter::Interpreter(const Stmt& program) {
     program_ = &program;
 }
 
-Interpreter::~Interpreter() { shutdownThreads(); }
+Interpreter::~Interpreter() {
+    shutdownThreads();
+    collectGc();
+}
+
+size_t Interpreter::collectGc() {
+    if (!gcEnabled_) return 0;
+    return collectHeapCycles();
+}
 
 Value Interpreter::run() {
     // deferred so hosts can configure module search paths between
@@ -2718,6 +2838,10 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // repr(x): debug/typed string form (quotes strings, shows containers/fields).
     globals_->vars["repr"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(repr(a[0]));
+    });
+
+    globals_->vars["gc_collect"] = biFn({}, [this](std::vector<Value>&) -> Value {
+        return Value::integer(static_cast<int64_t>(collectGc()));
     });
 
     // drop(x): early, explicit release of a resource (MISSING_PLAN M4, Rust
@@ -9689,6 +9813,7 @@ Value Interpreter::makeHeapValue(const std::string& name,
 
     auto hobj = std::make_shared<HeapObj>();
     hobj->typeName = name;
+    registerHeapObject(hobj);
     for (const auto& fd : sd.fields) {
         if (fd.weak) hobj->weakFields.push_back(fd.name);
         const ast::CallArg* arg = nullptr;

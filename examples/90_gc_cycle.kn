@@ -1,0 +1,11 @@
+# 90 — optional trial-deletion GC reclaims an unreachable strong cycle.
+struct Node {
+    var next: Node?;
+}
+
+fn main() -> none {
+    node = new Node();
+    node.next = node;
+    del node;
+    print(gc_collect());
+}

@@ -554,7 +554,8 @@ void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
 int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
-                  const std::vector<std::string>& progArgs) {
+                  const std::vector<std::string>& progArgs,
+                  bool gc) {
     kirn::DiagEngine diags;
     auto body = frontEnd(label, src, diags);
     if (diags.errorCount()) {
@@ -567,6 +568,7 @@ int runProgramSrc(const std::string& label, const std::string& src,
     root.body = std::move(body);
     try {
         kirn::interp::Interpreter interp(root);
+        if (gc) interp.enableGc();
         for (const auto& d : dirs) interp.addStdlibDir(d);
         for (const auto& [name, esrc] : embedded)
             interp.addEmbeddedSource(name, esrc);
@@ -1140,13 +1142,14 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
     int runProgram(const std::string& entryPath,
                    const std::vector<std::string>& dirs,
                    const std::map<std::string, std::string>& embedded = {},
-                   const std::vector<std::string>& progArgs = {}) {
+                   const std::vector<std::string>& progArgs = {},
+                   bool gc = false) {
       std::string src;
     if (!readFile(entryPath, src)) {
         std::cerr << "kirn: cannot read '" << entryPath << "'\n";
         return 66;
     }
-    return runProgramSrc(entryPath, src, dirs, embedded, progArgs);
+    return runProgramSrc(entryPath, src, dirs, embedded, progArgs, gc);
 }
 
 // ---------------------------------------------------------------------------
@@ -4040,15 +4043,15 @@ void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
 int runProgramSrc(const std::string& label, const std::string& src,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs) {
-    return ::runProgramSrc(label, src, dirs, embedded, progArgs);
+    const std::vector<std::string>& progArgs, bool gc) {
+    return ::runProgramSrc(label, src, dirs, embedded, progArgs, gc);
 }
 
 int runProgram(const std::string& entryPath,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs) {
-    return ::runProgram(entryPath, dirs, embedded, progArgs);
+    const std::vector<std::string>& progArgs, bool gc) {
+    return ::runProgram(entryPath, dirs, embedded, progArgs, gc);
 }
 
 int cmdLex(const std::vector<std::string>& args, const char* toolName) {

@@ -1,0 +1,16 @@
+# 91 — bounded-worker crawler workload: 10,000 independent crawl tasks.
+# pet.parallel keeps the worker count bounded while every URL is processed as
+# an item task, so this exercises task scheduling without creating 10,000 OS
+# threads at once.
+import pet.parallel as p;
+
+fn main() -> none {
+    urls = [];
+    for i in 0..10000 {
+        urls.append("https://kirn.local/page/" + Str(i));
+    }
+    lengths = p.par_iter(urls).map(fn (url) -> Int {
+        return url.len();
+    });
+    print(urls.len(), lengths.sum());
+}

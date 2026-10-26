@@ -495,6 +495,14 @@ pub fn check(expr: &Expr, ctx: &mut Ctx) -> Result<(), Error> {
 
 ## Phase 11 — Concurrency & GC finalize
 
+**Status: DONE** — optional `--gc` trial-deletion collection now reclaims
+unreachable strong `HeapObj` cycles while preserving the refcount/weak default;
+`gc_collect()` is explicit and the interpreter performs a final collection when
+GC is enabled. The 10,000-item bounded-worker crawler (`examples/91_10k_crawler.kn`),
+cycle fixture (`examples/90_gc_cycle.kn`), recursive repr fixture, sync suite,
+ASan, and TSan representatives are green. TSan also caught and fixed native
+mutex ownership across the old async `Mutex.lock` boundary.
+
 **Goal:** Achieve Go-grade `spawn/chan/select` safety and a GC story with smallest unblocking surface.
 **Must Follow:** Sendability checks for `spawn`; `sync` module; cycle-safe repr; use `fn`/`var`/CapCase in examples; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** ASan/TSan clean for demos; keep refcount+weak default, `--gc` later. > Reference: Go — runtime scheduler/channels (`go/src/runtime/`), sync (`go/src/sync/`) in `/home/rkriad585/Projects/langs-source-code/go`.

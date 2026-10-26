@@ -663,6 +663,7 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("sizeof", {unkTy()}, {"t"}, intTy(), false, 1);
     makeBuiltinFunc("alignof", {unkTy()}, {"t"}, intTy(), false, 1);
     makeBuiltinFunc("repr", {unkTy()}, {"x"}, strTy(), false, 1);
+    makeBuiltinFunc("gc_collect", {}, {}, intTy(), false, 0);
     makeBuiltinFunc("drop", {unkTy()}, {"x"}, noneTy(), false, 1);
     makeBuiltinFunc("sum", {unkTy()}, {"xs"}, unkTy(), false, 1);
     makeBuiltinFunc("Min", {unkTy()}, {"xs"}, unkTy(), false, 1);

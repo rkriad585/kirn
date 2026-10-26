@@ -186,6 +186,19 @@ static void checkStmtEscapes(DiagEngine& diags, const ast::Stmt& s,
                 for (const auto& b : arm.body) checkStmtEscapes(diags, *b, locals);
             }
             break;
+        case ast::StKind::FuncDef: {
+            // Nested functions can capture locals from the enclosing function.
+            // Treat the enclosing set as the capture environment, then add the
+            // nested function's own parameters and locals before walking its
+            // body.  Previously this statement kind fell through, allowing a
+            // returned `&captured_local` to escape unchecked.
+            std::set<std::string> nested = locals;
+            for (const auto& p : s.params)
+                if (!p.name.empty() && !p.selfParam) nested.insert(p.name);
+            for (const auto& b : s.body) collectStmtLocals(*b, nested);
+            for (const auto& b : s.body) checkStmtEscapes(diags, *b, nested);
+            break;
+        }
         default:
             break;
     }

@@ -1,0 +1,9 @@
+# expect: escape: '&x' must not be returned or stored
+# Nested functions must not return a borrow of an enclosing local.
+fn main() -> none {
+    x = 42;
+    fn inner() -> *Int {
+        return &x;
+    }
+    print(inner());
+}

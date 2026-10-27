@@ -1226,6 +1226,22 @@ case passed.
 The earlier JSON `to_writer`/`from_reader` deviation is superseded by this
 update.
 
+### Update (2026-10-27) — Completion-order `TaskSet.join_next` (shipped)
+
+`pet.async.TaskSet.join_next` now polls each tracked task without blocking and
+returns the first completed handle, then yields briefly before retrying when no
+task is ready. This matches Tokio `JoinSet.join_next` completion semantics
+while preserving Kirn's eager OS-thread task model. `join_all` remains ordered
+because it intentionally drains the set in insertion order.
+
+Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`.
+
+Verification: `async_test.kn` and `examples/84_task_control.kn` pass. The
+aggregate stdlib run remains affected by the pre-existing
+`contextlib_test.kn` ExitStack cleanup regression; the async test itself passes.
+
+The earlier FIFO `TaskSet.join_next` deviation is superseded by this update.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

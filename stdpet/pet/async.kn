@@ -225,9 +225,10 @@ pub async fn try_join(ts: list) -> list {
 # ---- §2.3 tasks: TaskSet / abort / spawn_blocking ---------------------------
 #
 # Calling an `async fn` starts the task eagerly, so a TaskSet *tracks* handles
-# rather than scheduling work: `set.spawn(t)` appends one. `join_next` is FIFO
-# (there is no completion-order wakeup in the thread-per-task runtime) and a
-# task's `raise` surfaces at the await site, as with `join`.
+# rather than scheduling work: `set.spawn(t)` appends one. `join_next` polls
+# each handle without blocking and returns the first completed task, matching
+# Tokio's completion-oriented JoinSet contract. A short timer yields while all
+# tracked tasks are still running.
 
 pub struct TaskSetState {
     var ts: list;
@@ -251,8 +252,24 @@ pub struct TaskSetState {
 
     async fn join_next(self) -> any {
         if self.ts.len() == 0 { return none; }
-        t = self.ts.shift();
-        return await t;
+        while true {
+            var pending = [];
+            var chosen = none;
+            var found = false;
+            var count = self.ts.len();
+            for _i in 0..count {
+                t = self.ts.shift();
+                if not found and time.wait(t, 0) {
+                    chosen = t;
+                    found = true;
+                } else {
+                    pending.append(t);
+                }
+            }
+            for t in pending { self.ts.append(t); }
+            if found { return await chosen; }
+            await sleep(ms: 1);
+        }
     }
 
     async fn join_all(self) -> list {

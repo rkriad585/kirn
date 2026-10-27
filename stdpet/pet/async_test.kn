@@ -12,6 +12,16 @@ async fn afail(n: Int) -> Int {
     return n;
 }
 
+async fn ordered_slow() -> Int {
+    await a.sleep(ms: 30);
+    return 30;
+}
+
+async fn ordered_fast() -> Int {
+    await a.sleep(ms: 1);
+    return 1;
+}
+
 async fn bump(m: any, n: Int) -> none {
     for _i in 0..n {
         g = await m.lock();
@@ -244,6 +254,13 @@ async fn main() -> none {
     assert_eq(rest.len(), 1);
     assert_eq(rest[0], 20);
     assert(sset.is_empty());
+
+    # join_next returns completion order rather than insertion order.
+    var ordered = a.TaskSet();
+    ordered.spawn(ordered_slow());
+    ordered.spawn(ordered_fast());
+    assert_eq(await ordered.join_next(), 1);
+    assert_eq(await ordered.join_next(), 30);
 
     var sset2 = a.TaskSet();
     sset2.spawn(addup(3));

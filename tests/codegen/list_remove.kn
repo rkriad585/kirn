@@ -1,0 +1,10 @@
+# M11: scalar-list first-match removal on the native path.
+fn remove_one(items: list[Int], value: Int) -> list[Int] {
+    items.remove(value);
+    return items;
+}
+
+fn main() -> none {
+    print(remove_one([1, 2, 2, 3], 2));
+    print(remove_one([4, 5], 4));
+}

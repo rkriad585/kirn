@@ -332,6 +332,18 @@ private:
                    !src->args.empty() && src->args[0]->k == recv->args[0]->k &&
                    typeOf(e) && typeOf(e)->k == TyK::None;
         }
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "remove") {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                e.args.size() != 1 || e.args[0].name != "" ||
+                !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            if (!isListTy(recv) || recv->args.empty() ||
+                !isScalarTy(recv->args[0]) ||
+                !assignCompatible(typeOf(*e.args[0].value), recv->args[0]))
+                return false;
+            return typeOf(e) && typeOf(e)->k == TyK::None;
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 e.args.size() != 1 || e.args[0].name != "" ||
@@ -1122,6 +1134,15 @@ private:
                     std::string src = emitExpr(*e.args[0].value);
                     return "[&]{ auto &__dst = (" + obj + "); auto __src = (" +
                            src + "); __dst.insert(__dst.end(), __src.begin(), __src.end()); }()";
+                }
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "remove") {
+                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string needle = "__remove_needle" + std::to_string(tmpSeq_++);
+                    std::string field = valueField(elem);
+                    return "[&]{ auto &__seq = (" + obj + "); auto " + needle +
+                           " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (__it->" +
+                           field + " == " + needle + ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
                     std::string obj = emitExpr(*e.lhs->lhs);

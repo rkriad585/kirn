@@ -676,13 +676,18 @@ private:
             s.pat->bindName.empty())
             return false;
         const ast::Expr& it = *s.exprs[0];
-        if (it.kind != ExKind::Binary || (it.op != ".." && it.op != "..="))
-            return false;
-        if (!it.lhs || !it.rhs) return false;
-        if (!exprLowerable(*it.lhs, cur) || !exprLowerable(*it.rhs, cur))
-            return false;
-        if (typeOf(*it.lhs)->k != TyK::Int || typeOf(*it.rhs)->k != TyK::Int)
-            return false;
+        if (it.kind == ExKind::Binary && (it.op == ".." || it.op == "..=")) {
+            if (!it.lhs || !it.rhs) return false;
+            if (!exprLowerable(*it.lhs, cur) || !exprLowerable(*it.rhs, cur))
+                return false;
+            if (typeOf(*it.lhs)->k != TyK::Int || typeOf(*it.rhs)->k != TyK::Int)
+                return false;
+        } else {
+            TyP seq = typeOf(it);
+            if (!exprLowerable(it, cur) || !isListTy(seq) || seq->args.empty() ||
+                !isScalarTy(seq->args[0]))
+                return false;
+        }
         return bodyLowerable(s.body, cur);
     }
 
@@ -1072,17 +1077,30 @@ private:
     void emitFor(const ast::Stmt& s, int ind) {
         std::string pad(4 * ind, ' ');
         const ast::Expr& it = *s.exprs[0];
-        bool inclusive = it.op == "..=";
-        std::string loopVar = cIdent(s.pat->bindName, "v_");
-        std::string lo = emitExpr(*it.lhs);
-        std::string hi = emitExpr(*it.rhs);
-        std::string cmp = inclusive ? "<=" : "<";
-        out_ << pad << "for (int64_t " << loopVar << " = (" << lo << "); "
-             << loopVar << " " << cmp << " (" << hi << "); ++" << loopVar
-             << ") {\n";
-        localTypes_[s.pat->bindName] = "int64_t";
+        if (it.kind == ExKind::Binary && (it.op == ".." || it.op == "..=")) {
+            bool inclusive = it.op == "..=";
+            std::string loopVar = cIdent(s.pat->bindName, "v_");
+            std::string lo = emitExpr(*it.lhs);
+            std::string hi = emitExpr(*it.rhs);
+            std::string cmp = inclusive ? "<=" : "<";
+            out_ << pad << "for (int64_t " << loopVar << " = (" << lo << "); "
+                 << loopVar << " " << cmp << " (" << hi << "); ++" << loopVar
+                 << ") {\n";
+            localTypes_[s.pat->bindName] = "int64_t";
+        } else {
+            TyP elem = typeOf(it)->args[0];
+            std::string seq = "__for_seq" + std::to_string(tmpSeq_++);
+            std::string loopVar = cIdent(s.pat->bindName, "v_");
+            out_ << pad << "{ auto &&" << seq << " = (" << emitExpr(it)
+                 << "); for (const auto& __item : " << seq << ") { "
+                 << cppTy(elem) << " " << loopVar << " = __item."
+                 << valueField(elem) << ";\n";
+            localTypes_[s.pat->bindName] = cppTy(elem);
+        }
         for (const auto& st : s.body) emitStmt(*st, ind + 1);
         out_ << pad << "}\n";
+        if (it.kind != ExKind::Binary || (it.op != ".." && it.op != "..="))
+            out_ << pad << "}\n";
     }
 
     // ---- expressions -------------------------------------------------------

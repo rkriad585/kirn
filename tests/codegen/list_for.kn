@@ -1,0 +1,21 @@
+# M11: native iteration over scalar-element lists.
+fn sum_items(items: list[Int]) -> Int {
+    total = 0;
+    for item in items {
+        total += item;
+    }
+    return total;
+}
+
+fn double_items(items: list[Int]) -> list[Int] {
+    out: list[Int] = [];
+    for item in items {
+        out.append(item * 2);
+    }
+    return out;
+}
+
+fn main() -> none {
+    print(sum_items([1, 2, 3, 4]));
+    print(double_items([2, 5]));
+}

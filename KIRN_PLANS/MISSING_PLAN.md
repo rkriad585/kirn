@@ -1356,7 +1356,9 @@ methods/trait dispatch remain interpreter-backed.
 Function-valued parameters now bridge interpreter `Value::Fn` objects into native
 `std::function` callbacks, including optional function parameters used by safe calls
 (`tests/codegen/native_function_param.kn`; gate 11a). Function-valued native returns remain
-interpreter-backed until return-value registration is extended.
+native for already-native top-level functions through a `Value::Builtin` callback wrapper
+(`tests/codegen/native_function_return.kn`; gate 11a). Optional function-valued returns and
+closures remain interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

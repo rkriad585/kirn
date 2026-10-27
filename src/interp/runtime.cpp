@@ -11130,6 +11130,13 @@ Value Interpreter::nativeInvoke(Value callee, std::vector<Value> args) {
     return callValue(std::move(callee), std::move(args), 0, 0);
 }
 
+Value Interpreter::nativeWrapFunction(BuiltinFn fn) {
+    Value x;
+    x.k = VK::Builtin;
+    x.bi = std::move(fn);
+    return x;
+}
+
 const Interpreter::NativeBody* Interpreter::nativeFuncFor(const Stmt* fn) const {
     if (!nativeEnabled_) return nullptr;
     auto it = nativeFns_.find(fn);

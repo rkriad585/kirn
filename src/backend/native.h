@@ -41,6 +41,8 @@ struct NativeFunc {
     // the generated registration thunk can bridge interpreter Values to C++.
     std::vector<std::vector<std::string>> fnParamTypes;
     std::vector<std::string> fnReturnTypes;
+    std::vector<std::string> retFnParamTypes;
+    std::string retFnReturnType;
     std::string retCpp;              // "int64_t"/"double"/"bool"/"char32_t"/"" (none)
 };
 

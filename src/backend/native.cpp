@@ -285,7 +285,7 @@ private:
             return false;
         TyP rt = s.ret ? declTy(s.ret) : sema::noneTy();
         if (!isNoneTy(rt) && !isNativeTy(rt)) return false;
-        if (isNativeFnTy(rt) || isOptFnTy(rt)) return false;
+        if (isOptFnTy(rt)) return false;
         for (const auto& p : s.params) {
             if (p.variadic || p.selfParam || p.defaultValue || !p.type)
                 return false;
@@ -308,6 +308,11 @@ private:
         nf.name = s.name;
         nf.cName = uniqueCName(s.name);
         nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : std::string();
+        if (isNativeFnTy(rt)) {
+            for (const auto& a : rt->args) nf.retFnParamTypes.push_back(cppTy(a));
+            nf.retFnReturnType = rt->inner && rt->inner->k != TyK::None
+                ? cppTy(rt->inner) : std::string();
+        }
         for (const auto& p : s.params) {
             nf.params.push_back(p.name);
             TyP pt = declTy(p.type);
@@ -1110,7 +1115,8 @@ private:
              : ty == "double" ? "0.0"
              : ty == "std::string" ? "std::string()"
              : ty == "std::vector<kirn::interp::Value>" ? "{}"
-             : ty == "kirn::interp::Value" ? "kirn::interp::Value{}" : "false";
+             : ty == "kirn::interp::Value" ? "kirn::interp::Value{}"
+             : ty.rfind("std::function<", 0) == 0 ? "{}" : "false";
     }
 
     std::string boxExpr(const ast::Expr& e) {
@@ -1863,6 +1869,32 @@ void out_registerAll(
         }
         return out + " }";
     };
+    auto returnedFunctionExpr = [](const NativeFunc& nf, const std::string& call) {
+        std::string out = "[&]{ auto __r = " + call + "; return interp.nativeWrapFunction([__r = std::move(__r)](std::vector<kirn::interp::Value>& __args) -> kirn::interp::Value { ";
+        for (size_t i = 0; i < nf.retFnParamTypes.size(); ++i) {
+            const std::string& t = nf.retFnParamTypes[i];
+            std::string field = t == "int64_t" ? "i" :
+                                t == "double" ? "d" :
+                                t == "std::string" ? "s" : "b";
+            out += t + " __a" + std::to_string(i) + " = __args.at(" +
+                   std::to_string(i) + ")." + field + "; ";
+        }
+        out += "auto __v = __r(";
+        for (size_t i = 0; i < nf.retFnParamTypes.size(); ++i) {
+            if (i) out += ", ";
+            out += "__a" + std::to_string(i);
+        }
+        out += "); ";
+        if (nf.retFnReturnType.empty()) out += "return kirn::interp::Value::none();";
+        else {
+            const std::string& t = nf.retFnReturnType;
+            std::string ctor = t == "int64_t" ? "integer" :
+                               t == "double" ? "floating" :
+                               t == "std::string" ? "str" : "boolean";
+            out += "return kirn::interp::Value::" + ctor + "(__v);";
+        }
+        return out + " }); }()";
+    };
     for (const NativeFunc* nfp : ordered) {
         const NativeFunc& nf = *nfp;
         out << "    for (const auto& d : prog) if (d->kind == "
@@ -1922,7 +1954,9 @@ void out_registerAll(
         call += ")";
         if (nf.retCpp.empty())
             out << "        " << call << "; return kirn::interp::Value::none();\n";
-        else if (nf.retCpp.rfind("std::optional<", 0) == 0) {
+        else if (!nf.retFnParamTypes.empty()) {
+            out << "        return " << returnedFunctionExpr(nf, call) << ";\n";
+        } else if (nf.retCpp.rfind("std::optional<", 0) == 0) {
             // Optional scalar return: box none or the inner scalar.
             std::string inner =
                 nf.retCpp.substr(14, nf.retCpp.size() - 14 - 1);

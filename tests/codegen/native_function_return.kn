@@ -1,0 +1,13 @@
+# M11: native function-valued returns for already-native top-level functions.
+fn inc(x: Int) -> Int {
+    return x + 1;
+}
+
+fn choose() -> fn(Int) -> Int {
+    return inc;
+}
+
+fn main() -> none {
+    var f = choose();
+    print(f(10));
+}

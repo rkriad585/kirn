@@ -281,6 +281,7 @@ public:
     // Narrow bridge for generated native callbacks that must invoke an
     // interpreter-owned function Value without exposing callValue itself.
     Value nativeInvoke(Value callee, std::vector<Value> args);
+    Value nativeWrapFunction(BuiltinFn fn);
 
     // entry used by spawned threads / async tasks. When `t` is non-null the
     // return value (or panic) is captured for `await`.

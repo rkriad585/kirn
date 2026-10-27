@@ -15,7 +15,7 @@ GATE_FILES=0
 
 echo "=== gate 11a: native codegen surface (KIRN_HAS_NATIVE) ==="
 G11="$TMP/g11a"; mkdir -p "$G11"
-for spec in "scalar_core:1" "native_string:1" "native_list:1" "native_list_param:1" "list_comp:1" "list_comp_list:1" "list_for:1" "list_for_strings:1" "list_index:1" "nested_index:1" "list_append:1" "list_pop:1" "list_shift:1" "list_set:1" "list_maintenance:1" "list_sum:1" "list_lookup:1" "list_join:1" "list_extend:1" "list_insert:1" "list_remove:1" "safe_index:1" "safe_len:1" "safe_list_methods:1" "safe_list_pop_shift:1" "safe_list_maintenance:1" "safe_list_append_extend:1" "new_surface:1" "reject_non_scalar:1" "optional_param:1" "global_ref_fallback:0" "const_inline:1" "coalesce_assign:1"; do
+for spec in "scalar_core:1" "native_string:1" "native_list:1" "native_list_param:1" "list_comp:1" "list_comp_list:1" "list_for:1" "list_for_strings:1" "list_index:1" "nested_index:1" "list_append:1" "list_pop:1" "list_shift:1" "list_set:1" "list_maintenance:1" "list_sum:1" "list_lookup:1" "list_join:1" "list_extend:1" "list_insert:1" "list_remove:1" "safe_index:1" "safe_len:1" "safe_list_methods:1" "safe_list_pop_shift:1" "safe_list_maintenance:1" "safe_list_append_extend:1" "safe_list_insert_remove:1" "new_surface:1" "reject_non_scalar:1" "optional_param:1" "global_ref_fallback:0" "const_inline:1" "coalesce_assign:1"; do
     nm=${spec%%:*}; want=${spec##*:}
     src="$ROOT/tests/codegen/$nm.kn"
     KIRN_DUMP_NATIVE="$G11/$nm.cpp" "$KIRN" build --native "$src" -o "$G11/$nm.out" \

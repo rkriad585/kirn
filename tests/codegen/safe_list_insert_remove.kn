@@ -1,0 +1,17 @@
+# M11: optional-list safe indexed/value mutation on the native path.
+fn insert_item(xs: list[Int]?) -> list[Int]? {
+    xs .?. insert(1, 2);
+    return xs;
+}
+
+fn remove_item(xs: list[Int]?) -> list[Int]? {
+    xs .?. remove(2);
+    return xs;
+}
+
+fn main() -> none {
+    print(insert_item([1, 3]));
+    print(remove_item([1, 2, 3]));
+    print(insert_item(none));
+    print(remove_item(none));
+}

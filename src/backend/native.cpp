@@ -351,12 +351,17 @@ private:
                 !exprLowerable(*e.args[1].value, cur))
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            if (!isListTy(recv) || recv->args.empty() ||
-                !isScalarTy(recv->args[0]) ||
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
+                !isNativeListElemTy(base->args[0]) ||
                 !typeOf(*e.args[0].value) || typeOf(*e.args[0].value)->k != TyK::Int ||
-                !assignCompatible(typeOf(*e.args[1].value), recv->args[0]))
+                !assignCompatible(typeOf(*e.args[1].value), base->args[0]))
                 return false;
-            return typeOf(e) && typeOf(e)->k == TyK::None;
+            TyP result = typeOf(e);
+            return result && (result->k == TyK::None ||
+                              (result->k == TyK::Opt && optInner(result) &&
+                               optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "remove") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -364,11 +369,16 @@ private:
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            if (!isListTy(recv) || recv->args.empty() ||
-                !isScalarTy(recv->args[0]) ||
-                !assignCompatible(typeOf(*e.args[0].value), recv->args[0]))
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
+                !isNativeListElemTy(base->args[0]) ||
+                !assignCompatible(typeOf(*e.args[0].value), base->args[0]))
                 return false;
-            return typeOf(e) && typeOf(e)->k == TyK::None;
+            TyP result = typeOf(e);
+            return result && (result->k == TyK::None ||
+                              (result->k == TyK::Opt && optInner(result) &&
+                               optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -1235,10 +1245,18 @@ private:
                            src + "); __dst.insert(__dst.end(), __src.begin(), __src.end()); }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "insert") {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP elem = (optional ? optInner(recv) : recv)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string idx = "__insert_index" + std::to_string(tmpSeq_++);
                     std::string value = boxExpr(*e.args[1].value);
+                    if (optional)
+                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { int64_t " + idx +
+                               " = (" + emitExpr(*e.args[0].value) + "); if (" + idx +
+                               " < 0) " + idx + " += static_cast<int64_t>(__opt->size()) + 1; if (" + idx +
+                               " < 0 || " + idx + " > static_cast<int64_t>(__opt->size())) kirn_native::co_panic(\"index out of range\"); __opt->insert(__opt->begin() + static_cast<ptrdiff_t>(" + idx +
+                               "), " + value + "); } }()";
                     return "[&]{ auto &__seq = (" + obj + "); int64_t " + idx +
                            " = (" + emitExpr(*e.args[0].value) + "); if (" + idx +
                            " < 0) " + idx + " += static_cast<int64_t>(__seq.size()) + 1; if (" + idx +
@@ -1246,10 +1264,16 @@ private:
                            "), " + value + "); }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "remove") {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP elem = (optional ? optInner(recv) : recv)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string needle = "__remove_needle" + std::to_string(tmpSeq_++);
                     std::string field = valueField(elem);
+                    if (optional)
+                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { auto " + needle +
+                               " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __opt->begin(); __it != __opt->end(); ++__it) { if (__it->" +
+                               field + " == " + needle + ") { __opt->erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); } }()";
                     return "[&]{ auto &__seq = (" + obj + "); auto " + needle +
                            " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (__it->" +
                            field + " == " + needle + ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";

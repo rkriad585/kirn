@@ -36,6 +36,7 @@ fn typed_to_err(h: Str) -> result[Str] {
 fn main() -> none {
     # --- §5.1 dynamic Error: msg / Display / chain ---
     var e = error.msg("boom");
+    assert(e.backtrace().len() > 0);
     assert(error.chain(e).len() == 1);
     assert(error.chain(e)[0] == "boom");
     assert(error.display(e) == "boom");

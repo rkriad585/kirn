@@ -1242,6 +1242,20 @@ aggregate stdlib run remains affected by the pre-existing
 
 The earlier FIFO `TaskSet.join_next` deviation is superseded by this update.
 
+### Update (2026-10-27) — Dynamic error backtraces (shipped)
+
+Dynamic `Error` values now capture the current Kirn source-level call frames
+when created. `Error.backtrace()` returns those frames as a list, while source
+chaining continues to retain each layer's own creation site. This uses the
+existing interpreter frame guard and does not depend on platform-native stack
+symbols.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/error_test.kn`.
+
+Verification: `error_test.kn` passes and both `pet.error` and its runtime
+backtrace method check cleanly. The earlier “backtrace returns none” deviation
+is superseded by this update.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

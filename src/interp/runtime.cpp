@@ -862,6 +862,10 @@ static Value mkError(std::string msg, Value source, Value origin) {
     v.fields.emplace_back("msg", Value::str(std::move(msg)));
     v.fields.emplace_back("source", std::move(source));
     v.fields.emplace_back("origin", std::move(origin));
+    Value frames = Value::list();
+    for (const auto& frame : g_panicFrames)
+        frames.vec->push_back(Value::str(frame));
+    v.fields.emplace_back("backtrace", std::move(frames));
     return v;
 }
 // True when v is a pet.error Error built by mkError (precise: not a user
@@ -7100,7 +7104,10 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                 if (down) return match ? *origin : Value::none();
                 return Value::boolean(match);
             }
-            if (name == "backtrace") return Value::none();  // not captured yet
+            if (name == "backtrace") {
+                const Value* bt = structField(obj, "backtrace");
+                return bt ? *bt : Value::list();
+            }
             panicHere("type '" + tn + "' has no method '" + name + "'");
         }
         const Stmt* method = nullptr;

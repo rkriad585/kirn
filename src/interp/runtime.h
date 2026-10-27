@@ -281,6 +281,10 @@ public:
     // Narrow bridge for generated native callbacks that must invoke an
     // interpreter-owned function Value without exposing callValue itself.
     Value nativeInvoke(Value callee, std::vector<Value> args);
+    // Bridge for native trait-object calls. The active native invocation binds
+    // the interpreter on the current thread before generated code dispatches.
+    Value nativeInvokeMethod(Value obj, const std::string& name,
+                             std::vector<Value> args);
     Value nativeWrapFunction(BuiltinFn fn);
 
     // entry used by spawned threads / async tasks. When `t` is non-null the
@@ -303,6 +307,11 @@ public:
         embeddedSources_[key] = src;
     }
 };
+
+// Generated native code uses this free bridge so trait-object dispatch can
+// remain dynamic without exposing Interpreter's private call machinery.
+Value nativeInvokeMethod(Value obj, const std::string& name,
+                         std::vector<Value> args);
 
 } // namespace interp
 } // namespace kirn

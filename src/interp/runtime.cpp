@@ -75,6 +75,7 @@ const char* envGet(const char* name) {
 }
 
 thread_local std::vector<std::string> g_panicFrames;
+static thread_local Interpreter* g_nativeInterpreter = nullptr;
 
 CallFrameGuard::CallFrameGuard(std::string name, uint32_t line, uint32_t col) {
     std::string frame = "in " + name;
@@ -11132,6 +11133,20 @@ Value Interpreter::nativeInvoke(Value callee, std::vector<Value> args) {
     return callValue(std::move(callee), std::move(args), 0, 0);
 }
 
+Value Interpreter::nativeInvokeMethod(Value obj, const std::string& name,
+                                      std::vector<Value> args) {
+    return invokeMethod(std::move(obj), name, std::move(args), {}, globals_, 0,
+                        0, nullptr);
+}
+
+Value nativeInvokeMethod(Value obj, const std::string& name,
+                         std::vector<Value> args) {
+    if (!g_nativeInterpreter)
+        panicHere("native trait dispatch outside an interpreter invocation");
+    return g_nativeInterpreter->nativeInvokeMethod(std::move(obj), name,
+                                                   std::move(args));
+}
+
 Value Interpreter::nativeWrapFunction(BuiltinFn fn) {
     Value x;
     x.k = VK::Builtin;
@@ -11147,7 +11162,16 @@ const Interpreter::NativeBody* Interpreter::nativeFuncFor(const Stmt* fn) const 
 
 Value Interpreter::nativeRunBody(const NativeBody& nb, Env fenv,
                                  const Stmt* fn) {
-    Value r = nb(fenv);
+    Interpreter* previous = g_nativeInterpreter;
+    g_nativeInterpreter = this;
+    Value r;
+    try {
+        r = nb(fenv);
+    } catch (...) {
+        g_nativeInterpreter = previous;
+        throw;
+    }
+    g_nativeInterpreter = previous;
     if (isResultRet(*fn))
         return r.k == VK::Result ? std::move(r) : Value::resultOk(std::move(r));
     return r;

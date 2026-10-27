@@ -1,0 +1,28 @@
+# M11: generic trait-object calls use the active interpreter dispatch bridge.
+trait Scaler {
+    fn scale(self, amount: Int) -> Int;
+}
+
+struct Box {
+    value: Int;
+}
+
+impl Scaler for Box {
+    fn scale(self, amount: Int) -> Int {
+        return self.value * amount;
+    }
+}
+
+fn apply(s: Scaler, amount: Int) -> Int {
+    return s.scale(amount);
+}
+
+fn safe_apply(s: Scaler?, amount: Int) -> Int? {
+    return s .?. scale(amount);
+}
+
+fn main() -> none {
+    print(apply(Box(value: 3), 4));
+    print(safe_apply(Box(value: 5), 2));
+    print(safe_apply(none, 2));
+}

@@ -58,10 +58,16 @@ static bool isNativeStructTy(const TyP& t) {
 static bool isOptStructTy(const TyP& t) {
     return t && t->k == TyK::Opt && isNativeStructTy(optInner(t));
 }
+static bool isNativeTraitObjTy(const TyP& t) {
+    return t && t->k == TyK::TraitObj;
+}
+static bool isOptTraitObjTy(const TyP& t) {
+    return t && t->k == TyK::Opt && isNativeTraitObjTy(optInner(t));
+}
 static bool isNativeFnTy(const TyP& t) {
     if (!t || t->k != TyK::Fn || !t->inner) return false;
     for (const auto& p : t->args)
-        if (!isScalarTy(p) && !isStringTy(p)) return false;
+        if (!isScalarTy(p) && !isStringTy(p) && !isNativeTraitObjTy(p)) return false;
     return t->inner->k == TyK::None || isScalarTy(t->inner) ||
            isStringTy(t->inner);
 }
@@ -89,7 +95,7 @@ static bool isNativeStructFieldTy(const TyP& t) {
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
            isStringTy(t) || isListTy(t) || isNativeStructTy(t) ||
-           isOptStructTy(t) ||
+           isOptStructTy(t) || isNativeTraitObjTy(t) || isOptTraitObjTy(t) ||
            isNativeFnTy(t) || isOptFnTy(t);
 }
 static bool isNativeMatOperand(const TyP& t) {
@@ -163,6 +169,7 @@ static std::string cppTy(const TyP& t) {
         case TyK::Str:   return "std::string";
         case TyK::List:  return "std::vector<kirn::interp::Value>";
         case TyK::Struct:return "kirn::interp::Value";
+        case TyK::TraitObj: return "kirn::interp::Value";
         case TyK::Fn: {
             std::string ret = t->inner && t->inner->k == TyK::None
                 ? "void" : cppTy(t->inner);
@@ -185,18 +192,20 @@ static std::string cppTy(const TyP& t) {
 
 // Resolve a declaration Type node to a scalar (or optional-scalar) TyP (without
 // the checker, whose resolveType is private). Only plain names and `T?` map.
-static TyP declTy(const ast::TypeP& t) {
+static TyP declTy(const ast::TypeP& t,
+                  const std::set<std::string>* traitNames = nullptr) {
     if (!t) return sema::unkTy();
-    if (t->kind == ast::TyKind::Optional) return sema::optTy(declTy(t->inner));
+    if (t->kind == ast::TyKind::Optional)
+        return sema::optTy(declTy(t->inner, traitNames));
     if (t->kind == ast::TyKind::Fn) {
         std::vector<TyP> ps;
-        for (const auto& p : t->params) ps.push_back(declTy(p));
-        return sema::fnTy(std::move(ps), t->ret ? declTy(t->ret) : sema::noneTy());
+        for (const auto& p : t->params) ps.push_back(declTy(p, traitNames));
+        return sema::fnTy(std::move(ps), t->ret ? declTy(t->ret, traitNames) : sema::noneTy());
     }
     if (t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
     if (n == "list" && t->generics.size() == 1)
-        return sema::listTy(declTy(t->generics[0]));
+        return sema::listTy(declTy(t->generics[0], traitNames));
     static const char* kInts[] = {"i4", "i8", "i16", "i32", "i64", "i128",
                                   "i256", "u4", "u8", "u16", "u32", "u64",
                                   "u128", "u256", "isize", "usize",
@@ -234,6 +243,8 @@ static TyP declTy(const ast::TypeP& t) {
     if (n == "bytes") return sema::bytesTy();
     // User-defined nominal names have already been validated by the checker;
     // preserve them so the native registration ABI can carry Value instances.
+    if (traitNames && traitNames->count(n))
+        return sema::Ty::named(TyK::TraitObj, n);
     return sema::Ty::named(TyK::Struct, n);
 }
 
@@ -255,6 +266,7 @@ public:
         : prog_(&prog), chk_(&chk) {
         for (const auto& s : prog) {
             if (s->kind == StKind::FuncDef) topFuncs_[s->name] = s.get();
+            if (s->kind == StKind::TraitDef) traitNames_.insert(s->name);
             if (s->kind == StKind::StructDef)
                 for (const auto& m : s->body)
                     if (m->kind == StKind::FuncDef)
@@ -298,6 +310,7 @@ private:
     std::unordered_map<std::string, const ast::Stmt*> topFuncs_;
     std::unordered_map<const ast::Stmt*, NativeFunc> lowered_;
     std::set<std::string> moduleNames_;
+    std::set<std::string> traitNames_;
     std::vector<std::tuple<std::string, std::string, const ast::Stmt*>> methods_;
 
     TyP typeOf(const ast::Expr& e) const { return chk_->typeOf(e); }
@@ -308,7 +321,7 @@ private:
         if (s.ret && s.ret->kind == ast::TyKind::Name &&
             (s.ret->name == "result" || s.ret->name == "Result"))
             return false;
-        TyP rt = s.ret ? declTy(s.ret) : sema::noneTy();
+        TyP rt = s.ret ? declTy(s.ret, &traitNames_) : sema::noneTy();
         if (!isNoneTy(rt) && !isNativeTy(rt)) return false;
         if (isOptFnTy(rt)) return false;
         for (const auto& p : s.params) {
@@ -317,7 +330,7 @@ private:
             // Plain scalars and optionals of scalars (`T?`) are both lowerable;
             // an optional scalar becomes `std::optional<scalar>`.
             TyP pt = (owner.size() && p.selfParam)
-                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type);
+                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type, &traitNames_);
             if (!isNativeTy(pt)) return false;
         }
         // Self-recursion tolerance: an in-progress hook is added so the body
@@ -344,7 +357,7 @@ private:
         for (const auto& p : s.params) {
             nf.params.push_back(p.name);
             TyP pt = (owner.size() && p.selfParam)
-                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type);
+                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type, &traitNames_);
             nf.pTypes.push_back(cppTy(pt));
             TyP fn = pt && pt->k == TyK::Opt ? optInner(pt) : pt;
             if (fn && fn->k == TyK::Fn) {
@@ -442,6 +455,21 @@ private:
                 for (size_t i = 0; i < e.args.size(); ++i)
                     if (e.args[i].name != "" || !e.args[i].value ||
                         !exprLowerable(*e.args[i].value, cur)) return false;
+                return true;
+            }
+            // A trait-object receiver remains a runtime Value. Dispatch is
+            // routed through the active interpreter bridge, while arguments
+            // and the method result stay on the native Value ABI.
+            if (base && base->k == TyK::TraitObj &&
+                (!optional || e.lhs->nilSafe)) {
+                TyP result = typeOf(e);
+                TyP value = optional && result && result->k == TyK::Opt
+                    ? optInner(result) : result;
+                if (!value || (!isNoneTy(value) && !isNativeTy(value)))
+                    return false;
+                for (const auto& a : e.args)
+                    if (a.name != "" || !a.value ||
+                        !exprLowerable(*a.value, cur)) return false;
                 return true;
             }
         }
@@ -1058,7 +1086,11 @@ public:
                 " kirn::interp::panicHere(\"native mutable field access on non-struct\");"
                 " for(auto& f:v.fields) if(f.first == n) return f.second;"
                 " kirn::interp::panicHere(\"native field not found\");"
-                " return v; }\n";
+                " return v; }\n"
+             << "static inline kirn::interp::Value co_trait_call("
+                "const kirn::interp::Value& v,const char* n,"
+                "std::vector<kirn::interp::Value> a){"
+                " return kirn::interp::nativeInvokeMethod(v,n,std::move(a)); }\n";
     }
 
     void emitFunctions(const std::vector<ast::StmtP>& prog) {
@@ -1195,6 +1227,8 @@ private:
             return "kirn::interp::Value::list(" + emitExpr(e) + ")";
         if (t && t->k == TyK::Struct)
             return emitExpr(e);
+        if (t && t->k == TyK::TraitObj)
+            return emitExpr(e);
         return "kirn::interp::Value::integer(" + emitExpr(e) + ")";
     }
 
@@ -1203,6 +1237,14 @@ private:
         if (t && t->k == TyK::Bool) return "b";
         if (t && t->k == TyK::Str) return "s";
         return "i";
+    }
+    static std::string unboxValue(const std::string& v, const TyP& t) {
+        if (!t || t->k == TyK::None) return v;
+        if (t->k == TyK::List)
+            return "*(" + v + ".vec)";
+        if (t->k == TyK::Struct || t->k == TyK::TraitObj)
+            return v;
+        return v + "." + valueField(t);
     }
 
     const NativeFunc* findCallee(const std::string& name) const {
@@ -1540,6 +1582,28 @@ private:
                                    call + " }; }()";
                         }
                         return call;
+                    }
+                    if (base && base->k == TyK::TraitObj) {
+                        auto traitCall = [&](const std::string& obj) {
+                            std::string call = "kirn_native::co_trait_call(" +
+                                obj + ", \"" + e.lhs->text + "\", "
+                                "std::vector<kirn::interp::Value>{";
+                            for (size_t i = 0; i < e.args.size(); ++i) {
+                                if (i) call += ", ";
+                                call += boxExpr(*e.args[i].value);
+                            }
+                            return call + "})";
+                        };
+                        if (optional) {
+                            TyP ret = optInner(typeOf(e));
+                            std::string obj = emitExpr(*e.lhs->lhs);
+                            std::string call = traitCall("*__recv");
+                            return "[&]{ auto __recv = (" + obj + "); if (!__recv) return std::optional<" +
+                                   cppTy(ret) + ">{ }; auto __r = " + call + "; return std::optional<" +
+                                   cppTy(ret) + ">{ " + unboxValue("__r", ret) + " }; }()";
+                        }
+                        std::string call = traitCall(emitExpr(*e.lhs->lhs));
+                        return unboxValue(call, t);
                     }
                 }
                 if (e.lhs->kind == ExKind::Ident && localTypes_.count(e.lhs->text) &&

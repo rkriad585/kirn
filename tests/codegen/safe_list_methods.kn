@@ -1,0 +1,27 @@
+# M11: optional-list safe read-only method calls on the native path.
+fn has_value(xs: list[Int]?) -> Bool? {
+    return xs .?. contains(2);
+}
+
+fn find_value(xs: list[Int]?) -> Int? {
+    return xs .?. index(2);
+}
+
+fn total(xs: list[Int]?) -> Int? {
+    return xs .?. sum();
+}
+
+fn words(xs: list[Str]?) -> Str? {
+    return xs .?. join(",");
+}
+
+fn main() -> none {
+    print(has_value([1, 2, 3]));
+    print(find_value([1, 2, 3]));
+    print(total([1, 2, 3]));
+    print(words(["a", "b"]));
+    print(has_value(none));
+    print(find_value(none));
+    print(total(none));
+    print(words(none));
+}

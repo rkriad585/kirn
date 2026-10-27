@@ -40,12 +40,14 @@ static const TyP& optInner(const TyP& t) {
     return (t && t->k == TyK::Opt && !t->args.empty()) ? t->args[0] : kNull;
 }
 static bool isOptScalarTy(const TyP& t) {
-    return t && t->k == TyK::Opt && optInner(t) && isScalarTy(optInner(t));
+    return t && t->k == TyK::Opt && optInner(t) &&
+           (isScalarTy(optInner(t)) || optInner(t)->k == TyK::Str);
 }
 static bool isOptListTy(const TyP& t) {
     return t && t->k == TyK::Opt && optInner(t) &&
            optInner(t)->k == TyK::List && !optInner(t)->args.empty() &&
-           isScalarTy(optInner(t)->args[0]);
+           (isScalarTy(optInner(t)->args[0]) ||
+            optInner(t)->args[0]->k == TyK::Str);
 }
 
 // The set of types the native scalar backend can lower: plain scalars plus
@@ -365,11 +367,15 @@ private:
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            return isListTy(recv) && !recv->args.empty() &&
-                   recv->args[0]->k == TyK::Str &&
-                   typeOf(*e.args[0].value) &&
-                   typeOf(*e.args[0].value)->k == TyK::Str &&
-                   typeOf(e) && typeOf(e)->k == TyK::Str;
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
+                base->args[0]->k != TyK::Str || !typeOf(*e.args[0].value) ||
+                typeOf(*e.args[0].value)->k != TyK::Str)
+                return false;
+            TyP result = typeOf(e);
+            TyP value = optional ? optInner(result) : result;
+            return value && value->k == TyK::Str;
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "contains" || e.lhs->text == "index")) {
@@ -378,23 +384,32 @@ private:
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            if (!isListTy(recv) || recv->args.empty() ||
-                !isScalarTy(recv->args[0]) ||
-                !assignCompatible(typeOf(*e.args[0].value), recv->args[0]))
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
+                !isScalarTy(base->args[0]) ||
+                !assignCompatible(typeOf(*e.args[0].value), base->args[0]))
                 return false;
-            return typeOf(e) &&
-                   (e.lhs->text == "contains" ? typeOf(e)->k == TyK::Bool
-                                                : typeOf(e)->k == TyK::Int);
+            TyP result = typeOf(e);
+            TyP value = optional ? optInner(result) : result;
+            return value &&
+                   (e.lhs->text == "contains" ? value->k == TyK::Bool
+                                                : value->k == TyK::Int);
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            return isListTy(recv) && !recv->args.empty() &&
-                   isScalarTy(recv->args[0]) &&
-                   (recv->args[0]->k == TyK::Int || recv->args[0]->k == TyK::Float) &&
-                   typeOf(e) && typeOf(e)->k == recv->args[0]->k;
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) ||
+                base->args.empty() || !isScalarTy(base->args[0]) ||
+                (base->args[0]->k != TyK::Int && base->args[0]->k != TyK::Float))
+                return false;
+            TyP result = typeOf(e);
+            TyP value = optional ? optInner(result) : result;
+            return value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "clear" || e.lhs->text == "reverse")) {
@@ -1171,17 +1186,36 @@ private:
                            field + " == " + needle + ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
+                    TyP recv = typeOf(*e.lhs->lhs);
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string sep = emitExpr(*e.args[0].value);
+                    if (recv && recv->k == TyK::Opt) {
+                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<std::string>{}; auto &__seq = *__opt; auto __sep = (" +
+                               sep + "); std::string __out; for (size_t __i = 0; __i < __seq.size(); ++__i) { if (__i) __out += __sep; __out += __seq[__i].s; } return std::optional<std::string>{__out}; }()";
+                    }
                     return "[&]{ auto &__seq = (" + obj + "); auto __sep = (" +
                            sep + "); std::string __out; for (size_t __i = 0; __i < __seq.size(); ++__i) { if (__i) __out += __sep; __out += __seq[__i].s; } return __out; }()";
                 }
                 if (e.lhs->kind == ExKind::Member &&
                     (e.lhs->text == "contains" || e.lhs->text == "index")) {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP base = optional ? optInner(recv) : recv;
+                    TyP elem = base->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string needle = "__needle" + std::to_string(tmpSeq_++);
                     std::string field = valueField(elem);
+                    if (optional) {
+                        const char* outTy = e.lhs->text == "contains" ? "bool" : "int64_t";
+                        std::string found = e.lhs->text == "contains"
+                            ? "if (__v." + field + " == " + needle + ") return std::optional<bool>{true};"
+                            : "if (__v." + field + " == " + needle + ") return std::optional<int64_t>{__pos}; ++__pos;";
+                        std::string absent = e.lhs->text == "contains"
+                            ? "return std::optional<bool>{false};"
+                            : "return std::optional<int64_t>{int64_t(-1)};";
+                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + outTy + ">{ }; auto &__seq = *__opt; auto " + needle +
+                               " = (" + emitExpr(*e.args[0].value) + "); int64_t __pos = 0; for (const auto& __v : __seq) { " + found + " } " + absent + " }()";
+                    }
                     std::string result = e.lhs->text == "contains"
                         ? "[&]{ auto &__seq = (" + obj + "); auto " + needle +
                           " = (" + emitExpr(*e.args[0].value) + "); for (const auto& __v : __seq) if (__v." +
@@ -1192,11 +1226,18 @@ private:
                     return result;
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP base = optional ? optInner(recv) : recv;
+                    TyP elem = base->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string tmp = "__sum" + std::to_string(tmpSeq_++);
                     std::string acc = elem->k == TyK::Float ? "double" : "int64_t";
                     std::string zero = elem->k == TyK::Float ? "0.0" : "0";
+                    if (optional) {
+                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + acc + ">{ }; auto &" + tmp + " = *__opt; " + acc +
+                               " __acc = " + zero + "; for (const auto& __v : " + tmp + ") __acc += __v." + valueField(elem) + "; return std::optional<" + acc + ">{__acc}; }()";
+                    }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); " + acc +
                            " __acc = " + zero + "; for (const auto& __v : " +
                            tmp + ") __acc += __v." + valueField(elem) +

@@ -1309,6 +1309,9 @@ Scalar-list `.remove(value)` now lowers natively, erasing the first matching sca
 the interpreter's not-found panic behavior (`tests/codegen/list_remove.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
+Optional-list safe read-only calls for `.?.contains()`, `.?.index()`, `.?.sum()`, and `.?.join()`
+now lower to optional native results with single-evaluated receiver short-circuiting
+(`tests/codegen/safe_list_methods.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

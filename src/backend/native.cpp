@@ -9,6 +9,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -246,7 +247,12 @@ public:
             if (s->kind == StKind::StructDef)
                 for (const auto& m : s->body)
                     if (m->kind == StKind::FuncDef)
-                        methods_.emplace_back(s->name, m.get());
+                        methods_.emplace_back(s->name, "", m.get());
+            if (s->kind == StKind::ImplDef && s->implType && s->implTrait)
+                for (const auto& m : s->body)
+                    if (m->kind == StKind::FuncDef)
+                        methods_.emplace_back(s->implType->name,
+                                              s->implTrait->name, m.get());
             // Module-level bindings: a read of one has no function-local to
             // reference, and a write to one is not a local declaration, so a
             // function touching it must fall back to the interpreter.
@@ -265,8 +271,8 @@ public:
                 if (lowered_.count(s.get())) continue;
                 if (tryLower(*s, "")) changed = true;
             }
-            for (const auto& [owner, m] : methods_)
-                if (!lowered_.count(m) && tryLower(*m, owner)) changed = true;
+            for (const auto& [owner, trait, m] : methods_)
+                if (!lowered_.count(m) && tryLower(*m, owner, trait)) changed = true;
         }
         return lowered_;
     }
@@ -281,11 +287,12 @@ private:
     std::unordered_map<std::string, const ast::Stmt*> topFuncs_;
     std::unordered_map<const ast::Stmt*, NativeFunc> lowered_;
     std::set<std::string> moduleNames_;
-    std::vector<std::pair<std::string, const ast::Stmt*>> methods_;
+    std::vector<std::tuple<std::string, std::string, const ast::Stmt*>> methods_;
 
     TyP typeOf(const ast::Expr& e) const { return chk_->typeOf(e); }
 
-    bool tryLower(const ast::Stmt& s, const std::string& owner) {
+    bool tryLower(const ast::Stmt& s, const std::string& owner,
+                  const std::string& trait = "") {
         if (s.typeParams.size() || s.externDef || s.body.empty()) return false;
         if (s.ret && s.ret->kind == ast::TyKind::Name &&
             (s.ret->name == "result" || s.ret->name == "Result"))
@@ -315,6 +322,7 @@ private:
         nf.fn = &s;
         nf.name = s.name;
         nf.ownerType = owner;
+        nf.implTrait = trait;
         nf.cName = uniqueCName(s.name);
         nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : std::string();
         if (isNativeFnTy(rt)) {
@@ -1018,7 +1026,7 @@ public:
             if (s->kind == StKind::FuncDef) {
                 auto it = lowered_->find(s.get());
                 if (it != lowered_->end()) emitFunction(*s, it->second);
-            } else if (s->kind == StKind::StructDef) {
+            } else if (s->kind == StKind::StructDef || s->kind == StKind::ImplDef) {
                 for (const auto& m : s->body) {
                     auto it = lowered_->find(m.get());
                     if (it != lowered_->end()) emitFunction(*m, it->second);
@@ -1918,10 +1926,21 @@ void out_registerAll(
                    "kirn::ast::StKind::FuncDef && d->name == \""
                 << nf.name
                 << "\") { interp.enableNative(); interp.registerNative(d.get(), ";
-        } else {
+        } else if (nf.implTrait.empty()) {
             out << "    for (const auto& d : prog) if (d->kind == "
                    "kirn::ast::StKind::StructDef && d->name == \""
                 << nf.ownerType
+                << "\") for (const auto& m : d->body) if (m->kind == "
+                   "kirn::ast::StKind::FuncDef && m->name == \""
+                << nf.name
+                << "\") { interp.enableNative(); interp.registerNative(m.get(), ";
+        } else {
+            out << "    for (const auto& d : prog) if (d->kind == "
+                   "kirn::ast::StKind::ImplDef && d->implType && d->implTrait && "
+                   "d->implType->name == \""
+                << nf.ownerType
+                << "\" && d->implTrait->name == \""
+                << nf.implTrait
                 << "\") for (const auto& m : d->body) if (m->kind == "
                    "kirn::ast::StKind::FuncDef && m->name == \""
                 << nf.name

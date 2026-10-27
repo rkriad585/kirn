@@ -1646,6 +1646,18 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             auto mit = it->second->methods.find(name);
             if (mit != it->second->methods.end()) return mit->second;
         }
+        // Concrete values also expose methods supplied by a matching trait
+        // implementation. The impl body is the runtime dispatch target, while
+        // the trait signature supplies the checked call shape here.
+        for (const auto& [traitName, structName] : impls_) {
+            if (structName != recv->name) continue;
+            auto tit = traits_.find(traitName);
+            if (tit == traits_.end()) continue;
+            auto sit = tit->second->methods.find(name);
+            if (sit != tit->second->methods.end()) return sit->second;
+            auto sigit = tit->second->sigs.find(name);
+            if (sigit != tit->second->sigs.end()) return sigit->second;
+        }
         // builtin struct protocols
         if (recv->name == "thread") {
             FuncSig s;

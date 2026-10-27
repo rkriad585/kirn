@@ -1,0 +1,19 @@
+# M11: native scalar/string impl-trait method dispatch.
+trait Scaler {
+    fn scale(self, amount: Int) -> Int;
+}
+
+struct Box {
+    value: Int;
+}
+
+impl Scaler for Box {
+    fn scale(self, amount: Int) -> Int {
+        return self.value * amount;
+    }
+}
+
+fn main() -> none {
+    var b = Box(value: 3);
+    print(b.scale(4));
+}

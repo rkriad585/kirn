@@ -1363,6 +1363,10 @@ Inherent methods whose receiver and fields stay within the scalar/string struct 
 nested native functions and are registered against their owning `StructDef`, preserving mutation
 and `selfOut` value semantics (`tests/codegen/native_struct_method.kn`; gate 11a). Trait/impl
 method dispatch and methods using aggregate fields remain interpreter-backed.
+Scalar/string-field methods declared in `impl Trait for Struct` now lower and register against the
+matching impl node, allowing concrete dynamic dispatch to reuse the native receiver ABI
+(`tests/codegen/native_impl_method.kn`; gate 11a). Generic trait-object calls and aggregate impl
+methods remain interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

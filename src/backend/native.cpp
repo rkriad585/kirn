@@ -42,13 +42,19 @@ static const TyP& optInner(const TyP& t) {
 static bool isOptScalarTy(const TyP& t) {
     return t && t->k == TyK::Opt && optInner(t) && isScalarTy(optInner(t));
 }
+static bool isOptListTy(const TyP& t) {
+    return t && t->k == TyK::Opt && optInner(t) &&
+           optInner(t)->k == TyK::List && !optInner(t)->args.empty() &&
+           isScalarTy(optInner(t)->args[0]);
+}
 
 // The set of types the native scalar backend can lower: plain scalars plus
 // optionals of scalars (elvis `??` short-circuits to the inner scalar).
 static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
 static bool isListTy(const TyP& t) { return t && t->k == TyK::List; }
 static bool isNativeTy(const TyP& t) {
-    return isScalarTy(t) || isOptScalarTy(t) || isStringTy(t) || isListTy(t);
+    return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
+           isStringTy(t) || isListTy(t);
 }
 
 // M11: value type `v` is storable into target type `t`. Scalars-to-optional
@@ -423,6 +429,17 @@ private:
                     if (!assignCompatible(typeOf(*e.rhs), t)) return false;
                 }
                 return true;
+            case ExKind::SafeIndex: {
+                // Native safe indexing supports optional scalar lists. The
+                // result is an optional scalar, with the same negative-index
+                // and bounds behavior as the interpreter.
+                if (!e.lhs || !e.rhs || !exprLowerable(*e.lhs, cur) ||
+                    !exprLowerable(*e.rhs, cur) || !isOptListTy(typeOf(*e.lhs)) ||
+                    !isScalarTy(t ? optInner(t) : TyP{}))
+                    return false;
+                TyP it = typeOf(*e.rhs);
+                return it && it->k == TyK::Int && t && t->k == TyK::Opt;
+            }
             default:
                 return false;
         }
@@ -737,6 +754,12 @@ private:
         return "kirn::interp::Value::integer(" + emitExpr(e) + ")";
     }
 
+    static const char* valueField(const TyP& t) {
+        if (t && t->k == TyK::Float) return "d";
+        if (t && t->k == TyK::Bool) return "b";
+        return "i";
+    }
+
     const NativeFunc* findCallee(const std::string& name) const {
         for (auto& [fn, nf] : *lowered_)
             if (nf.name == name) return &nf;
@@ -998,6 +1021,19 @@ private:
                 return "[&]{ auto " + tmp + " = (" + l + "); return (" + tmp +
                        ") ? (*" + tmp + ") : (" + r + "); }()";
             }
+            case ExKind::SafeIndex: {
+                TyP elem = optInner(t);
+                std::string obj = emitExpr(*e.lhs);
+                std::string idx = emitExpr(*e.rhs);
+                std::string tmp = "__si" + std::to_string(tmpSeq_++);
+                std::string field = valueField(elem);
+                return "[&]{ auto " + tmp + " = (" + obj + "); if (!" + tmp +
+                       ") return std::nullopt; int64_t __i = (" + idx +
+                       "); if (__i < 0) __i += static_cast<int64_t>(" + tmp +
+                       "->size()); return std::optional<" + cppTy(optInner(t)) +
+                       ">{(" + tmp + ")->at(static_cast<size_t>(__i))." +
+                       field + "}; }()";
+            }
             default:
                 return "0";
         }
@@ -1144,8 +1180,11 @@ void out_registerAll(
                 std::string inner = pt.substr(14, pt.size() - 14 - 1);
                 out << "        " << pt << " " << v << "; { auto __p = "
                        "interp.nativeEnvVar(e, \""
-                    << nf.params[i] << "\"); if (!__p.isNone()) " << v
-                    << " = __p." << envField(inner) << "; }\n";
+                    << nf.params[i] << "\"); if (!__p.isNone()) ";
+                if (inner == "std::vector<kirn::interp::Value>")
+                    out << v << " = *__p.vec; }\n";
+                else
+                    out << v << " = __p." << envField(inner) << "; }\n";
             } else if (pt == "std::vector<kirn::interp::Value>") {
                 out << "        " << pt << " " << v
                     << " = *interp.nativeEnvVar(e, \""
@@ -1171,9 +1210,12 @@ void out_registerAll(
             std::string inner =
                 nf.retCpp.substr(14, nf.retCpp.size() - 14 - 1);
             out << "        { auto __r = " << call
-                << "; if (!__r) return kirn::interp::Value::none();"
-                   " return kirn::interp::Value::"
-                << valueCtor(inner) << "(*__r); }\n";
+                << "; if (!__r) return kirn::interp::Value::none();";
+            if (inner == "std::vector<kirn::interp::Value>")
+                out << " return kirn::interp::Value::list(*__r); }\n";
+            else
+                out << " return kirn::interp::Value::" << valueCtor(inner)
+                    << "(*__r); }\n";
         } else if (nf.retCpp == "std::vector<kirn::interp::Value>")
             out << "        return kirn::interp::Value::list(" << call
                 << ");\n";

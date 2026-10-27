@@ -1,0 +1,9 @@
+# M11: optional-list safe indexing on the native path.
+fn pick(xs: list[Int]?, i: Int) -> Int? {
+    return xs .?[i];
+}
+
+fn main() -> none {
+    print(pick([10, 20, 30], -1));
+    print(pick(none, 0));
+}

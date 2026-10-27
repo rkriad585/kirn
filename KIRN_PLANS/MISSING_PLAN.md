@@ -1275,6 +1275,15 @@ new fixture. The full native binary differential for this fixture did not comple
 toolchain wrapper during verification. M11 remains active: aggregate locals beyond list comprehensions,
 matrix multiplication, and safe navigation still require native lowering work.
 
+**Update (2026-10-27b).** Native safe-index lowering now covers optional lists of scalar elements
+(`list[Int]?`, `list[Float]?`, and `list[Bool]?`) through `std::optional<std::vector<Value>>`.
+`.?[index]` preserves Kirn's negative-index normalization and returns `none` for an absent list;
+out-of-range indices retain the interpreter's error behavior. The registration thunk now
+boxes/unboxes optional list parameters and results.
+`tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
+list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
+M11 work.
+
 ---
 
 ### Phase M12 — Rejected features closed (documentation + rationale) _(features 4,5)_

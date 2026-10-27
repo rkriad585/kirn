@@ -1,0 +1,9 @@
+# M11: scalar-list element assignment on the native path.
+fn set_last(items: list[Int], i: Int, value: Int) -> list[Int] {
+    items[i] = value;
+    return items;
+}
+
+fn main() -> none {
+    print(set_last([1, 2, 3], -1, 9));
+}

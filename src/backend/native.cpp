@@ -579,6 +579,20 @@ private:
     bool assignLowerable(const ast::Stmt& s, const CurFn& cur) const {
         if (s.exprs.size() != 2) return false;
         const ast::ExprP& tgt = s.exprs[0];
+        if (tgt && tgt->kind == ExKind::Index) {
+            if (s.kind != StKind::Assign || !tgt->lhs || !tgt->rhs ||
+                tgt->lhs->kind != ExKind::Ident ||
+                !exprLowerable(*tgt->lhs, cur) ||
+                !exprLowerable(*tgt->rhs, cur) ||
+                !isListTy(typeOf(*tgt->lhs)) ||
+                typeOf(*tgt->lhs)->args.empty() ||
+                !isScalarTy(typeOf(*tgt->lhs)->args[0]) ||
+                !typeOf(*tgt->rhs) || typeOf(*tgt->rhs)->k != TyK::Int)
+                return false;
+            TyP elem = typeOf(*tgt->lhs)->args[0];
+            return assignCompatible(typeOf(*s.exprs[1]), elem) &&
+                   exprLowerable(*s.exprs[1], cur);
+        }
         if (!tgt || tgt->kind != ExKind::Ident) return false;
         // A write to a module-level binding is not a local declaration; the
         // scalar backend has nowhere to put it.
@@ -851,6 +865,18 @@ private:
             }
             case StKind::Assign:
             case StKind::AugAssign: {
+                if (s.exprs[0]->kind == ExKind::Index) {
+                    const ast::Expr& tgt = *s.exprs[0];
+                    std::string obj = emitExpr(*tgt.lhs);
+                    std::string idx = emitExpr(*tgt.rhs);
+                    std::string tmp = "__set" + std::to_string(tmpSeq_++);
+                    out_ << pad << "{ auto &" << tmp << " = (" << obj
+                         << "); int64_t __i = (" << idx << "); if (__i < 0) __i += "
+                         << "static_cast<int64_t>(" << tmp << ".size()); " << tmp
+                         << ".at(static_cast<size_t>(__i)) = "
+                         << boxExpr(*s.exprs[1]) << "; }\n";
+                    return;
+                }
                 const std::string& cname = s.exprs[0]->text;
                 std::string name = cIdent(cname, "v_");
                 // Elvis-assign `x ??= v`: assign only when the optional `x` is

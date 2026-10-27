@@ -1414,6 +1414,9 @@ Optional nominal fields now preserve `none` through safe reads and support neste
 both a concrete struct receiver and an optional outer receiver (`tests/codegen/native_safe_nested_mutation.kn`).
 The generated translation unit passes standalone C++20 syntax checking; the full runtime launcher
 remains subject to the local toolchain wrapper timeout during whole-runtime compilation.
+The optional-field emitter now distinguishes optional receivers from optional fields and checks stored
+`Value::none` markers before unboxing, so `Inner?` members no longer generate invalid scalar access or
+panic on absent fields.
 
 ---
 

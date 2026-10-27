@@ -8,6 +8,10 @@
 import pet.codec as codec;
 import reflect;
 
+# Writer/reader helpers use Kirn's structural file interface. Any value with
+# `write(Str)` or `read()` is accepted, so these also work with buffered or
+# test-double streams without coupling JSON to one concrete handle type.
+
 # The native dumper is captured at load time (the module's own namespace is
 # bound under the same name `json` in the consumer, which shadows it inside).
 priv_dumps = json.dumps;
@@ -25,6 +29,19 @@ pub fn to_string(v: any) -> Str {
 # Parse JSON and rebuild `T` (struct/enum type reference) from it.
 pub fn from_string(T: any, s: Str) -> any {
     return codec.coerce_type(T, loads(s));
+}
+
+# Serialize to a writer and return the number of characters written when the
+# writer reports one; ordinary Kirn file writers return none, so the public
+# result is intentionally none for a stable cross-writer contract.
+pub fn to_writer(writer: any, v: any) -> none {
+    writer.write(to_string(v));
+    return none;
+}
+
+# Read the complete input and decode it as `T`.
+pub fn from_reader(T: any, reader: any) -> any {
+    return from_string(T, reader.read());
 }
 
 # Render a decoded tree (from loads/codec.enc_tree) as JSON text.

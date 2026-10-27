@@ -12,6 +12,11 @@
 
 priv_open = io.open;
 
+# Open a runtime file value for structural reader/writer APIs.
+pub fn open(path: Str) -> any {
+    return priv_open(path);
+}
+
 # Read an entire file as text; "" if the file cannot be opened.
 pub fn read_file(path: Str) -> Str {
     f = priv_open(path);

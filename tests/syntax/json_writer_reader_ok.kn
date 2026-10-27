@@ -1,0 +1,21 @@
+# POWER_PLAN §3: stream-oriented JSON helpers.
+import pet.json as json;
+import pet.io as io;
+import os;
+
+struct User {
+    name: Str;
+    score: Int;
+}
+
+fn main() -> none {
+    var path = "json_writer_reader_phase.kn.tmp";
+    os.write_file(path, "");
+    var f = io.open(path);
+    json.to_writer(f, User(name: "kirn", score: 7));
+    f.close();
+    var r = io.open(path);
+    var u: User = json.from_reader(User, r);
+    r.close();
+    print(u.name, u.score);
+}

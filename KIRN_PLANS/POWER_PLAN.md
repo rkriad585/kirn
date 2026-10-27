@@ -1207,6 +1207,25 @@ not changed in this phase).
 The earlier “Watch `send_modify`/`send_if_modified` are not shipped” deviation
 is superseded by this update.
 
+### Update (2026-10-27) — JSON reader/writer helpers (shipped)
+
+`pet.json` now exposes `to_writer(writer, value)` and
+`from_reader(T, reader)`. They use Kirn's existing structural `write(Str)` and
+`read()` protocol, so runtime files, buffered writers, and test doubles can be
+used without a new handle type. `pet.io.open(path)` is now public for obtaining
+the runtime file value used by these helpers.
+
+Delivered: `stdpet/pet/json.kn`, `stdpet/pet/io.kn`,
+`tests/syntax/json_writer_reader_ok.kn`.
+
+Verification: both stdlib modules check cleanly; the new test checks, runs, and
+passes tree/VM parity. Gate 2b passed every case except the unrelated
+`async_byteio_ok.kn` TCP bind collision (`tcp_bind: bind failed`); the new JSON
+case passed.
+
+The earlier JSON `to_writer`/`from_reader` deviation is superseded by this
+update.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

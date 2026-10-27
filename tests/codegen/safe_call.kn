@@ -1,0 +1,17 @@
+# M11: optional native function safe calls.
+fn identity(x: Int) -> Int {
+    return x;
+}
+
+fn apply(flag: Int) -> Int? {
+    g: (fn(Int) -> Int)? = none;
+    if flag == 1 {
+        g = identity;
+    }
+    return g .?(7);
+}
+
+fn main() -> none {
+    print(apply(1));
+    print(apply(0));
+}

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iomanip>
 #include <set>
 #include <sstream>
@@ -49,17 +50,27 @@ static bool isOptListTy(const TyP& t) {
            (isScalarTy(optInner(t)->args[0]) ||
             optInner(t)->args[0]->k == TyK::Str);
 }
+static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
+static bool isNativeFnTy(const TyP& t) {
+    if (!t || t->k != TyK::Fn || !t->inner) return false;
+    for (const auto& p : t->args)
+        if (!isScalarTy(p) && !isStringTy(p)) return false;
+    return t->inner->k == TyK::None || isScalarTy(t->inner) ||
+           isStringTy(t->inner);
+}
+static bool isOptFnTy(const TyP& t) {
+    return t && t->k == TyK::Opt && isNativeFnTy(optInner(t));
+}
 
 // The set of types the native scalar backend can lower: plain scalars plus
 // optionals of scalars (elvis `??` short-circuits to the inner scalar).
-static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
 static bool isListTy(const TyP& t) { return t && t->k == TyK::List; }
 static bool isNativeListElemTy(const TyP& t) {
     return isScalarTy(t) || isStringTy(t);
 }
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
-           isStringTy(t) || isListTy(t);
+           isStringTy(t) || isListTy(t) || isNativeFnTy(t) || isOptFnTy(t);
 }
 
 // M11: value type `v` is storable into target type `t`. Scalars-to-optional
@@ -120,6 +131,17 @@ static std::string cppTy(const TyP& t) {
         case TyK::Char:  return "char32_t";
         case TyK::Str:   return "std::string";
         case TyK::List:  return "std::vector<kirn::interp::Value>";
+        case TyK::Fn: {
+            std::string ret = t->inner && t->inner->k == TyK::None
+                ? "void" : cppTy(t->inner);
+            if (ret.empty()) return "";
+            std::string out = "std::function<" + ret + "(";
+            for (size_t i = 0; i < t->args.size(); ++i) {
+                if (i) out += ", ";
+                out += cppTy(t->args[i]);
+            }
+            return out + ")>";
+        }
         case TyK::Opt: {
             std::string in = cppTy(optInner(t));
             if (in.empty()) return "";
@@ -134,6 +156,11 @@ static std::string cppTy(const TyP& t) {
 static TyP declTy(const ast::TypeP& t) {
     if (!t) return sema::unkTy();
     if (t->kind == ast::TyKind::Optional) return sema::optTy(declTy(t->inner));
+    if (t->kind == ast::TyKind::Fn) {
+        std::vector<TyP> ps;
+        for (const auto& p : t->params) ps.push_back(declTy(p));
+        return sema::fnTy(std::move(ps), t->ret ? declTy(t->ret) : sema::noneTy());
+    }
     if (t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
     if (n == "list" && t->generics.size() == 1)
@@ -236,12 +263,14 @@ private:
             return false;
         TyP rt = s.ret ? declTy(s.ret) : sema::noneTy();
         if (!isNoneTy(rt) && !isNativeTy(rt)) return false;
+        if (isNativeFnTy(rt) || isOptFnTy(rt)) return false;
         for (const auto& p : s.params) {
             if (p.variadic || p.selfParam || p.defaultValue || !p.type)
                 return false;
             // Plain scalars and optionals of scalars (`T?`) are both lowerable;
             // an optional scalar becomes `std::optional<scalar>`.
-            if (!isNativeTy(declTy(p.type))) return false;
+            TyP pt = declTy(p.type);
+            if (!isNativeTy(pt) || isNativeFnTy(pt) || isOptFnTy(pt)) return false;
         }
         // Self-recursion tolerance: an in-progress hook is added so the body
         // walk treats self-calls as lowerable. Non-self calls must already be
@@ -578,6 +607,8 @@ private:
                 // Only a name the function itself binds can be emitted; a free
                 // name (module-level const/var, etc.) has no local to reference.
                 if (cur.locals.count(e.text)) return isNativeTy(t);
+                if (topFuncs_.count(e.text) && lowered_.count(topFuncs_.at(e.text)))
+                    return isNativeFnTy(t);
                 // M11: a module-level `const` folded to a scalar is inlined at
                 // its use site, so a function that reads it can still lower.
                 {
@@ -595,6 +626,23 @@ private:
                 return binopLowerable(e, t);
             case ExKind::Call:
                 return callLowerable(e, cur);
+            case ExKind::SafeCall: {
+                TyP callee = e.lhs ? typeOf(*e.lhs) : TyP{};
+                if (!e.lhs || !exprLowerable(*e.lhs, cur) ||
+                    !callee || callee->k != TyK::Opt || !isNativeFnTy(optInner(callee)))
+                    return false;
+                const TyP& fn = optInner(callee);
+                if (e.args.size() != fn->args.size() || !typeOf(e) ||
+                    !isOptScalarTy(typeOf(e)))
+                    return false;
+                for (size_t i = 0; i < e.args.size(); ++i) {
+                    if (e.args[i].name != "" || !e.args[i].value ||
+                        !exprLowerable(*e.args[i].value, cur) ||
+                        !assignCompatible(typeOf(*e.args[i].value), fn->args[i]))
+                        return false;
+                }
+                return true;
+            }
             // Walrus `(x := E)`: eval-once into the named scalar local. The
             // target is declared by the emitter (see Emitter::collectWalrus).
             case ExKind::AssignExpr:
@@ -1214,6 +1262,8 @@ private:
                 if (e.text == "true") return "true";
                 if (e.text == "false") return "false";
                 if (e.text == "none") return "std::nullopt";
+                if (calleeFunc_.count(e.text))
+                    return "kirn_native::" + calleeFunc_.at(e.text)->cName;
                 // M11: a non-local scalar `const` is inlined as its folded
                 // literal (a local of the same name shadows it).
                 if (!localTypes_.count(e.text)) {
@@ -1234,6 +1284,19 @@ private:
             }
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
+            case ExKind::SafeCall: {
+                TyP fn = optInner(typeOf(*e.lhs));
+                TyP ret = fn->inner;
+                std::string retCpp = cppTy(ret);
+                std::string call = "(*__fn)(";
+                for (size_t i = 0; i < e.args.size(); ++i) {
+                    if (i) call += ", ";
+                    call += emitExpr(*e.args[i].value);
+                }
+                call += ")";
+                return "[&]{ auto __fn = (" + emitExpr(*e.lhs) + "); if (!__fn) return std::optional<" +
+                       retCpp + ">{ }; return std::optional<" + retCpp + ">{ " + call + " }; }()";
+            }
             case ExKind::Call: {
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
                     std::string obj = emitExpr(*e.lhs->lhs);

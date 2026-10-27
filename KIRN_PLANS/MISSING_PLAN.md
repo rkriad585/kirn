@@ -1327,6 +1327,10 @@ Optional-list safe `.?.append()`/`.?.extend()` now lower with argument short-cir
 preserved mutation order (`tests/codegen/safe_list_append_extend.kn`; gate 11a).
 Optional-list safe `.?.insert()`/`.?.remove()` now lower with normalized bounds and preserved
 not-found panic behavior when the receiver is present (`tests/codegen/safe_list_insert_remove.kn`; gate 11a).
+Optional function safe calls now lower for locally assigned, already-native top-level functions,
+with `std::optional<std::function<...>>` short-circuiting and scalar result boxing
+(`tests/codegen/safe_call.kn`; gate 11a). Function-valued parameters/returns remain interpreter-only
+until their runtime registration ABI is extended.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

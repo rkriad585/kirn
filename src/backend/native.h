@@ -37,6 +37,10 @@ struct NativeFunc {
     std::string cName;               // emitted C++ function name
     std::vector<std::string> params; // scalar parameter names, in order
     std::vector<std::string> pTypes; // cpp types of params ("int64_t"/"double"/...)
+    // For function-valued parameters, retain the callback signature pieces so
+    // the generated registration thunk can bridge interpreter Values to C++.
+    std::vector<std::vector<std::string>> fnParamTypes;
+    std::vector<std::string> fnReturnTypes;
     std::string retCpp;              // "int64_t"/"double"/"bool"/"char32_t"/"" (none)
 };
 

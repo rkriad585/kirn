@@ -1,0 +1,18 @@
+# M11: interpreter function values bridged into native callback parameters.
+fn inc(x: Int) -> Int {
+    return x + 1;
+}
+
+fn apply(f: fn(Int) -> Int, x: Int) -> Int {
+    return f(x);
+}
+
+fn apply_safe(f: (fn(Int) -> Int)?, x: Int) -> Int? {
+    return f .?(x);
+}
+
+fn main() -> none {
+    print(apply(inc, 4));
+    print(apply_safe(inc, 8));
+    print(apply_safe(none, 8));
+}

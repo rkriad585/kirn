@@ -1353,6 +1353,10 @@ Native struct parameters can now update scalar and string fields through a check
 helper and return the modified value without leaving the native ABI
 (`tests/codegen/native_struct_mutation.kn`; gate 11a). Optional-struct mutation and user-defined
 methods/trait dispatch remain interpreter-backed.
+Function-valued parameters now bridge interpreter `Value::Fn` objects into native
+`std::function` callbacks, including optional function parameters used by safe calls
+(`tests/codegen/native_function_param.kn`; gate 11a). Function-valued native returns remain
+interpreter-backed until return-value registration is extended.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

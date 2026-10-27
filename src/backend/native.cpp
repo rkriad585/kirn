@@ -292,7 +292,7 @@ private:
             // Plain scalars and optionals of scalars (`T?`) are both lowerable;
             // an optional scalar becomes `std::optional<scalar>`.
             TyP pt = declTy(p.type);
-            if (!isNativeTy(pt) || isNativeFnTy(pt) || isOptFnTy(pt)) return false;
+            if (!isNativeTy(pt)) return false;
         }
         // Self-recursion tolerance: an in-progress hook is added so the body
         // walk treats self-calls as lowerable. Non-self calls must already be
@@ -310,7 +310,19 @@ private:
         nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : std::string();
         for (const auto& p : s.params) {
             nf.params.push_back(p.name);
-            nf.pTypes.push_back(cppTy(declTy(p.type)));
+            TyP pt = declTy(p.type);
+            nf.pTypes.push_back(cppTy(pt));
+            TyP fn = pt && pt->k == TyK::Opt ? optInner(pt) : pt;
+            if (fn && fn->k == TyK::Fn) {
+                std::vector<std::string> ps;
+                for (const auto& a : fn->args) ps.push_back(cppTy(a));
+                nf.fnParamTypes.push_back(std::move(ps));
+                nf.fnReturnTypes.push_back(fn->inner && fn->inner->k != TyK::None
+                                               ? cppTy(fn->inner) : std::string());
+            } else {
+                nf.fnParamTypes.emplace_back();
+                nf.fnReturnTypes.emplace_back();
+            }
         }
         lowered_[&s] = std::move(nf);
         return true;
@@ -376,6 +388,22 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Ident && cur.locals.count(e.lhs->text)) {
+            TyP callee = typeOf(*e.lhs);
+            TyP fn = callee && callee->k == TyK::Opt ? optInner(callee) : callee;
+            if (fn && fn->k == TyK::Fn) {
+                if (callee->k == TyK::Opt) return false;
+                if (e.args.size() != fn->args.size() ||
+                    (!isNoneTy(typeOf(e)) && !isNativeTy(typeOf(e))))
+                    return false;
+                for (size_t i = 0; i < e.args.size(); ++i)
+                    if (e.args[i].name != "" || !e.args[i].value ||
+                        !exprLowerable(*e.args[i].value, cur) ||
+                        !assignCompatible(typeOf(*e.args[i].value), fn->args[i]))
+                        return false;
+                return true;
+            }
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 e.args.size() != 1 || e.args[0].name != "" ||
@@ -1401,6 +1429,15 @@ private:
                        retCpp + ">{ }; return std::optional<" + retCpp + ">{ " + call + " }; }()";
             }
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Ident && localTypes_.count(e.lhs->text) &&
+                    typeOf(*e.lhs) && typeOf(*e.lhs)->k == TyK::Fn) {
+                    std::string call = cIdent(e.lhs->text, "v_") + "(";
+                    for (size_t i = 0; i < e.args.size(); ++i) {
+                        if (i) call += ", ";
+                        call += emitExpr(*e.args[i].value);
+                    }
+                    return call + ")";
+                }
                 if (e.lhs->kind == ExKind::Ident && isNativeStructTy(typeOf(e))) {
                     std::string out = "[&]{ auto __s = kirn::interp::Value::structV(\"" +
                                       e.lhs->text + "\"); ";
@@ -1800,6 +1837,32 @@ void out_registerAll(
               [](const NativeFunc* a, const NativeFunc* b) {
                   return a->name < b->name;
               });
+    auto callbackExpr = [](const std::vector<std::string>& args,
+                           const std::string& ret) {
+        std::string out = "[&interp, __fv](";
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (i) out += ", ";
+            out += args[i] + " __a" + std::to_string(i);
+        }
+        out += "){ std::vector<kirn::interp::Value> __args; ";
+        for (size_t i = 0; i < args.size(); ++i) {
+            const std::string& t = args[i];
+            std::string box = t == "int64_t" ? "integer" :
+                              t == "double" ? "floating" :
+                              t == "std::string" ? "str" : "boolean";
+            out += "__args.push_back(kirn::interp::Value::" + box +
+                   "(__a" + std::to_string(i) + ")); ";
+        }
+        out += "auto __r = interp.nativeInvoke(__fv, std::move(__args)); ";
+        if (ret.empty()) out += "return;";
+        else {
+            std::string field = ret == "int64_t" ? "i" :
+                                ret == "double" ? "d" :
+                                ret == "std::string" ? "s" : "b";
+            out += "return __r." + field + ";";
+        }
+        return out + " }";
+    };
     for (const NativeFunc* nfp : ordered) {
         const NativeFunc& nf = *nfp;
         out << "    for (const auto& d : prog) if (d->kind == "
@@ -1812,7 +1875,18 @@ void out_registerAll(
             std::string v = "v_";
             for (char c : nf.params[i]) v += isalnum((unsigned char)c) ? c : '_';
             const std::string& pt = nf.pTypes[i];
-            if (pt.rfind("std::optional<", 0) == 0) {
+            if (i < nf.fnParamTypes.size() && !nf.fnParamTypes[i].empty()) {
+                bool optional = pt.rfind("std::optional<", 0) == 0;
+                std::string callback = callbackExpr(
+                    nf.fnParamTypes[i], nf.fnReturnTypes[i]);
+                out << "        " << pt << " " << v << "; { auto __fv = "
+                    "interp.nativeEnvVar(e, \"" << nf.params[i] << "\"); ";
+                if (optional)
+                    out << "if (!__fv.isNone()) " << v << " = " << callback << "; }\n";
+                else
+                    out << "if (__fv.isNone()) kirn::interp::panicHere(\"native: missing function argument\"); "
+                        << v << " = " << callback << "; }\n";
+            } else if (pt.rfind("std::optional<", 0) == 0) {
                 // Optional scalar: map `none` -> nullopt, else the inner value.
                 std::string inner = pt.substr(14, pt.size() - 14 - 1);
                 out << "        " << pt << " " << v << "; { auto __p = "

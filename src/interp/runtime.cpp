@@ -11126,6 +11126,10 @@ Value Interpreter::nativeEnvVar(const Env& e, const std::string& name) {
     panicHere("native: unbound variable '" + name + "'");
 }
 
+Value Interpreter::nativeInvoke(Value callee, std::vector<Value> args) {
+    return callValue(std::move(callee), std::move(args), 0, 0);
+}
+
 const Interpreter::NativeBody* Interpreter::nativeFuncFor(const Stmt* fn) const {
     if (!nativeEnabled_) return nullptr;
     auto it = nativeFns_.find(fn);

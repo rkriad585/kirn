@@ -6967,6 +6967,31 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
         runDefers();
         if (isGen) yieldSinks_.pop_back();
         if (isResultRet(*fn)) {
+            // POWER_PLAN §5.4: convert a propagated value into the single
+            // payload variant marked @[from] or @[source], mirroring
+            // thiserror's generated From implementation.
+            if (fn->ret->generics.size() >= 2 &&
+                !sraise.errResult.payload.empty()) {
+                const auto& errorTy = fn->ret->generics[1];
+                auto ei = errorTy ? enums_.find(errorTy->name) : enums_.end();
+                if (ei != enums_.end()) {
+                    for (const auto& var : ei->second->variants) {
+                        if (var.payload.size() != 1) continue;
+                        bool marked = false;
+                        for (const auto& d : var.payload[0].decorators)
+                            if (d.name == "from" || d.name == "source") {
+                                marked = true;
+                                break;
+                            }
+                        if (!marked) continue;
+                        Value wrapped = Value::enumV(errorTy->name, var.name);
+                        wrapped.payload.push_back(
+                            std::move(sraise.errResult.payload[0]));
+                        sraise.errResult.payload[0] = std::move(wrapped);
+                        break;
+                    }
+                }
+            }
             // POWER_PLAN §5.4: a single-arg `result[T]` defaults E to
             // error.Error, so a non-Error payload reached via `raise`/`?` is
             // wrapped into an Error (caller can .context()/.chain() it, and the

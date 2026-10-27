@@ -33,6 +33,16 @@ fn typed_to_err(h: Str) -> result[Str] {
     return v;
 }
 
+@[derive(Error, Debug)]
+enum AutoErr {
+    @[error("wrapped: {cause}")]
+    Wrapped(@[from] cause: Str),
+}
+
+fn wrapped_error() -> result[Int, AutoErr] {
+    raise "disk";
+}
+
 fn main() -> none {
     # --- §5.1 dynamic Error: msg / Display / chain ---
     var e = error.msg("boom");
@@ -90,6 +100,11 @@ fn main() -> none {
     assert(error.display(StoreErr.Gone(code: 503)) == "store gone (503)");
     assert(error.display(StoreErr.BadHeader(expected: "A", found: "B")) == "header A != 'B'");
     assert(error.display(StoreErr.Plain(detail: "wrapped")) == "wrapped");
+
+    match wrapped_error() {
+        case err(converted) { assert(error.display(converted) == "wrapped: disk"); }
+        case ok(_) { assert(false); }
+    }
 
     # explicit-E: the raw enum is reached; Display still works
     match typed("") {

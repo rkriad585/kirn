@@ -1256,6 +1256,24 @@ Verification: `error_test.kn` passes and both `pet.error` and its runtime
 backtrace method check cleanly. The earlier “backtrace returns none” deviation
 is superseded by this update.
 
+### Update (2026-10-27) — Derived `@[from]` error conversion (shipped)
+
+Result-returning functions now inspect their explicit error type when a
+`raise`/`?` propagates a value. If that type is a derived error enum with a
+single payload marked `@[from]` or `@[source]`, the runtime constructs that
+variant and carries the original value as its payload. This supplies the
+runtime half of thiserror's `From` conversion while preserving explicit error
+types and existing `result[T]` dynamic wrapping.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/error_test.kn`.
+
+Verification: `error_test.kn` passes, including a typed `AutoErr` conversion
+from a raised string and derived display formatting.
+
+The earlier deviation claiming that `@[from]`/`@[source]` conversions were not
+implemented is superseded for single-payload derived enum variants. Multi-field
+conversion and compile-time type validation remain intentionally open.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

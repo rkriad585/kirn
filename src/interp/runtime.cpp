@@ -11147,6 +11147,10 @@ Value nativeInvokeMethod(Value obj, const std::string& name,
                                                    std::move(args));
 }
 
+bool nativeValueEqual(const Value& a, const Value& b) {
+    return valEq(a, b);
+}
+
 Value Interpreter::nativeWrapFunction(BuiltinFn fn) {
     Value x;
     x.k = VK::Builtin;

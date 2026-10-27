@@ -1391,8 +1391,10 @@ Native collection methods can now use lowerable member receivers, so aggregate m
 generic trait-object calls are now bridged dynamically through the active interpreter invocation.
 The direct member-backed list slice also supports nominal-struct elements for construction, append,
 insert, length, pop, and shift (`tests/codegen/native_struct_collection_methods.kn`; gate 11a).
-Equality-based collection search/removal for nominal elements and general safe navigation remain
-active M11 work.
+Equality-based collection search/removal for nominal elements now use the canonical interpreter
+`Value` equality bridge for `contains`, `index`, and `remove`, with checker, interpreter/native parity,
+generated-source inspection, and gate 11a coverage in `tests/codegen/native_struct_collection_methods.kn`.
+General safe navigation remains active M11 work.
 Optional aggregate receivers now support native safe method calls and chained safe nominal-member
 reads, including optional nested structs and list-backed method mutation
 (`tests/codegen/native_safe_aggregate_navigation.kn`; gate 11a). The field emitter unwraps the

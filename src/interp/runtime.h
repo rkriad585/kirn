@@ -312,6 +312,7 @@ public:
 // remain dynamic without exposing Interpreter's private call machinery.
 Value nativeInvokeMethod(Value obj, const std::string& name,
                          std::vector<Value> args);
+bool nativeValueEqual(const Value& a, const Value& b);
 
 } // namespace interp
 } // namespace kirn

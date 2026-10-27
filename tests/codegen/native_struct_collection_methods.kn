@@ -25,10 +25,26 @@ fn count(b: Bag) -> Int {
     return b.items.len();
 }
 
+fn has_item(b: Bag, item: Item) -> Bool {
+    return b.items.contains(item);
+}
+
+fn find_item(b: Bag, item: Item) -> Int {
+    return b.items.index(item);
+}
+
+fn remove_item(b: Bag, item: Item) -> none {
+    b.items.remove(item);
+}
+
 fn main() -> none {
     var b = mutate(Bag(items: [Item(x: 1), Item(x: 2)]));
     print(b);
     print(count(b));
+    print(has_item(b, Item(x: 2)));
+    print(find_item(b, Item(x: 2)));
+    remove_item(b, Item(x: 2));
+    print(b);
     print(take_last(b));
     print(take_first(b));
 }

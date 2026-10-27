@@ -95,6 +95,9 @@ static bool isNativeStructFieldTy(const TyP& t) {
 static bool isNativeCollectionElemTy(const TyP& t) {
     return isNativeStructFieldTy(t);
 }
+static bool isNativeSearchElemTy(const TyP& t) {
+    return isScalarTy(t) || isStringTy(t) || isNativeStructTy(t);
+}
 static bool isNativeOptListTy(const TyP& t) {
     return t && t->k == TyK::Opt && optInner(t) &&
            isListTy(optInner(t)) && !optInner(t)->args.empty() &&
@@ -545,7 +548,7 @@ private:
             bool optional = recv && recv->k == TyK::Opt;
             TyP base = optional ? optInner(recv) : recv;
             if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
-                !isNativeCollectionElemTy(base->args[0]) ||
+                !isNativeSearchElemTy(base->args[0]) ||
                 !assignCompatible(typeOf(*e.args[0].value), base->args[0]))
                 return false;
             TyP result = typeOf(e);
@@ -579,7 +582,7 @@ private:
             bool optional = recv && recv->k == TyK::Opt;
             TyP base = optional ? optInner(recv) : recv;
             if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
-                !isScalarTy(base->args[0]) ||
+                !isNativeSearchElemTy(base->args[0]) ||
                 !assignCompatible(typeOf(*e.args[0].value), base->args[0]))
                 return false;
             TyP result = typeOf(e);
@@ -1666,14 +1669,16 @@ private:
                     TyP elem = (optional ? optInner(recv) : recv)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string needle = "__remove_needle" + std::to_string(tmpSeq_++);
-                    std::string field = valueField(elem);
+                    std::string equal = elem->k == TyK::Struct
+                        ? "kirn::interp::nativeValueEqual(*__it, " + needle + ")"
+                        : "__it->" + std::string(valueField(elem)) + " == " + needle;
                     if (optional)
                         return "[&]{ auto __opt = (" + obj + "); if (__opt) { auto " + needle +
-                               " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __opt->begin(); __it != __opt->end(); ++__it) { if (__it->" +
-                               field + " == " + needle + ") { __opt->erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); } }()";
+                               " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __opt->begin(); __it != __opt->end(); ++__it) { if (" + equal +
+                               ") { __opt->erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); } }()";
                     return "[&]{ auto &__seq = (" + obj + "); auto " + needle +
-                           " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (__it->" +
-                           field + " == " + needle + ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";
+                           " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (" + equal +
+                           ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
                     TyP recv = typeOf(*e.lhs->lhs);
@@ -1694,12 +1699,14 @@ private:
                     TyP elem = base->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string needle = "__needle" + std::to_string(tmpSeq_++);
-                    std::string field = valueField(elem);
+                    std::string equal = elem->k == TyK::Struct
+                        ? "kirn::interp::nativeValueEqual(__v, " + needle + ")"
+                        : "__v." + std::string(valueField(elem)) + " == " + needle;
                     if (optional) {
                         const char* outTy = e.lhs->text == "contains" ? "bool" : "int64_t";
                         std::string found = e.lhs->text == "contains"
-                            ? "if (__v." + field + " == " + needle + ") return std::optional<bool>{true};"
-                            : "if (__v." + field + " == " + needle + ") return std::optional<int64_t>{__pos}; ++__pos;";
+                            ? "if (" + equal + ") return std::optional<bool>{true};"
+                            : "if (" + equal + ") return std::optional<int64_t>{__pos}; ++__pos;";
                         std::string absent = e.lhs->text == "contains"
                             ? "return std::optional<bool>{false};"
                             : "return std::optional<int64_t>{int64_t(-1)};";
@@ -1708,11 +1715,11 @@ private:
                     }
                     std::string result = e.lhs->text == "contains"
                         ? "[&]{ auto &__seq = (" + obj + "); auto " + needle +
-                          " = (" + emitExpr(*e.args[0].value) + "); for (const auto& __v : __seq) if (__v." +
-                          field + " == " + needle + ") return true; return false; }()"
+                          " = (" + emitExpr(*e.args[0].value) + "); for (const auto& __v : __seq) if (" +
+                          equal + ") return true; return false; }()"
                         : "[&]{ auto &__seq = (" + obj + "); auto " + needle +
-                          " = (" + emitExpr(*e.args[0].value) + "); int64_t __pos = 0; for (const auto& __v : __seq) { if (__v." +
-                          field + " == " + needle + ") return __pos; ++__pos; } return int64_t(-1); }()";
+                          " = (" + emitExpr(*e.args[0].value) + "); int64_t __pos = 0; for (const auto& __v : __seq) { if (" +
+                          equal + ") return __pos; ++__pos; } return int64_t(-1); }()";
                     return result;
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {

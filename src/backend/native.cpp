@@ -1035,6 +1035,7 @@ public:
 
     void emitPreamble() {
         out_ << "#include <cmath>\n"
+             << "#include <algorithm>\n"
              << "#include <limits>\n"
              << "#include <optional>\n"
              << "#include <string>\n"
@@ -1827,8 +1828,7 @@ private:
                         std::string body = "if (__seq.empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = __seq.front(); __seq.erase(__seq.begin()); return std::optional<" + cppTy(elem) + ">{" + unboxValue("__v", elem) + "};";
                         if (isOptionalStructListMember(*e.lhs->lhs))
                             return emitOptionalListMutation(*e.lhs->lhs, body);
-                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
-                               " = *__opt; " + body + " }()";
+                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &__seq = *__opt; " + body + " }()";
                     }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
                            ".begin()); return " + unboxValue("__v", elem) + "; }()";
@@ -1844,8 +1844,7 @@ private:
                                ">{" + unboxValue("__v", elem) + "};";
                         if (isOptionalStructListMember(*e.lhs->lhs))
                             return emitOptionalListMutation(*e.lhs->lhs, body);
-                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
-                               " = *__opt; " + body + " }()";
+                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &__seq = *__opt; " + body + " }()";
                     }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return " +
                            unboxValue("__v", elem) + "; }()";

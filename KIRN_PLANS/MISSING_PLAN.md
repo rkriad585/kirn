@@ -1417,6 +1417,10 @@ remains subject to the local toolchain wrapper timeout during whole-runtime comp
 The optional-field emitter now distinguishes optional receivers from optional fields and checks stored
 `Value::none` markers before unboxing, so `Inner?` members no longer generate invalid scalar access or
 panic on absent fields.
+Native gate 11d now compiles every `tests/codegen/*.kn` fragment marked `KIRN_HAS_NATIVE=1` with the
+host C++20 compiler; the complete audit currently covers 56 native fixtures with zero syntax failures.
+That audit also closed the missing `<algorithm>` preamble and verified optional-list `pop`/`shift`
+fallbacks use a declared mutable sequence reference.
 
 ---
 

@@ -329,6 +329,22 @@ fn test_watch_borrow_vs_update() -> none {
     print("watch borrow vs update: ok");
 }
 
+fn test_watch_modify_callbacks() -> none {
+    var w = sync.Watch(2);
+    var rx = w.subscribe();
+    w.send_modify(fn (v) { return v * 3; });
+    assert(w.borrow() == 6);
+    assert(rx.has_changed());
+    assert(rx.borrow_and_update() == 6);
+    assert(not w.send_if_modified(fn (v) { return [v, false]; }));
+    assert(w.borrow() == 6);
+    assert(not rx.has_changed());
+    assert(w.send_if_modified(fn (v) { return [v + 1, true]; }));
+    assert(rx.has_changed());
+    assert(rx.borrow_and_update() == 7);
+    print("watch modify callbacks: ok");
+}
+
 fn test_watch_mark() -> none {
     var w = sync.Watch(0);
     var rx = w.subscribe();
@@ -416,6 +432,7 @@ fn main() -> none {
     test_broadcast_close_drains();
     test_watch_changed();
     test_watch_borrow_vs_update();
+    test_watch_modify_callbacks();
     test_watch_mark();
     test_watch_close();
     test_mpsc_unbounded();

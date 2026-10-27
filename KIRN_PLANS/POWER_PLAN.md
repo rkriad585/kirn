@@ -1186,3 +1186,23 @@ treated as pending work.
 Delivered: `src/interp/runtime.cpp`, `stdlib/pet/sync.kn`.
 
 Verification: timed probes return timeout as expected; `scripts/gates/6_test.sh` green.
+
+### Update (2026-10-27) — Watch mutation callbacks (shipped)
+
+`WatchState.send_modify` and `send_if_modified` now provide the remaining
+Tokio-style watcher mutation surface. Because Kirn does not expose mutable
+references to callbacks, the callback contract is explicit: `send_modify(fn
+(value) { return replacement; })` always publishes, while
+`send_if_modified(fn (value) { return [replacement, changed]; })` stores the
+replacement and notifies receivers only when `changed` is true. The update and
+notification happen under the watcher lock.
+
+Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`.
+
+Verification: `kirn check stdpet/pet/sync.kn` and the focused sync test pass.
+The aggregate stdlib gate remains blocked by the pre-existing
+`contextlib_test.kn` ExitStack cleanup regression (reproduced independently;
+not changed in this phase).
+
+The earlier “Watch `send_modify`/`send_if_modified` are not shipped” deviation
+is superseded by this update.

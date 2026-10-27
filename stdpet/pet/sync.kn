@@ -723,6 +723,32 @@ struct WatchState {
         return old;
     }
 
+    # Kirn callbacks return the replacement value instead of receiving a
+    # mutable reference. This is the value-semantic equivalent of Tokio's
+    # send_modify: the callback always publishes one new version.
+    fn send_modify(self, modify) -> none {
+        self.send_replace(modify(self.borrow()));
+    }
+
+    # The callback returns [replacement_value, changed]. The value is stored
+    # even when changed is false, but receivers are notified only when true.
+    fn send_if_modified(self, modify) -> Bool {
+        var r = modify(self.borrow());
+        var v = r[0];
+        var changed: Bool = r[1];
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        self.st[2] = v;
+        if changed {
+            self.st[3] = self.st[3] + 1;
+            c.broadcast();
+        }
+        m.unlock();
+        return changed;
+    }
+
     fn borrow(self) -> any {
         var m = self.st[0];
         m.lock();

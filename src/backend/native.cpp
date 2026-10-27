@@ -54,6 +54,9 @@ static bool isOptListTy(const TyP& t) {
 // optionals of scalars (elvis `??` short-circuits to the inner scalar).
 static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
 static bool isListTy(const TyP& t) { return t && t->k == TyK::List; }
+static bool isNativeListElemTy(const TyP& t) {
+    return isScalarTy(t) || isStringTy(t);
+}
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
            isStringTy(t) || isListTy(t);
@@ -524,7 +527,7 @@ private:
                 } else {
                     TyP seq = typeOf(it);
                     if (!exprLowerable(it, cur) || !isListTy(seq) ||
-                        seq->args.empty() || !isScalarTy(seq->args[0]))
+                        seq->args.empty() || !isNativeListElemTy(seq->args[0]))
                         return false;
                 }
                 CurFn nested = cur;
@@ -692,7 +695,7 @@ private:
         } else {
             TyP seq = typeOf(it);
             if (!exprLowerable(it, cur) || !isListTy(seq) || seq->args.empty() ||
-                !isScalarTy(seq->args[0]))
+                !isNativeListElemTy(seq->args[0]))
                 return false;
         }
         return bodyLowerable(s.body, cur);
@@ -947,6 +950,7 @@ private:
     static const char* valueField(const TyP& t) {
         if (t && t->k == TyK::Float) return "d";
         if (t && t->k == TyK::Bool) return "b";
+        if (t && t->k == TyK::Str) return "s";
         return "i";
     }
 

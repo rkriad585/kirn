@@ -1,0 +1,13 @@
+# M11: scalar-list reduction on the native path.
+fn sum_int(items: list[Int]) -> Int {
+    return items.sum();
+}
+
+fn sum_float(items: list[f64]) -> f64 {
+    return items.sum();
+}
+
+fn main() -> none {
+    print(sum_int([1, 2, 3]));
+    print(sum_float([1.25, 2.25]));
+}

@@ -320,6 +320,16 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                !e.args.empty())
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            return isListTy(recv) && !recv->args.empty() &&
+                   isScalarTy(recv->args[0]) &&
+                   (recv->args[0]->k == TyK::Int || recv->args[0]->k == TyK::Float) &&
+                   typeOf(e) && typeOf(e)->k == recv->args[0]->k;
+        }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "clear" || e.lhs->text == "reverse")) {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -1068,6 +1078,17 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
+                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string tmp = "__sum" + std::to_string(tmpSeq_++);
+                    std::string acc = elem->k == TyK::Float ? "double" : "int64_t";
+                    std::string zero = elem->k == TyK::Float ? "0.0" : "0";
+                    return "[&]{ auto &" + tmp + " = (" + obj + "); " + acc +
+                           " __acc = " + zero + "; for (const auto& __v : " +
+                           tmp + ") __acc += __v." + valueField(elem) +
+                           "; return __acc; }()";
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "clear")
                     return emitExpr(*e.lhs->lhs) + ".clear()";
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse")

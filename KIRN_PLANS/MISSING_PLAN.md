@@ -1295,6 +1295,8 @@ Scalar-list element assignment (`items[index] = value`) now lowers natively with
 normalization and vector bounds behavior (`tests/codegen/list_set.kn`; gate 11a).
 Scalar-list `.reverse()` and `.clear()` now lower natively for aggregate maintenance
 (`tests/codegen/list_maintenance.kn`; gate 11a).
+Scalar-list `.sum()` now lowers native integer and floating-point reductions
+(`tests/codegen/list_sum.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond

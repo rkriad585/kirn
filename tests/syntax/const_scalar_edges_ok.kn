@@ -1,0 +1,12 @@
+# M5 regression: every scalar ConstVal kind is rewritten into the AST literal,
+# including values returned by const fn calls.
+const fn half(x: Float) -> Float { return x / 2.0; }
+const fn marker() -> Char { return 'K'; }
+
+const HALF = half(7.0);
+const LETTER = marker();
+const EMPTY = none;
+
+fn main() -> none {
+    print(HALF, LETTER, EMPTY);
+}

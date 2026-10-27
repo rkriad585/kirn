@@ -1076,8 +1076,11 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                             st->value->kind == ExKind::Dict;
                         bool foldable =
                             cv.k == ConstVal::K::Int ||
+                            cv.k == ConstVal::K::Float ||
                             cv.k == ConstVal::K::Bool ||
                             cv.k == ConstVal::K::Str ||
+                            cv.k == ConstVal::K::Char ||
+                            cv.k == ConstVal::K::None ||
                             cv.k == ConstVal::K::List ||
                             cv.k == ConstVal::K::Tuple ||
                             cv.k == ConstVal::K::Set ||

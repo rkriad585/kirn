@@ -777,6 +777,11 @@ suppression semantics verified.
 
 ### Phase M5 — Compile-time: `const fn`, const-eval, `comptime`/`@comptime` _(feature 12)_
 
+**Status: COMPLETE** — pure `const fn` evaluation, constant propagation, collections/structs,
+`comptime` diagnostics, and scalar literal materialization are implemented and verified. External I/O
+remains intentionally forbidden in compile-time contexts; the native backend consumes folded scalar
+constants through M11.
+
 **Goal:** fold a real compile-time function-and-constant evaluator, then optional `comptime` blocks for
 compile-time-only code (and later, compile-time reflection).
 
@@ -819,9 +824,11 @@ recorded goldens). The plan's `tests/comptime/` path was not used because the ga
 `tests/syntax/*_ok*.kn` / `*_err*.kn`; the tests live there so they are actually run. Deviations
 listed in the progress note above. **Updated 2026-10-17:** the const evaluator now also folds sets,
 dicts, structs (incl. struct ctors), `len` over set/dict, and pure receiver methods (`dict.keys()`,
-`set.contains()`, `str.upper()`, …), and `sizeof`/`alignof` are now builtins — so the remaining
-deviations are only "no external I/O in const contexts" and "folding rewrites the AST literal rather
-than emitting a separate data section".
+`set.contains()`, `str.upper()`, …), and `sizeof`/`alignof` are now builtins. Scalar `Float`, `Char`,
+and `None` results are also materialized as literals, including values returned by `const fn` calls
+(`tests/syntax/const_scalar_edges_ok.kn`). The remaining policy choices are intentional: external I/O
+is forbidden in const contexts, and folding rewrites the AST literal rather than emitting a separate
+data section.
 
 ---
 

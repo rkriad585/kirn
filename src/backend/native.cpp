@@ -461,8 +461,8 @@ private:
                 TyP idx = e.rhs ? typeOf(*e.rhs) : TyP{};
                 if (!e.lhs || !e.rhs || !exprLowerable(*e.lhs, cur) ||
                     !exprLowerable(*e.rhs, cur) || !isListTy(obj) ||
-                    obj->args.empty() || !isScalarTy(obj->args[0]) ||
-                    !idx || idx->k != TyK::Int || !isScalarTy(t))
+                    obj->args.empty() || !isNativeTy(t) ||
+                    obj->args[0]->k != t->k || !idx || idx->k != TyK::Int)
                     return false;
                 return true;
             }
@@ -1077,9 +1077,14 @@ private:
                 std::string obj = emitExpr(*e.lhs);
                 std::string idx = emitExpr(*e.rhs);
                 std::string tmp = "__ix" + std::to_string(tmpSeq_++);
-                return "[&]{ auto &" + tmp + " = (" + obj + "); int64_t __i = (" +
+                std::string access = tmp + ".at(static_cast<size_t>(__i))";
+                if (elem->k == TyK::List)
+                    return "[&]{ auto " + tmp + " = (" + obj + "); int64_t __i = (" +
                        idx + "); if (__i < 0) __i += static_cast<int64_t>(" +
-                       tmp + ".size()); return " + tmp + ".at(static_cast<size_t>(__i))." +
+                       tmp + ".size()); return *" + access + ".vec; }()";
+                return "[&]{ auto " + tmp + " = (" + obj + "); int64_t __i = (" +
+                       idx + "); if (__i < 0) __i += static_cast<int64_t>(" +
+                       tmp + ".size()); return " + access + "." +
                        valueField(elem) + "; }()";
             }
             default:

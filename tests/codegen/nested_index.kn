@@ -1,0 +1,8 @@
+# M11: nested scalar-list indexing on the native path.
+fn pick(matrix: list[list[Int]], i: Int, j: Int) -> Int {
+    return matrix[i][j];
+}
+
+fn main() -> none {
+    print(pick([[1, 2], [3, 4]], -1, -2));
+}

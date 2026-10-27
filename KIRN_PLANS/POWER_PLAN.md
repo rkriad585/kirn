@@ -1206,3 +1206,19 @@ not changed in this phase).
 
 The earlier “Watch `send_modify`/`send_if_modified` are not shipped” deviation
 is superseded by this update.
+
+### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
+
+The documented `error.result[T]` spelling is now accepted as a qualified type
+alias for the existing `result[T]` nominal. The parser preserves qualified
+identifier segments in type positions; semantic checking, result-boundary
+wrapping, and native-backend exclusion all recognize the alias. This keeps the
+user-facing `error` namespace consistent without introducing a second result
+representation.
+
+Delivered: `src/parser/parser.cpp`, `src/sema/checker.cpp`,
+`src/interp/runtime.cpp`, `src/backend/native.cpp`,
+`tests/syntax/error_result_alias_ok.kn`.
+
+Verification: the new program checks and runs (`42`), and gate 2b passes
+**69/0/0**. The earlier dotted-type alias deviation is superseded.

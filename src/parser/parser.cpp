@@ -1780,6 +1780,14 @@ ast::TypeP Parser::parseBaseType() {
     }
     if (cur().kind == Tok::Ident) {
         auto nameTok = advance();
+        std::string typeName = nameTok.text;
+        // Qualified type aliases (for example `error.result[T]`) are kept as
+        // one type name. This is deliberately limited to identifier segments;
+        // expressions and module imports retain their existing parsing paths.
+        while (atPunct(".") && cur(1).kind == Tok::Ident) {
+            advance();
+            typeName += "." + advance().text;
+        }
         std::vector<ast::TypeP> gens;
         if (atPunct("[")) {
             advance();
@@ -1791,7 +1799,7 @@ ast::TypeP Parser::parseBaseType() {
             }
             expectPunct("]");
         }
-        return ast::Type::makeName(nameTok.text, spanOf(nameTok),
+        return ast::Type::makeName(typeName, spanOf(nameTok),
                                    std::move(gens));
     }
     if (atPunct("(")) {

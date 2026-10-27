@@ -331,7 +331,8 @@ private:
                   const std::string& trait = "") {
         if (s.typeParams.size() || s.externDef || s.body.empty()) return false;
         if (s.ret && s.ret->kind == ast::TyKind::Name &&
-            (s.ret->name == "result" || s.ret->name == "Result"))
+            (s.ret->name == "result" || s.ret->name == "Result" ||
+             s.ret->name == "error.result"))
             return false;
         TyP rt = s.ret ? declTy(s.ret, &traitNames_) : sema::noneTy();
         if (!isNoneTy(rt) && !isNativeTy(rt)) return false;

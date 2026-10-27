@@ -1,0 +1,11 @@
+# POWER_PLAN §5: qualified result alias.
+fn answer() -> error.result[Int] {
+    return ok(42);
+}
+
+fn main() -> none {
+    match answer() {
+        case ok(v) { print(v); }
+        case err(_) { print("error"); }
+    }
+}

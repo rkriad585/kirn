@@ -5106,7 +5106,8 @@ static bool isResultRet(const Stmt& fn) {
     // `Result[T]` is the prelude spelling of `result[T]` (POWER_PLAN §6); both
     // must drive the raise-catch and ok-wrap paths identically.
     return fn.ret && fn.ret->kind == ast::TyKind::Name &&
-           (fn.ret->name == "result" || fn.ret->name == "Result");
+           (fn.ret->name == "result" || fn.ret->name == "Result" ||
+            fn.ret->name == "error.result");
 }
 
 void Interpreter::registerUsing(const Value& v) {

@@ -1231,7 +1231,7 @@ TyP Checker::resolveType(const ast::TypeP& t) {
                 TyP vv = ngens >= 2 ? resolveType(t->generics[1]) : unkTy();
                 return dictTy(kk, vv);
             }
-            if (n == "result") {
+            if (n == "result" || n == "error.result") {
                 std::vector<TyP> args;
                 args.push_back(ngens >= 1 ? resolveType(t->generics[0]) : unkTy());
                 args.push_back(ngens >= 2 ? resolveType(t->generics[1]) : unkTy());

@@ -2496,8 +2496,12 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     });
     globals_->vars["Chr"] = biFn({"n"}, [](std::vector<Value>& a) -> Value {
         int64_t n = a[0].k == VK::Int ? a[0].i : 0;
+        if (n < 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF))
+            panicHere("chr() argument is not a Unicode scalar value");
         return Value::chr((char32_t)n);
     });
+    globals_->vars["ord"] = globals_->vars["Ord"];
+    globals_->vars["chr"] = globals_->vars["Chr"];
 
     globals_->vars["assert"] =
         biFn({"cond"}, [](std::vector<Value>& a) -> Value {

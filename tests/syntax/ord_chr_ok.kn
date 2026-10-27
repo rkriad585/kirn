@@ -1,0 +1,6 @@
+fn main() -> none {
+    assert(ord('A') == 65);
+    assert(chr(65) == 'A');
+    assert(ord(chr(0x1F600)) == 0x1F600);
+    print("ord chr ok");
+}

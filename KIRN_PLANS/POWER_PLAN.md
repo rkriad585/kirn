@@ -1314,6 +1314,14 @@ ordered `ParIter` and therefore inherit its map/filter/reducer/grouping
 combinators and execution policy. The implementation delegates to the single
 stdlib constructor so the two spellings cannot diverge.
 
+### Update (2026-10-27) — Unicode `ord`/`chr` prelude helpers (shipped)
+
+The lowercase `ord(Char) -> Int` and `chr(Int) -> Char` spellings now mirror
+the existing internal `Ord`/`Chr` builtins. `chr` validates the Unicode scalar
+range and rejects values above `0x10FFFF` or UTF-16 surrogate code points.
+Both helpers are available without imports and are covered by VM/tree-walker
+syntax tests.
+
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
 `stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
 

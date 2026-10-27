@@ -484,8 +484,10 @@ void Checker::predeclareBuiltins() {
                     false, 1);
     makeBuiltinFunc("Ord", {charTy()}, {"c"}, intTy(), false, 1);
     makeBuiltinFunc("__Ord", {charTy()}, {"c"}, intTy(), false, 1);
+    makeBuiltinFunc("ord", {charTy()}, {"c"}, intTy(), false, 1);
     makeBuiltinFunc("Chr", {intTy()}, {"n"}, charTy(), false, 1);
     makeBuiltinFunc("__Chr", {intTy()}, {"n"}, charTy(), false, 1);
+    makeBuiltinFunc("chr", {intTy()}, {"n"}, charTy(), false, 1);
     makeBuiltinFunc("BitLength", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("__BitLength", {unkTy()}, {"x"}, intTy(), false, 1);
     makeBuiltinFunc("BitCount", {unkTy()}, {"x"}, intTy(), false, 1);
@@ -5254,7 +5256,7 @@ bool constTruthy(const ConstVal& v) {
 bool constCallAllowed(const std::string& n) {
     static const std::set<std::string> k = {
         "abs", "Abs", "__Abs", "len", "Len", "int", "Int", "float", "Float",
-        "bool", "Bool", "Ord", "__Ord", "Chr", "__Chr", "min", "Min",
+        "bool", "Bool", "Ord", "__Ord", "ord", "Chr", "__Chr", "chr", "min", "Min",
         "max", "Max", "pow", "Pow", "__Pow", "sum", "sizeof", "alignof",
     };
     return k.count(n) != 0;

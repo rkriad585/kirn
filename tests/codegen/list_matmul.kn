@@ -1,0 +1,18 @@
+# M11: native numeric vector/matrix multiplication for list operands.
+fn dot(a: list[Float], b: list[Float]) -> Float {
+    return a @ b;
+}
+
+fn mat_vec(a: list[list[Float]], b: list[Float]) -> list[Float] {
+    return a @ b;
+}
+
+fn mat_mat(a: list[list[Float]], b: list[list[Float]]) -> list[list[Float]] {
+    return a @ b;
+}
+
+fn main() -> none {
+    print(dot([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]));
+    print(mat_vec([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0]));
+    print(mat_mat([[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]));
+}

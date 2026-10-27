@@ -4053,6 +4053,20 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     return errTy();
                 }
                 if (dynish(lt) || dynish(rt)) return unkTy();
+                auto numericList = [](const TyP& t) {
+                    return t && t->is(TyK::List) && t->args.size() == 1 &&
+                           (t->args[0]->is(TyK::Int) || t->args[0]->is(TyK::Float));
+                };
+                auto numericMatrix = [&](const TyP& t) {
+                    return t && t->is(TyK::List) && t->args.size() == 1 &&
+                           numericList(t->args[0]);
+                };
+                if ((numericList(lt) || numericMatrix(lt)) &&
+                    (numericList(rt) || numericMatrix(rt))) {
+                    bool lm = numericMatrix(lt), rm = numericMatrix(rt);
+                    if (!lm && !rm) return floatTy();
+                    return lm && rm ? listTy(listTy(floatTy())) : listTy(floatTy());
+                }
                 // A Matrix/vector type implements `MatMul`. The checker does
                 // not track impl-method return types, so the product type is
                 // left dynamic and resolved by the interpreter (`binop`).

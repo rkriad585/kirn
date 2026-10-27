@@ -9416,6 +9416,76 @@ Value Interpreter::binop(const std::string& op, const Value& l, const Value& r,
         return invokeMethod(r, "__rmatmul__", {l}, {}, globals_, line, col,
                             nullptr);
 
+    // Native-compatible numeric list matrix product. Nominal structs still
+    // use the MatMul trait dispatch above; plain numeric vectors/matrices use
+    // NumPy-style rank promotion here so tree/VM and native paths agree.
+    if (op == "@" && l.k == VK::List && r.k == VK::List) {
+        auto scalar = [](const Value& v) {
+            if (v.k == VK::Int) return static_cast<double>(v.i);
+            if (v.k == VK::Float) return v.d;
+            panicHere("matmul expects numeric lists");
+            return 0.0;
+        };
+        auto matrix = [](const Value& v) {
+            return !v.vec->empty() && (*v.vec)[0].k == VK::List;
+        };
+        bool lm = matrix(l), rm = matrix(r);
+        if (!lm && !rm) {
+            if (l.vec->size() != r.vec->size()) panicHere("matmul dimension mismatch");
+            double acc = 0.0;
+            for (size_t i = 0; i < l.vec->size(); ++i)
+                acc += scalar((*l.vec)[i]) * scalar((*r.vec)[i]);
+            return Value::floating(acc);
+        }
+        if (lm && !rm) {
+            std::vector<Value> out;
+            for (const auto& row : *l.vec) {
+                if (row.k != VK::List || row.vec->size() != r.vec->size())
+                    panicHere("matmul dimension mismatch");
+                double acc = 0.0;
+                for (size_t k = 0; k < r.vec->size(); ++k)
+                    acc += scalar((*row.vec)[k]) * scalar((*r.vec)[k]);
+                out.push_back(Value::floating(acc));
+            }
+            return Value::list(std::move(out));
+        }
+        if (!lm && rm) {
+            if (l.vec->size() != r.vec->size()) panicHere("matmul dimension mismatch");
+            size_t cols = r.vec->empty() ? 0 : (*r.vec)[0].vec->size();
+            std::vector<Value> out;
+            for (size_t j = 0; j < cols; ++j) {
+                double acc = 0.0;
+                for (size_t k = 0; k < r.vec->size(); ++k) {
+                    if ((*r.vec)[k].k != VK::List || (*r.vec)[k].vec->size() != cols)
+                        panicHere("matmul ragged matrix");
+                    acc += scalar((*l.vec)[k]) * scalar((*r.vec)[k].vec->at(j));
+                }
+                out.push_back(Value::floating(acc));
+            }
+            return Value::list(std::move(out));
+        }
+        size_t inner = l.vec->empty() ? 0 : (*l.vec)[0].vec->size();
+        if (r.vec->size() != inner) panicHere("matmul dimension mismatch");
+        size_t cols = r.vec->empty() ? 0 : (*r.vec)[0].vec->size();
+        std::vector<Value> out;
+        for (const auto& row : *l.vec) {
+            if (row.k != VK::List || row.vec->size() != inner)
+                panicHere("matmul ragged matrix");
+            std::vector<Value> outRow;
+            for (size_t j = 0; j < cols; ++j) {
+                double acc = 0.0;
+                for (size_t k = 0; k < inner; ++k) {
+                    if ((*r.vec)[k].k != VK::List || (*r.vec)[k].vec->size() != cols)
+                        panicHere("matmul ragged matrix");
+                    acc += scalar((*row.vec)[k]) * scalar((*r.vec)[k].vec->at(j));
+                }
+                outRow.push_back(Value::floating(acc));
+            }
+            out.push_back(Value::list(std::move(outRow)));
+        }
+        return Value::list(std::move(out));
+    }
+
     auto numL = [&]() { return l.k == VK::Int ? (double)l.i : l.d; };
     auto numR = [&]() { return r.k == VK::Int ? (double)r.i : r.d; };
     auto isBig = [](VK k) { return k == VK::BigInt; };

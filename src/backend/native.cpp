@@ -72,6 +72,17 @@ static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
            isStringTy(t) || isListTy(t) || isNativeFnTy(t) || isOptFnTy(t);
 }
+static bool isNativeMatOperand(const TyP& t) {
+    if (!t || t->k != TyK::List || t->args.empty()) return false;
+    TyP e = t->args[0];
+    if (e->k == TyK::Int || e->k == TyK::Float) return true;
+    return e->k == TyK::List && !e->args.empty() &&
+           (e->args[0]->k == TyK::Int || e->args[0]->k == TyK::Float);
+}
+static int nativeMatRank(const TyP& t) {
+    return t && t->k == TyK::List && !t->args.empty() &&
+                   t->args[0]->k == TyK::List ? 2 : 1;
+}
 
 // M11: value type `v` is storable into target type `t`. Scalars-to-optional
 // widen (and `none` stores into any optional); otherwise kinds must match.
@@ -623,6 +634,10 @@ private:
             case ExKind::Binary:
                 if (e.lhs && !exprLowerable(*e.lhs, cur)) return false;
                 if (e.rhs && !exprLowerable(*e.rhs, cur)) return false;
+                if (e.op == "@")
+                    return e.lhs && e.rhs &&
+                           isNativeMatOperand(typeOf(*e.lhs)) &&
+                           isNativeMatOperand(typeOf(*e.rhs)) && isNativeTy(t);
                 return binopLowerable(e, t);
             case ExKind::Call:
                 return callLowerable(e, cur);
@@ -845,6 +860,7 @@ public:
              << "#include <limits>\n"
              << "#include <optional>\n"
              << "#include <string>\n"
+             << "#include <utility>\n"
              << "#include <vector>\n"
              << "namespace kirn_native {\n"
              << "static inline void co_panic(const char* m){ "
@@ -1283,6 +1299,7 @@ private:
                 return r;
             }
             case ExKind::Binary:
+                if (e.op == "@") return emitMatmul(e);
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::SafeCall: {
                 TyP fn = optInner(typeOf(*e.lhs));
@@ -1535,6 +1552,34 @@ private:
             default:
                 return "0";
         }
+    }
+
+    std::string emitMatmul(const ast::Expr& e) {
+        TyP lt = typeOf(*e.lhs), rt = typeOf(*e.rhs);
+        const int lr = nativeMatRank(lt), rr = nativeMatRank(rt);
+        TyP le = lr == 1 ? lt->args[0] : lt->args[0]->args[0];
+        TyP re = rr == 1 ? rt->args[0] : rt->args[0]->args[0];
+        const std::string a = emitExpr(*e.lhs), b = emitExpr(*e.rhs);
+        const std::string av = lr == 1 ? "__a[__i]" : "__a[__i].vec->at(__k)";
+        const std::string bv = rr == 1 ? "__b[__k]" : "__b[__k].vec->at(__j)";
+        auto num = [](const std::string& v, const TyP& t) {
+            return t->k == TyK::Float ? v + ".d"
+                                      : "static_cast<double>(" + v + ".i)";
+        };
+        if (lr == 1 && rr == 1) {
+            return "[&]{ auto &__a = (" + a + "); auto &__b = (" + b +"); if (__a.size() != __b.size()) kirn_native::co_panic(\"matmul dimension mismatch\"); double __acc = 0.0; for (size_t __i = 0; __i < __a.size(); ++__i) __acc += " +
+                   num(av, le) + " * " + num("__b[__i]", re) + "; return __acc; }()";
+        }
+        if (lr == 2 && rr == 1) {
+            return "[&]{ auto &__a = (" + a + "); auto &__b = (" + b + "); std::vector<kirn::interp::Value> __out; for (const auto& __row : __a) { if (__row.vec->size() != __b.size()) kirn_native::co_panic(\"matmul dimension mismatch\"); double __acc = 0.0; for (size_t __k = 0; __k < __b.size(); ++__k) __acc += " +
+                   num("__row.vec->at(__k)", le) + " * " + num("__b[__k]", re) + "; __out.push_back(kirn::interp::Value::floating(__acc)); } return __out; }()";
+        }
+        if (lr == 1 && rr == 2) {
+            return "[&]{ auto &__a = (" + a + "); auto &__b = (" + b + "); if (__a.size() != __b.size()) kirn_native::co_panic(\"matmul dimension mismatch\"); size_t __cols = __b.empty() ? 0 : __b[0].vec->size(); std::vector<kirn::interp::Value> __out; for (size_t __j = 0; __j < __cols; ++__j) { double __acc = 0.0; for (size_t __k = 0; __k < __b.size(); ++__k) { if (__b[__k].vec->size() != __cols) kirn_native::co_panic(\"matmul ragged matrix\"); __acc += " +
+                   num("__a[__k]", le) + " * " + num("__b[__k].vec->at(__j)", re) + "; } __out.push_back(kirn::interp::Value::floating(__acc)); } return __out; }()";
+        }
+        return "[&]{ auto &__a = (" + a + "); auto &__b = (" + b + "); size_t __inner = __a.empty() ? 0 : __a[0].vec->size(); if (__b.size() != __inner) kirn_native::co_panic(\"matmul dimension mismatch\"); size_t __cols = __b.empty() ? 0 : __b[0].vec->size(); std::vector<kirn::interp::Value> __out; for (const auto& __row : __a) { if (__row.vec->size() != __inner) kirn_native::co_panic(\"matmul ragged matrix\"); std::vector<kirn::interp::Value> __orow; for (size_t __j = 0; __j < __cols; ++__j) { double __acc = 0.0; for (size_t __k = 0; __k < __inner; ++__k) { if (__b[__k].vec->size() != __cols) kirn_native::co_panic(\"matmul ragged matrix\"); __acc += " +
+               num("__row.vec->at(__k)", le) + " * " + num("__b[__k].vec->at(__j)", re) + "; } __orow.push_back(kirn::interp::Value::floating(__acc)); } __out.push_back(kirn::interp::Value::list(std::move(__orow))); } return __out; }()";
     }
 
     std::string emitBinop(const std::string& op, const ast::Expr& l,

@@ -1331,6 +1331,10 @@ Optional function safe calls now lower for locally assigned, already-native top-
 with `std::optional<std::function<...>>` short-circuiting and scalar result boxing
 (`tests/codegen/safe_call.kn`; gate 11a). Function-valued parameters/returns remain interpreter-only
 until their runtime registration ABI is extended.
+Numeric list vectors and matrices now lower through native `@` paths for vector dot products,
+matrix-vector products, vector-matrix products, and matrix-matrix products; shape and raggedness
+errors use the native panic path (`tests/codegen/list_matmul.kn`; gate 11a). Nominal struct `MatMul`
+trait dispatch remains interpreter-backed until the native nominal-struct ABI is implemented.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

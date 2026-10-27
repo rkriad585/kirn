@@ -1,0 +1,15 @@
+# M11: scalar-list reorder and reset on the native path.
+fn reverse_items(items: list[Int]) -> list[Int] {
+    items.reverse();
+    return items;
+}
+
+fn clear_items(items: list[Int]) -> list[Int] {
+    items.clear();
+    return items;
+}
+
+fn main() -> none {
+    print(reverse_items([1, 2, 3]));
+    print(clear_items([4, 5]));
+}

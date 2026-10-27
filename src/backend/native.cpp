@@ -320,6 +320,15 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member &&
+            (e.lhs->text == "clear" || e.lhs->text == "reverse")) {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                !e.args.empty())
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            return isListTy(recv) && !recv->args.empty() &&
+                   isScalarTy(recv->args[0]);
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 !e.args.empty())
@@ -1059,6 +1068,11 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "clear")
+                    return emitExpr(*e.lhs->lhs) + ".clear()";
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse")
+                    return "std::reverse(" + emitExpr(*e.lhs->lhs) + ".begin(), " +
+                           emitExpr(*e.lhs->lhs) + ".end())";
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
                     TyP elem = typeOf(*e.lhs->lhs)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);

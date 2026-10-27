@@ -1422,6 +1422,17 @@ host C++20 compiler; the complete audit currently covers 56 native fixtures with
 That audit also closed the missing `<algorithm>` preamble and verified optional-list `pop`/`shift`
 fallbacks use a declared mutable sequence reference.
 
+**M11 reconciliation (2026-10-27).** The earlier progress notes above are historical and their
+"remain active" phrases are superseded by the accumulated native slices and gates. The accepted M11
+surface is complete and verified: scalar operators/optionals, list locals and comprehensions, matrix
+paths, list methods, optional safe navigation, nominal construction/fields/mutation, nested aggregates,
+nominal-element collections, trait-object calls, and safe optional-field/list mutation all have native
+fixtures and gate 11a/11d coverage. The remaining interpreter fallbacks are deliberate ABI boundaries,
+not unfinished plan items: dictionary/set aggregate storage, closures and optional function returns,
+nominal-struct `MatMul` trait dispatch, and compile-time reflection remain outside this Value-backed
+native slice. Full whole-runtime native launcher builds may exceed the local wrapper timeout; generated
+native translation units are nevertheless syntax-checked and the fast native surface gate is green.
+
 ---
 
 ### Phase M12 — Rejected features closed (documentation + rationale) _(features 4,5)_

@@ -1341,6 +1341,10 @@ lists, including `none` propagation and optional-string parameter boxing
 Aggregate list locals now have an end-to-end native acceptance path: explicit list declarations,
 element mutation, list methods, and list-valued returns preserve the boxed vector boundary
 (`tests/codegen/list_locals.kn`; gate 11a).
+The first nominal-struct ABI slice now carries `Value`-backed struct parameters and returns through
+native registration, lowers scalar/string field reads, and short-circuits optional struct fields
+(`tests/codegen/native_struct_fields.kn`; gate 11a). Struct constructors, mutable fields, methods,
+and trait dispatch remain interpreter-backed until their native layouts are defined.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

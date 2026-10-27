@@ -4623,7 +4623,8 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
         if (name == "unwrap") return argAt(obj, 0);          // method handled in calls
         // v1 corpus semantics: member access through an optional unwraps it
         // (strong paths); `.?.` propagates optionality at the call level.
-        return memberAccess(unwrapOpt(obj), name, line, col, nilSafe);
+        TyP member = memberAccess(unwrapOpt(obj), name, line, col, nilSafe);
+        return nilSafe ? collapseOpt(member) : member;
     }
 
     if (obj->is(TyK::Struct)) {

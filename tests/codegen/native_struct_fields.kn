@@ -1,0 +1,19 @@
+# M11: Value-backed nominal struct fields across the native ABI.
+struct Point {
+    x: Int;
+    label: Str;
+}
+
+fn read_x(p: Point) -> Int {
+    return p.x;
+}
+
+fn read_safe_x(p: Point?) -> Int? {
+    return p .?. x;
+}
+
+fn main() -> none {
+    print(read_x(Point(x: 7, label: "native")));
+    print(read_safe_x(Point(x: 9, label: "optional")));
+    print(read_safe_x(none));
+}

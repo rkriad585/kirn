@@ -51,6 +51,12 @@ static bool isOptListTy(const TyP& t) {
             optInner(t)->args[0]->k == TyK::Str);
 }
 static bool isStringTy(const TyP& t) { return t && t->k == TyK::Str; }
+static bool isNativeStructTy(const TyP& t) {
+    return t && t->k == TyK::Struct && t->name != "result";
+}
+static bool isOptStructTy(const TyP& t) {
+    return t && t->k == TyK::Opt && isNativeStructTy(optInner(t));
+}
 static bool isNativeFnTy(const TyP& t) {
     if (!t || t->k != TyK::Fn || !t->inner) return false;
     for (const auto& p : t->args)
@@ -70,7 +76,9 @@ static bool isNativeListElemTy(const TyP& t) {
 }
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
-           isStringTy(t) || isListTy(t) || isNativeFnTy(t) || isOptFnTy(t);
+           isStringTy(t) || isListTy(t) || isNativeStructTy(t) ||
+           isOptStructTy(t) ||
+           isNativeFnTy(t) || isOptFnTy(t);
 }
 static bool isNativeMatOperand(const TyP& t) {
     if (!t || t->k != TyK::List || t->args.empty()) return false;
@@ -142,6 +150,7 @@ static std::string cppTy(const TyP& t) {
         case TyK::Char:  return "char32_t";
         case TyK::Str:   return "std::string";
         case TyK::List:  return "std::vector<kirn::interp::Value>";
+        case TyK::Struct:return "kirn::interp::Value";
         case TyK::Fn: {
             std::string ret = t->inner && t->inner->k == TyK::None
                 ? "void" : cppTy(t->inner);
@@ -211,7 +220,9 @@ static TyP declTy(const ast::TypeP& t) {
         n == "strings")
         return sema::strTy();
     if (n == "bytes") return sema::bytesTy();
-    return sema::unkTy();
+    // User-defined nominal names have already been validated by the checker;
+    // preserve them so the native registration ABI can carry Value instances.
+    return sema::Ty::named(TyK::Struct, n);
 }
 
 // Sanitize a Kirn identifier into a valid C identifier (locals prefixed v_).
@@ -705,6 +716,17 @@ private:
                     return false;
                 return true;
             }
+            case ExKind::Member: {
+                // Nominal struct values use the interpreter's Value layout at
+                // the native thunk boundary. Read-only scalar/string fields
+                // can therefore lower without inventing a parallel ABI.
+                if (!e.lhs || !exprLowerable(*e.lhs, cur) || e.text.empty())
+                    return false;
+                TyP recv = typeOf(*e.lhs);
+                TyP base = recv && recv->k == TyK::Opt ? optInner(recv) : recv;
+                if (!isNativeStructTy(base) || !isNativeTy(t)) return false;
+                return !t || t->k != TyK::Fn;
+            }
             default:
                 return false;
         }
@@ -909,7 +931,15 @@ public:
                 " return (int64_t)((uint64_t)a<<b); }\n"
              << "static inline int64_t co_shr(int64_t a,int64_t b){"
                 " if(b<0||b>=63)kirn::interp::panicHere(\"shift\");"
-                " return a>>b; }\n";
+                " return a>>b; }\n"
+             << "static inline const kirn::interp::Value& co_field("
+                "const kirn::interp::Value& v,const char* n){"
+                " const auto* fs = v.k == kirn::interp::VK::Struct ? &v.fields : "
+                "(v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr);"
+                " if(!fs) kirn::interp::panicHere(\"native field access on non-struct\");"
+                " for(const auto& f:*fs) if(f.first == n) return f.second;"
+                " kirn::interp::panicHere(\"native field not found\");"
+                " return v; }\n";
     }
 
     void emitFunctions(const std::vector<ast::StmtP>& prog) {
@@ -1023,7 +1053,8 @@ private:
         return ty == "int64_t" ? "0"
              : ty == "double" ? "0.0"
              : ty == "std::string" ? "std::string()"
-             : ty == "std::vector<kirn::interp::Value>" ? "{}" : "false";
+             : ty == "std::vector<kirn::interp::Value>" ? "{}"
+             : ty == "kirn::interp::Value" ? "kirn::interp::Value{}" : "false";
     }
 
     std::string boxExpr(const ast::Expr& e) {
@@ -1301,6 +1332,26 @@ private:
             case ExKind::Binary:
                 if (e.op == "@") return emitMatmul(e);
                 return emitBinop(e.op, *e.lhs, *e.rhs);
+            case ExKind::Member: {
+                TyP recv = typeOf(*e.lhs);
+                TyP value = t;
+                bool optional = recv && recv->k == TyK::Opt;
+                std::string obj = emitExpr(*e.lhs);
+                auto read = [&](const std::string& v) {
+                    if (value && value->k == TyK::Struct) return
+                        "kirn_native::co_field(" + v + ", \"" + e.text + "\")";
+                    return "kirn_native::co_field(" + v + ", \"" + e.text + "\")." +
+                           valueField(optional ? optInner(value) : value);
+                };
+                if (optional) {
+                    TyP inner = optInner(t);
+                    std::string tmp = "__mem" + std::to_string(tmpSeq_++);
+                    return "[&]{ auto " + tmp + " = (" + obj + "); if (!" + tmp + ") return std::optional<" +
+                           cppTy(inner) + ">{ }; return std::optional<" + cppTy(inner) + ">{ " +
+                           read("*" + tmp) + " }; }()";
+                }
+                return read(obj);
+            }
             case ExKind::SafeCall: {
                 TyP fn = optInner(typeOf(*e.lhs));
                 TyP ret = fn->inner;
@@ -1726,8 +1777,14 @@ void out_registerAll(
                     << nf.params[i] << "\"); if (!__p.isNone()) ";
                 if (inner == "std::vector<kirn::interp::Value>")
                     out << v << " = *__p.vec; }\n";
+                else if (inner == "kirn::interp::Value")
+                    out << v << " = __p; }\n";
                 else
                     out << v << " = __p." << envField(inner) << "; }\n";
+            } else if (pt == "kirn::interp::Value") {
+                out << "        " << pt << " " << v
+                    << " = interp.nativeEnvVar(e, \""
+                    << nf.params[i] << "\");\n";
             } else if (pt == "std::vector<kirn::interp::Value>") {
                 out << "        " << pt << " " << v
                     << " = *interp.nativeEnvVar(e, \""
@@ -1756,12 +1813,16 @@ void out_registerAll(
                 << "; if (!__r) return kirn::interp::Value::none();";
             if (inner == "std::vector<kirn::interp::Value>")
                 out << " return kirn::interp::Value::list(*__r); }\n";
+            else if (inner == "kirn::interp::Value")
+                out << " return *__r; }\n";
             else
                 out << " return kirn::interp::Value::" << valueCtor(inner)
                     << "(*__r); }\n";
         } else if (nf.retCpp == "std::vector<kirn::interp::Value>")
             out << "        return kirn::interp::Value::list(" << call
                 << ");\n";
+        else if (nf.retCpp == "kirn::interp::Value")
+            out << "        return " << call << ";\n";
         else
             out << "        return kirn::interp::Value::" << valueCtor(nf.retCpp)
                 << "(" << call << ");\n";

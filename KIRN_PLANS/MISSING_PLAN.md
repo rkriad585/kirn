@@ -1283,6 +1283,8 @@ boxes/unboxes optional list parameters and results.
 Direct indexing of scalar-element list parameters/locals (`items[index]`) is also lowered natively,
 including negative-index normalization and bounds errors via the generated C++ vector access.
 `tests/codegen/list_index.kn` and gate 11a cover this aggregate expression path.
+Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
+preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

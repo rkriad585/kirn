@@ -1,0 +1,9 @@
+# M11: optional-list safe member call on the native path.
+fn size(xs: list[Int]?) -> Int? {
+    return xs .?. len();
+}
+
+fn main() -> none {
+    print(size([1, 2, 3]));
+    print(size(none));
+}

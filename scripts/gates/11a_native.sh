@@ -15,7 +15,7 @@ GATE_FILES=0
 
 echo "=== gate 11a: native codegen surface (KIRN_HAS_NATIVE) ==="
 G11="$TMP/g11a"; mkdir -p "$G11"
-for spec in "scalar_core:1" "native_string:1" "native_list:1" "native_list_param:1" "list_comp:1" "list_index:1" "safe_index:1" "new_surface:1" "reject_non_scalar:1" "optional_param:1" "global_ref_fallback:0" "const_inline:1" "coalesce_assign:1"; do
+for spec in "scalar_core:1" "native_string:1" "native_list:1" "native_list_param:1" "list_comp:1" "list_index:1" "safe_index:1" "safe_len:1" "new_surface:1" "reject_non_scalar:1" "optional_param:1" "global_ref_fallback:0" "const_inline:1" "coalesce_assign:1"; do
     nm=${spec%%:*}; want=${spec##*:}
     src="$ROOT/tests/codegen/$nm.kn"
     KIRN_DUMP_NATIVE="$G11/$nm.cpp" "$KIRN" build --native "$src" -o "$G11/$nm.out" \

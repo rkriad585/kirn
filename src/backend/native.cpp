@@ -319,7 +319,19 @@ private:
     }
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
-        if (!e.lhs || e.lhs->kind != ExKind::Ident) return false;
+        if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
+            if (!e.args.empty() || !e.lhs->lhs) return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if (!base || (base->k != TyK::List && base->k != TyK::Str) ||
+                !exprLowerable(*e.lhs->lhs, cur))
+                return false;
+            if (optional && !e.lhs->nilSafe) return false;
+            return true;
+        }
+        if (e.lhs->kind != ExKind::Ident) return false;
         const std::string& callee = e.lhs->text;
         // self-call: lowerable if it's the current function (scalar args).
         if (cur.fn && cur.fn->name == callee) {
@@ -993,6 +1005,18 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    if (recv && recv->k == TyK::Opt) {
+                        std::string tmp = "__len" + std::to_string(tmpSeq_++);
+                        return "[&]{ auto " + tmp + " = (" + obj +
+                               "); if (!" + tmp + ") return std::nullopt; return " +
+                               std::string("std::optional<int64_t>{static_cast<int64_t>(") +
+                               tmp + "->size())}; }()";
+                    }
+                    return "static_cast<int64_t>(" + obj + ".size())";
+                }
                 const std::string& callee = e.lhs->text;
                 const NativeFunc* cf = findCallee(callee);
                 std::string s = cf->cName + "(";

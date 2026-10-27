@@ -1272,6 +1272,28 @@ private:
         return nullptr;
     }
 
+    bool isOptionalStructListMember(const ast::Expr& recv) const {
+        if (recv.kind != ExKind::Member || !recv.lhs) return false;
+        TyP rt = typeOf(recv);
+        TyP base = typeOf(*recv.lhs);
+        return rt && rt->k == TyK::Opt && optInner(rt) && optInner(rt)->k == TyK::List &&
+               base && base->k == TyK::Opt && isNativeStructTy(optInner(base));
+    }
+
+    // Mutating a safe list receiver must retain the underlying lvalue.  A
+    // normal optional-list expression can be referenced directly, while an
+    // optional struct member has to be reached through the stored Value field;
+    // emitting emitExpr(recv) there would copy the vector out of the struct.
+    std::string emitOptionalListMutation(const ast::Expr& recv,
+                                         const std::string& body) {
+        if (isOptionalStructListMember(recv)) {
+            return "[&]{ auto __base = (" + emitExpr(*recv.lhs) + "); if (__base) { auto &__seq = *kirn_native::co_field(*__base, \"" +
+                   recv.text + "\").vec; " + body + " } }()";
+        }
+        return "[&]{ auto &__opt = (" + emitExpr(recv) + "); if (__opt) { auto &__seq = *__opt; " +
+               body + " } }()";
+    }
+
     // ---- statements --------------------------------------------------------
     void emitStmt(const ast::Stmt& s, int ind) {
         std::string pad(4 * ind, ' ');
@@ -1636,11 +1658,13 @@ private:
                     return out + "return __s; }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
-                    std::string obj = emitExpr(*e.lhs->lhs);
                     std::string src = emitExpr(*e.args[0].value);
                     TyP recv = typeOf(*e.lhs->lhs);
-                    if (recv && recv->k == TyK::Opt)
-                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { auto __src = (" + src + "); __opt->insert(__opt->end(), __src.begin(), __src.end()); } }()";
+                    if (recv && recv->k == TyK::Opt) {
+                        std::string body = "auto __src = (" + src + "); __seq.insert(__seq.end(), __src.begin(), __src.end());";
+                        return emitOptionalListMutation(*e.lhs->lhs, body);
+                    }
+                    std::string obj = emitExpr(*e.lhs->lhs);
                     return "[&]{ auto &__dst = (" + obj + "); auto __src = (" +
                            src + "); __dst.insert(__dst.end(), __src.begin(), __src.end()); }()";
                 }
@@ -1651,12 +1675,13 @@ private:
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string idx = "__insert_index" + std::to_string(tmpSeq_++);
                     std::string value = boxExpr(*e.args[1].value);
-                    if (optional)
-                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { int64_t " + idx +
-                               " = (" + emitExpr(*e.args[0].value) + "); if (" + idx +
-                               " < 0) " + idx + " += static_cast<int64_t>(__opt->size()) + 1; if (" + idx +
-                               " < 0 || " + idx + " > static_cast<int64_t>(__opt->size())) kirn_native::co_panic(\"index out of range\"); __opt->insert(__opt->begin() + static_cast<ptrdiff_t>(" + idx +
-                               "), " + value + "); } }()";
+                    if (optional) {
+                        std::string body = "int64_t " + idx + " = (" + emitExpr(*e.args[0].value) + "); if (" + idx +
+                               " < 0) " + idx + " += static_cast<int64_t>(__seq.size()) + 1; if (" + idx +
+                               " < 0 || " + idx + " > static_cast<int64_t>(__seq.size())) kirn_native::co_panic(\"index out of range\"); __seq.insert(__seq.begin() + static_cast<ptrdiff_t>(" + idx +
+                               "), " + value + ");";
+                        return emitOptionalListMutation(*e.lhs->lhs, body);
+                    }
                     return "[&]{ auto &__seq = (" + obj + "); int64_t " + idx +
                            " = (" + emitExpr(*e.args[0].value) + "); if (" + idx +
                            " < 0) " + idx + " += static_cast<int64_t>(__seq.size()) + 1; if (" + idx +
@@ -1672,10 +1697,11 @@ private:
                     std::string equal = elem->k == TyK::Struct
                         ? "kirn::interp::nativeValueEqual(*__it, " + needle + ")"
                         : "__it->" + std::string(valueField(elem)) + " == " + needle;
-                    if (optional)
-                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { auto " + needle +
-                               " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __opt->begin(); __it != __opt->end(); ++__it) { if (" + equal +
-                               ") { __opt->erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); } }()";
+                    if (optional) {
+                        std::string body = "auto " + needle + " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (" + equal +
+                               ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\");";
+                        return emitOptionalListMutation(*e.lhs->lhs, body);
+                    }
                     return "[&]{ auto &__seq = (" + obj + "); auto " + needle +
                            " = (" + emitExpr(*e.args[0].value) + "); for (auto __it = __seq.begin(); __it != __seq.end(); ++__it) { if (" + equal +
                            ") { __seq.erase(__it); return; } } kirn_native::co_panic(\"remove(): value not found\"); }()";
@@ -1744,14 +1770,14 @@ private:
                     TyP recv = typeOf(*e.lhs->lhs);
                     std::string obj = emitExpr(*e.lhs->lhs);
                     if (recv && recv->k == TyK::Opt)
-                        return "[&]{ auto __opt = (" + obj + "); if (__opt) __opt->clear(); }()";
+                        return emitOptionalListMutation(*e.lhs->lhs, "__seq.clear();");
                     return "(" + obj + ").clear()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse") {
                     TyP recv = typeOf(*e.lhs->lhs);
                     std::string obj = emitExpr(*e.lhs->lhs);
                     if (recv && recv->k == TyK::Opt)
-                        return "[&]{ auto __opt = (" + obj + "); if (__opt) std::reverse(__opt->begin(), __opt->end()); }()";
+                        return emitOptionalListMutation(*e.lhs->lhs, "std::reverse(__seq.begin(), __seq.end());");
                     return "std::reverse((" + obj + ").begin(), (" + obj + ").end())";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
@@ -1761,9 +1787,11 @@ private:
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string tmp = "__shift" + std::to_string(tmpSeq_++);
                     if (optional) {
-                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
-                               " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
-                               ".begin()); return std::optional<" + cppTy(elem) + ">{" + unboxValue("__v", elem) + "}; }()";
+                        std::string body = "if (__seq.empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = __seq.front(); __seq.erase(__seq.begin()); return std::optional<" + cppTy(elem) + ">{" + unboxValue("__v", elem) + "};";
+                        if (isOptionalStructListMember(*e.lhs->lhs))
+                            return emitOptionalListMutation(*e.lhs->lhs, body);
+                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
+                               " = *__opt; " + body + " }()";
                     }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
                            ".begin()); return " + unboxValue("__v", elem) + "; }()";
@@ -1775,9 +1803,12 @@ private:
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string tmp = "__pop" + std::to_string(tmpSeq_++);
                     if (optional) {
-                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
-                               " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return std::optional<" + cppTy(elem) +
-                               ">{" + unboxValue("__v", elem) + "}; }()";
+                        std::string body = "if (__seq.empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = __seq.back(); __seq.pop_back(); return std::optional<" + cppTy(elem) +
+                               ">{" + unboxValue("__v", elem) + "};";
+                        if (isOptionalStructListMember(*e.lhs->lhs))
+                            return emitOptionalListMutation(*e.lhs->lhs, body);
+                        return "[&]{ auto &__opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
+                               " = *__opt; " + body + " }()";
                     }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return " +
                            unboxValue("__v", elem) + "; }()";
@@ -1786,8 +1817,8 @@ private:
                     (e.lhs->text == "append" || e.lhs->text == "push_back")) {
                     TyP recv = typeOf(*e.lhs->lhs);
                     if (recv && recv->k == TyK::Opt)
-                        return "[&]{ auto __opt = (" + emitExpr(*e.lhs->lhs) + "); if (__opt) __opt->push_back(" +
-                               boxExpr(*e.args[0].value) + "); }()";
+                        return emitOptionalListMutation(*e.lhs->lhs, "__seq.push_back(" +
+                               boxExpr(*e.args[0].value) + ");");
                     return "(" + emitExpr(*e.lhs->lhs) + ").push_back(" +
                            boxExpr(*e.args[0].value) + ")";
                 }
@@ -1851,7 +1882,7 @@ private:
                 std::string idx = emitExpr(*e.rhs);
                 std::string tmp = "__si" + std::to_string(tmpSeq_++);
                 return "[&]{ auto " + tmp + " = (" + obj + "); if (!" + tmp +
-                       ") return std::nullopt; int64_t __i = (" + idx +
+                       ") return std::optional<" + cppTy(elem) + ">{ }; int64_t __i = (" + idx +
                        "); if (__i < 0) __i += static_cast<int64_t>(" + tmp +
                        "->size()); return std::optional<" + cppTy(optInner(t)) +
                        ">{" + unboxValue("(" + tmp + ")->at(static_cast<size_t>(__i))", elem) +

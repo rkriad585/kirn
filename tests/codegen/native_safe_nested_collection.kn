@@ -1,0 +1,25 @@
+# M11: safe navigation through an optional nominal struct into a nominal list.
+struct Item {
+    x: Int;
+}
+
+struct Bag {
+    items: list[Item];
+}
+
+fn safe_item(b: Bag?, index: Int) -> Item? {
+    return b .?. items .?[index];
+}
+
+fn safe_append(b: Bag?, item: Item) -> none {
+    b .?. items .?. append(item);
+}
+
+fn main() -> none {
+    var b = Bag(items: [Item(x: 1)]);
+    print(safe_item(b, 0));
+    print(safe_item(none, 0));
+    safe_append(b, Item(x: 2));
+    safe_append(none, Item(x: 3));
+    print(b);
+}

@@ -1405,6 +1405,11 @@ mutates present optional struct values in place (`tests/codegen/native_safe_stru
 gate 11a). Native lowering restricts this form to identifiable optional receivers so it cannot
 silently mutate a copied temporary; generic trait-object calls, including optional safe dispatch,
 now use the same dynamic bridge (`tests/codegen/native_trait_object_dispatch.kn`; gate 11a).
+Safe navigation through optional nominal structs now also covers nominal-list indexing and mutation:
+`.?[index]` preserves typed optional `Value` returns, while safe list mutators retain the stored field
+lvalue instead of modifying a copied vector (`tests/codegen/native_safe_nested_collection.kn`; gate 11a).
+The native compile path now emits an explicit optional type for empty safe-index results, so this
+aggregate path is valid in a real C++ translation unit as well as in dump-only codegen checks.
 
 ---
 

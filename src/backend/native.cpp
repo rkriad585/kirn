@@ -420,8 +420,14 @@ private:
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            return isListTy(recv) && !recv->args.empty() &&
-                   isScalarTy(recv->args[0]);
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            TyP result = typeOf(e);
+            return (!optional || e.lhs->nilSafe) && isListTy(base) &&
+                   !base->args.empty() && isNativeListElemTy(base->args[0]) &&
+                   result && (result->k == TyK::None ||
+                              (result->k == TyK::Opt && optInner(result) &&
+                               optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -1291,11 +1297,20 @@ private:
                            tmp + ") __acc += __v." + valueField(elem) +
                            "; return __acc; }()";
                 }
-                if (e.lhs->kind == ExKind::Member && e.lhs->text == "clear")
-                    return emitExpr(*e.lhs->lhs) + ".clear()";
-                if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse")
-                    return "std::reverse(" + emitExpr(*e.lhs->lhs) + ".begin(), " +
-                           emitExpr(*e.lhs->lhs) + ".end())";
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "clear") {
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    if (recv && recv->k == TyK::Opt)
+                        return "[&]{ auto __opt = (" + obj + "); if (__opt) __opt->clear(); }()";
+                    return obj + ".clear()";
+                }
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse") {
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    if (recv && recv->k == TyK::Opt)
+                        return "[&]{ auto __opt = (" + obj + "); if (__opt) std::reverse(__opt->begin(), __opt->end()); }()";
+                    return "std::reverse(" + obj + ".begin(), " + obj + ".end())";
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
                     TyP recv = typeOf(*e.lhs->lhs);
                     bool optional = recv && recv->k == TyK::Opt;

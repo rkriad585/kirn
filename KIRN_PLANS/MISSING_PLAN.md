@@ -1321,6 +1321,8 @@ now lower to optional native results with single-evaluated receiver short-circui
 Optional-list safe `.?.pop()` and `.?.shift()` now lower to optional scalar results, preserving
 mutation order, empty-list panics, and `none` receiver propagation
 (`tests/codegen/safe_list_pop_shift.kn`; gate 11a).
+Optional-list safe mutation-only calls `.?.clear()` and `.?.reverse()` now lower with receiver
+short-circuiting and preserved list state (`tests/codegen/safe_list_maintenance.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

@@ -1,0 +1,17 @@
+# M11: optional-list safe mutation-only calls on the native path.
+fn clear_items(xs: list[Int]?) -> list[Int]? {
+    xs .?. clear();
+    return xs;
+}
+
+fn reverse_items(xs: list[Int]?) -> list[Int]? {
+    xs .?. reverse();
+    return xs;
+}
+
+fn main() -> none {
+    print(clear_items([1, 2, 3]));
+    print(reverse_items([1, 2, 3]));
+    print(clear_items(none));
+    print(reverse_items(none));
+}

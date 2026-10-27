@@ -1385,7 +1385,10 @@ Nested scalar-list fields are now accepted recursively for native construction, 
 mutation, and returns (`tests/codegen/native_struct_nested_fields.kn`; gate 11a). Nested nominal
 struct fields and lists of nominal structs now use the same `Value` representation for construction,
 member reads, replacement, and returns (`tests/codegen/native_struct_nested_nominal.kn`; gate 11a).
-The bounded ABI still excludes arbitrary aggregate collection methods and generic trait-object calls;
+Native collection methods can now use lowerable member receivers, so aggregate methods such as
+`self.xs.append()` followed by `self.xs.sum()` remain native rather than falling back
+(`tests/codegen/native_struct_aggregate_method.kn`; gate 11a). The bounded ABI still excludes
+collection methods whose elements require nominal-struct dispatch and generic trait-object calls;
 general safe navigation remains active M11 work.
 
 ---

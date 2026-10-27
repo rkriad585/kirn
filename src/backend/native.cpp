@@ -462,7 +462,7 @@ private:
             }
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 1 || e.args[0].name != "" ||
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
@@ -480,7 +480,7 @@ private:
                      optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "insert") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 2 || e.args[0].name != "" ||
                 e.args[1].name != "" || !e.args[0].value || !e.args[1].value ||
                 !exprLowerable(*e.args[0].value, cur) ||
@@ -500,7 +500,7 @@ private:
                                optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "remove") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 1 || e.args[0].name != "" ||
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
@@ -517,7 +517,7 @@ private:
                                optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 1 || e.args[0].name != "" ||
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
@@ -534,7 +534,7 @@ private:
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "contains" || e.lhs->text == "index")) {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 1 || e.args[0].name != "" ||
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
@@ -552,7 +552,7 @@ private:
                                                 : value->k == TyK::Int);
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
@@ -568,7 +568,7 @@ private:
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "clear" || e.lhs->text == "reverse")) {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
@@ -582,7 +582,7 @@ private:
                                optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
@@ -595,7 +595,7 @@ private:
                    value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
@@ -609,7 +609,7 @@ private:
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "append" || e.lhs->text == "push_back")) {
-            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+            if (!e.lhs->lhs || !exprLowerable(*e.lhs->lhs, cur) ||
                 e.args.size() != 1 || e.args[0].name != "" ||
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
@@ -1652,14 +1652,14 @@ private:
                     std::string obj = emitExpr(*e.lhs->lhs);
                     if (recv && recv->k == TyK::Opt)
                         return "[&]{ auto __opt = (" + obj + "); if (__opt) __opt->clear(); }()";
-                    return obj + ".clear()";
+                    return "(" + obj + ").clear()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "reverse") {
                     TyP recv = typeOf(*e.lhs->lhs);
                     std::string obj = emitExpr(*e.lhs->lhs);
                     if (recv && recv->k == TyK::Opt)
                         return "[&]{ auto __opt = (" + obj + "); if (__opt) std::reverse(__opt->begin(), __opt->end()); }()";
-                    return "std::reverse(" + obj + ".begin(), " + obj + ".end())";
+                    return "std::reverse((" + obj + ").begin(), (" + obj + ").end())";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
                     TyP recv = typeOf(*e.lhs->lhs);
@@ -1695,7 +1695,7 @@ private:
                     if (recv && recv->k == TyK::Opt)
                         return "[&]{ auto __opt = (" + emitExpr(*e.lhs->lhs) + "); if (__opt) __opt->push_back(" +
                                boxExpr(*e.args[0].value) + "); }()";
-                    return emitExpr(*e.lhs->lhs) + ".push_back(" +
+                    return "(" + emitExpr(*e.lhs->lhs) + ").push_back(" +
                            boxExpr(*e.args[0].value) + ")";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
@@ -1708,7 +1708,7 @@ private:
                                std::string("std::optional<int64_t>{static_cast<int64_t>(") +
                                tmp + "->size())}; }()";
                     }
-                    return "static_cast<int64_t>(" + obj + ".size())";
+                    return "static_cast<int64_t>((" + obj + ").size())";
                 }
                 const std::string& callee = e.lhs->text;
                 const NativeFunc* cf = findCallee(callee);

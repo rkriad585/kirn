@@ -503,23 +503,30 @@ private:
                     if (!item || !exprLowerable(*item, cur)) return false;
                 return isListTy(t);
             case ExKind::ListComp: {
-                // Native list comprehensions use the same scalar range model
-                // as native `for`: one range clause, optionally followed by a
-                // scalar boolean filter. The accumulator is a C++ vector of
-                // boxed Kirn values, so it crosses the existing native thunk
-                // boundary without changing the runtime representation.
+                // Native list comprehensions use one scalar range or list
+                // source, optionally followed by a scalar boolean filter. The
+                // accumulator is a C++ vector of boxed Kirn values, so it
+                // crosses the existing native thunk boundary unchanged.
                 if (!isListTy(t) || e.elems.size() != 1 || e.clauses.empty() ||
                     e.clauses.size() > 2 || !e.clauses[0].isFor ||
                     !e.clauses[0].iter || !e.clauses[0].pat ||
                     e.clauses[0].pat->kind != ast::PatKind::Bind ||
                     e.clauses[0].pat->bindName.empty()) return false;
                 const ast::Expr& it = *e.clauses[0].iter;
-                if (it.kind != ExKind::Binary ||
-                    (it.op != ".." && it.op != "..=") || !it.lhs || !it.rhs ||
-                    !exprLowerable(*it.lhs, cur) || !exprLowerable(*it.rhs, cur) ||
-                    !typeOf(*it.lhs) || typeOf(*it.lhs)->k != TyK::Int ||
-                    !typeOf(*it.rhs) || typeOf(*it.rhs)->k != TyK::Int)
-                    return false;
+                bool range = it.kind == ExKind::Binary &&
+                    (it.op == ".." || it.op == "..=");
+                if (range) {
+                    if (!it.lhs || !it.rhs || !exprLowerable(*it.lhs, cur) ||
+                        !exprLowerable(*it.rhs, cur) || !typeOf(*it.lhs) ||
+                        typeOf(*it.lhs)->k != TyK::Int || !typeOf(*it.rhs) ||
+                        typeOf(*it.rhs)->k != TyK::Int)
+                        return false;
+                } else {
+                    TyP seq = typeOf(it);
+                    if (!exprLowerable(it, cur) || !isListTy(seq) ||
+                        seq->args.empty() || !isScalarTy(seq->args[0]))
+                        return false;
+                }
                 CurFn nested = cur;
                 nested.locals.insert(e.clauses[0].pat->bindName);
                 if (!exprLowerable(*e.elems[0], nested)) return false;
@@ -1144,17 +1151,26 @@ private:
             }
             case ExKind::ListComp: {
                 const auto& clause = e.clauses[0];
-                const auto& range = *clause.iter;
+                const auto& source = *clause.iter;
                 const std::string var = cIdent(clause.pat->bindName, "v_");
-                const bool inclusive = range.op == "..=";
                 const std::string oldType = localTypes_.count(clause.pat->bindName)
                     ? localTypes_[clause.pat->bindName] : std::string();
                 const bool hadType = localTypes_.count(clause.pat->bindName) != 0;
-                localTypes_[clause.pat->bindName] = "int64_t";
-                std::string out = "[&]{ std::vector<kirn::interp::Value> __c; for (int64_t " +
-                    var + " = (" + emitExpr(*range.lhs) + "); " + var +
-                    (inclusive ? " <= (" : " < (") + emitExpr(*range.rhs) +
-                    "); ++" + var + ") { ";
+                bool range = source.kind == ExKind::Binary &&
+                    (source.op == ".." || source.op == "..=");
+                std::string out = "[&]{ std::vector<kirn::interp::Value> __c; ";
+                if (range) {
+                    localTypes_[clause.pat->bindName] = "int64_t";
+                    bool inclusive = source.op == "..=";
+                    out += "for (int64_t " + var + " = (" + emitExpr(*source.lhs) + "); " + var +
+                           (inclusive ? " <= (" : " < (") + emitExpr(*source.rhs) +
+                           "); ++" + var + ") { ";
+                } else {
+                    TyP elem = typeOf(source)->args[0];
+                    localTypes_[clause.pat->bindName] = cppTy(elem);
+                    out += "auto &&__src = (" + emitExpr(source) + "); for (const auto& __item : __src) { " +
+                           cppTy(elem) + " " + var + " = __item." + valueField(elem) + "; ";
+                }
                 if (e.clauses.size() == 2)
                     out += "if (" + emitExpr(*e.clauses[1].cond) + ") ";
                 out += "__c.push_back(" + boxExpr(*e.elems[0]) + "); } return __c; }()";

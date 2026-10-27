@@ -1,0 +1,9 @@
+# M11: native list comprehension over a scalar-element list.
+fn transform(items: list[Int]) -> list[Int] {
+    return [item * 2 for item in items if item > 1];
+}
+
+fn main() -> none {
+    print(transform([1, 2, 3, 4]));
+    print(transform([]));
+}

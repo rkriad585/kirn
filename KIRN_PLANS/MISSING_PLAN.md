@@ -1309,6 +1309,8 @@ Scalar-list `.remove(value)` now lowers natively, erasing the first matching sca
 the interpreter's not-found panic behavior (`tests/codegen/list_remove.kn`; gate 11a).
 Native `for item in list[scalar]` loops now lower with boxed-element unboxing, enabling aggregate
 accumulation and list builders outside range-only loops (`tests/codegen/list_for.kn`; gate 11a).
+List comprehensions over scalar-element lists now lower natively with optional scalar filters,
+preserving source order and empty-list behavior (`tests/codegen/list_comp_list.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 Optional-list safe read-only calls for `.?.contains()`, `.?.index()`, `.?.sum()`, and `.?.join()`

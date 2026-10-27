@@ -1,0 +1,11 @@
+# M11: aggregate local declaration, mutation, and return on the native path.
+fn build() -> list[Int] {
+    var xs: list[Int] = [1, 2];
+    xs.append(3);
+    xs[0] = 9;
+    return xs;
+}
+
+fn main() -> none {
+    print(build());
+}

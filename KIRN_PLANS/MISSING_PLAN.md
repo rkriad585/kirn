@@ -1338,6 +1338,9 @@ trait dispatch remains interpreter-backed until the native nominal-struct ABI is
 Optional-string `.?.len()` now lowers through the same short-circuit native member path as optional
 lists, including `none` propagation and optional-string parameter boxing
 (`tests/codegen/safe_string_len.kn`; gate 11a).
+Aggregate list locals now have an end-to-end native acceptance path: explicit list declarations,
+element mutation, list methods, and list-valued returns preserve the boxed vector boundary
+(`tests/codegen/list_locals.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

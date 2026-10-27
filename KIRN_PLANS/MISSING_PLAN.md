@@ -1377,6 +1377,10 @@ reads, whole-field mutation, list-valued returns, and optional safe reads
 member assignment from indexed element assignment, preventing list-field writes from being
 misdiagnosed as scalar element writes. Nested aggregate fields, aggregate method bodies, generic
 trait-object calls, and general safe navigation remain active M11 work.
+Native inherent and concrete trait-impl methods can now consume the same list-field ABI, including
+list mutation, reductions, list-valued returns, and concrete dispatch
+(`tests/codegen/native_struct_aggregate_method.kn`; gate 11a). Generic trait-object calls, nested
+aggregate fields, and general safe navigation remain active M11 work.
 
 ---
 

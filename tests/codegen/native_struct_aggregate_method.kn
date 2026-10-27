@@ -1,0 +1,30 @@
+# M11: native methods can operate on list-valued nominal struct fields.
+trait Aggregator {
+    fn total(self) -> Int;
+}
+
+struct Bag {
+    xs: list[Int];
+
+    fn add_and_total(self, value: Int) -> Int {
+        self.xs.append(value);
+        return self.xs.sum();
+    }
+
+    fn values(self) -> list[Int] {
+        return self.xs;
+    }
+}
+
+impl Aggregator for Bag {
+    fn total(self) -> Int {
+        return self.xs.sum();
+    }
+}
+
+fn main() -> none {
+    var b = Bag(xs: [1, 2]);
+    print(b.add_and_total(3));
+    print(b.values());
+    print(b.total());
+}

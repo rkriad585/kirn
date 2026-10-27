@@ -5116,6 +5116,15 @@ void Interpreter::registerUsing(const Value& v) {
     it->second.back().push_back(v);
 }
 
+void Interpreter::registerAutoDrop(const Value& v) {
+    // Only values with an actual cleanup protocol participate. This keeps
+    // ordinary locals cheap while making declaration-based RAII deterministic
+    // and independent of the eventual garbage-collection timing.
+    if (hasStructMethod(v, "drop") || hasStructMethod(v, "__del__") ||
+        hasStructMethod(v, "exit") || hasStructMethod(v, "__exit__"))
+        registerUsing(v);
+}
+
 void Interpreter::runUsingFrame(std::thread::id tid) {
     std::vector<Value> mine;
     {
@@ -5148,13 +5157,12 @@ void Interpreter::releaseValue(const Value& v) {
 }
 
 void Interpreter::execBlock(const std::vector<ast::StmtP>& body, Env env) {
-    // `using` bindings are released when the block exits, on normal completion
-    // or on unwind. Only blocks that actually declare one pay for a frame.
-    bool hasUsing = false;
-    for (const auto& st : body)
-        if (st && st->kind == ast::StKind::Using) { hasUsing = true; break; }
+    // Every lexical block owns a cleanup frame. It is intentionally created
+    // even when the block has no visible `using`: a plain local declaration can
+    // construct a Drop-capable value, and cleanup must also run on return,
+    // raise, break, and continue while the frame is being unwound.
     const std::thread::id tid = std::this_thread::get_id();
-    if (hasUsing) {
+    {
         std::lock_guard<std::mutex> lk(usingsM_);
         usings_[tid].emplace_back();
     }
@@ -5163,7 +5171,7 @@ void Interpreter::execBlock(const std::vector<ast::StmtP>& body, Env env) {
         std::thread::id tid;
         bool active;
         ~UsingGuard() { if (active) self->runUsingFrame(tid); }
-    } usingGuard{this, tid, hasUsing};
+    } usingGuard{this, tid, true};
 
     // Fast path: no Label statements in this block, execute straight through.
     bool hasLabel = false;
@@ -5219,6 +5227,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
             // a declaration ALWAYS creates a new binding in the current frame
             // (shadowing) instead of assigning into an outer binding of the
             // same name — lexical scope semantics, mirrors the checker.
+            registerAutoDrop(v);
             bindDecl(*s.target, std::move(v), env);
             return;
         }
@@ -5230,6 +5239,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
             if (s.declType && s.declType->kind == ast::TyKind::Name)
                 v.declTyName = s.declType->name;
             if (!s.target || s.target->kind != ast::ExKind::Ident) return;
+            registerAutoDrop(v);
             env->vars[s.target->text] = std::move(v);
             return;
         }
@@ -5251,7 +5261,10 @@ void Interpreter::exec(const Stmt& s, Env env) {
             Value v = s.value ? eval(*s.value, env) : Value::none();
             if (s.declType && s.declType->kind == ast::TyKind::Name)
                 v.declTyName = s.declType->name;
-            if (!s.tempVarName.empty()) env->vars[s.tempVarName] = std::move(v);
+            if (!s.tempVarName.empty()) {
+                registerAutoDrop(v);
+                env->vars[s.tempVarName] = std::move(v);
+            }
             return;
         }
 
@@ -5355,14 +5368,23 @@ void Interpreter::exec(const Stmt& s, Env env) {
                 const Value& src = vals[0];
                 if ((src.k == VK::Tuple || src.k == VK::List) &&
                     src.vec->size() == nt) {
-                    for (size_t i = 0; i < nt; ++i)
+                    for (size_t i = 0; i < nt; ++i) {
+                        if (s.exprs[i]->kind == ast::ExKind::Ident &&
+                            !env->findRef(s.exprs[i]->text))
+                            registerAutoDrop((*src.vec)[i]);
                         assignTo(*s.exprs[i], (*src.vec)[i], env);
+                    }
                     return;
                 }
                 panicHere("cannot destructure assignment value");
             }
             if (vals.size() != nt) panicHere("assignment target/value mismatch");
-            for (size_t i = 0; i < nt; ++i) assignTo(*s.exprs[i], vals[i], env);
+            for (size_t i = 0; i < nt; ++i) {
+                if (s.exprs[i]->kind == ast::ExKind::Ident &&
+                    !env->findRef(s.exprs[i]->text))
+                    registerAutoDrop(vals[i]);
+                assignTo(*s.exprs[i], vals[i], env);
+            }
             return;
         }
 

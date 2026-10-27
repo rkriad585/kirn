@@ -1,0 +1,50 @@
+# M4 completion: ordinary local declarations automatically release Drop values
+# at lexical scope exit, including reverse declaration order and unwinding.
+struct Resource {
+    name: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.name);
+    }
+}
+
+fn unwind() -> none {
+    if true {
+        doomed = Resource(name: "unwind");
+        print("unwind", doomed.name);
+        raise "stop";
+    }
+}
+
+fn return_early() -> none {
+    if true {
+        returned = Resource(name: "return");
+        print("return", returned.name);
+        return;
+    }
+}
+
+fn break_early() -> none {
+    while true {
+        looped = Resource(name: "break");
+        print("break", looped.name);
+        break;
+    }
+}
+
+fn main() -> none {
+    if true {
+        first = Resource(name: "first");
+        if true {
+            second = Resource(name: "second");
+            print("inside", first.name, second.name);
+        }
+        print("after-inner", first.name);
+    }
+
+    try { unwind(); }
+    catch e { print("caught", e); }
+
+    return_early();
+    break_early();
+}

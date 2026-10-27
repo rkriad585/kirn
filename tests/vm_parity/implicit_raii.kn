@@ -1,0 +1,20 @@
+# The VM path intentionally falls back to the tree interpreter for declaration
+# bodies until bytecode scope frames carry cleanup registrations.
+struct Resource {
+    name: Str;
+
+    fn drop(self) -> none {
+        print("drop", self.name);
+    }
+}
+
+fn main() -> none {
+    if true {
+        first = Resource(name: "first");
+        if true {
+            second = Resource(name: "second");
+            print("inside", first.name, second.name);
+        }
+        print("after-inner");
+    }
+}

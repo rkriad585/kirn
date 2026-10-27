@@ -136,6 +136,10 @@ private:
     std::mutex usingsM_;
     std::map<std::thread::id, std::vector<std::vector<Value>>> usings_;
     void registerUsing(const Value& v);
+    // M4: ordinary local declarations with a Drop/context-manager protocol
+    // are released automatically at their lexical block boundary. `using`
+    // calls the same registration path explicitly.
+    void registerAutoDrop(const Value& v);
     void runUsingFrame(std::thread::id tid);
     // Release one value's resources by calling drop/__del__/exit/__exit when
     // the receiver has one (MISSING_PLAN M4: `using` frames + `drop(value)`).

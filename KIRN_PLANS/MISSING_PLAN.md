@@ -645,6 +645,10 @@ regression and the whole M3 surface stay covered on the HIR/MIR path.
 
 ### Phase M4 — Resource management: `with`/context managers, `Drop`/RAII _(features 10,11)_
 
+**Status: COMPLETE** — context managers, explicit `using`, early `drop`, Copy/Drop validation, and
+implicit first-assignment RAII are implemented and tested. Cleanup-bearing VM functions intentionally
+use the tree-interpreter fallback until bytecode scope frames carry cleanup registrations.
+
 **Goal:** deterministic, composable resource cleanup via three complementary mechanisms: type-scoped
 `Drop` (RAII), block-scoped `with` (context-manager protocol), and the existing function-scoped
 `defer`.
@@ -663,8 +667,8 @@ value for release at block exit (normal or unwind, LIFO) via `drop`, falling bac
 protocol (`E-CTXMGR-NO-PROTOCOL`), a `using` value without a drop/exit method
 (`E-DROP-NO-PROTOCOL`), and an `exit` whose return type is not `Bool`. `with` and `using` are
 contextual keywords, not reserved. Recorded deviations from the M4 text: implicit
-declaration-based RAII (a bare `{ h = FileHandle(...) }` dropping at block end) is **not**
-implemented — release is driven by `using` (and `with`); the early-drop `drop(value)` builtin and the
+declaration-based RAII (a bare `{ h = FileHandle(...) }` dropping at block end) was initially **not**
+implemented — release was driven by `using` (and `with`); the early-drop `drop(value)` builtin and the
 `stdpet/contextlib.kn` helpers (`ExitStack`, `suppress`, `closing`, `nullcontext`) are not
 included yet; `Copy`/`Drop` mutual exclusion is not enforced. Parser/AST/checker/tree-walker are done;
 `with`/`using` are marked interpreted in the bytecode VM and HIR lowers the bindings (`With` → a
@@ -681,8 +685,8 @@ binding stays readable because Kirn values use copy semantics. The builtin is se
 (`any -> none`), the bytecode-VM builtin set, and the interpreter's VM allowlist, and HIR lowers it
 as an ordinary builtin call. Tests: `tests/syntax/drop_builtin_ok.kn` (gate 2b, 60 files) covers the
 `drop` and `__del__` spellings on tree-walker and VM. Still open from M4: the
-`stdpet/contextlib.kn` helpers (`ExitStack`/`suppress`/`closing`/`nullcontext`), implicit
-declaration-based RAII, and the `Copy`/`Drop` conflict check. Also fixed an incidental corpus
+`stdpet/contextlib.kn` helpers (`ExitStack`/`suppress`/`closing`/`nullcontext`) and the
+`Copy`/`Drop` conflict check. Also fixed an incidental corpus
 regression: `examples/88_select_await.kn` ended with a redundant top-level `main();` that HIR could
 not map, so gate 8b failed; removing it keeps the auto-run output identical (`10` / `timer`) and the
 example now passes HIR.
@@ -713,8 +717,17 @@ does not require a user-declared `Copy` trait, matching how marker impls already
 `type 'T' cannot be both Copy and Drop`. Marking a type `Copy` does not change its runtime
 behaviour (Kirn values are already copied by value); it exists to enforce the ownership invariant.
 Tests: `tests/syntax/copy_drop_ok.kn`, `tests/syntax/copy_drop_err.kn`,
-`tests/syntax/copy_drop_impl_err.kn` (gate 2b now 64 files). Still open from M4: implicit
-declaration-based RAII.
+`tests/syntax/copy_drop_impl_err.kn` (gate 2b now 64 files).
+
+**Update (2026-10-27).** Implicit declaration-based RAII is complete. A first assignment to an
+otherwise-unbound lexical name registers a Drop-capable value in the current block cleanup frame;
+the frame releases values in reverse declaration order on normal completion and during raise, return,
+break, or continue unwinding. Reassignment does not register a second release. The same registration
+path is used by `using`. VM functions containing assignment/declaration bodies conservatively use the
+authoritative tree-interpreter fallback until bytecode scope frames carry cleanup registrations.
+`tests/syntax/implicit_raii_ok.kn` proves nested LIFO cleanup and cleanup before a catch handler;
+`tests/vm_parity/implicit_raii.kn` proves tree/VM output parity. All M4 deviations are now closed,
+with the VM fallback intentionally retained for cleanup-bearing functions.
 
 > Reference: Python — context managers `with` (`cpython/Lib/contextlib.py`); Rust — `Drop` (`rust/library/core/src/ops/drop.rs`).
 

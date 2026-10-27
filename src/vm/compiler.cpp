@@ -406,8 +406,11 @@ public:
 
             case StKind::ConstDecl:
             case StKind::VarDecl:
-                compileExpr(em, *s.value);
-                emitDefine(em, *s.target);
+                // A declaration may construct a Drop-capable value. The VM's
+                // lexical scope opcodes do not yet carry cleanup registrations,
+                // so use the authoritative interpreter path for declaration
+                // bodies; this preserves RAII on normal and exceptional exits.
+                em.f.interpreted = true;
                 break;
 
             case StKind::ExprStmt:
@@ -415,9 +418,12 @@ public:
                 break;
 
             case StKind::Assign: {
-                if (s.exprs.size() != 2) { em.f.interpreted = true; break; }
-                compileExpr(em, *s.exprs[1]);
-                emitStore(em, *s.exprs[0]);
+                // First assignment creates a lexical binding in Kirn and may
+                // construct a Drop-capable value. Cleanup registration is
+                // attached by the interpreter, so assignment bodies use the
+                // authoritative path until the VM grows a drop-aware scope
+                // frame.
+                em.f.interpreted = true;
                 break;
             }
 
@@ -537,6 +543,10 @@ public:
                 // tree-walker's pet.parallel.par_iter(...).for_each lowering, so
                 // a decorated loop hands the whole function back to the
                 // interpreter (same policy as Try/Match and non-bind patterns).
+                // Loop bindings can receive Drop-capable values. The VM does
+                // not yet attach cleanup registrations to OP_SCOPE_LEAVE, so
+                // keep these functions on the interpreter path as well.
+                em.f.interpreted = true;
                 for (const auto& d : s.decorators)
                     if (d.name == "par") { em.f.interpreted = true; break; }
                 if (em.f.interpreted) break;

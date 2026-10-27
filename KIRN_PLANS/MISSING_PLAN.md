@@ -31,14 +31,15 @@ This is a **gap ledger**, not a redesign: it preserves the existing priorities a
 exactly as ratified, and keeps the add-only ordering intact — append missing entries, never reorder,
 re-scope, or delete the prior roadmap.
 
-**Status:** Active roadmap · Living document · Version 1.0
+**Status:** COMPLETE for the ratified feature queue as of 2026-10-27 · living document for future additions · Version 1.0
 **Date authored:** 2026-09-03 (canonical semantics verified against the September 2026 state of
 Python, PHP, JavaScript/TC39, Go, Rust, Kotlin, Java, Ruby via web research in `Appendix R`).
 **Role in the plan ecosystem:** `PLAN.md` (infra), `SYNTAX_PLAN.md` (syntax/operators),
 `EXP_PLAN.md` (expression surface), `DATA_TYPE_PLAN.md` (core types), `STD_LIBS_PLAN.md`
 (module APIs), and `WHY_PLAN.md` (demand drivers) already _mention_ every feature in this list —
-but spread across six documents at inconsistent depths, and **none are implemented in source**
-(verified, §2). `MISSING_PLAN.md` is the **single executable roadmap** that:
+but spread across six documents at inconsistent depths, and **none were implemented in source at the
+2026-09-03 audit** (that statement is historical; the phase notes below are authoritative). `MISSING_PLAN.md`
+is the **single executable roadmap** that:
 
 1. **Consolidates the canonical cross-language semantics** for all 19 features in one place (so an
    implementer never has to re-derive "what should `??` do?" from six documents).
@@ -1476,6 +1477,20 @@ documentation — `docs/FEATURE_GAP_ANALYSIS.md` §4.1 and `grammar/kirn.ebnf` �
 rationale for the record, and the `W-nosugar` nudge is now emitted on **every** `++`/`--` use (not
 only the adjacent-terminal shapes described above) with a whole-expression `replace with x += 1`
 fix-it. The `?:`-specific nudge is still not emitted (the `c ? a : b` vs `c?` ambiguity is unchanged).
+
+### Completion audit (2026-10-27)
+
+The ratified queue is complete: M1–M5 are marked complete, M6–M10 have implemented phase notes and
+green corpus evidence, M11 is reconciled as complete for its accepted native ABI surface, and M12 is
+historical/superseded by the implemented M13 sugar pass. The final verification for the current tree
+passed syntax/VM/HIR/MIR regression gates, native gate 11a (56/56 surfaces), and native gate 11d
+(56/56 generated C++ translation units syntax-checked).
+
+The following are intentional scope boundaries explicitly recorded by their phase notes, not missing
+deliverables: `stdpet` wrapper naming versus builtin pseudo-modules, compile-time reflection under
+`--strict`, sanitizer CI wiring, broader shared-global race analysis, and native ABI fallbacks for
+dictionary/set aggregates, closures or optional function returns, and nominal-struct `MatMul` dispatch.
+No phase currently has an unverified active implementation task.
 
 ---
 

@@ -1,0 +1,17 @@
+# M11: optional-list safe append and extend on the native path.
+fn append_item(xs: list[Int]?) -> list[Int]? {
+    xs .?. append(3);
+    return xs;
+}
+
+fn extend_items(xs: list[Int]?, ys: list[Int]) -> list[Int]? {
+    xs .?. extend(ys);
+    return xs;
+}
+
+fn main() -> none {
+    print(append_item([1, 2]));
+    print(extend_items([1], [2, 3]));
+    print(append_item(none));
+    print(extend_items(none, [4]));
+}

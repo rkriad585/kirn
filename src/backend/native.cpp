@@ -332,10 +332,16 @@ private:
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
             TyP src = typeOf(*e.args[0].value);
-            return isListTy(recv) && !recv->args.empty() &&
-                   isScalarTy(recv->args[0]) && isListTy(src) &&
-                   !src->args.empty() && src->args[0]->k == recv->args[0]->k &&
-                   typeOf(e) && typeOf(e)->k == TyK::None;
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            TyP result = typeOf(e);
+            return (!optional || e.lhs->nilSafe) && isListTy(base) &&
+                   !base->args.empty() && isNativeListElemTy(base->args[0]) &&
+                   isListTy(src) && !src->args.empty() &&
+                   src->args[0]->k == base->args[0]->k && result &&
+                   (result->k == TyK::None ||
+                    (result->k == TyK::Opt && optInner(result) &&
+                     optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "insert") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -462,10 +468,16 @@ private:
                 !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            if (!isListTy(recv) || recv->args.empty() ||
-                !isScalarTy(recv->args[0]))
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
+                !isNativeListElemTy(base->args[0]))
                 return false;
-            return assignCompatible(typeOf(*e.args[0].value), recv->args[0]);
+            TyP result = typeOf(e);
+            return assignCompatible(typeOf(*e.args[0].value), base->args[0]) &&
+                   result && (result->k == TyK::None ||
+                              (result->k == TyK::Opt && optInner(result) &&
+                               optInner(result)->k == TyK::None));
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
             if (!e.args.empty() || !e.lhs->lhs) return false;
@@ -1216,6 +1228,9 @@ private:
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string src = emitExpr(*e.args[0].value);
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    if (recv && recv->k == TyK::Opt)
+                        return "[&]{ auto __opt = (" + obj + "); if (__opt) { auto __src = (" + src + "); __opt->insert(__opt->end(), __src.begin(), __src.end()); } }()";
                     return "[&]{ auto &__dst = (" + obj + "); auto __src = (" +
                            src + "); __dst.insert(__dst.end(), __src.begin(), __src.end()); }()";
                 }
@@ -1341,6 +1356,10 @@ private:
                 }
                 if (e.lhs->kind == ExKind::Member &&
                     (e.lhs->text == "append" || e.lhs->text == "push_back")) {
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    if (recv && recv->k == TyK::Opt)
+                        return "[&]{ auto __opt = (" + emitExpr(*e.lhs->lhs) + "); if (__opt) __opt->push_back(" +
+                               boxExpr(*e.args[0].value) + "); }()";
                     return emitExpr(*e.lhs->lhs) + ".push_back(" +
                            boxExpr(*e.args[0].value) + ")";
                 }

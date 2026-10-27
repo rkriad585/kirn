@@ -1323,6 +1323,8 @@ mutation order, empty-list panics, and `none` receiver propagation
 (`tests/codegen/safe_list_pop_shift.kn`; gate 11a).
 Optional-list safe mutation-only calls `.?.clear()` and `.?.reverse()` now lower with receiver
 short-circuiting and preserved list state (`tests/codegen/safe_list_maintenance.kn`; gate 11a).
+Optional-list safe `.?.append()`/`.?.extend()` now lower with argument short-circuiting and
+preserved mutation order (`tests/codegen/safe_list_append_extend.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

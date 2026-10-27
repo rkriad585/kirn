@@ -81,7 +81,9 @@ static bool isNativeListElemTy(const TyP& t) {
 static bool isNativeStructFieldTy(const TyP& t) {
     return t && (isScalarTy(t) || isStringTy(t) ||
                  (isListTy(t) && !t->args.empty() &&
-                  isNativeListElemTy(t->args[0])));
+                  (isNativeListElemTy(t->args[0]) ||
+                   (t->args[0]->k == TyK::List &&
+                    isNativeStructFieldTy(t->args[0])))));
 }
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||

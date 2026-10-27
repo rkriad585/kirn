@@ -1,0 +1,18 @@
+# M11: nested scalar lists remain boxed consistently inside nominal structs.
+struct Grid {
+    cells: list[list[Int]];
+}
+
+fn read(g: Grid) -> list[list[Int]] {
+    return g.cells;
+}
+
+fn replace(g: Grid) -> Grid {
+    g.cells = [[3, 4], [5, 6]];
+    return g;
+}
+
+fn main() -> none {
+    print(read(Grid(cells: [[1, 2], [7, 8]])));
+    print(replace(Grid(cells: [[0]])));
+}

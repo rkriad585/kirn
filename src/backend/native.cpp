@@ -551,6 +551,17 @@ private:
             if (optional && !e.lhs->nilSafe) return false;
             return true;
         }
+        // Struct constructors are value-producing calls, not native function
+        // calls. Keep the first ABI slice explicit: named scalar/string fields
+        // are boxed into the existing interpreter Value representation.
+        if (e.lhs->kind == ExKind::Ident && isNativeStructTy(typeOf(e))) {
+            if (e.args.empty()) return false;
+            for (const auto& a : e.args)
+                if (a.name.empty() || !a.value || !exprLowerable(*a.value, cur) ||
+                    (!isScalarTy(typeOf(*a.value)) && !isStringTy(typeOf(*a.value))))
+                    return false;
+            return true;
+        }
         if (e.lhs->kind != ExKind::Ident) return false;
         const std::string& callee = e.lhs->text;
         // self-call: lowerable if it's the current function (scalar args).
@@ -1366,6 +1377,14 @@ private:
                        retCpp + ">{ }; return std::optional<" + retCpp + ">{ " + call + " }; }()";
             }
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Ident && isNativeStructTy(typeOf(e))) {
+                    std::string out = "[&]{ auto __s = kirn::interp::Value::structV(\"" +
+                                      e.lhs->text + "\"); ";
+                    for (const auto& a : e.args)
+                        out += "__s.fields.emplace_back(\"" + a.name +
+                               "\", " + boxExpr(*a.value) + "); ";
+                    return out + "return __s; }()";
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string src = emitExpr(*e.args[0].value);

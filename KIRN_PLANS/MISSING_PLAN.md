@@ -1345,6 +1345,10 @@ The first nominal-struct ABI slice now carries `Value`-backed struct parameters 
 native registration, lowers scalar/string field reads, and short-circuits optional struct fields
 (`tests/codegen/native_struct_fields.kn`; gate 11a). Struct constructors, mutable fields, methods,
 and trait dispatch remain interpreter-backed until their native layouts are defined.
+Native nominal constructors with named scalar/string fields now build the existing `Value` layout and
+can return either a struct or optional struct through the registration thunk
+(`tests/codegen/native_struct_ctor.kn`; gate 11a). Mutable fields, methods, and trait dispatch remain
+interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

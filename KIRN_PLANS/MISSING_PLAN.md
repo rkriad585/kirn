@@ -1395,6 +1395,10 @@ reads, including optional nested structs and list-backed method mutation
 (`tests/codegen/native_safe_aggregate_navigation.kn`; gate 11a). The field emitter unwraps the
 optional field result before deciding between `Value` and scalar/list extraction. Generic
 trait-object safe calls and safe mutation targets remain active M11 work.
+Safe optional nominal-field assignment now follows the interpreter's no-op-on-`none` rule and
+mutates present optional struct values in place (`tests/codegen/native_safe_struct_field_mutation.kn`;
+gate 11a). Native lowering restricts this form to identifiable optional receivers so it cannot
+silently mutate a copied temporary; generic trait-object safe calls remain active M11 work.
 
 ---
 

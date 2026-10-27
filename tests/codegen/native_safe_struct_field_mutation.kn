@@ -1,0 +1,14 @@
+# M11: safe optional struct-field assignment is a no-op for none.
+struct Bag {
+    xs: list[Int];
+}
+
+fn set_items(b: Bag?, xs: list[Int]) -> Bag? {
+    b .?. xs = xs;
+    return b;
+}
+
+fn main() -> none {
+    print(set_items(Bag(xs: [1]), [4, 5]));
+    print(set_items(none, [9]));
+}

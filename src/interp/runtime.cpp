@@ -10564,12 +10564,14 @@ void Interpreter::assignTo(const Expr& target, Value v, Env env) {
             // resolve the BASE as an lvalue so mutations land in the stored
             // struct/heap object itself (value semantics preserved)
             if (Value* ref = lvaluePtr(*target.lhs, env)) {
+                if (target.nilSafe && ref->isNone()) return;
                 memberWrite(*ref, target.text, std::move(v),
                             target.span.line, target.span.col);
                 return;
             }
             Value base = eval(*target.lhs, env);
             if (base.k == VK::Weak) base = lockHeap(base);
+            if (target.nilSafe && base.isNone()) return;
             memberWrite(base, target.text, std::move(v), target.span.line,
                         target.span.col);
             return;

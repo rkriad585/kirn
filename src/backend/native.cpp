@@ -918,8 +918,13 @@ private:
             if (s.kind != StKind::Assign || !tgt->lhs ||
                 !exprLowerable(*tgt->lhs, cur)) return false;
             TyP recv = typeOf(*tgt->lhs);
-            if (!isNativeStructTy(recv)) return false;
+            bool optional = recv && recv->k == TyK::Opt;
+            if (optional && (!tgt->nilSafe || tgt->lhs->kind != ExKind::Ident ||
+                             !isNativeStructTy(optInner(recv))))
+                return false;
+            if (!optional && !isNativeStructTy(recv)) return false;
             TyP field = typeOf(*tgt);
+            if (optional) field = optInner(field);
             return isNativeStructFieldTy(field) &&
                    exprLowerable(*s.exprs[1], cur) &&
                    assignCompatible(typeOf(*s.exprs[1]), field);
@@ -1246,6 +1251,14 @@ private:
             case StKind::AugAssign: {
                 if (s.exprs[0]->kind == ExKind::Member) {
                     const ast::Expr& tgt = *s.exprs[0];
+                    TyP recv = typeOf(*tgt.lhs);
+                    if (recv && recv->k == TyK::Opt) {
+                        out_ << pad << "{ auto& __opt = (" << emitExpr(*tgt.lhs)
+                             << "); if (__opt) kirn_native::co_field_mut(*__opt, \""
+                             << tgt.text << "\") = " << boxExpr(*s.exprs[1])
+                             << "; }\n";
+                        return;
+                    }
                     out_ << pad << "kirn_native::co_field_mut(" <<
                         emitExpr(*tgt.lhs) << ", \"" << tgt.text << "\") = " <<
                         boxExpr(*s.exprs[1]) << ";\n";

@@ -1,0 +1,9 @@
+# M11: optional-string safe length on the native path.
+fn safe_len(text: Str?) -> Int? {
+    return text .?. len();
+}
+
+fn main() -> none {
+    print(safe_len("kirn"));
+    print(safe_len(none));
+}

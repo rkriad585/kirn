@@ -1335,6 +1335,9 @@ Numeric list vectors and matrices now lower through native `@` paths for vector 
 matrix-vector products, vector-matrix products, and matrix-matrix products; shape and raggedness
 errors use the native panic path (`tests/codegen/list_matmul.kn`; gate 11a). Nominal struct `MatMul`
 trait dispatch remains interpreter-backed until the native nominal-struct ABI is implemented.
+Optional-string `.?.len()` now lowers through the same short-circuit native member path as optional
+lists, including `none` propagation and optional-string parameter boxing
+(`tests/codegen/safe_string_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

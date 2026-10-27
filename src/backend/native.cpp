@@ -1473,7 +1473,7 @@ private:
                     if (recv && recv->k == TyK::Opt) {
                         std::string tmp = "__len" + std::to_string(tmpSeq_++);
                         return "[&]{ auto " + tmp + " = (" + obj +
-                               "); if (!" + tmp + ") return std::nullopt; return " +
+                               "); if (!" + tmp + ") return std::optional<int64_t>{}; return " +
                                std::string("std::optional<int64_t>{static_cast<int64_t>(") +
                                tmp + "->size())}; }()";
                     }

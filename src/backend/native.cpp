@@ -425,16 +425,26 @@ private:
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            return isListTy(recv) && !recv->args.empty() &&
-                   isScalarTy(recv->args[0]) && isScalarTy(typeOf(e));
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            TyP result = typeOf(e);
+            TyP value = optional ? optInner(result) : result;
+            return (!optional || e.lhs->nilSafe) && isListTy(base) &&
+                   !base->args.empty() && isScalarTy(base->args[0]) &&
+                   value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 !e.args.empty())
                 return false;
             TyP recv = typeOf(*e.lhs->lhs);
-            return isListTy(recv) && !recv->args.empty() &&
-                   isScalarTy(recv->args[0]) && isScalarTy(typeOf(e));
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            TyP result = typeOf(e);
+            TyP value = optional ? optInner(result) : result;
+            return (!optional || e.lhs->nilSafe) && isListTy(base) &&
+                   !base->args.empty() && isScalarTy(base->args[0]) &&
+                   value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "append" || e.lhs->text == "push_back")) {
@@ -1249,19 +1259,31 @@ private:
                     return "std::reverse(" + emitExpr(*e.lhs->lhs) + ".begin(), " +
                            emitExpr(*e.lhs->lhs) + ".end())";
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "shift") {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP elem = (optional ? optInner(recv) : recv)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string tmp = "__shift" + std::to_string(tmpSeq_++);
-                    return "[&]{ auto &" + tmp + " = (" + obj + "); auto __v = " +
-                           tmp + ".front(); " + tmp + ".erase(" + tmp +
+                    if (optional) {
+                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
+                               " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
+                               ".begin()); return std::optional<" + cppTy(elem) + ">{__v." + valueField(elem) + "}; }()";
+                    }
+                    return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
                            ".begin()); return __v." + valueField(elem) + "; }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
-                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP elem = (optional ? optInner(recv) : recv)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string tmp = "__pop" + std::to_string(tmpSeq_++);
-                    return "[&]{ auto &" + tmp + " = (" + obj + "); auto __v = " +
-                           tmp + ".back(); " + tmp + ".pop_back(); return __v." +
+                    if (optional) {
+                        return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
+                               " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return std::optional<" + cppTy(elem) +
+                               ">{__v." + valueField(elem) + "}; }()";
+                    }
+                    return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return __v." +
                            valueField(elem) + "; }()";
                 }
                 if (e.lhs->kind == ExKind::Member &&

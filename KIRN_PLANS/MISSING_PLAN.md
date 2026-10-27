@@ -1312,6 +1312,9 @@ preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 Optional-list safe read-only calls for `.?.contains()`, `.?.index()`, `.?.sum()`, and `.?.join()`
 now lower to optional native results with single-evaluated receiver short-circuiting
 (`tests/codegen/safe_list_methods.kn`; gate 11a).
+Optional-list safe `.?.pop()` and `.?.shift()` now lower to optional scalar results, preserving
+mutation order, empty-list panics, and `none` receiver propagation
+(`tests/codegen/safe_list_pop_shift.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

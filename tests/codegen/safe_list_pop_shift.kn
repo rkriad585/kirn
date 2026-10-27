@@ -1,0 +1,15 @@
+# M11: optional-list safe scalar extraction on the native path.
+fn take_last(xs: list[Int]?) -> Int? {
+    return xs .?. pop();
+}
+
+fn take_first(xs: list[Int]?) -> Int? {
+    return xs .?. shift();
+}
+
+fn main() -> none {
+    print(take_last([1, 2, 3]));
+    print(take_first([1, 2, 3]));
+    print(take_last(none));
+    print(take_first(none));
+}

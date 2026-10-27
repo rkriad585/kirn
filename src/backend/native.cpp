@@ -243,6 +243,10 @@ public:
         : prog_(&prog), chk_(&chk) {
         for (const auto& s : prog) {
             if (s->kind == StKind::FuncDef) topFuncs_[s->name] = s.get();
+            if (s->kind == StKind::StructDef)
+                for (const auto& m : s->body)
+                    if (m->kind == StKind::FuncDef)
+                        methods_.emplace_back(s->name, m.get());
             // Module-level bindings: a read of one has no function-local to
             // reference, and a write to one is not a local declaration, so a
             // function touching it must fall back to the interpreter.
@@ -259,8 +263,10 @@ public:
             for (const auto& s : *prog_) {
                 if (s->kind != StKind::FuncDef) continue;
                 if (lowered_.count(s.get())) continue;
-                if (tryLower(*s)) changed = true;
+                if (tryLower(*s, "")) changed = true;
             }
+            for (const auto& [owner, m] : methods_)
+                if (!lowered_.count(m) && tryLower(*m, owner)) changed = true;
         }
         return lowered_;
     }
@@ -275,10 +281,11 @@ private:
     std::unordered_map<std::string, const ast::Stmt*> topFuncs_;
     std::unordered_map<const ast::Stmt*, NativeFunc> lowered_;
     std::set<std::string> moduleNames_;
+    std::vector<std::pair<std::string, const ast::Stmt*>> methods_;
 
     TyP typeOf(const ast::Expr& e) const { return chk_->typeOf(e); }
 
-    bool tryLower(const ast::Stmt& s) {
+    bool tryLower(const ast::Stmt& s, const std::string& owner) {
         if (s.typeParams.size() || s.externDef || s.body.empty()) return false;
         if (s.ret && s.ret->kind == ast::TyKind::Name &&
             (s.ret->name == "result" || s.ret->name == "Result"))
@@ -287,11 +294,12 @@ private:
         if (!isNoneTy(rt) && !isNativeTy(rt)) return false;
         if (isOptFnTy(rt)) return false;
         for (const auto& p : s.params) {
-            if (p.variadic || p.selfParam || p.defaultValue || !p.type)
+            if (p.variadic || p.defaultValue || (!p.type && !p.selfParam))
                 return false;
             // Plain scalars and optionals of scalars (`T?`) are both lowerable;
             // an optional scalar becomes `std::optional<scalar>`.
-            TyP pt = declTy(p.type);
+            TyP pt = (owner.size() && p.selfParam)
+                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type);
             if (!isNativeTy(pt)) return false;
         }
         // Self-recursion tolerance: an in-progress hook is added so the body
@@ -306,6 +314,7 @@ private:
         NativeFunc nf;
         nf.fn = &s;
         nf.name = s.name;
+        nf.ownerType = owner;
         nf.cName = uniqueCName(s.name);
         nf.retCpp = (rt && rt->k != TyK::None) ? cppTy(rt) : std::string();
         if (isNativeFnTy(rt)) {
@@ -315,7 +324,8 @@ private:
         }
         for (const auto& p : s.params) {
             nf.params.push_back(p.name);
-            TyP pt = declTy(p.type);
+            TyP pt = (owner.size() && p.selfParam)
+                ? sema::Ty::named(TyK::Struct, owner) : declTy(p.type);
             nf.pTypes.push_back(cppTy(pt));
             TyP fn = pt && pt->k == TyK::Opt ? optInner(pt) : pt;
             if (fn && fn->k == TyK::Fn) {
@@ -1005,9 +1015,15 @@ public:
 
     void emitFunctions(const std::vector<ast::StmtP>& prog) {
         for (const auto& s : prog) {
-            if (s->kind != StKind::FuncDef) continue;
-            auto it = lowered_->find(s.get());
-            if (it != lowered_->end()) emitFunction(*s, it->second);
+            if (s->kind == StKind::FuncDef) {
+                auto it = lowered_->find(s.get());
+                if (it != lowered_->end()) emitFunction(*s, it->second);
+            } else if (s->kind == StKind::StructDef) {
+                for (const auto& m : s->body) {
+                    auto it = lowered_->find(m.get());
+                    if (it != lowered_->end()) emitFunction(*m, it->second);
+                }
+            }
         }
         out_ << "}\n";  // close namespace kirn_native
     }
@@ -1897,11 +1913,21 @@ void out_registerAll(
     };
     for (const NativeFunc* nfp : ordered) {
         const NativeFunc& nf = *nfp;
-        out << "    for (const auto& d : prog) if (d->kind == "
-               "kirn::ast::StKind::FuncDef && d->name == \""
-            << nf.name
-            << "\") { interp.enableNative(); interp.registerNative(d.get(), "
-               "[&interp](kirn::interp::Env e) -> kirn::interp::Value {\n";
+        if (nf.ownerType.empty()) {
+            out << "    for (const auto& d : prog) if (d->kind == "
+                   "kirn::ast::StKind::FuncDef && d->name == \""
+                << nf.name
+                << "\") { interp.enableNative(); interp.registerNative(d.get(), ";
+        } else {
+            out << "    for (const auto& d : prog) if (d->kind == "
+                   "kirn::ast::StKind::StructDef && d->name == \""
+                << nf.ownerType
+                << "\") for (const auto& m : d->body) if (m->kind == "
+                   "kirn::ast::StKind::FuncDef && m->name == \""
+                << nf.name
+                << "\") { interp.enableNative(); interp.registerNative(m.get(), ";
+        }
+        out << "[&interp](kirn::interp::Env e) -> kirn::interp::Value {\n";
         // read scalar params out of the caller's Env
         for (size_t i = 0; i < nf.params.size(); ++i) {
             std::string v = "v_";

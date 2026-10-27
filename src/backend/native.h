@@ -34,6 +34,7 @@ namespace backend {
 struct NativeFunc {
     const ast::Stmt* fn = nullptr;   // the lowered FuncDef
     std::string name;                // Kirn function name
+    std::string ownerType;           // non-empty for an inherent struct method
     std::string cName;               // emitted C++ function name
     std::vector<std::string> params; // scalar parameter names, in order
     std::vector<std::string> pTypes; // cpp types of params ("int64_t"/"double"/...)

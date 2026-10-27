@@ -1359,6 +1359,10 @@ Function-valued parameters now bridge interpreter `Value::Fn` objects into nativ
 native for already-native top-level functions through a `Value::Builtin` callback wrapper
 (`tests/codegen/native_function_return.kn`; gate 11a). Optional function-valued returns and
 closures remain interpreter-backed.
+Inherent methods whose receiver and fields stay within the scalar/string struct ABI now lower as
+nested native functions and are registered against their owning `StructDef`, preserving mutation
+and `selfOut` value semantics (`tests/codegen/native_struct_method.kn`; gate 11a). Trait/impl
+method dispatch and methods using aggregate fields remain interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

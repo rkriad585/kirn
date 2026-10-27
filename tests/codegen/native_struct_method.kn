@@ -1,0 +1,20 @@
+# M11: native inherent method dispatch for scalar/string-field structs.
+struct Point {
+    x: Int;
+    label: Str;
+
+    fn shifted(self, amount: Int) -> Point {
+        self.x = self.x + amount;
+        return self;
+    }
+
+    fn name(self) -> Str {
+        return self.label;
+    }
+}
+
+fn main() -> none {
+    var p = Point(x: 2, label: "method");
+    print(p.shifted(5));
+    print(p.name());
+}

@@ -22,7 +22,7 @@ proven, source-verified designs rather than inventing novelty.
 - **No over-engineering; proven patterns only.** Each API must map to a verified reference implementation under `langs-source-code/rust/{tokio,serde,rayon,anyhow,thiserror}`; cite the file. Adopt the idiom, drop the baggage.
 - **Kirn-style spellings.** `fn`/`var`, CapCase types (`Str`/`Int`/`list[T]`/`result[T,E]`/`any`), lowercase methods, `ok(...)`/`err(...)` constructors, `import pet.…`. Rust `#[…]` becomes Kirn `@[… ]` (attribute list) or `@name`/`@name(...)` (decorator); keep one spelling per meaning.
 - **AI-first.** Provide the exact surface an agent needs to write correct concurrent/async/serializing code: small, regular grammar, one obvious API per concept, exact docstrings, and machine-checkable diagnostics.
-- **Gate-aligned.** Every phase exits by running `kirn test` and `scripts/gates_linux.sh` (and `scripts/golden_linux.sh` for observable-behavior changes); the suite stays green (currently 188/0).
+- **Gate-aligned.** Every phase exits by running `kirn test` and `scripts/gates_linux.sh` (and `scripts/golden_linux.sh` for observable-behavior changes); the suite stays green. Exact counts are recorded in each implementation update because the corpus grows during the plan.
 
 ## Important Note
 
@@ -1168,6 +1168,16 @@ Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/
 Delivered: `src/interp/runtime.cpp` `selectExec` await-arm handling; `examples/88_select_await.kn` + three goldens. Works in both VM and `--no-vm`.
 
 Verification: `88_select_await.kn` prints `10 timer`; gates 1_runall now **85 passed, 0 failed**.
+
+### Audit addendum (2026-10-27)
+
+The historical design sections above describe the original target and are not a
+current-state checklist. The implementation updates in this file are
+authoritative: attributes, async/await, async I/O and networking, sync
+primitives and channels, serialization formats, parallel iteration, and
+ergonomic errors have shipped incrementally. The remaining deviations below
+are the active work queue; a deviation superseded by a later update must not be
+treated as pending work.
 
 ### Update (2026-10-21) — timed waits for sync primitives (shipped)
 

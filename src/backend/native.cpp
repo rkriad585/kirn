@@ -75,6 +75,14 @@ static bool isListTy(const TyP& t) { return t && t->k == TyK::List; }
 static bool isNativeListElemTy(const TyP& t) {
     return isScalarTy(t) || isStringTy(t);
 }
+// Struct fields keep the interpreter Value representation at the ABI edge.
+// A scalar/string field is stored directly in Value, while a list field is
+// stored as Value::list and is exposed to native code as vector<Value>.
+static bool isNativeStructFieldTy(const TyP& t) {
+    return t && (isScalarTy(t) || isStringTy(t) ||
+                 (isListTy(t) && !t->args.empty() &&
+                  isNativeListElemTy(t->args[0])));
+}
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
            isStringTy(t) || isListTy(t) || isNativeStructTy(t) ||
@@ -632,7 +640,7 @@ private:
             if (e.args.empty()) return false;
             for (const auto& a : e.args)
                 if (a.name.empty() || !a.value || !exprLowerable(*a.value, cur) ||
-                    (!isScalarTy(typeOf(*a.value)) && !isStringTy(typeOf(*a.value))))
+                    !isNativeStructFieldTy(typeOf(*a.value)))
                     return false;
             return true;
         }
@@ -809,8 +817,9 @@ private:
                     return false;
                 TyP recv = typeOf(*e.lhs);
                 TyP base = recv && recv->k == TyK::Opt ? optInner(recv) : recv;
-                if (!isNativeStructTy(base) || !isNativeTy(t)) return false;
-                return !t || t->k != TyK::Fn;
+                if (!isNativeStructTy(base)) return false;
+                TyP field = t && t->k == TyK::Opt ? optInner(t) : t;
+                return isNativeStructFieldTy(field);
             }
             default:
                 return false;
@@ -908,7 +917,7 @@ private:
             TyP recv = typeOf(*tgt->lhs);
             if (!isNativeStructTy(recv)) return false;
             TyP field = typeOf(*tgt);
-            return field && (isScalarTy(field) || isStringTy(field)) &&
+            return isNativeStructFieldTy(field) &&
                    exprLowerable(*s.exprs[1], cur) &&
                    assignCompatible(typeOf(*s.exprs[1]), field);
         }
@@ -1463,8 +1472,11 @@ private:
                 auto read = [&](const std::string& v) {
                     if (value && value->k == TyK::Struct) return
                         "kirn_native::co_field(" + v + ", \"" + e.text + "\")";
+                    TyP field = optional ? optInner(value) : value;
+                    if (field && field->k == TyK::List)
+                        return "*kirn_native::co_field(" + v + ", \"" + e.text + "\").vec";
                     return "kirn_native::co_field(" + v + ", \"" + e.text + "\")." +
-                           valueField(optional ? optInner(value) : value);
+                           valueField(field);
                 };
                 if (optional) {
                     TyP inner = optInner(t);

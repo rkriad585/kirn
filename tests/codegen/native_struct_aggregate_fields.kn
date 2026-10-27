@@ -1,0 +1,24 @@
+# M11: list-valued nominal struct fields cross the native Value ABI.
+struct Record {
+    xs: list[Int];
+}
+
+fn read(r: Record) -> list[Int] {
+    return r.xs;
+}
+
+fn update(r: Record) -> Record {
+    r.xs = [4, 5];
+    return r;
+}
+
+fn read_safe(r: Record?) -> list[Int]? {
+    return r .?. xs;
+}
+
+fn main() -> none {
+    print(read(Record(xs: [1, 2])));
+    print(update(Record(xs: [1])));
+    print(read_safe(Record(xs: [3])));
+    print(read_safe(none));
+}

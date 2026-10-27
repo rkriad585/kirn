@@ -1369,11 +1369,14 @@ matching impl node, allowing concrete dynamic dispatch to reuse the native recei
 methods remain interpreter-backed.
 Optional nominal-struct safe method calls now short-circuit through the native inherent-method ABI,
 preserving `none` propagation and optional string results
-(`tests/codegen/native_safe_struct_method.kn`; gate 11a). Generic trait-object safe calls and
-aggregate receivers remain interpreter-backed.
-`tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
-list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
-M11 work.
+(`tests/codegen/native_safe_struct_method.kn`; gate 11a). Generic trait-object safe calls remain
+interpreter-backed.
+List-valued nominal struct fields now cross the existing `Value` ABI for named construction, direct
+reads, whole-field mutation, list-valued returns, and optional safe reads
+(`tests/codegen/native_struct_aggregate_fields.kn`; gate 11a). The checker now distinguishes whole
+member assignment from indexed element assignment, preventing list-field writes from being
+misdiagnosed as scalar element writes. Nested aggregate fields, aggregate method bodies, generic
+trait-object calls, and general safe navigation remain active M11 work.
 
 ---
 

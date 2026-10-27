@@ -2599,7 +2599,8 @@ void Checker::assignTarget(const ast::Expr& tgt, const TyP& vt, bool multi) {
                     error(tgt.span, "cannot assign into immutable 'bytes'");
             }
             // loose element compatibility when shapes are known on both sides
-            if (tt && !tt->isError() && !tt->isUnknown() && vt &&
+            if (tgt.kind == ExKind::Index && tt && !tt->isError() &&
+                !tt->isUnknown() && vt &&
                 !vt->isError() && !vt->isUnknown()) {
                 if (tt->is(TyK::List) && !assignable(vt, argAt(tt, 0)))
                     error(tgt.span,

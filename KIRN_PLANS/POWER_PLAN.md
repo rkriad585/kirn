@@ -1271,8 +1271,9 @@ Verification: `error_test.kn` passes, including a typed `AutoErr` conversion
 from a raised string and derived display formatting.
 
 The earlier deviation claiming that `@[from]`/`@[source]` conversions were not
-implemented is superseded for single-payload derived enum variants. Multi-field
-conversion and compile-time type validation remain intentionally open.
+implemented is superseded for source payloads with an optional backtrace field.
+The checker rejects duplicate source/backtrace markers, unrelated conversion
+fields, and backtrace fields whose type is not `list[Str]`.
 
 ### Update (2026-10-27) — `?` conversion checking (shipped)
 

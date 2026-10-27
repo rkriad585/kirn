@@ -3057,6 +3057,49 @@ void Checker::validateDecoratorsDeep(const ast::Stmt& s) {
             break;
         case StKind::EnumDef:
             checkDecorators(s.decorators, s.name, true);
+            {
+                bool derivesError = false;
+                for (const auto& d : s.decorators) {
+                    if (d.name != "derive") continue;
+                    for (const auto& a : d.args)
+                        if (a.value && a.value->kind == ExKind::Ident &&
+                            a.value->text == "Error")
+                            derivesError = true;
+                }
+                if (derivesError) {
+                    for (const auto& v : s.variants) {
+                        size_t sourceCount = 0, backtraceCount = 0;
+                        size_t backtraceIndex = v.payload.size();
+                        for (size_t i = 0; i < v.payload.size(); ++i) {
+                            bool source = false, backtrace = false;
+                            for (const auto& d : v.payload[i].decorators) {
+                                source = source || d.name == "from" || d.name == "source";
+                                backtrace = backtrace || d.name == "backtrace";
+                            }
+                            if (source) ++sourceCount;
+                            if (backtrace) {
+                                ++backtraceCount;
+                                backtraceIndex = i;
+                            }
+                        }
+                        if (sourceCount > 1)
+                            error(v.span, "derived Error variant '" + v.name +
+                                      "' has multiple @[from]/@[source] fields");
+                        if (backtraceCount > 1)
+                            error(v.span, "derived Error variant '" + v.name +
+                                      "' has multiple @[backtrace] fields");
+                        if (sourceCount &&
+                            v.payload.size() != 1 + (backtraceCount ? 1 : 0))
+                            error(v.span, "derived Error variant '" + v.name +
+                                      "' conversion fields must be one source and optional backtrace");
+                        if (backtraceCount) {
+                            TyP actual = resolveType(v.payload[backtraceIndex].type);
+                            if (!assignable(actual, listTy(strTy())))
+                                error(v.span, "derived Error @[backtrace] field must be list[Str]");
+                        }
+                    }
+                }
+            }
             for (const auto& v : s.variants) {
                 checkDecorators(v.decorators, s.name + "." + v.name, false);
                 for (const auto& pl : v.payload)
@@ -4275,8 +4318,8 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             {
                 // Typed result propagation is permitted when the source
                 // error already fits the enclosing function's error type, or
-                // when a derived enum declares a single @[from]/@[source]
-                // payload for that source type. `Error` is dynamic and is
+                // when a derived enum declares a source payload plus an
+                // optional @[backtrace] field for that source type. `Error` is dynamic and is
                 // represented by Unknown here, so it remains permissive.
                 if (t && t->is(TyK::Struct) && t->name == "result" &&
                     t->args.size() >= 2 && currentRet_ &&

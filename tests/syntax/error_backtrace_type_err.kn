@@ -1,0 +1,8 @@
+# expect: backtrace] field must be list[Str]
+@[derive(Error, Debug)]
+enum BadTrace {
+    @[error("bad")]
+    Bad(@[from] source: Str, @[backtrace] trace: Int),
+}
+
+fn main() -> none { }

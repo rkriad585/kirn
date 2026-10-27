@@ -320,6 +320,21 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member &&
+            (e.lhs->text == "contains" || e.lhs->text == "index")) {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                e.args.size() != 1 || e.args[0].name != "" ||
+                !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            if (!isListTy(recv) || recv->args.empty() ||
+                !isScalarTy(recv->args[0]) ||
+                !assignCompatible(typeOf(*e.args[0].value), recv->args[0]))
+                return false;
+            return typeOf(e) &&
+                   (e.lhs->text == "contains" ? typeOf(e)->k == TyK::Bool
+                                                : typeOf(e)->k == TyK::Int);
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 !e.args.empty())
@@ -1078,6 +1093,21 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member &&
+                    (e.lhs->text == "contains" || e.lhs->text == "index")) {
+                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string needle = "__needle" + std::to_string(tmpSeq_++);
+                    std::string field = valueField(elem);
+                    std::string result = e.lhs->text == "contains"
+                        ? "[&]{ auto &__seq = (" + obj + "); auto " + needle +
+                          " = (" + emitExpr(*e.args[0].value) + "); for (const auto& __v : __seq) if (__v." +
+                          field + " == " + needle + ") return true; return false; }()"
+                        : "[&]{ auto &__seq = (" + obj + "); auto " + needle +
+                          " = (" + emitExpr(*e.args[0].value) + "); int64_t __pos = 0; for (const auto& __v : __seq) { if (__v." +
+                          field + " == " + needle + ") return __pos; ++__pos; } return int64_t(-1); }()";
+                    return result;
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "sum") {
                     TyP elem = typeOf(*e.lhs->lhs)->args[0];
                     std::string obj = emitExpr(*e.lhs->lhs);

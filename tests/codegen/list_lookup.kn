@@ -1,0 +1,16 @@
+# M11: scalar-list membership and search on the native path.
+fn has(items: list[Int], value: Int) -> Bool {
+    return items.contains(value);
+}
+
+fn find(items: list[Int], value: Int) -> Int {
+    return items.index(value);
+}
+
+fn main() -> none {
+    xs: list[Int] = [4, 8, 12];
+    print(has(xs, 8));
+    print(has(xs, 9));
+    print(find(xs, 12));
+    print(find(xs, 9));
+}

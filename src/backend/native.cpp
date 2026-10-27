@@ -828,6 +828,16 @@ private:
     bool assignLowerable(const ast::Stmt& s, const CurFn& cur) const {
         if (s.exprs.size() != 2) return false;
         const ast::ExprP& tgt = s.exprs[0];
+        if (tgt && tgt->kind == ExKind::Member) {
+            if (s.kind != StKind::Assign || !tgt->lhs ||
+                !exprLowerable(*tgt->lhs, cur)) return false;
+            TyP recv = typeOf(*tgt->lhs);
+            if (!isNativeStructTy(recv)) return false;
+            TyP field = typeOf(*tgt);
+            return field && (isScalarTy(field) || isStringTy(field)) &&
+                   exprLowerable(*s.exprs[1], cur) &&
+                   assignCompatible(typeOf(*s.exprs[1]), field);
+        }
         if (tgt && tgt->kind == ExKind::Index) {
             if (s.kind != StKind::Assign || !tgt->lhs || !tgt->rhs ||
                 tgt->lhs->kind != ExKind::Ident ||
@@ -949,6 +959,13 @@ public:
                 "(v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr);"
                 " if(!fs) kirn::interp::panicHere(\"native field access on non-struct\");"
                 " for(const auto& f:*fs) if(f.first == n) return f.second;"
+                " kirn::interp::panicHere(\"native field not found\");"
+                " return v; }\n"
+             << "static inline kirn::interp::Value& co_field_mut("
+                "kirn::interp::Value& v,const char* n){"
+                " if(v.k != kirn::interp::VK::Struct)"
+                " kirn::interp::panicHere(\"native mutable field access on non-struct\");"
+                " for(auto& f:v.fields) if(f.first == n) return f.second;"
                 " kirn::interp::panicHere(\"native field not found\");"
                 " return v; }\n";
     }
@@ -1125,6 +1142,13 @@ private:
             }
             case StKind::Assign:
             case StKind::AugAssign: {
+                if (s.exprs[0]->kind == ExKind::Member) {
+                    const ast::Expr& tgt = *s.exprs[0];
+                    out_ << pad << "kirn_native::co_field_mut(" <<
+                        emitExpr(*tgt.lhs) << ", \"" << tgt.text << "\") = " <<
+                        boxExpr(*s.exprs[1]) << ";\n";
+                    return;
+                }
                 if (s.exprs[0]->kind == ExKind::Index) {
                     const ast::Expr& tgt = *s.exprs[0];
                     std::string obj = emitExpr(*tgt.lhs);

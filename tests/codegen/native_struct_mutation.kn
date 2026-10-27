@@ -1,0 +1,15 @@
+# M11: mutable scalar/string fields on native Value-backed structs.
+struct Point {
+    x: Int;
+    label: Str;
+}
+
+fn update(p: Point) -> Point {
+    p.x = 12;
+    p.label = "updated";
+    return p;
+}
+
+fn main() -> none {
+    print(update(Point(x: 1, label: "before")));
+}

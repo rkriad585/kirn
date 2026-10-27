@@ -1349,6 +1349,10 @@ Native nominal constructors with named scalar/string fields now build the existi
 can return either a struct or optional struct through the registration thunk
 (`tests/codegen/native_struct_ctor.kn`; gate 11a). Mutable fields, methods, and trait dispatch remain
 interpreter-backed.
+Native struct parameters can now update scalar and string fields through a checked mutable-field
+helper and return the modified value without leaving the native ABI
+(`tests/codegen/native_struct_mutation.kn`; gate 11a). Optional-struct mutation and user-defined
+methods/trait dispatch remain interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

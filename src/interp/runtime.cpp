@@ -7863,6 +7863,15 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                         out.push_back(callValue(a[1], {el}, 0, 0));
                     return Value::list(std::move(out));
                 });
+            if (name == "par_iter" || name == "into_par_iter")
+                return bind({}, [this](std::vector<Value>& a) -> Value {
+                    Value mod = loadModuleFile("pet.parallel");
+                    if (mod.k != VK::Module)
+                        panicHere("list parallel iterator module is unavailable");
+                    Value f = moduleMember(mod.typeName, "par_iter");
+                    Value source = a.empty() ? Value::list() : a[0];
+                    return callValue(f, {source}, 0, 0);
+                });
             if (name == "sum")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     double acc = 0;

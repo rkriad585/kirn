@@ -2012,6 +2012,14 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             s.required = 1;
             return s;
         }
+        if (name == "par_iter" || name == "into_par_iter") {
+            // The concrete ParIter type is a stdlib struct whose methods are
+            // resolved dynamically. Keep the checker permissive here, just as
+            // it is for other module-provided iterator adapters.
+            FuncSig s;
+            s.ret = unkTy();
+            return s;
+        }
         if (name == "extend") {                    // xs.extend(ys)
             FuncSig s;
             s.params.push_back(recv); s.names.push_back("ys");

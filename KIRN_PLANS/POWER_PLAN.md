@@ -1305,6 +1305,14 @@ list in the backtrace field. The checker accepts exactly this source-plus-
 backtrace shape, while rejecting unrelated multi-field conversion variants.
 The checker recognizes these methods on derived error values.
 
+### Update (2026-10-27) — Parallel iterator method entry points (shipped)
+
+Lists now expose `xs.par_iter()` and `xs.into_par_iter()` as method aliases for
+the existing `pet.parallel.par_iter(xs)` function. Both forms return the same
+ordered `ParIter` and therefore inherit its map/filter/reducer/grouping
+combinators and execution policy. The implementation delegates to the single
+stdlib constructor so the two spellings cannot diverge.
+
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
 `stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
 

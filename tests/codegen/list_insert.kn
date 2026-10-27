@@ -1,0 +1,11 @@
+# M11: scalar-list bounded insertion on the native path.
+fn insert_values(items: list[Int]) -> list[Int] {
+    items.insert(1, 2);
+    items.insert(-1, 4);
+    return items;
+}
+
+fn main() -> none {
+    print(insert_values([1, 3]));
+    print(insert_values([4, 5]));
+}

@@ -1997,6 +1997,12 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             s.params.push_back(recv); s.names.push_back("ys");
             s.ret = noneTy(); return s;
         }
+        if (name == "insert") {                    // xs.insert(index, x)
+            FuncSig s;
+            s.params.push_back(intTy()); s.names.push_back("index");
+            s.params.push_back(elem); s.names.push_back("x");
+            s.ret = noneTy(); return s;
+        }
         if (name == "reverse") {
             FuncSig s; s.ret = noneTy(); return s;
         }

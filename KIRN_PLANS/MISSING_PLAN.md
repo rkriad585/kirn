@@ -1303,6 +1303,8 @@ String-list `.join(separator)` now lowers natively with stable ordering and empt
 (`tests/codegen/list_join.kn`; gate 11a).
 Scalar-list `.extend(other)` now lowers natively with single-evaluated source collections and
 preserved order (`tests/codegen/list_extend.kn`; gate 11a).
+Scalar-list `.insert(index, value)` now lowers natively with the runtime's `size + 1` negative-index
+normalization and bounded insertion behavior (`tests/codegen/list_insert.kn`; gate 11a).
 Scalar-list `.remove(value)` now lowers natively, erasing the first matching scalar and preserving
 the interpreter's not-found panic behavior (`tests/codegen/list_remove.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,

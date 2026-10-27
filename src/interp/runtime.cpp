@@ -4914,6 +4914,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::boolean(match);
             });
         }
+        if (name == "source")
+            return biFn({"e"}, [this](std::vector<Value>& a) -> Value {
+                if (a.empty()) return Value::none();
+                return invokeMethod(a[0], "source", {}, {}, globals_, 0, 0,
+                                    nullptr);
+            });
         if (name == "display")
             return biFn({"e"}, [](std::vector<Value>& a) -> Value {
                 return Value::str(a.empty() ? "" : toStr(a[0]));
@@ -7091,6 +7097,24 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             panicHere("enum '" + obj.typeName + "' variant '" + obj.variant +
                       "' has no discriminant");
         }
+        if (name == "source" || name == "backtrace") {
+            auto it = g_errDerivedEnums.find(obj.typeName);
+            if (it != g_errDerivedEnums.end()) {
+                for (const auto& var : it->second->variants) {
+                    if (var.name != obj.variant) continue;
+                    for (size_t i = 0; i < var.payload.size() &&
+                                        i < obj.payload.size(); ++i) {
+                        for (const auto& d : var.payload[i].decorators) {
+                            if ((name == "source" &&
+                                 (d.name == "source" || d.name == "from")) ||
+                                (name == "backtrace" && d.name == "backtrace"))
+                                return obj.payload[i];
+                        }
+                    }
+                }
+            }
+            return Value::none();
+        }
         panicHere("enum '" + obj.typeName + "' has no method '" + name + "'");
     }
 
@@ -7132,6 +7156,10 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             if (name == "backtrace") {
                 const Value* bt = structField(obj, "backtrace");
                 return bt ? *bt : Value::list();
+            }
+            if (name == "source") {
+                const Value* source = structField(obj, "source");
+                return source ? *source : Value::none();
             }
             panicHere("type '" + tn + "' has no method '" + name + "'");
         }
@@ -7278,6 +7306,30 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         }
 
         case VK::EnumV: {
+            if (name == "source" || name == "backtrace") {
+                auto derived = g_errDerivedEnums.find(obj.typeName);
+                if (derived != g_errDerivedEnums.end()) {
+                    for (const auto& var : derived->second->variants) {
+                        if (var.name != obj.variant) continue;
+                        for (size_t i = 0; i < var.payload.size() &&
+                                            i < obj.payload.size(); ++i) {
+                            for (const auto& d : var.payload[i].decorators) {
+                                if ((name == "source" &&
+                                     (d.name == "source" || d.name == "from")) ||
+                                    (name == "backtrace" && d.name == "backtrace")) {
+                                    Value payload = obj.payload[i];
+                                    return bind({}, [payload](std::vector<Value>&) {
+                                        return payload;
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                return bind({}, [](std::vector<Value>&) {
+                    return Value::none();
+                });
+            }
             auto ei = enums_.find(obj.typeName);
             if (ei != enums_.end())
                 for (const auto& var : ei->second->variants) {

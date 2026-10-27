@@ -37,6 +37,11 @@ pub fn root_cause(e) -> any {
     return native_error.root_cause(e);
 }
 
+# Return the immediate source/cause, or none when there is no source.
+pub fn source(e) -> any {
+    return native_error.source(e);
+}
+
 # True when `e` originated from a value of runtime type `name`.
 pub fn is(e, name: Str) -> Bool {
     return native_error.is(e, name);

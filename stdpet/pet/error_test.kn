@@ -66,6 +66,7 @@ fn main() -> none {
             assert(error.chain(er)[1] == "boom");
             assert(error.display(error.root_cause(er)) == "boom");
             assert(error.display(er) == "outer: boom");
+            assert(error.display(error.source(er)) == "boom");
         }
         case ok(_) { assert(false); }
     }
@@ -112,7 +113,11 @@ fn main() -> none {
         case ok(_) { assert(false); }
     }
     match wrapped_question() {
-        case err(converted) { assert(error.display(converted) == "wrapped: question"); }
+        case err(converted) {
+            assert(error.display(converted) == "wrapped: question");
+            assert(error.source(converted) == "question");
+            assert(converted.source() == "question");
+        }
         case ok(_) { assert(false); }
     }
 

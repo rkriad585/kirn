@@ -1641,6 +1641,13 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                                              const std::string& name) const {
     if (!recv) return std::nullopt;
 
+    if ((recv->is(TyK::EnumVal) || recv->is(TyK::EnumName)) &&
+        (name == "source" || name == "backtrace")) {
+        FuncSig s;
+        s.ret = unkTy();
+        return s;
+    }
+
     if (recv->is(TyK::Struct)) {
         auto it = structs_.find(recv->name);
         if (it != structs_.end()) {
@@ -4703,6 +4710,7 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
     }
 
     if (obj->is(TyK::EnumVal)) {
+        if (name == "source" || name == "backtrace") return unkTy();
         Symbol* es = scope_->find(obj->variant);
         if (es && es->kind == SymK::EnumVariant)
             for (const auto& p : es->payloads)

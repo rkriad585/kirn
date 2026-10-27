@@ -1289,6 +1289,19 @@ Delivered: `src/sema/checker.cpp`, `src/sema/checker.h`,
 Verification: error tests pass and gate 2b passes **71/0/0**, including the
 negative mismatch diagnostic.
 
+### Update (2026-10-27) — Error source accessors (shipped)
+
+Dynamic errors and derived enum errors now expose a uniform `source()` method,
+plus the `error.source(e)` module helper. Dynamic errors return their immediate
+cause; derived variants return the payload marked `@[source]` or `@[from]`.
+`@[backtrace]` payload access follows the same derived-error accessor pattern.
+The checker recognizes these methods on derived error values.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
+
+Verification: `error_test.kn` passes for dynamic and typed source access.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

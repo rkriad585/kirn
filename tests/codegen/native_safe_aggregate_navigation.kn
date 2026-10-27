@@ -1,0 +1,31 @@
+# M11: optional aggregate method calls and chained nominal safe navigation.
+struct Inner {
+    x: Int;
+}
+
+struct Outer {
+    inner: Inner;
+    xs: list[Int];
+
+    fn add_and_total(self, value: Int) -> Int {
+        self.xs.append(value);
+        return self.xs.sum();
+    }
+}
+
+fn safe_add(o: Outer?, value: Int) -> Int? {
+    return o .?. add_and_total(value);
+}
+
+fn safe_inner(o: Outer?) -> Int? {
+    return o .?. inner .?. x;
+}
+
+fn main() -> none {
+    var o = Outer(inner: Inner(x: 9), xs: [1, 2]);
+    print(safe_add(o, 3));
+    print(o);
+    print(safe_add(none, 3));
+    print(safe_inner(o));
+    print(safe_inner(none));
+}

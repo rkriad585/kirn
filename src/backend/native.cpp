@@ -1475,9 +1475,9 @@ private:
                 bool optional = recv && recv->k == TyK::Opt;
                 std::string obj = emitExpr(*e.lhs);
                 auto read = [&](const std::string& v) {
-                    if (value && value->k == TyK::Struct) return
-                        "kirn_native::co_field(" + v + ", \"" + e.text + "\")";
                     TyP field = optional ? optInner(value) : value;
+                    if (field && field->k == TyK::Struct) return
+                        "kirn_native::co_field(" + v + ", \"" + e.text + "\")";
                     if (field && field->k == TyK::List)
                         return "*kirn_native::co_field(" + v + ", \"" + e.text + "\").vec";
                     return "kirn_native::co_field(" + v + ", \"" + e.text + "\")." +

@@ -320,6 +320,18 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member &&
+            (e.lhs->text == "append" || e.lhs->text == "push_back")) {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                e.args.size() != 1 || e.args[0].name != "" ||
+                !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            if (!isListTy(recv) || recv->args.empty() ||
+                !isScalarTy(recv->args[0]))
+                return false;
+            return assignCompatible(typeOf(*e.args[0].value), recv->args[0]);
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
             if (!e.args.empty() || !e.lhs->lhs) return false;
             TyP recv = typeOf(*e.lhs->lhs);
@@ -1005,6 +1017,11 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member &&
+                    (e.lhs->text == "append" || e.lhs->text == "push_back")) {
+                    return emitExpr(*e.lhs->lhs) + ".push_back(" +
+                           boxExpr(*e.args[0].value) + ")";
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "len") {
                     TyP recv = typeOf(*e.lhs->lhs);
                     std::string obj = emitExpr(*e.lhs->lhs);

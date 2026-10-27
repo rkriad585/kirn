@@ -1285,6 +1285,8 @@ including negative-index normalization and bounds errors via the generated C++ v
 `tests/codegen/list_index.kn` and gate 11a cover this aggregate expression path.
 Nested scalar-list indexing (`matrix[i][j]`) now lowers recursively through the same boxed aggregate
 boundary, preserving negative-index handling (`tests/codegen/nested_index.kn`; gate 11a).
+Scalar-list mutation through `.append`/`.push_back` now lowers inside native range loops, allowing
+aggregate builders to remain native (`tests/codegen/list_append.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond

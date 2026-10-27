@@ -1,0 +1,12 @@
+# M11: scalar-list mutation in a native loop.
+fn squares(limit: Int) -> list[Int] {
+    out: list[Int] = [];
+    for i in 0..limit {
+        out.append(i * i);
+    }
+    return out;
+}
+
+fn main() -> none {
+    print(squares(5));
+}

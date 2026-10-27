@@ -43,6 +43,12 @@ fn wrapped_error() -> result[Int, AutoErr] {
     raise "disk";
 }
 
+fn wrapped_question() -> result[Int, AutoErr] {
+    var source: result[Int, Str] = err("question");
+    var value = source?;
+    return value;
+}
+
 fn main() -> none {
     # --- §5.1 dynamic Error: msg / Display / chain ---
     var e = error.msg("boom");
@@ -103,6 +109,10 @@ fn main() -> none {
 
     match wrapped_error() {
         case err(converted) { assert(error.display(converted) == "wrapped: disk"); }
+        case ok(_) { assert(false); }
+    }
+    match wrapped_question() {
+        case err(converted) { assert(error.display(converted) == "wrapped: question"); }
         case ok(_) { assert(false); }
     }
 

@@ -1,0 +1,11 @@
+# expect: cannot convert
+enum AutoErr {
+    Wrapped(@[from] cause: Str),
+}
+
+fn bad() -> result[Int, AutoErr] {
+    var source: result[Int, Bool] = err(true);
+    return source?;
+}
+
+fn main() -> none { bad(); }

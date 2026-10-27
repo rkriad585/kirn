@@ -317,6 +317,7 @@ private:
     std::map<std::string, SymP> structs_;
     std::map<std::string, const ast::Stmt*> structDecls_;  // name -> StructDef node
     std::map<std::string, SymP> enums_;
+    std::map<std::string, const ast::Stmt*> enumDecls_;
     std::map<std::string, SymP> traits_;
     std::set<std::pair<std::string, std::string>> impls_;   // trait -> struct
     std::map<std::string, std::set<std::string>> implMethods_;  // struct -> impl-provided method names

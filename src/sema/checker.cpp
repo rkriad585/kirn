@@ -798,6 +798,7 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 sym->kind = SymK::EnumName;
                 sym->name = st->name;
                 enums_[st->name] = sym;
+                enumDecls_[st->name] = st.get();
                 if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
@@ -4256,7 +4257,48 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
             TyP r = unwrapResult(t);
             if (r.get() != t.get() ||
                 (t && t->is(TyK::Struct) && t->name == "result"))
+            {
+                // Typed result propagation is permitted when the source
+                // error already fits the enclosing function's error type, or
+                // when a derived enum declares a single @[from]/@[source]
+                // payload for that source type. `Error` is dynamic and is
+                // represented by Unknown here, so it remains permissive.
+                if (t && t->is(TyK::Struct) && t->name == "result" &&
+                    t->args.size() >= 2 && currentRet_ &&
+                    currentRet_->is(TyK::Struct) &&
+                    currentRet_->name == "result" &&
+                    currentRet_->args.size() >= 2) {
+                    TyP fromErr = t->args[1];
+                    TyP toErr = currentRet_->args[1];
+                    bool allowed = fromErr->isUnknown() || toErr->isUnknown() ||
+                                   assignable(fromErr, toErr);
+                    if (!allowed && toErr->is(TyK::EnumName)) {
+                        auto ei = enumDecls_.find(toErr->name);
+                        if (ei != enumDecls_.end()) {
+                            for (const auto& var : ei->second->variants) {
+                                if (var.payload.size() != 1) continue;
+                                bool marked = false;
+                                for (const auto& d : var.payload[0].decorators)
+                                    if (d.name == "from" || d.name == "source") {
+                                        marked = true;
+                                        break;
+                                    }
+                                if (!marked) continue;
+                                TyP fieldTy = resolveType(var.payload[0].type);
+                                if (fromErr->isUnknown() ||
+                                    assignable(fromErr, fieldTy)) {
+                                    allowed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!allowed)
+                        error(e.span, "'?' error type " + toString(*fromErr) +
+                              " cannot convert to " + toString(*toErr));
+                }
                 return r;
+            }
             error(e.span,
                   "postfix '?' expects an optional or result, got " +
                       toString(*t));

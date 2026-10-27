@@ -1274,6 +1274,21 @@ The earlier deviation claiming that `@[from]`/`@[source]` conversions were not
 implemented is superseded for single-payload derived enum variants. Multi-field
 conversion and compile-time type validation remain intentionally open.
 
+### Update (2026-10-27) — `?` conversion checking (shipped)
+
+The checker now enforces the same conversion boundary as the runtime: a `?`
+from `result[_, E2]` is accepted only when `E2` is assignable to the enclosing
+`result[_, E]`, `E` is dynamic, or `E` has a single payload marked
+`@[from]`/`@[source]` whose field accepts `E2`. Invalid conversions now produce
+an actionable diagnostic instead of silently relying on runtime wrapping.
+
+Delivered: `src/sema/checker.cpp`, `src/sema/checker.h`,
+`tests/syntax/error_from_mismatch_err.kn`, and the typed conversion test in
+`stdpet/pet/error_test.kn`.
+
+Verification: error tests pass and gate 2b passes **71/0/0**, including the
+negative mismatch diagnostic.
+
 ### Update (2026-10-27) — Qualified `error.result[T]` alias (shipped)
 
 The documented `error.result[T]` spelling is now accepted as a qualified type

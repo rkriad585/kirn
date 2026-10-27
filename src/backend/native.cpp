@@ -320,6 +320,14 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                !e.args.empty())
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            return isListTy(recv) && !recv->args.empty() &&
+                   isScalarTy(recv->args[0]) && isScalarTy(typeOf(e));
+        }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "append" || e.lhs->text == "push_back")) {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -1017,6 +1025,14 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
+                    TyP elem = typeOf(*e.lhs->lhs)->args[0];
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string tmp = "__pop" + std::to_string(tmpSeq_++);
+                    return "[&]{ auto &" + tmp + " = (" + obj + "); auto __v = " +
+                           tmp + ".back(); " + tmp + ".pop_back(); return __v." +
+                           valueField(elem) + "; }()";
+                }
                 if (e.lhs->kind == ExKind::Member &&
                     (e.lhs->text == "append" || e.lhs->text == "push_back")) {
                     return emitExpr(*e.lhs->lhs) + ".push_back(" +

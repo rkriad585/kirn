@@ -1289,6 +1289,8 @@ Scalar-list mutation through `.append`/`.push_back` now lowers inside native ran
 aggregate builders to remain native (`tests/codegen/list_append.kn`; gate 11a).
 Scalar-list `.pop()` now lowers as a native mutation-and-value operation, preserving the list state
 for subsequent expressions (`tests/codegen/list_pop.kn`; gate 11a).
+Scalar-list `.shift()` now lowers as a native front-removal and value operation
+(`tests/codegen/list_shift.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond

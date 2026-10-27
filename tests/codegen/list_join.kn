@@ -1,0 +1,9 @@
+# M11: string-list joining on the native path.
+fn glue(parts: list[Str], sep: Str) -> Str {
+    return parts.join(sep);
+}
+
+fn main() -> none {
+    print(glue(["kirn", "native", "aot"], ":"));
+    print(glue([], ","));
+}

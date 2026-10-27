@@ -1299,6 +1299,8 @@ Scalar-list `.sum()` now lowers native integer and floating-point reductions
 (`tests/codegen/list_sum.kn`; gate 11a).
 Scalar-list `.contains(value)` and `.index(value)` now lower native scalar searches,
 including the interpreter's `-1` absent result (`tests/codegen/list_lookup.kn`; gate 11a).
+String-list `.join(separator)` now lowers natively with stable ordering and empty-list behavior
+(`tests/codegen/list_join.kn`; gate 11a).
 Optional-list safe member calls for `.?.len()` now lower to an optional native integer,
 preserving `none` propagation (`tests/codegen/safe_len.kn`; gate 11a).
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond

@@ -320,6 +320,18 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                e.args.size() != 1 || e.args[0].name != "" ||
+                !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            return isListTy(recv) && !recv->args.empty() &&
+                   recv->args[0]->k == TyK::Str &&
+                   typeOf(*e.args[0].value) &&
+                   typeOf(*e.args[0].value)->k == TyK::Str &&
+                   typeOf(e) && typeOf(e)->k == TyK::Str;
+        }
         if (e.lhs->kind == ExKind::Member &&
             (e.lhs->text == "contains" || e.lhs->text == "index")) {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
@@ -1093,6 +1105,12 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string sep = emitExpr(*e.args[0].value);
+                    return "[&]{ auto &__seq = (" + obj + "); auto __sep = (" +
+                           sep + "); std::string __out; for (size_t __i = 0; __i < __seq.size(); ++__i) { if (__i) __out += __sep; __out += __seq[__i].s; } return __out; }()";
+                }
                 if (e.lhs->kind == ExKind::Member &&
                     (e.lhs->text == "contains" || e.lhs->text == "index")) {
                     TyP elem = typeOf(*e.lhs->lhs)->args[0];

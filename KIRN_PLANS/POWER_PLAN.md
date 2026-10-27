@@ -1295,6 +1295,14 @@ Dynamic errors and derived enum errors now expose a uniform `source()` method,
 plus the `error.source(e)` module helper. Dynamic errors return their immediate
 cause; derived variants return the payload marked `@[source]` or `@[from]`.
 `@[backtrace]` payload access follows the same derived-error accessor pattern.
+
+### Update (2026-10-27) — Derived source plus backtrace conversion (shipped)
+
+Derived `Error` variants can now combine one `@[from]`/`@[source]` payload
+with one `@[backtrace]` payload. Propagation through `?` constructs the enum
+variant, preserves the source value, and captures the active interpreter frame
+list in the backtrace field. The checker accepts exactly this source-plus-
+backtrace shape, while rejecting unrelated multi-field conversion variants.
 The checker recognizes these methods on derived error values.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,

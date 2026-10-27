@@ -6973,26 +6973,47 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
         runDefers();
         if (isGen) yieldSinks_.pop_back();
         if (isResultRet(*fn)) {
-            // POWER_PLAN §5.4: convert a propagated value into the single
-            // payload variant marked @[from] or @[source], mirroring
-            // thiserror's generated From implementation.
+            // POWER_PLAN §5.4: convert a propagated value into the payload
+            // variant marked @[from] or @[source], mirroring thiserror's
+            // generated From implementation. A second @[backtrace] field is
+            // also populated when present, matching thiserror's source+
+            // backtrace pair.
             if (fn->ret->generics.size() >= 2 &&
                 !sraise.errResult.payload.empty()) {
                 const auto& errorTy = fn->ret->generics[1];
                 auto ei = errorTy ? enums_.find(errorTy->name) : enums_.end();
                 if (ei != enums_.end()) {
                     for (const auto& var : ei->second->variants) {
-                        if (var.payload.size() != 1) continue;
-                        bool marked = false;
-                        for (const auto& d : var.payload[0].decorators)
-                            if (d.name == "from" || d.name == "source") {
-                                marked = true;
-                                break;
+                        size_t sourceIndex = var.payload.size();
+                        size_t backtraceIndex = var.payload.size();
+                        bool valid = !var.payload.empty() && var.payload.size() <= 2;
+                        for (size_t i = 0; valid && i < var.payload.size(); ++i) {
+                            bool source = false, backtrace = false;
+                            for (const auto& d : var.payload[i].decorators) {
+                                source = source || d.name == "from" || d.name == "source";
+                                backtrace = backtrace || d.name == "backtrace";
                             }
-                        if (!marked) continue;
+                            if (source) {
+                                if (sourceIndex != var.payload.size()) valid = false;
+                                sourceIndex = i;
+                            } else if (backtrace) {
+                                if (backtraceIndex != var.payload.size()) valid = false;
+                                backtraceIndex = i;
+                            } else {
+                                valid = false;
+                            }
+                        }
+                        if (!valid || sourceIndex == var.payload.size()) continue;
                         Value wrapped = Value::enumV(errorTy->name, var.name);
-                        wrapped.payload.push_back(
-                            std::move(sraise.errResult.payload[0]));
+                        wrapped.payload.resize(var.payload.size(), Value::none());
+                        wrapped.payload[sourceIndex] =
+                            std::move(sraise.errResult.payload[0]);
+                        if (backtraceIndex != var.payload.size()) {
+                            Value frames = Value::list();
+                            for (const auto& frame : g_panicFrames)
+                                frames.vec->push_back(Value::str(frame));
+                            wrapped.payload[backtraceIndex] = std::move(frames);
+                        }
                         sraise.errResult.payload[0] = std::move(wrapped);
                         break;
                     }

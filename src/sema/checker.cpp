@@ -4283,15 +4283,23 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                         auto ei = enumDecls_.find(toErr->name);
                         if (ei != enumDecls_.end()) {
                             for (const auto& var : ei->second->variants) {
-                                if (var.payload.size() != 1) continue;
-                                bool marked = false;
-                                for (const auto& d : var.payload[0].decorators)
-                                    if (d.name == "from" || d.name == "source") {
-                                        marked = true;
-                                        break;
+                                size_t sourceIndex = var.payload.size();
+                                bool valid = !var.payload.empty() && var.payload.size() <= 2;
+                                for (size_t i = 0; valid && i < var.payload.size(); ++i) {
+                                    bool source = false, backtrace = false;
+                                    for (const auto& d : var.payload[i].decorators) {
+                                        source = source || d.name == "from" || d.name == "source";
+                                        backtrace = backtrace || d.name == "backtrace";
                                     }
-                                if (!marked) continue;
-                                TyP fieldTy = resolveType(var.payload[0].type);
+                                    if (source) {
+                                        if (sourceIndex != var.payload.size()) valid = false;
+                                        sourceIndex = i;
+                                    } else if (!backtrace) {
+                                        valid = false;
+                                    }
+                                }
+                                if (!valid || sourceIndex == var.payload.size()) continue;
+                                TyP fieldTy = resolveType(var.payload[sourceIndex].type);
                                 if (fromErr->isUnknown() ||
                                     assignable(fromErr, fieldTy)) {
                                     allowed = true;

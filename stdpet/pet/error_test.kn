@@ -49,6 +49,18 @@ fn wrapped_question() -> result[Int, AutoErr] {
     return value;
 }
 
+@[derive(Error, Debug)]
+enum AutoTraceErr {
+    @[error("traced: {cause}")]
+    TraceWrapped(@[from] cause: Str, @[backtrace] trace: list[Str]),
+}
+
+fn traced_question() -> result[Int, AutoTraceErr] {
+    var source: result[Int, Str] = err("traced source");
+    var value = source?;
+    return value;
+}
+
 fn main() -> none {
     # --- §5.1 dynamic Error: msg / Display / chain ---
     var e = error.msg("boom");
@@ -117,6 +129,16 @@ fn main() -> none {
             assert(error.display(converted) == "wrapped: question");
             assert(error.source(converted) == "question");
             assert(converted.source() == "question");
+        }
+        case ok(_) { assert(false); }
+    }
+
+    match traced_question() {
+        case err(converted) {
+            assert(error.display(converted) == "traced: traced source");
+            assert(error.source(converted) == "traced source");
+            assert(converted.source() == "traced source");
+            assert(converted.backtrace().len() > 0);
         }
         case ok(_) { assert(false); }
     }

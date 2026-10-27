@@ -1268,6 +1268,13 @@ Codegen tests now include `optional_param.kn` (optional-scalar params lower),
 `global_ref_fallback.kn` (a module-`var` read forces the interpreter fallback), `const_inline.kn`
 (module-`const` scalars inline and lower), and `coalesce_assign.kn` (scalar `??=` lowers).
 
+**Update (2026-10-27).** The native aggregate slice now lowers scalar-range list comprehensions with
+optional filters to `std::vector<kirn::interp::Value>` (`tests/codegen/list_comp.kn`), preserving the
+existing `Value::list` boundary. Gate 11a reports 11/11 native surfaces, and tree/VM parity covers the
+new fixture. The full native binary differential for this fixture did not complete in the local native
+toolchain wrapper during verification. M11 remains active: aggregate locals beyond list comprehensions,
+matrix multiplication, and safe navigation still require native lowering work.
+
 ---
 
 ### Phase M12 — Rejected features closed (documentation + rationale) _(features 4,5)_

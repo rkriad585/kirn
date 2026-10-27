@@ -1,0 +1,14 @@
+# M11 native aggregate lowering: a scalar range list comprehension returns a
+# native vector of boxed Kirn values through the existing registration thunk.
+fn squares(limit: Int) -> list[Int] {
+    return [i * i for i in 0..limit];
+}
+
+fn evens(limit: Int) -> list[Int] {
+    return [i for i in 0..limit if i % 2 == 0];
+}
+
+fn main() -> none {
+    print(squares(5));
+    print(evens(6));
+}

@@ -1388,9 +1388,11 @@ member reads, replacement, and returns (`tests/codegen/native_struct_nested_nomi
 Native collection methods can now use lowerable member receivers, so aggregate methods such as
 `self.xs.append()` followed by `self.xs.sum()` remain native rather than falling back
 (`tests/codegen/native_struct_aggregate_method.kn`; gate 11a). The bounded ABI still excludes
-collection methods whose elements require nominal-struct dispatch remain outside this bounded slice;
 generic trait-object calls are now bridged dynamically through the active interpreter invocation.
-General safe navigation remains active M11 work.
+The direct member-backed list slice also supports nominal-struct elements for construction, append,
+insert, length, pop, and shift (`tests/codegen/native_struct_collection_methods.kn`; gate 11a).
+Equality-based collection search/removal for nominal elements and general safe navigation remain
+active M11 work.
 Optional aggregate receivers now support native safe method calls and chained safe nominal-member
 reads, including optional nested structs and list-backed method mutation
 (`tests/codegen/native_safe_aggregate_navigation.kn`; gate 11a). The field emitter unwraps the

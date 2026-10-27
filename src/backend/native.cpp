@@ -92,8 +92,17 @@ static bool isNativeStructFieldTy(const TyP& t) {
                     isNativeStructFieldTy(t->args[0])) ||
                    isNativeStructTy(t->args[0]))));
 }
+static bool isNativeCollectionElemTy(const TyP& t) {
+    return isNativeStructFieldTy(t);
+}
+static bool isNativeOptListTy(const TyP& t) {
+    return t && t->k == TyK::Opt && optInner(t) &&
+           isListTy(optInner(t)) && !optInner(t)->args.empty() &&
+           isNativeCollectionElemTy(optInner(t)->args[0]);
+}
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
+           isNativeOptListTy(t) ||
            isStringTy(t) || isListTy(t) || isNativeStructTy(t) ||
            isOptStructTy(t) || isNativeTraitObjTy(t) || isOptTraitObjTy(t) ||
            isNativeFnTy(t) || isOptFnTy(t);
@@ -500,7 +509,7 @@ private:
             TyP base = optional ? optInner(recv) : recv;
             TyP result = typeOf(e);
             return (!optional || e.lhs->nilSafe) && isListTy(base) &&
-                   !base->args.empty() && isNativeListElemTy(base->args[0]) &&
+                   !base->args.empty() && isNativeCollectionElemTy(base->args[0]) &&
                    isListTy(src) && !src->args.empty() &&
                    src->args[0]->k == base->args[0]->k && result &&
                    (result->k == TyK::None ||
@@ -518,7 +527,7 @@ private:
             bool optional = recv && recv->k == TyK::Opt;
             TyP base = optional ? optInner(recv) : recv;
             if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
-                !isNativeListElemTy(base->args[0]) ||
+                !isNativeCollectionElemTy(base->args[0]) ||
                 !typeOf(*e.args[0].value) || typeOf(*e.args[0].value)->k != TyK::Int ||
                 !assignCompatible(typeOf(*e.args[1].value), base->args[0]))
                 return false;
@@ -536,7 +545,7 @@ private:
             bool optional = recv && recv->k == TyK::Opt;
             TyP base = optional ? optInner(recv) : recv;
             if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
-                !isNativeListElemTy(base->args[0]) ||
+                !isNativeCollectionElemTy(base->args[0]) ||
                 !assignCompatible(typeOf(*e.args[0].value), base->args[0]))
                 return false;
             TyP result = typeOf(e);
@@ -604,7 +613,7 @@ private:
             TyP base = optional ? optInner(recv) : recv;
             TyP result = typeOf(e);
             return (!optional || e.lhs->nilSafe) && isListTy(base) &&
-                   !base->args.empty() && isNativeListElemTy(base->args[0]) &&
+                   !base->args.empty() && isNativeCollectionElemTy(base->args[0]) &&
                    result && (result->k == TyK::None ||
                               (result->k == TyK::Opt && optInner(result) &&
                                optInner(result)->k == TyK::None));
@@ -619,7 +628,7 @@ private:
             TyP result = typeOf(e);
             TyP value = optional ? optInner(result) : result;
             return (!optional || e.lhs->nilSafe) && isListTy(base) &&
-                   !base->args.empty() && isScalarTy(base->args[0]) &&
+                   !base->args.empty() && isNativeCollectionElemTy(base->args[0]) &&
                    value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
@@ -632,7 +641,7 @@ private:
             TyP result = typeOf(e);
             TyP value = optional ? optInner(result) : result;
             return (!optional || e.lhs->nilSafe) && isListTy(base) &&
-                   !base->args.empty() && isScalarTy(base->args[0]) &&
+                   !base->args.empty() && isNativeCollectionElemTy(base->args[0]) &&
                    value && value->k == base->args[0]->k;
         }
         if (e.lhs->kind == ExKind::Member &&
@@ -645,7 +654,7 @@ private:
             bool optional = recv && recv->k == TyK::Opt;
             TyP base = optional ? optInner(recv) : recv;
             if ((optional && !e.lhs->nilSafe) || !isListTy(base) || base->args.empty() ||
-                !isNativeListElemTy(base->args[0]))
+                   !isNativeCollectionElemTy(base->args[0]))
                 return false;
             TyP result = typeOf(e);
             return assignCompatible(typeOf(*e.args[0].value), base->args[0]) &&
@@ -730,7 +739,7 @@ private:
                 } else {
                     TyP seq = typeOf(it);
                     if (!exprLowerable(it, cur) || !isListTy(seq) ||
-                        seq->args.empty() || !isNativeListElemTy(seq->args[0]))
+                        seq->args.empty() || !isNativeCollectionElemTy(seq->args[0]))
                         return false;
                 }
                 CurFn nested = cur;
@@ -820,8 +829,8 @@ private:
                 // result is an optional scalar, with the same negative-index
                 // and bounds behavior as the interpreter.
                 if (!e.lhs || !e.rhs || !exprLowerable(*e.lhs, cur) ||
-                    !exprLowerable(*e.rhs, cur) || !isOptListTy(typeOf(*e.lhs)) ||
-                    !isScalarTy(t ? optInner(t) : TyP{}))
+                    !exprLowerable(*e.rhs, cur) || !isNativeOptListTy(typeOf(*e.lhs)) ||
+                    !isNativeCollectionElemTy(t ? optInner(t) : TyP{}))
                     return false;
                 TyP it = typeOf(*e.rhs);
                 return it && it->k == TyK::Int && t && t->k == TyK::Opt;
@@ -933,7 +942,7 @@ private:
         } else {
             TyP seq = typeOf(it);
             if (!exprLowerable(it, cur) || !isListTy(seq) || seq->args.empty() ||
-                !isNativeListElemTy(seq->args[0]))
+                !isNativeCollectionElemTy(seq->args[0]))
                 return false;
         }
         return bodyLowerable(s.body, cur);
@@ -1419,8 +1428,8 @@ private:
             std::string loopVar = cIdent(s.pat->bindName, "v_");
             out_ << pad << "{ auto &&" << seq << " = (" << emitExpr(it)
                  << "); for (const auto& __item : " << seq << ") { "
-                 << cppTy(elem) << " " << loopVar << " = __item."
-                 << valueField(elem) << ";\n";
+                 << cppTy(elem) << " " << loopVar << " = "
+                 << unboxValue("__item", elem) << ";\n";
             localTypes_[s.pat->bindName] = cppTy(elem);
         }
         for (const auto& st : s.body) emitStmt(*st, ind + 1);
@@ -1488,7 +1497,7 @@ private:
                     TyP elem = typeOf(source)->args[0];
                     localTypes_[clause.pat->bindName] = cppTy(elem);
                     out += "auto &&__src = (" + emitExpr(source) + "); for (const auto& __item : __src) { " +
-                           cppTy(elem) + " " + var + " = __item." + valueField(elem) + "; ";
+                           cppTy(elem) + " " + var + " = " + unboxValue("__item", elem) + "; ";
                 }
                 if (e.clauses.size() == 2)
                     out += "if (" + emitExpr(*e.clauses[1].cond) + ") ";
@@ -1747,10 +1756,10 @@ private:
                     if (optional) {
                         return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
                                " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
-                               ".begin()); return std::optional<" + cppTy(elem) + ">{__v." + valueField(elem) + "}; }()";
+                               ".begin()); return std::optional<" + cppTy(elem) + ">{" + unboxValue("__v", elem) + "}; }()";
                     }
                     return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"shift from empty list\"); auto __v = " + tmp + ".front(); " + tmp + ".erase(" + tmp +
-                           ".begin()); return __v." + valueField(elem) + "; }()";
+                           ".begin()); return " + unboxValue("__v", elem) + "; }()";
                 }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "pop") {
                     TyP recv = typeOf(*e.lhs->lhs);
@@ -1761,10 +1770,10 @@ private:
                     if (optional) {
                         return "[&]{ auto __opt = (" + obj + "); if (!__opt) return std::optional<" + cppTy(elem) + ">{ }; auto &" + tmp +
                                " = *__opt; if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return std::optional<" + cppTy(elem) +
-                               ">{__v." + valueField(elem) + "}; }()";
+                               ">{" + unboxValue("__v", elem) + "}; }()";
                     }
-                    return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return __v." +
-                           valueField(elem) + "; }()";
+                    return "[&]{ auto &" + tmp + " = (" + obj + "); if (" + tmp + ".empty()) kirn_native::co_panic(\"pop from empty list\"); auto __v = " + tmp + ".back(); " + tmp + ".pop_back(); return " +
+                           unboxValue("__v", elem) + "; }()";
                 }
                 if (e.lhs->kind == ExKind::Member &&
                     (e.lhs->text == "append" || e.lhs->text == "push_back")) {
@@ -1834,13 +1843,12 @@ private:
                 std::string obj = emitExpr(*e.lhs);
                 std::string idx = emitExpr(*e.rhs);
                 std::string tmp = "__si" + std::to_string(tmpSeq_++);
-                std::string field = valueField(elem);
                 return "[&]{ auto " + tmp + " = (" + obj + "); if (!" + tmp +
                        ") return std::nullopt; int64_t __i = (" + idx +
                        "); if (__i < 0) __i += static_cast<int64_t>(" + tmp +
                        "->size()); return std::optional<" + cppTy(optInner(t)) +
-                       ">{(" + tmp + ")->at(static_cast<size_t>(__i))." +
-                       field + "}; }()";
+                       ">{" + unboxValue("(" + tmp + ")->at(static_cast<size_t>(__i))", elem) +
+                       "}; }()";
             }
             case ExKind::Index: {
                 TyP elem = typeOf(*e.lhs)->args[0];
@@ -1848,14 +1856,9 @@ private:
                 std::string idx = emitExpr(*e.rhs);
                 std::string tmp = "__ix" + std::to_string(tmpSeq_++);
                 std::string access = tmp + ".at(static_cast<size_t>(__i))";
-                if (elem->k == TyK::List)
-                    return "[&]{ auto " + tmp + " = (" + obj + "); int64_t __i = (" +
-                       idx + "); if (__i < 0) __i += static_cast<int64_t>(" +
-                       tmp + ".size()); return *" + access + ".vec; }()";
                 return "[&]{ auto " + tmp + " = (" + obj + "); int64_t __i = (" +
                        idx + "); if (__i < 0) __i += static_cast<int64_t>(" +
-                       tmp + ".size()); return " + access + "." +
-                       valueField(elem) + "; }()";
+                       tmp + ".size()); return " + unboxValue(access, elem) + "; }()";
             }
             default:
                 return "0";

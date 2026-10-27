@@ -1,0 +1,34 @@
+# M11: bounded list operations also work for nominal-struct elements.
+struct Item {
+    x: Int;
+}
+
+struct Bag {
+    items: list[Item];
+}
+
+fn mutate(b: Bag) -> Bag {
+    b.items.append(Item(x: 3));
+    b.items.insert(0, Item(x: 0));
+    return b;
+}
+
+fn take_last(b: Bag) -> Item {
+    return b.items.pop();
+}
+
+fn take_first(b: Bag) -> Item {
+    return b.items.shift();
+}
+
+fn count(b: Bag) -> Int {
+    return b.items.len();
+}
+
+fn main() -> none {
+    var b = mutate(Bag(items: [Item(x: 1), Item(x: 2)]));
+    print(b);
+    print(count(b));
+    print(take_last(b));
+    print(take_first(b));
+}

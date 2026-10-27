@@ -320,6 +320,18 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
+            if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
+                e.args.size() != 1 || e.args[0].name != "" ||
+                !e.args[0].value || !exprLowerable(*e.args[0].value, cur))
+                return false;
+            TyP recv = typeOf(*e.lhs->lhs);
+            TyP src = typeOf(*e.args[0].value);
+            return isListTy(recv) && !recv->args.empty() &&
+                   isScalarTy(recv->args[0]) && isListTy(src) &&
+                   !src->args.empty() && src->args[0]->k == recv->args[0]->k &&
+                   typeOf(e) && typeOf(e)->k == TyK::None;
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
             if (!e.lhs->lhs || e.lhs->lhs->kind != ExKind::Ident ||
                 e.args.size() != 1 || e.args[0].name != "" ||
@@ -1105,6 +1117,12 @@ private:
             case ExKind::Binary:
                 return emitBinop(e.op, *e.lhs, *e.rhs);
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->text == "extend") {
+                    std::string obj = emitExpr(*e.lhs->lhs);
+                    std::string src = emitExpr(*e.args[0].value);
+                    return "[&]{ auto &__dst = (" + obj + "); auto __src = (" +
+                           src + "); __dst.insert(__dst.end(), __src.begin(), __src.end()); }()";
+                }
                 if (e.lhs->kind == ExKind::Member && e.lhs->text == "join") {
                     std::string obj = emitExpr(*e.lhs->lhs);
                     std::string sep = emitExpr(*e.args[0].value);

@@ -1367,6 +1367,10 @@ Scalar/string-field methods declared in `impl Trait for Struct` now lower and re
 matching impl node, allowing concrete dynamic dispatch to reuse the native receiver ABI
 (`tests/codegen/native_impl_method.kn`; gate 11a). Generic trait-object calls and aggregate impl
 methods remain interpreter-backed.
+Optional nominal-struct safe method calls now short-circuit through the native inherent-method ABI,
+preserving `none` propagation and optional string results
+(`tests/codegen/native_safe_struct_method.kn`; gate 11a). Generic trait-object safe calls and
+aggregate receivers remain interpreter-backed.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

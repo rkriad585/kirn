@@ -1,0 +1,17 @@
+# M11: optional nominal-struct safe method calls on the native path.
+struct Point {
+    label: Str;
+
+    fn name(self) -> Str {
+        return self.label;
+    }
+}
+
+fn read_name(p: Point?) -> Str? {
+    return p .?. name();
+}
+
+fn main() -> none {
+    print(read_name(Point(label: "safe")));
+    print(read_name(none));
+}

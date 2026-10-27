@@ -411,6 +411,29 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        if (e.lhs->kind == ExKind::Member && e.lhs->lhs) {
+            TyP recv = typeOf(*e.lhs->lhs);
+            bool optional = recv && recv->k == TyK::Opt;
+            TyP base = optional ? optInner(recv) : recv;
+            const NativeFunc* method = nullptr;
+            if (isNativeStructTy(base)) {
+                for (const auto& [fn, nf] : lowered_)
+                    if (nf.ownerType == base->name && nf.name == e.lhs->text) {
+                        method = &nf; break;
+                    }
+            }
+            if (method && (!optional || e.lhs->nilSafe)) {
+                TyP result = typeOf(e);
+                TyP value = optional && result && result->k == TyK::Opt
+                    ? optInner(result) : result;
+                if (!value || !isNativeTy(value) || e.args.size() + 1 != method->pTypes.size())
+                    return false;
+                for (size_t i = 0; i < e.args.size(); ++i)
+                    if (e.args[i].name != "" || !e.args[i].value ||
+                        !exprLowerable(*e.args[i].value, cur)) return false;
+                return true;
+            }
+        }
         if (e.lhs->kind == ExKind::Ident && cur.locals.count(e.lhs->text)) {
             TyP callee = typeOf(*e.lhs);
             TyP fn = callee && callee->k == TyK::Opt ? optInner(callee) : callee;
@@ -1168,6 +1191,13 @@ private:
             if (nf.name == name) return &nf;
         return nullptr;
     }
+    const NativeFunc* findMethod(const std::string& owner,
+                                 const std::string& name) const {
+        for (const auto& [fn, nf] : *lowered_)
+            if (nf.ownerType == owner && nf.name == name && nf.implTrait.empty())
+                return &nf;
+        return nullptr;
+    }
 
     // ---- statements --------------------------------------------------------
     void emitStmt(const ast::Stmt& s, int ind) {
@@ -1459,6 +1489,29 @@ private:
                        retCpp + ">{ }; return std::optional<" + retCpp + ">{ " + call + " }; }()";
             }
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Member && e.lhs->lhs) {
+                    TyP recv = typeOf(*e.lhs->lhs);
+                    bool optional = recv && recv->k == TyK::Opt;
+                    TyP base = optional ? optInner(recv) : recv;
+                    const NativeFunc* method = base && base->k == TyK::Struct
+                        ? findMethod(base->name, e.lhs->text) : nullptr;
+                    if (method) {
+                        std::string obj = emitExpr(*e.lhs->lhs);
+                        std::string call = "kirn_native::" + method->cName + "(";
+                        if (optional) call += "*__recv";
+                        else call += obj;
+                        for (const auto& a : e.args)
+                            call += ", " + emitExpr(*a.value);
+                        call += ")";
+                        if (optional) {
+                            TyP ret = optInner(typeOf(e));
+                            return "[&]{ auto __recv = (" + obj + "); if (!__recv) return std::optional<" +
+                                   cppTy(ret) + ">{ }; return std::optional<" + cppTy(ret) + ">{ " +
+                                   call + " }; }()";
+                        }
+                        return call;
+                    }
+                }
                 if (e.lhs->kind == ExKind::Ident && localTypes_.count(e.lhs->text) &&
                     typeOf(*e.lhs) && typeOf(*e.lhs)->k == TyK::Fn) {
                     std::string call = cIdent(e.lhs->text, "v_") + "(";

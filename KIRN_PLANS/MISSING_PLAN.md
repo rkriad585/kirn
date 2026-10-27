@@ -1382,9 +1382,11 @@ list mutation, reductions, list-valued returns, and concrete dispatch
 (`tests/codegen/native_struct_aggregate_method.kn`; gate 11a). Generic trait-object calls, nested
 aggregate fields, and general safe navigation remain active M11 work.
 Nested scalar-list fields are now accepted recursively for native construction, whole-field reads,
-mutation, and returns (`tests/codegen/native_struct_nested_fields.kn`; gate 11a). The bounded ABI
-still excludes lists of nominal structs and arbitrary nested aggregate methods; generic trait-object
-calls and general safe navigation remain active M11 work.
+mutation, and returns (`tests/codegen/native_struct_nested_fields.kn`; gate 11a). Nested nominal
+struct fields and lists of nominal structs now use the same `Value` representation for construction,
+member reads, replacement, and returns (`tests/codegen/native_struct_nested_nominal.kn`; gate 11a).
+The bounded ABI still excludes arbitrary aggregate collection methods and generic trait-object calls;
+general safe navigation remains active M11 work.
 
 ---
 

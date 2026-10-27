@@ -79,11 +79,12 @@ static bool isNativeListElemTy(const TyP& t) {
 // A scalar/string field is stored directly in Value, while a list field is
 // stored as Value::list and is exposed to native code as vector<Value>.
 static bool isNativeStructFieldTy(const TyP& t) {
-    return t && (isScalarTy(t) || isStringTy(t) ||
+    return t && (isScalarTy(t) || isStringTy(t) || isNativeStructTy(t) ||
                  (isListTy(t) && !t->args.empty() &&
                   (isNativeListElemTy(t->args[0]) ||
                    (t->args[0]->k == TyK::List &&
-                    isNativeStructFieldTy(t->args[0])))));
+                    isNativeStructFieldTy(t->args[0])) ||
+                   isNativeStructTy(t->args[0]))));
 }
 static bool isNativeTy(const TyP& t) {
     return isScalarTy(t) || isOptScalarTy(t) || isOptListTy(t) ||
@@ -1187,6 +1188,8 @@ private:
             return "kirn::interp::Value::boolean(" + emitExpr(e) + ")";
         if (t && t->k == TyK::List)
             return "kirn::interp::Value::list(" + emitExpr(e) + ")";
+        if (t && t->k == TyK::Struct)
+            return emitExpr(e);
         return "kirn::interp::Value::integer(" + emitExpr(e) + ")";
     }
 

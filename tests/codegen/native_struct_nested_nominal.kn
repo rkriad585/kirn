@@ -1,0 +1,24 @@
+# M11: nominal structs can be nested through the Value-backed native ABI.
+struct Inner {
+    x: Int;
+}
+
+struct Outer {
+    inner: Inner;
+    inners: list[Inner];
+}
+
+fn read(o: Outer) -> Int {
+    return o.inner.x;
+}
+
+fn replace(o: Outer) -> Outer {
+    o.inner = Inner(x: 7);
+    return o;
+}
+
+fn main() -> none {
+    var o = Outer(inner: Inner(x: 2), inners: [Inner(x: 3), Inner(x: 4)]);
+    print(read(o));
+    print(replace(o));
+}

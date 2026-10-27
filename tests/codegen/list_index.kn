@@ -1,0 +1,8 @@
+# M11: direct indexing of a scalar-element list on the native path.
+fn pick(items: list[Int], i: Int) -> Int {
+    return items[i];
+}
+
+fn main() -> none {
+    print(pick([4, 5, 6], -1));
+}

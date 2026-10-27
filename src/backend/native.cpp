@@ -440,6 +440,20 @@ private:
                 TyP it = typeOf(*e.rhs);
                 return it && it->k == TyK::Int && t && t->k == TyK::Opt;
             }
+            case ExKind::Index: {
+                // Native aggregate support also includes direct indexing of a
+                // list whose elements are scalar values. The list remains a
+                // vector<Value> at the thunk boundary; only the selected
+                // element is unboxed into the native scalar result.
+                TyP obj = e.lhs ? typeOf(*e.lhs) : TyP{};
+                TyP idx = e.rhs ? typeOf(*e.rhs) : TyP{};
+                if (!e.lhs || !e.rhs || !exprLowerable(*e.lhs, cur) ||
+                    !exprLowerable(*e.rhs, cur) || !isListTy(obj) ||
+                    obj->args.empty() || !isScalarTy(obj->args[0]) ||
+                    !idx || idx->k != TyK::Int || !isScalarTy(t))
+                    return false;
+                return true;
+            }
             default:
                 return false;
         }
@@ -1033,6 +1047,16 @@ private:
                        "->size()); return std::optional<" + cppTy(optInner(t)) +
                        ">{(" + tmp + ")->at(static_cast<size_t>(__i))." +
                        field + "}; }()";
+            }
+            case ExKind::Index: {
+                TyP elem = typeOf(*e.lhs)->args[0];
+                std::string obj = emitExpr(*e.lhs);
+                std::string idx = emitExpr(*e.rhs);
+                std::string tmp = "__ix" + std::to_string(tmpSeq_++);
+                return "[&]{ auto &" + tmp + " = (" + obj + "); int64_t __i = (" +
+                       idx + "); if (__i < 0) __i += static_cast<int64_t>(" +
+                       tmp + ".size()); return " + tmp + ".at(static_cast<size_t>(__i))." +
+                       valueField(elem) + "; }()";
             }
             default:
                 return "0";

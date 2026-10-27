@@ -1280,6 +1280,9 @@ matrix multiplication, and safe navigation still require native lowering work.
 `.?[index]` preserves Kirn's negative-index normalization and returns `none` for an absent list;
 out-of-range indices retain the interpreter's error behavior. The registration thunk now
 boxes/unboxes optional list parameters and results.
+Direct indexing of scalar-element list parameters/locals (`items[index]`) is also lowered natively,
+including negative-index normalization and bounds errors via the generated C++ vector access.
+`tests/codegen/list_index.kn` and gate 11a cover this aggregate expression path.
 `tests/codegen/safe_index.kn` and gate 11a cover the lowerability surface. Aggregate locals beyond
 list comprehensions, matrix multiplication, safe calls, and general safe navigation remain active
 M11 work.

@@ -959,9 +959,13 @@ private:
                 !exprLowerable(*tgt->lhs, cur)) return false;
             TyP recv = typeOf(*tgt->lhs);
             bool optional = recv && recv->k == TyK::Opt;
-            if (optional && (!tgt->nilSafe || tgt->lhs->kind != ExKind::Ident ||
-                             !isNativeStructTy(optInner(recv))))
-                return false;
+            if (optional) {
+                bool direct = tgt->lhs->kind == ExKind::Ident;
+                bool nested = tgt->lhs->kind == ExKind::Member && tgt->lhs->lhs &&
+                              tgt->lhs->lhs->kind == ExKind::Ident;
+                if (!tgt->nilSafe || (!direct && !nested) ||
+                    !isNativeStructTy(optInner(recv))) return false;
+            }
             if (!optional && !isNativeStructTy(recv)) return false;
             TyP field = typeOf(*tgt);
             if (optional) field = optInner(field);
@@ -1099,6 +1103,9 @@ public:
                 " for(auto& f:v.fields) if(f.first == n) return f.second;"
                 " kirn::interp::panicHere(\"native field not found\");"
                 " return v; }\n"
+             << "static inline std::optional<kirn::interp::Value> co_optional_field("
+                "const kirn::interp::Value& v,const char* n){"
+                " const auto& f = co_field(v,n); if(f.isNone()) return {}; return f; }\n"
              << "static inline kirn::interp::Value co_trait_call("
                 "const kirn::interp::Value& v,const char* n,"
                 "std::vector<kirn::interp::Value> a){"
@@ -1329,10 +1336,26 @@ private:
                     const ast::Expr& tgt = *s.exprs[0];
                     TyP recv = typeOf(*tgt.lhs);
                     if (recv && recv->k == TyK::Opt) {
-                        out_ << pad << "{ auto& __opt = (" << emitExpr(*tgt.lhs)
-                             << "); if (__opt) kirn_native::co_field_mut(*__opt, \""
-                             << tgt.text << "\") = " << boxExpr(*s.exprs[1])
-                             << "; }\n";
+                        if (tgt.lhs->kind == ExKind::Member && tgt.lhs->lhs) {
+                            TyP owner = typeOf(*tgt.lhs->lhs);
+                            std::string base = emitExpr(*tgt.lhs->lhs);
+                            if (owner && owner->k == TyK::Opt) {
+                                out_ << pad << "{ auto __base = (" << base
+                                     << "); if (__base) { auto& __field = kirn_native::co_field_mut(*__base, \""
+                                     << tgt.lhs->text << "\"); if (!__field.isNone()) kirn_native::co_field_mut(__field, \""
+                                     << tgt.text << "\") = " << boxExpr(*s.exprs[1]) << "; } }\n";
+                            } else {
+                                out_ << pad << "{ auto& __field = kirn_native::co_field_mut("
+                                     << base << ", \"" << tgt.lhs->text
+                                     << "\"); if (!__field.isNone()) kirn_native::co_field_mut(__field, \""
+                                     << tgt.text << "\") = " << boxExpr(*s.exprs[1]) << "; }\n";
+                            }
+                        } else {
+                            out_ << pad << "{ auto& __opt = (" << emitExpr(*tgt.lhs)
+                                 << "); if (__opt) kirn_native::co_field_mut(*__opt, \""
+                                 << tgt.text << "\") = " << boxExpr(*s.exprs[1])
+                                 << "; }\n";
+                        }
                         return;
                     }
                     out_ << pad << "kirn_native::co_field_mut(" <<
@@ -1562,9 +1585,10 @@ private:
                 TyP recv = typeOf(*e.lhs);
                 TyP value = t;
                 bool optional = recv && recv->k == TyK::Opt;
+                bool optionalField = value && value->k == TyK::Opt;
                 std::string obj = emitExpr(*e.lhs);
                 auto read = [&](const std::string& v) {
-                    TyP field = optional ? optInner(value) : value;
+                    TyP field = optionalField ? optInner(value) : value;
                     if (field && field->k == TyK::Struct) return
                         "kirn_native::co_field(" + v + ", \"" + e.text + "\")";
                     if (field && field->k == TyK::List)
@@ -1572,12 +1596,25 @@ private:
                     return "kirn_native::co_field(" + v + ", \"" + e.text + "\")." +
                            valueField(field);
                 };
-                if (optional) {
-                    TyP inner = optInner(t);
+                if (optional || optionalField) {
+                    TyP inner = optionalField ? optInner(t) : t;
                     std::string tmp = "__mem" + std::to_string(tmpSeq_++);
-                    return "[&]{ auto " + tmp + " = (" + obj + "); if (!" + tmp + ") return std::optional<" +
-                           cppTy(inner) + ">{ }; return std::optional<" + cppTy(inner) + ">{ " +
-                           read("*" + tmp) + " }; }()";
+                    std::string field = "__field" + std::to_string(tmpSeq_++);
+                    std::string out = "[&]{ ";
+                    if (optional) {
+                        out += "auto " + tmp + " = (" + obj + "); if (!" + tmp + ") return std::optional<" +
+                               cppTy(inner) + ">{ }; ";
+                    }
+                    const std::string base = optional ? ("*" + tmp) : obj;
+                    if (optionalField) {
+                        out += "auto " + field + " = kirn_native::co_optional_field(" + base +
+                               ", \"" + e.text + "\"); if (!" + field + ") return std::optional<" +
+                               cppTy(inner) + ">{ }; return std::optional<" + cppTy(inner) + ">{ " +
+                               unboxValue("(*" + field + ")", inner) + " }; }()";
+                    } else {
+                        out += "return std::optional<" + cppTy(inner) + ">{ " + read(base) + " }; }()";
+                    }
+                    return out;
                 }
                 return read(obj);
             }

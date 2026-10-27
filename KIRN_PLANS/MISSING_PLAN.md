@@ -1410,6 +1410,10 @@ Safe navigation through optional nominal structs now also covers nominal-list in
 lvalue instead of modifying a copied vector (`tests/codegen/native_safe_nested_collection.kn`; gate 11a).
 The native compile path now emits an explicit optional type for empty safe-index results, so this
 aggregate path is valid in a real C++ translation unit as well as in dump-only codegen checks.
+Optional nominal fields now preserve `none` through safe reads and support nested safe mutation for
+both a concrete struct receiver and an optional outer receiver (`tests/codegen/native_safe_nested_mutation.kn`).
+The generated translation unit passes standalone C++20 syntax checking; the full runtime launcher
+remains subject to the local toolchain wrapper timeout during whole-runtime compilation.
 
 ---
 

@@ -1,0 +1,33 @@
+# M11: safe access and mutation of an optional nominal struct field.
+struct Inner {
+    x: Int;
+}
+
+struct Outer {
+    inner: Inner?;
+}
+
+fn read_inner(o: Outer) -> Int? {
+    return o.inner .?. x;
+}
+
+fn set_inner(o: Outer) -> Outer {
+    o.inner .?. x = 7;
+    return o;
+}
+
+fn set_outer(o: Outer?) -> Outer? {
+    o .?. inner .?. x = 8;
+    return o;
+}
+
+fn main() -> none {
+    var present = Outer(inner: Inner(x: 1));
+    var absent = Outer(inner: none);
+    print(read_inner(present));
+    print(read_inner(absent));
+    print(set_inner(present));
+    print(set_inner(absent));
+    print(set_outer(present));
+    print(set_outer(none));
+}

@@ -269,6 +269,11 @@ async fn main() -> none {
     drained = await sset2.shutdown();
     assert_eq(drained.len(), 1);
 
+    var waited = addup(8);
+    waited.wait();
+    assert(waited.is_finished());
+    assert_eq(await waited, 80);
+
     var tj_slow: any = addup(7);
     try { await a.try_join([afail(-1), tj_slow]); }
     catch { }

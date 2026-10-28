@@ -1802,6 +1802,10 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             // return value (previously none).
             s.ret = argAt(recv, 0);
             if (name == "join") return s;
+            if (name == "wait") {
+                s.ret = noneTy();
+                return s;
+            }
             // POWER_PLAN §2.3: task cancellation surface.
             if (name == "is_finished" || name == "is_aborted") {
                 s.ret = boolTy();

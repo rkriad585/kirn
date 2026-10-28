@@ -18,5 +18,10 @@ async fn main() -> none {
     print("next:", await set.join_next());
     print("all:", await set.join_all(), set.is_empty());
 
+    var waited = work(4, 1);
+    waited.wait();
+    assert(waited.is_finished());
+    print("wait:", await waited);
+
     print("blocking:", await a.spawn_blocking(fn () -> Int { return 1; }));
 }

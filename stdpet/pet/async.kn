@@ -294,6 +294,9 @@ pub struct TaskSetState {
 
     async fn shutdown(self) -> list {
         self.abort_all();
+        # `await` returns immediately for an aborted handle; wait for each
+        # underlying task before reporting structured shutdown complete.
+        for t in self.ts { t.wait(); }
         return await self.join_all();
     }
 }

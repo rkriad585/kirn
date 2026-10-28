@@ -1439,6 +1439,22 @@ Delivered: `src/interp/runtime.cpp`, `tests/syntax/async_time_ok.kn`.
 Verification: full build, focused checker/VM/tree parity, and syntax gate 2b
 (**78 passed, 0 failed, 0 hung**).
 
+### Update (2026-10-28) — Structured task shutdown waits (shipped)
+
+Task handles now expose `wait()`, which waits for the underlying task thread
+to finish and joins it even when the public handle was cooperatively aborted.
+`TaskSet.shutdown()` uses this drain step after `abort_all`, so shutdown does
+not report completion while cancelled OS tasks are still running.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_tasks_ok.kn`.
+
+Verification: full build, async stdlib/checker checks, focused VM/tree parity,
+and syntax gate 2b (**78 passed, 0 failed, 0 hung**). The aggregate async
+stdlib execution remains affected by its pre-existing localhost TCP bind
+failure; the network-free regression passes independently.
+
 ### Update (2026-10-28) — Guard-aware select cancellation (shipped)
 
 Select now cancels only enabled losing task arms. A task arm excluded by a

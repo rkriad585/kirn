@@ -7438,6 +7438,27 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     // `pet.parallel` collect parallel results without `await`.
                     return awaitTask(a[0]);
                 });
+            if (name == "wait")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    // Structured shutdown waits for the underlying OS thread
+                    // even when the public handle is already aborted.
+                    if (a.empty() || a[0].k != VK::ThreadH || !a[0].thread)
+                        return Value::none();
+                    auto t = a[0].thread;
+                    {
+                        std::unique_lock<std::mutex> lk(t->m);
+                        if (!t->done)
+                            t->cv.wait(lk, [&] { return t->done; });
+                    }
+                    if (!t->joined && t->th.joinable()) {
+                        if (std::this_thread::get_id() == t->th.get_id())
+                            t->th.detach();
+                        else
+                            t->th.join();
+                        t->joined = true;
+                    }
+                    return Value::none();
+                });
             if (name == "is_finished")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     if (a.empty() || a[0].k != VK::ThreadH || !a[0].thread)

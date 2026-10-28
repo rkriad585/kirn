@@ -1427,6 +1427,33 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Current-state audit (2026-10-28)
+
+The historical deviation lists above remain as design rationale, but later
+implementation updates supersede several of their “not shipped” statements.
+The authoritative shipped surface now includes:
+
+- `pet.sync` oneshot, broadcast, watch, timed waits, and watch mutation
+  callbacks;
+- `select` task and `await` arms, `else`, biased/rotating selection, guarded
+  arms, and cooperative cancellation of enabled losing tasks;
+- completion-order `TaskSet.join_next`, typed async/spawn/TaskSet handles,
+  cooperative cancellation checkpoints, timer-await cancellation, and
+  structured shutdown waiting;
+- parallel iterator method entry points, the documented combinator set, string
+  helpers, and closure sendability checks; and
+- serde function-valued options, JSON reader/writer helpers, dynamic error
+  backtraces/source accessors/conversions, and the canonical `kirn.toml` /
+  `kirn.lock` project names.
+
+The remaining active queue is intentionally narrower: a work-stealing async
+scheduler, nominal `Instant`/`Duration` and `Elapsed` values, cancellation of
+blocking I/O/process operations, formal async I/O traits and owned split
+halves, full serde trait/derive code generation, true in-place parallel
+mutation, and the still-limited `@[par]` decorator forms. Subsequent phases
+must address those items or document a verified language-model constraint;
+superseded historical bullets are not pending tasks.
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

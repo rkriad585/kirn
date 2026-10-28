@@ -3,8 +3,9 @@
 # Backed by the native `parallel` module (which runs Kirn closures on OS
 # threads via the task machinery that also powers `spawn`/`await`). Combinators
 # split work into per-thread chunks, run the chunks concurrently, and reassemble
-# the results in order. Like rayon, parallel closures must not mutate shared
-# state (there is no sendability checker yet); keep them pure.
+# the results in order. Callback closures cross a worker boundary and are
+# checked for sendability; shared mutable containers still require explicit
+# synchronization.
 #
 #   import pet.parallel as parallel;
 #   var total = parallel.par_iter([1,2,3,4]).map(fn (x) { return x * x; }).sum();

@@ -1,0 +1,13 @@
+async fn answer() -> Int {
+    return 7;
+}
+
+async fn main() -> none {
+    var task = answer();
+    task.abort();
+    assert(task.is_aborted());
+    assert(task.is_finished());
+
+    var value: Int = await answer();
+    assert(value == 7);
+}

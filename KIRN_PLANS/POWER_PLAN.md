@@ -1358,3 +1358,17 @@ Delivered: `src/parser/parser.cpp`, `src/sema/checker.cpp`,
 
 Verification: the new program checks and runs (`42`), and gate 2b passes
 **69/0/0**. The earlier dotted-type alias deviation is superseded.
+
+### Update (2026-10-28) — Typed async task handles (shipped)
+
+Async function and method calls now expose a typed `thread[T]` handle to the
+checker. `await` unwraps `T`, `join()` returns `T`, and cancellation/status
+methods remain available without erasing the handle to `any`. Generic async
+functions preserve their instantiated result type.
+
+Delivered: `src/sema/symbols.h`, `src/sema/checker.cpp`,
+`tests/syntax/async_typed_handle_ok.kn`.
+
+Verification: build, focused check/VM/native runs, and gate 2b passed the new
+test. Gate 2b remains **75 passed, 1 failed, 0 hung** because the existing
+`async_byteio_ok.kn` test intermittently cannot bind its TCP listener.

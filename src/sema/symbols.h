@@ -31,6 +31,8 @@ struct FuncSig {
     std::vector<std::string> names;   // parallel; empty string = unnamed
     TyP ret;
     bool variadic = false;
+    // Async declarations return a task handle at call sites.
+    bool isAsync = false;
     size_t required = static_cast<size_t>(-1);  // min arg count (params beyond are optional)
 
     // M3 TypeGuard: non-null when the function's declared return type is

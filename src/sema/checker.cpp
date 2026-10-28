@@ -83,7 +83,8 @@ std::string toString(const Ty& t) {
                                    (t.inner ? toString(*t.inner)
                                     : !t.args.empty() ? toString(*t.args[0])
                                                       : "");
-        case TyK::Struct:   return t.name;
+        case TyK::Struct:
+            return t.args.empty() ? t.name : t.name + "[" + toString(*t.args[0]) + "]";
         case TyK::EnumName: return t.name;
         case TyK::EnumVal:  return t.name + "." + t.variant;
         case TyK::TraitObj: return t.name;
@@ -929,9 +930,11 @@ void Checker::fillStructBody(SymP stSym, const ast::Stmt& s) {
         }
     }
     // Derived methods override base methods of the same name (virtual dispatch).
-    for (const auto& m : s.body)
-        if (m->kind == StKind::FuncDef)
-            stSym->methods[m->name] = resolveSig(m->params, m->ret, true);
+    for (const auto& m : s.body) {
+        if (m->kind != StKind::FuncDef) continue;
+        stSym->methods[m->name] = resolveSig(m->params, m->ret, true);
+        stSym->methods[m->name].isAsync = m->isAsync;
+    }
 }
 
 std::string importRootOf(const ast::Stmt& st) {
@@ -1013,6 +1016,7 @@ void Checker::registerTopLevel(const std::vector<ast::StmtP>& prog) {
                 {
                     TvGuard tv(typeVars_, st->typeParams);
                     sym->sig = resolveSig(st->params, st->ret, /*stripSelf*/ false);
+                    sym->sig.isAsync = st->isAsync;
                     // Recorded here, inside the TvGuard scope, so a later reader
                     // gets the signature with type variables resolved. See
                     // Checker::funcSig.
@@ -1673,7 +1677,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             FuncSig s;
             // POWER_PLAN §4: a task handle's `join()` now yields the task's
             // return value (previously none).
-            s.ret = unkTy();
+            s.ret = argAt(recv, 0);
             if (name == "join") return s;
             // POWER_PLAN §2.3: task cancellation surface.
             if (name == "is_finished" || name == "is_aborted") {
@@ -3686,6 +3690,7 @@ void Checker::checkStmt(const ast::Stmt& s) {
             sym->pub = s.pub;
             TvGuard tv(typeVars_, s.typeParams);
             sym->sig = resolveSig(s.params, s.ret, false);
+            sym->sig.isAsync = s.isAsync;
             if (containsYieldStmt(s)) {
                 const_cast<ast::Stmt&>(s).isGenerator = true;
                 if (!s.ret) sym->sig.ret = genTy(unkTy());
@@ -3967,13 +3972,13 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                 return nominalWithArgs(TyK::Struct, "thread", {});
             }
             if (op == "await") {
-                // POWER_PLAN §2: `await` drives a Task[T] to completion. The
-                // type-level Task wrapper is elided in v1: an async fn call is
-                // typed as its declared return `T`, and `await e` has the type
-                // of `e`. Only valid inside an `async fn` body.
+                // Awaiting a typed task unwraps its result; legacy awaitables
+                // keep their established result type.
                 if (asyncDepth_ <= 0)
                     error(e.span, "'await' is only allowed inside an 'async fn' body");
-                return t;                          // t = type of the awaited operand
+                if (t && t->is(TyK::Struct) && t->name == "thread")
+                    return argAt(t, 0);
+                return t;
             }
             return t;
         }
@@ -4871,6 +4876,9 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
             checkClosureSendable(*args[0].value, "go");
         }
     }
+    if (sig->isAsync)
+        return nominalWithArgs(TyK::Struct, "thread",
+                               {sig->ret ? sig->ret : unkTy()});
     return sig->ret;
 }
 
@@ -5009,7 +5017,12 @@ TyP Checker::genericApply(const Symbol* sym,
                           const std::vector<ast::CallArg>& args, uint32_t line,
                           uint32_t col) {
     TyP ret = sym->sig.ret;
-    if (sym->typeDefaults.empty()) return ret ? ret : unkTy();
+    if (sym->typeDefaults.empty()) {
+        if (sym->sig.isAsync)
+            return nominalWithArgs(TyK::Struct, "thread",
+                                   {ret ? ret : unkTy()});
+        return ret ? ret : unkTy();
+    }
 
     std::map<std::string, TyP> activ;
     for (const auto& kv : sym->typeDefaults) activ[kv.first] = kv.second;
@@ -5024,7 +5037,11 @@ TyP Checker::genericApply(const Symbol* sym,
         }
         ++pi;
     }
-    return substGeneric(ret, activ, line, col);
+    TyP applied = substGeneric(ret, activ, line, col);
+    if (sym->sig.isAsync)
+        return nominalWithArgs(TyK::Struct, "thread",
+                               {applied ? applied : unkTy()});
+    return applied;
 }
 
 TyP Checker::checkCall(const ast::Expr& e) {

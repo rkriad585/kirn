@@ -497,6 +497,7 @@ void Checker::predeclareBuiltins() {
     addDerivedTrait("Eq", "eq", boolTy(), unkTy());
     addDerivedTrait("Hash", "hash", intTy());
     addDerivedTrait("Clone", "clone", unkTy());
+    addDerivedTrait("Ord", "cmp", intTy(), unkTy());
 
     // result[OkT, ErrT] nominal + ok()/err() variant constructors (patterns).
     auto res = std::make_shared<Symbol>();
@@ -859,7 +860,8 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 for (const auto& trait : {std::string("Debug"),
                                           std::string("Eq"),
                                           std::string("Hash"),
-                                          std::string("Clone")})
+                                          std::string("Clone"),
+                                          std::string("Ord")})
                     if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }
@@ -879,7 +881,8 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 for (const auto& trait : {std::string("Debug"),
                                           std::string("Eq"),
                                           std::string("Hash"),
-                                          std::string("Clone")})
+                                          std::string("Clone"),
+                                          std::string("Ord")})
                     if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }

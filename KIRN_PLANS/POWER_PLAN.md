@@ -1502,6 +1502,18 @@ Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
 Verification: full build plus VM/tree-walker execution of struct and enum
 derive regressions pass.
 
+### Update (2026-10-28) — Derived ordering (shipped)
+
+`@[derive(Ord)]` now exposes `cmp(other) -> Int` for structs and enums. It
+uses the same deterministic deep-value ordering used by the runtime's ordered
+collection operations and returns `-1`, `0`, or `1`; checker method lookup and
+runtime fallback are both nominal and explicit.
+
+Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
+`tests/syntax/derive_common_ok.kn`.
+
+Verification: full build and VM/tree-walker derive tests pass.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

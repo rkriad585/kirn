@@ -1,8 +1,8 @@
 # Common derived traits are checker-visible and runtime-backed.
-@[derive(Debug, Eq, Hash, Clone)]
+@[derive(Debug, Eq, Hash, Clone, Ord)]
 struct Point { x: Int; y: Int; }
 
-@[derive(Debug, Eq, Hash, Clone)]
+@[derive(Debug, Eq, Hash, Clone, Ord)]
 enum State { Ready; Failed(code: Int); }
 
 fn main() -> none {
@@ -11,6 +11,8 @@ fn main() -> none {
     assert(q.eq(p));
     assert(q.debug() == "Point(x: 3, y: 4)");
     assert(q.hash() == p.hash());
+    assert(p.cmp(Point(x: 9, y: 0)) < 0);
+    assert(p.cmp(Point(x: 3, y: 4)) == 0);
     assert(State.Ready.debug() == "State.Ready");
     assert(State.Ready.eq(State.Ready));
     print("common derives ok");

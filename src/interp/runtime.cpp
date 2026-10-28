@@ -1814,7 +1814,8 @@ void Interpreter::registerDerivedSerdeTraits(const Stmt& s, Env env) {
     for (const auto& trait : {std::string("Serialize"),
                               std::string("Deserialize"),
                               std::string("Debug"), std::string("Eq"),
-                              std::string("Hash"), std::string("Clone")}) {
+                              std::string("Hash"), std::string("Clone"),
+                              std::string("Ord")}) {
         if (!decoratorDerives(s, trait)) continue;
         ImplEntry ent;
         ent.traitName = trait;
@@ -7478,6 +7479,10 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             if (it->traitName == "Hash" && name == "hash")
                 return Value::integer((int64_t)std::hash<std::string>{}(repr(obj)));
             if (it->traitName == "Clone" && name == "clone") return obj;
+            if (it->traitName == "Ord" && name == "cmp" && !pos.empty()) {
+                if (valEq(obj, pos[0])) return Value::integer(0);
+                return Value::integer(repr(obj) < repr(pos[0]) ? -1 : 1);
+            }
         }
         panicHere("enum '" + obj.typeName + "' has no method '" + name + "'");
     }
@@ -7595,6 +7600,10 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                         return copy;
                     }
                     return obj;
+                }
+                if (it->traitName == "Ord" && name == "cmp" && !pos.empty()) {
+                    if (valEq(obj, pos[0])) return Value::integer(0);
+                    return Value::integer(repr(obj) < repr(pos[0]) ? -1 : 1);
                 }
             }
         }

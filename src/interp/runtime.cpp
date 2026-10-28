@@ -5655,14 +5655,26 @@ void Interpreter::exec(const Stmt& s, Env env) {
             return;
 
         case ast::StKind::ExprStmt:
-            for (const auto& e : s.exprs) eval(*e, env);
+            for (const auto& e : s.exprs) {
+                bool parallel = false;
+                for (const auto& d : s.decorators)
+                    if (d.bracket && d.name == "par") { parallel = true; break; }
+                if (parallel) evalParallelDecoratorExpr(*e, env);
+                else eval(*e, env);
+            }
             return;
 
         case ast::StKind::Assign: {
             size_t n = s.exprs.size();
             size_t nt = (n % 2 == 0) ? n / 2 : n - 1;
             std::vector<Value> vals;
-            for (size_t i = nt; i < n; ++i) vals.push_back(eval(*s.exprs[i], env));
+            bool parallel = false;
+            for (const auto& d : s.decorators)
+                if (d.bracket && d.name == "par") { parallel = true; break; }
+            for (size_t i = nt; i < n; ++i)
+                vals.push_back(parallel
+                                   ? evalParallelDecoratorExpr(*s.exprs[i], env)
+                                   : eval(*s.exprs[i], env));
             if (n % 2 != 0 && nt > 1) {
                 const Value& src = vals[0];
                 if ((src.k == VK::Tuple || src.k == VK::List) &&
@@ -7033,6 +7045,62 @@ Value cv = eval(*e.lhs, env);
             return e.rhs ? eval(*e.rhs, env) : Value::none();
     }
     panicHere("internal: unhandled expression kind");
+}
+
+Value Interpreter::evalParallelDecoratorExpr(const Expr& e, Env env) {
+    if (e.kind != ast::ExKind::Call || !e.lhs ||
+        e.lhs->kind != ast::ExKind::Member || !e.lhs->lhs)
+        return eval(e, env);
+    const std::string& method = e.lhs->text;
+    if (method == "collect" && e.lhs->lhs->kind == ast::ExKind::Call) {
+        Value parallel = evalParallelDecoratorExpr(*e.lhs->lhs, env);
+        std::vector<Value> pos;
+        NamedArgs named;
+        for (const auto& a : e.args) {
+            if (a.name.empty()) pos.push_back(eval(*a.value, env));
+            else named.emplace_back(a.name, eval(*a.value, env));
+        }
+        return invokeMethod(std::move(parallel), "collect", std::move(pos),
+                            std::move(named), env, e.span.line, e.span.col,
+                            nullptr);
+    }
+    if (method != "map" && method != "fold") return eval(e, env);
+
+    Value receiver = eval(*e.lhs->lhs, env);
+    bool alreadyParallel = receiver.k == VK::Struct &&
+                           receiver.typeName == "ParIter";
+    if (!alreadyParallel) {
+        Value mod = loadModuleFile("pet.parallel");
+        Value makePar = moduleMember(mod.typeName, "par_iter");
+        receiver = callValue(std::move(makePar), {receiver},
+                             e.span.line, e.span.col);
+    }
+
+    std::vector<Value> pos;
+    NamedArgs named;
+    for (const auto& a : e.args) {
+        if (a.name.empty()) pos.push_back(eval(*a.value, env));
+        else named.emplace_back(a.name, eval(*a.value, env));
+    }
+    // Ordinary collection syntax is `xs.fold(op, init)`, while ParIter's
+    // internal reduction API takes `fold(identity_fn, op)`. Adapt only the
+    // decorated ordinary-iterable form; an already-parallel iterator keeps
+    // its native API unchanged.
+    if (method == "fold" && !alreadyParallel && pos.size() == 2 &&
+        (pos[0].k == VK::Fn || pos[0].k == VK::Builtin) &&
+        pos[1].k != VK::Fn && pos[1].k != VK::Builtin) {
+        Value initial = pos[1];
+        Value op = pos[0];
+        Value identity = biFn({}, [initial](std::vector<Value>&) {
+            return initial;
+        });
+        pos.clear();
+        pos.push_back(std::move(identity));
+        pos.push_back(std::move(op));
+    }
+    return invokeMethod(std::move(receiver), method, std::move(pos),
+                        std::move(named), env, e.span.line, e.span.col,
+                        nullptr);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,13 @@
+# `@[par]` map/fold lowering regression (POWER_PLAN §4.4).
+fn main() -> none {
+    xs = [1, 2, 3, 4];
+
+    @[par]
+    squares = xs.map(fn (x) -> Int { return x * x; }).collect();
+    assert(squares[0] == 1);
+    assert(squares[3] == 16);
+
+    @[par]
+    total = xs.fold(fn (a, b) -> Int { return a + b; }, 0);
+    assert(total == 10);
+}

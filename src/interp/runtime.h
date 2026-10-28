@@ -212,6 +212,7 @@ private:
     void execBlock(const std::vector<ast::StmtP>& body, Env env);
     void exec(const Stmt& s, Env env);
     Value eval(const Expr& e, Env env);
+    Value evalParallelDecoratorExpr(const Expr& e, Env env);
 
     // calls & members
     using NamedArgs = std::vector<std::pair<std::string, Value>>;

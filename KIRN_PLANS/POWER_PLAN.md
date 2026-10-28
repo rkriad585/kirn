@@ -1878,3 +1878,15 @@ Delivered: `src/interp/runtime.cpp`, `tests/syntax/serde_impl_ok.kn`.
 
 Verification: full rebuild, checker, and tree-walker/VM parity pass for the
 explicit trait implementation regression.
+
+### Update (2026-10-28) — Parallel map/fold decorator forms (shipped)
+
+`@[par]` now lowers decorated `map` and `fold` calls on ordinary iterables to
+the `pet.parallel` iterator implementation. Both expression statements and
+assignments preserve the normal result and assignment semantics, while an
+already-parallel iterator is dispatched directly.
+
+Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`,
+`tests/syntax/parallel_map_fold_ok.kn`.
+
+Verification: full rebuild, checker, and repeated tree-walker/VM parity pass.

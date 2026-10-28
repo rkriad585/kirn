@@ -1385,3 +1385,18 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution all pass for the typed
 spawn regression test.
+
+### Update (2026-10-28) — Typed parallel iterator protocol (shipped)
+
+List `.par_iter()` and `.into_par_iter()` calls now produce a checker-known
+`ParIter[T]` protocol instead of `unknown`. Chained adaptors retain the
+element type where possible, and reducers expose useful result types such as
+`list[T]`, `Int`, `Bool`, and `T?`. This makes the documented method form
+actually type-checked while preserving the existing stdlib runtime.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/parallel_method_ok.kn`.
+
+Verification: build and focused VM/native runs pass; gate 2b reports **75
+passed, 1 failed, 0 hung**, with only the existing `async_byteio_ok.kn` TCP
+bind collision.

@@ -1673,6 +1673,101 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             if (sigit != tit->second->sigs.end()) return sigit->second;
         }
         // builtin struct protocols
+        if (recv->name == "ParIter") {
+            TyP elem = argAt(recv, 0);
+            auto par = [&](TyP t) {
+                return nominalWithArgs(TyK::Struct, "ParIter", {t ? t : unkTy()});
+            };
+            auto unaryPar = [&]() {
+                FuncSig s;
+                s.ret = par(elem);
+                return s;
+            };
+            if (name == "map" || name == "filter" || name == "filter_map" ||
+                name == "flat_map" || name == "flatten" || name == "rev" ||
+                name == "chain" || name == "inspect" || name == "cloned" ||
+                name == "copied" || name == "map_with" || name == "interleave" ||
+                name == "flatten_iter" || name == "while_some" ||
+                name == "take" || name == "skip" || name == "step_by") {
+                FuncSig s = unaryPar();
+                if (name == "map" || name == "filter" || name == "filter_map" ||
+                    name == "flat_map" || name == "inspect" ||
+                    name == "while_some") {
+                    s.params.push_back(unkTy());
+                    s.names.push_back("f");
+                } else if (name == "chain" || name == "interleave") {
+                    s.params.push_back(recv);
+                    s.names.push_back("other");
+                } else if (name == "map_with") {
+                    s.params.push_back(unkTy()); s.names.push_back("init");
+                    s.params.push_back(unkTy()); s.names.push_back("map_fn");
+                }
+                if (name == "take" || name == "skip" || name == "step_by") {
+                    s.params.push_back(intTy());
+                    s.names.push_back("n");
+                }
+                return s;
+            }
+            if (name == "chunks" || name == "windows") {
+                FuncSig s;
+                s.params.push_back(intTy());
+                s.names.push_back("n");
+                s.ret = par(listTy(elem));
+                return s;
+            }
+            if (name == "split") {
+                FuncSig s;
+                s.params.push_back(elem);
+                s.names.push_back("sep");
+                s.ret = par(elem);
+                return s;
+            }
+            if (name == "chunk_by" || name == "for_each" ||
+                name == "for_each_init" || name == "fold" ||
+                name == "try_reduce" || name == "reduce" ||
+                name == "any" || name == "all" || name == "find_any" ||
+                name == "find_first" || name == "find_last" ||
+                name == "min_by" || name == "max_by" ||
+                name == "min_by_key" || name == "max_by_key" ||
+                name == "positions" || name == "zip" || name == "enumerate" ||
+                name == "slices") {
+                FuncSig s;
+                if (name == "chunk_by") {
+                    s.params.push_back(unkTy()); s.names.push_back("f");
+                    s.ret = par(listTy(elem));
+                } else if (name == "for_each" || name == "any" || name == "all" ||
+                           name == "find_any" || name == "find_first" ||
+                           name == "find_last" || name == "min_by" ||
+                           name == "max_by" || name == "min_by_key" ||
+                           name == "max_by_key" || name == "positions") {
+                    s.params.push_back(unkTy()); s.names.push_back("f");
+                    s.ret = name == "for_each" ? noneTy()
+                           : (name == "any" || name == "all" ? boolTy()
+                              : (name == "positions" ? listTy(intTy()) : optTy(elem)));
+                } else if (name == "slices") {
+                    s.ret = listTy(listTy(elem));
+                } else if (name == "enumerate") {
+                    s.ret = listTy(listTy(unkTy()));
+                } else {
+                    s.params.push_back(unkTy()); s.names.push_back("other");
+                    s.ret = name == "zip" ? listTy(listTy(unkTy())) : unkTy();
+                }
+                return s;
+            }
+            if (name == "collect") {
+                FuncSig s; s.ret = listTy(elem); return s;
+            }
+            if (name == "count") {
+                FuncSig s; s.ret = intTy(); return s;
+            }
+            if (name == "sum" || name == "product") {
+                FuncSig s; s.ret = elem && elem->is(TyK::Float) ? floatTy() : intTy(); return s;
+            }
+            if (name == "min" || name == "max") {
+                FuncSig s; s.ret = optTy(elem); return s;
+            }
+            return std::nullopt;
+        }
         if (recv->name == "thread") {
             FuncSig s;
             // POWER_PLAN §4: a task handle's `join()` now yields the task's
@@ -2028,11 +2123,8 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             return s;
         }
         if (name == "par_iter" || name == "into_par_iter") {
-            // The concrete ParIter type is a stdlib struct whose methods are
-            // resolved dynamically. Keep the checker permissive here, just as
-            // it is for other module-provided iterator adapters.
             FuncSig s;
-            s.ret = unkTy();
+            s.ret = nominalWithArgs(TyK::Struct, "ParIter", {elem});
             return s;
         }
         if (name == "extend") {                    // xs.extend(ys)

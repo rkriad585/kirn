@@ -345,7 +345,12 @@ struct Stmt {
     std::vector<ExprP> elifConds;
     PatP pat;                         // For binding pattern
     std::vector<MatchArm> arms;       // Match (statement); MatchArm reused
-    struct SelArm { std::string bind; ExprP chanOp; std::vector<StmtP> body; };
+    struct SelArm {
+        std::string bind;
+        ExprP chanOp;
+        ExprP guard;
+        std::vector<StmtP> body;
+    };
     std::vector<SelArm> selArms;      // Select
     bool selBiased = false;           // Select: fixed arm order (default rotates)
 

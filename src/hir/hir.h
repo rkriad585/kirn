@@ -336,7 +336,13 @@ struct MatchStmt {
 struct Select {
     // A select arm binds a receive name and an optional channel op; unlike a
     // match arm it has no pattern (ast::Stmt::SelArm).
-    struct Arm { std::string bind; DeclId decl = NO_DECL; ExprP chanOp; std::vector<StmtP> body; };
+    struct Arm {
+        std::string bind;
+        DeclId decl = NO_DECL;
+        ExprP chanOp;
+        ExprP guard;
+        std::vector<StmtP> body;
+    };
     ExprP subject;
     std::vector<Arm> arms;
     std::vector<StmtP> elseBody;   // POWER_PLAN §2.10 non-blocking tail

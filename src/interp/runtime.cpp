@@ -337,6 +337,7 @@ static ast::StmtP cloneStmt(const ast::Stmt* s) {
         ast::Stmt::SelArm na;
         na.bind = arm.bind;
         na.chanOp = cloneExpr(arm.chanOp.get());
+        na.guard = cloneExpr(arm.guard.get());
         for (const auto& b : arm.body) na.body.push_back(cloneStmt(b.get()));
         c->selArms.push_back(std::move(na));
     }
@@ -11015,11 +11016,13 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
         Value cachedChan;                      // Recv
         Value cached;                          // Timer/Task/Gate
         const ast::Stmt::SelArm* arm = nullptr;
+        const Expr* guard = nullptr;
     };
     std::vector<Prepared> prepared;
     for (const auto& sa : s.selArms) {
         Prepared pr;
         pr.arm = &sa;
+        pr.guard = sa.guard.get();
         const Expr* op = sa.chanOp.get();
         bool recvCall = op->kind == ast::ExKind::Call && op->lhs &&
                         op->lhs->kind == ast::ExKind::Member &&
@@ -11088,6 +11091,11 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
         int64_t nextTimer = INT64_MAX;        for (size_t k = 0; k < n; ++k) {
             const size_t idx = (start + k) % n;
             auto& pr = prepared[idx];
+            if (pr.guard) {
+                // A false guard must not consume a channel value or task.
+                hasGate = true;
+                if (!truthy(eval(*pr.guard, env))) continue;
+            }
             bool ready = false;
             Value payload;
             switch (pr.kind) {

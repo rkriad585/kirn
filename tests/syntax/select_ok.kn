@@ -44,6 +44,16 @@ async fn main() -> none {
         else { print("pending"); }
     }
 
+    # Guards are checked before readiness is consumed.
+    select {
+        case <-a.yield_now() if false { print("guarded"); }
+        else { print("guard else"); }
+    }
+    select {
+        case <-a.yield_now() if true { print("guard true"); }
+        else { print("guard miss"); }
+    }
+
     # A select with no ready arm sleeps until a task sends on the channel.
     var ch2 = chan[Int]();
     var prod = produce(ch2);

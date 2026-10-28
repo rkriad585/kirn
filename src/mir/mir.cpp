@@ -1163,6 +1163,7 @@ struct Builder {
             if (p.subject) lower(*p.subject);
             for (const auto& arm : p.arms) {
                 if (arm.chanOp) lower(*arm.chanOp);
+                if (arm.guard) lower(*arm.guard);
                 lowerStmts(arm.body);
             }
             lowerStmts(p.elseBody);

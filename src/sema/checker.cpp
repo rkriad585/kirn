@@ -3719,6 +3719,9 @@ void Checker::checkStmt(const ast::Stmt& s) {
                                      arm.chanOp->span.col);
                     }
                 }
+                if (arm.guard)
+                    requireBool(checkExpr(*arm.guard), arm.guard->span.line,
+                                arm.guard->span.col, "select guard");
                 checkBlock(arm.body);
                 pop();
             }

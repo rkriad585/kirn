@@ -1,0 +1,8 @@
+# expect: select guard must be a boolean
+fn main() -> none {
+    ch = chan[Int]();
+    select {
+        case <-ch.recv() if 1 { }
+        else { }
+    }
+}

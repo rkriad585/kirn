@@ -1427,6 +1427,19 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Select arm guards (shipped)
+
+Select arms now accept `if CONDITION` guards. Guards are type-checked as
+`Bool`, preserved through AST/HIR/MIR, and evaluated before readiness polling
+so a false guard cannot consume a channel, task, or timer source.
+
+Delivered: `src/parser/parser.cpp`, `src/ast/ast.h`, `src/sema/checker.cpp`,
+`src/interp/runtime.cpp`, `src/hir/*`, `src/mir/mir.cpp`,
+`tests/syntax/select_ok.kn`, and `tests/syntax/select_guard_err.kn`.
+
+Verification: full build, focused checker/VM/native select runs, and syntax
+gate 2b (**78 passed, 0 failed, 0 hung**).
+
 ### Update (2026-10-28) — Timeout cancellation (shipped)
 
 `pet.async.timeout` now cooperatively aborts a task that exceeds its deadline

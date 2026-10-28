@@ -387,6 +387,7 @@ struct Verifier {
                 bad(s.span, "select has no arms");
             for (const auto& a : p.arms) {
                 if (a.chanOp) expr(*a.chanOp);
+                if (a.guard) expr(*a.guard);
                 stmtList(a.body, s.span);
             }
             stmtList(p.elseBody, s.span);
@@ -829,6 +830,7 @@ struct Dumper {
                 for (const auto& a : p.arms) {
                     ind(n + 1); o << "arm " << a.bind << "\n";
                     if (a.chanOp) expr(*a.chanOp, n + 2);
+                    if (a.guard) expr(*a.guard, n + 2);
                     stmtList(a.body, n + 2);
                 }
                 if (!p.elseBody.empty()) {

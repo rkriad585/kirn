@@ -1227,6 +1227,10 @@ ast::StmtP Parser::parseCompound() {
             } else {
                 arm.chanOp = parseExpr();
             }
+            if (atIdent("if")) {
+                advance();
+                arm.guard = parseExpr();
+            }
             arm.body = parseBlock();
             endBlock();
             s->selArms.push_back(std::move(arm));

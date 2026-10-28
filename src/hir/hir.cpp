@@ -891,6 +891,7 @@ struct Lowerer {
                         a.decl = declare(arm.bind, Decl::Kind::Var, sp, nullptr, true, nullptr);
                     }
                     if (arm.chanOp) a.chanOp = lower(*arm.chanOp);
+                    if (arm.guard) a.guard = lower(*arm.guard);
                     for (const auto& b : arm.body)
                         if (b) a.body.push_back(lower(*b));
                     if (!arm.bind.empty()) popScope();

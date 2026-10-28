@@ -1372,3 +1372,16 @@ Delivered: `src/sema/symbols.h`, `src/sema/checker.cpp`,
 Verification: build, focused check/VM/native runs, and gate 2b passed the new
 test. Gate 2b remains **75 passed, 1 failed, 0 hung** because the existing
 `async_byteio_ok.kn` test intermittently cannot bind its TCP listener.
+
+### Update (2026-10-28) — Typed `spawn` handles (shipped)
+
+The expression form `spawn f(...)` now returns `thread[T]`, where `T` is the
+spawned function's result. Async calls are flattened so spawning an async
+function does not produce `thread[thread[T]]`. This completes the checker-side
+task typing for both direct async calls and explicit spawn expressions.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/async_typed_handle_ok.kn`.
+
+Verification: build, checker, VM, and native execution all pass for the typed
+spawn regression test.

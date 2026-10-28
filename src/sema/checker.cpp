@@ -3968,8 +3968,18 @@ TyP Checker::checkExprImpl(const ast::Expr& e) {
                     e.rhs->kind != ExKind::Lambda)
                     error(e.span,
                           "spawn expects a function call or closure");
-                if (e.rhs) { checkExpr(*e.rhs); checkClosureSendable(*e.rhs, "spawn"); }
-                return nominalWithArgs(TyK::Struct, "thread", {});
+                TyP spawned = unkTy();
+                if (e.rhs) {
+                    spawned = checkExpr(*e.rhs);
+                    checkClosureSendable(*e.rhs, "spawn");
+                }
+                // The runtime invokes the spawned callee directly, so an
+                // async call in `spawn f()` contributes its inner result T,
+                // not a nested thread[thread[T]] handle.
+                if (spawned && spawned->is(TyK::Struct) &&
+                    spawned->name == "thread")
+                    spawned = argAt(spawned, 0);
+                return nominalWithArgs(TyK::Struct, "thread", {spawned});
             }
             if (op == "await") {
                 // Awaiting a typed task unwraps its result; legacy awaitables

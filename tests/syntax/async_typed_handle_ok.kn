@@ -10,4 +10,8 @@ async fn main() -> none {
 
     var value: Int = await answer();
     assert(value == 7);
+
+    var spawned = spawn answer();
+    var spawned_value: Int = await spawned;
+    assert(spawned_value == 7);
 }

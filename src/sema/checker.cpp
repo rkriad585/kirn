@@ -1786,7 +1786,10 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                 FuncSig s; s.ret = intTy(); return s;
             }
             if (name == "sum" || name == "product") {
-                FuncSig s; s.ret = elem && elem->is(TyK::Float) ? floatTy() : intTy(); return s;
+                FuncSig s;
+                s.ret = elem && elem->is(TyK::Float) ? floatTy()
+                        : (elem && elem->is(TyK::Int) ? intTy() : unkTy());
+                return s;
             }
             if (name == "min" || name == "max") {
                 FuncSig s; s.ret = optTy(elem); return s;
@@ -4988,6 +4991,27 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
         return unkTy();
     }
     matchArgs(*sig, args, line, col, ("method '" + name + "'").c_str());
+
+    // Preserve callback result types through the typed ParIter protocol. The
+    // stdlib implementation is dynamic at module boundaries, but lambda
+    // signatures are available after argument checking.
+    if (recv && recv->is(TyK::Struct) && recv->name == "ParIter") {
+        size_t fi = name == "map_with" ? 1 : 0;
+        if (fi < args.size()) {
+            TyP ft = typeOf(*args[fi].value);
+            if (ft && ft->is(TyK::Fn)) {
+                TyP out = ft->inner ? ft->inner : unkTy();
+                if (name == "map")
+                    sig->ret = nominalWithArgs(TyK::Struct, "ParIter", {out});
+                else if (name == "filter_map")
+                    sig->ret = nominalWithArgs(TyK::Struct, "ParIter",
+                                                {unwrapOpt(out)});
+                else if (name == "flat_map")
+                    sig->ret = nominalWithArgs(TyK::Struct, "ParIter",
+                                                {iterableElem(out)});
+            }
+        }
+    }
 
     // sendability: values crossing threads through a channel must not carry
     // raw pointers/references, function values, or trait objects

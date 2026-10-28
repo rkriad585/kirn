@@ -4,9 +4,11 @@ fn main() -> none {
     var b = xs.into_par_iter().filter(fn (x) { return x > 2; }).collect();
     var total: Int = xs.par_iter().map(fn (x) { return x * 2; }).sum();
     var count: Int = xs.par_iter().count();
+    var label: Str = xs.par_iter().map(fn (_x) { return "item"; }).collect()[0];
     assert(a == [2, 4, 6, 8]);
     assert(b == [3, 4]);
     assert(total == 20);
     assert(count == 4);
+    assert(label == "item");
     print("parallel method ok");
 }

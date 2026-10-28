@@ -1414,3 +1414,15 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass the TaskSet
 regression coverage.
+
+### Update (2026-10-28) — Parallel callback type propagation (shipped)
+
+Typed `ParIter` chains now infer callback result elements for `map`,
+`filter_map`, and `flat_map` from checked function values. Reducers reject
+non-numeric element types instead of silently claiming an integer result, and
+the regression test verifies a mapped string can be indexed as `Str`.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/parallel_method_ok.kn`.
+
+Verification: build, checker, VM, and native execution pass.

@@ -5870,18 +5870,30 @@ void Interpreter::exec(const Stmt& s, Env env) {
                     Env child = makeChild(base);
                     matchPat(*loop->pat, item, child);
                     execBlock(loop->body, child);
-                    return Value::none();
+                    // A simple binding is returned so @[par] over a list can
+                    // write an updated loop value back into its original
+                    // index. Destructured patterns retain the serial
+                    // side-effect-only behavior.
+                    if (loop->pat && loop->pat->kind == ast::PatKind::Bind) {
+                        if (const Value* updated = child->find(loop->pat->bindName))
+                            return *updated;
+                    }
+                    return item;
                 });
                 Value mod = loadModuleFile("pet.parallel");
                 if (mod.k != VK::Module)
                     panicHere("`@[par]` requires the pet.parallel module");
-                Value parIterFn = moduleMember(mod.typeName, "par_iter");
+                const char* constructor = seq.k == VK::List
+                                              ? "par_iter_mut"
+                                              : "par_iter";
+                Value parIterFn = moduleMember(mod.typeName, constructor);
                 Value parIterRes =
                     callValue(parIterFn, {seq}, s.span.line, s.span.col);
                 // A struct method resolves through invokeMethod (memberRead on
                 // a struct only sees fields), so dispatch `for_each` with the
                 // synthetic body closure as its argument.
-                invokeMethod(parIterRes, "for_each", {bodyFn}, {}, env,
+                const char* method = seq.k == VK::List ? "for_each_mut" : "for_each";
+                invokeMethod(parIterRes, method, {bodyFn}, {}, env,
                              s.span.line, s.span.col, nullptr);
                 return;
             }

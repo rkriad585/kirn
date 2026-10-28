@@ -1,0 +1,8 @@
+# @[par] list loops preserve simple-binding mutations in the source list.
+fn main() -> none {
+    var xs = [1, 2, 3, 4];
+    @[par]
+    for x in xs { x = x * 3; }
+    assert(xs == [3, 6, 9, 12]);
+    print("par loop mut ok");
+}

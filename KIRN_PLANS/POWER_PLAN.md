@@ -1475,6 +1475,21 @@ Verification: parallel module checks and VM/tree-walker execution pass on a
 5,000-element in-place mutation regression. The full syntax gate retains the
 known restricted-network failure in `async_byteio_ok.kn`.
 
+### Update (2026-10-28) — `@[par]` list-loop mutation (shipped)
+
+`@[par] for x in xs { ... }` now uses the in-place mutation iterator when the
+source is a list. A simple loop binding is returned from the worker body and
+written back to its original index, so assignments such as `x = x * 3` update
+the caller's list while disjoint ranges remain independently owned by workers.
+Destructured patterns and non-list iterables retain the existing side-effect
+lowering.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/par_loop_mut_ok.kn`.
+
+Verification: existing `par_decorator_ok.kn` parity, the new mutation
+regression, full build, and syntax gate 2b pass except for the known restricted
+localhost bind in `async_byteio_ok.kn` (**79 passed, 1 failed, 0 hung**).
+
 ### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
 
 Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and

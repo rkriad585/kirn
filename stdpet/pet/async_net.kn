@@ -40,14 +40,17 @@ pub struct TcpStream {
         net.close(self.fd);
     }
 
-    # Split into read/write halves that share the underlying fd. Both halves
-    # must not be closed independently; close the original stream instead.
+    # Split into borrowed read/write halves that share the underlying fd. Both
+    # halves must not be closed independently; close the original stream.
     fn split(self) -> list {
         return [ReadHalf(fd: self.fd), WriteHalf(fd: self.fd)];
     }
 
+    # Owned halves have distinct concrete types and can be moved to separate
+    # tasks without retaining the TcpStream value. The fd is shared by the
+    # halves; neither half closes it independently.
     async fn into_split(self) -> list {
-        return [ReadHalf(fd: self.fd), WriteHalf(fd: self.fd)];
+        return [OwnedReadHalf(fd: self.fd), OwnedWriteHalf(fd: self.fd)];
     }
 }
 
@@ -59,6 +62,23 @@ pub struct ReadHalf {
 }
 
 pub struct WriteHalf {
+    fd: Int;
+    async fn write(self, data: any) -> Int {
+        return net.tcp_write(self.fd, data);
+    }
+    async fn write_all(self, data: any) -> none {
+        net.tcp_write(self.fd, data);
+    }
+}
+
+pub struct OwnedReadHalf {
+    fd: Int;
+    async fn read(self, n: Int) -> any {
+        return net.tcp_read(self.fd, n);
+    }
+}
+
+pub struct OwnedWriteHalf {
     fd: Int;
     async fn write(self, data: any) -> Int {
         return net.tcp_write(self.fd, data);

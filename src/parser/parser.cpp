@@ -837,6 +837,11 @@ ast::StmtP Parser::parseTraitDef() {
             throw Abort("traiteof");
         }
         size_t startIdx = idx_;
+        bool isAsync = false;
+        if (atIdent("async")) {
+            isAsync = true;
+            advance();
+        }
         expect(Tok::Ident, "'fn'");                    // consumes 'fn'
         auto nameTok = expect(Tok::Ident, "method name");
         bool hasBody = false;
@@ -858,7 +863,7 @@ ast::StmtP Parser::parseTraitDef() {
         }
         if (hasBody) {                                  // default body
             idx_ = startIdx;
-            s->body.push_back(parseFuncDef(false));
+            s->body.push_back(parseFnDecl(false, true));
         } else {                                        // signature-only
             if (atPunct("[")) parseTypeParams();
             auto params = parseParamList();
@@ -868,6 +873,7 @@ ast::StmtP Parser::parseTraitDef() {
             sig.name = nameTok.text;
             sig.params = std::move(params);
             sig.ret = std::move(ret);
+            sig.isAsync = isAsync;
             sig.span = spanOf(nameTok);
             s->sigs.push_back(std::move(sig));
             expectPunct(";");                           // sigs end with ';'

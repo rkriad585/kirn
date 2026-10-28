@@ -1427,6 +1427,26 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
+
+Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and
+`AsyncSeek` traits with async method signatures. `pet.async_io.File` and its
+buffered and split implementations expose those contracts, while
+`File.into_split()` returns distinct owned file-half types whose independent
+cursor state can be moved to separate tasks. Network `TcpStream.into_split()`
+also returns distinct owned half types; the existing borrowed `split()` API is
+unchanged. File and network half names are module-unique because Kirn's current
+runtime type registry is process-wide.
+
+Delivered: `src/ast/ast.h`, `src/parser/parser.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/async_io.kn`, `stdpet/pet/async_net.kn`, and
+`tests/syntax/async_io_ok.kn`.
+
+Verification: full build, async I/O and async network checks, focused
+tree-walker/VM parity, and the large-transfer/owned-half regression pass.
+The remaining syntax-gate localhost bind failure is the known restricted
+network-environment failure in `async_byteio_ok.kn`.
+
 ### Current-state audit (2026-10-28)
 
 The historical deviation lists above remain as design rationale, but later

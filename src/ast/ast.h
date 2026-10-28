@@ -233,6 +233,7 @@ struct TraitMethodSig {               // signature-only trait method
     std::string name;
     std::vector<Param> params;
     TypeP ret;
+    bool isAsync = false;
     Span span;
 };
 

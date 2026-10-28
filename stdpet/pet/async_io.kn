@@ -9,10 +9,25 @@
 #   var f = a.io.open("notes.txt");
 #   var line = await f.read_line();
 #
-# Kirn has no formal `AsyncRead`/`AsyncWrite`/`AsyncSeek` traits here: the
-# methods below are the structural interface, and `copy` accepts any value with
-# `read_to_end`/`write_all`.
+# These traits are the shared async byte-I/O contract. Implementations retain
+# their concrete methods, while the traits make the required operation surface
+# explicit for generic-facing APIs and trait objects.
 import os;
+
+pub trait AsyncRead {
+    async fn read(self, n: Int) -> any;
+    async fn read_to_end(self) -> any;
+}
+
+pub trait AsyncWrite {
+    async fn write(self, data: any) -> Int;
+    async fn write_all(self, data: any) -> none;
+    async fn flush(self) -> none;
+}
+
+pub trait AsyncSeek {
+    async fn seek(self, pos: Int) -> Int;
+}
 
 pub struct File {
     h: dict;   # {path: Str, pos: Int}
@@ -71,7 +86,7 @@ pub struct File {
     }
 
     # Write `data` (Str or bytes) at the cursor; advances by bytes written.
-    async fn write(self, data: any) -> Int {
+    fn write(self, data: any) -> Int {
         path = self.h["path"];
         off = self.h["pos"];
         n = os.write_at(path, off, data);
@@ -106,12 +121,85 @@ pub struct File {
     fn close(self) -> none {
         return none;
     }
+
+    # Borrowed split: both values refer to the same cursor state.
+    fn split(self) -> list {
+        return [FileReadHalf(h: self.h), FileWriteHalf(h: self.h)];
+    }
+
+    # Owned split: distinct concrete halves can be passed to separate tasks.
+    # Each half receives its own cursor state and therefore does not depend on
+    # the lifetime of the original File value.
+    fn into_split(self) -> list {
+        return [OwnedFileReadHalf(h: {"path": self.h["path"], "pos": self.h["pos"]}),
+                OwnedFileWriteHalf(h: {"path": self.h["path"], "pos": self.h["pos"]})];
+    }
 }
+
+impl AsyncRead for File {}
+impl AsyncWrite for File {}
+impl AsyncSeek for File {}
 
 # Open an existing file at position 0. Raises if it does not exist.
 pub fn open(path: Str) -> File {
     return File(h: {"path": path, "pos": 0});
 }
+
+pub struct FileReadHalf {
+    h: dict;
+    async fn read(self, n: Int) -> any {
+        b = os.read_at(self.h["path"], self.h["pos"], n);
+        self.h["pos"] = self.h["pos"] + b.len();
+        return b;
+    }
+    async fn read_to_end(self) -> any {
+        b = os.read_at(self.h["path"], self.h["pos"], -1);
+        self.h["pos"] = self.h["pos"] + b.len();
+        return b;
+    }
+}
+
+pub struct FileWriteHalf {
+    h: dict;
+    async fn write(self, data: any) -> Int {
+        n = os.write_at(self.h["path"], self.h["pos"], data);
+        self.h["pos"] = self.h["pos"] + n;
+        return n;
+    }
+    fn write_all(self, data: any) -> none { self.write(data); }
+    fn flush(self) -> none { return none; }
+}
+
+impl AsyncRead for FileReadHalf {}
+impl AsyncWrite for FileWriteHalf {}
+
+pub struct OwnedFileReadHalf {
+    h: dict;
+    async fn read(self, n: Int) -> any {
+        b = os.read_at(self.h["path"], self.h["pos"], n);
+        self.h["pos"] = self.h["pos"] + b.len();
+        return b;
+    }
+    async fn read_to_end(self) -> any {
+        b = os.read_at(self.h["path"], self.h["pos"], -1);
+        self.h["pos"] = self.h["pos"] + b.len();
+        return b;
+    }
+}
+
+pub struct OwnedFileWriteHalf {
+    h: dict;
+    async fn write(self, data: any) -> Int {
+        n = os.write_at(self.h["path"], self.h["pos"], data);
+        self.h["pos"] = self.h["pos"] + n;
+        return n;
+    }
+    async fn write_all(self, data: any) -> none { await self.write(data); }
+    async fn flush(self) -> none { return none; }
+}
+
+impl AsyncRead for OwnedFileReadHalf {}
+impl AsyncWrite for OwnedFileWriteHalf {}
 
 # Open for append: the cursor starts at EOF (creating the file if absent).
 pub fn append(path: Str) -> File {
@@ -151,6 +239,9 @@ pub fn buffered_reader(f: File) -> BufReader {
     return BufReader(f: f);
 }
 
+impl AsyncRead for BufReader {}
+impl AsyncSeek for BufReader {}
+
 # A writer that accumulates chunks until `flush`, then writes them in order.
 pub struct BufWriter {
     f: File;
@@ -175,3 +266,5 @@ pub struct BufWriter {
 pub fn buffered_writer(f: File) -> BufWriter {
     return BufWriter(f: f, b: {"chunks": []});
 }
+
+impl AsyncWrite for BufWriter {}

@@ -881,8 +881,11 @@ void Checker::fillNominals(const std::vector<ast::StmtP>& prog) {
             case StKind::TraitDef: {
                 SymP tr = traits_[st->name];
                 TvGuard tv(typeVars_, st->typeParams);
-                for (const auto& sg : st->sigs)
-                    tr->sigs[sg.name] = resolveSig(sg.params, sg.ret, /*stripSelf*/ true);
+                for (const auto& sg : st->sigs) {
+                    tr->sigs[sg.name] =
+                        resolveSig(sg.params, sg.ret, /*stripSelf*/ true);
+                    tr->sigs[sg.name].isAsync = sg.isAsync;
+                }
                 for (const auto& m : st->body)
                     if (m->kind == StKind::FuncDef && !tr->sigs.count(m->name))
                         tr->sigs[m->name] = resolveSig(m->params, m->ret, true);
@@ -3910,9 +3913,11 @@ void Checker::checkStmt(const ast::Stmt& s) {
             if (scope_->declare(sym))
                 error(s.span, "duplicate definition of '" + s.name + "'");
             TvGuard tv(typeVars_, s.typeParams);
-            for (const auto& sg : s.sigs)
+            for (const auto& sg : s.sigs) {
                 sym->sigs[sg.name] =
                     resolveSig(sg.params, sg.ret, /*stripSelf*/ true);
+                sym->sigs[sg.name].isAsync = sg.isAsync;
+            }
             for (const auto& m : s.body)
                 if (m->kind == StKind::FuncDef && !sym->sigs.count(m->name))
                     sym->sigs[m->name] = resolveSig(m->params, m->ret, true);

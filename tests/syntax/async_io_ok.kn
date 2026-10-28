@@ -27,6 +27,11 @@ async fn main() -> none {
     tail = await lf.read_to_end();
     assert(head.len() == 70000);
     assert(head.len() + tail.len() == payload.len());
+    halves = a.io.open(large).into_split();
+    ownedReader = halves[0];
+    ownedWriter = halves[1];
+    await ownedWriter.write_all("owned");
+    assert((await ownedReader.read(5)).decode("utf-8") == "owned");
     await a.fs.remove_file(large);
 
     var c = a.process.command("printf");

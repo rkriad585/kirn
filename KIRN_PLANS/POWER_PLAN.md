@@ -1468,6 +1468,20 @@ Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async.kn`,
 Verification: full build, async module checks, VM/tree parity, and syntax gate
 2b (**78 passed, 0 failed, 0 hung**).
 
+### Update (2026-10-28) — Cooperative async process waits (shipped)
+
+The native `os.try_wait(pid)` primitive now performs a non-blocking
+`waitpid(WNOHANG)`. `pet.async_process.wait` and `wait_with_output` poll it
+with timer checkpoints, so cancelling a process wait no longer leaves the task
+blocked in a native `waitpid`; the child remains available for explicit
+`kill()` and later reaping.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
+`tests/syntax/async_io_ok.kn`.
+
+Verification: full build, process-module checks, VM/tree parity, and syntax
+gate 2b (**78 passed, 0 failed, 0 hung**).
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

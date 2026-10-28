@@ -3824,6 +3824,21 @@ static int waitProcess(int pid) {
 #endif
 }
 
+static std::optional<int> tryWaitProcess(int pid) {
+#ifndef _WIN32
+    int status = 0;
+    pid_t r = ::waitpid((pid_t)pid, &status, WNOHANG);
+    if (r == 0) return std::nullopt;
+    if (r < 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return -1;
+#else
+    (void)pid;
+    return -1;
+#endif
+}
+
 static std::string slurpFile(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
     return std::string((std::istreambuf_iterator<char>(f)),
@@ -4838,6 +4853,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             return biFn({"pid"}, [](std::vector<Value>& a) -> Value {
                 int pid = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
                 return Value::integer(waitProcess(pid));
+            });
+        if (name == "try_wait")
+            return biFn({"pid"}, [](std::vector<Value>& a) -> Value {
+                int pid = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                auto code = tryWaitProcess(pid);
+                return code ? Value::integer(*code) : Value::none();
             });
         if (name == "kill")
             return biFn({"pid"}, [](std::vector<Value>& a) -> Value {

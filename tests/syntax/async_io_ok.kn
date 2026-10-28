@@ -21,6 +21,17 @@ async fn main() -> none {
     print("proc:", out["code"], out["stdout"]);
     print("status:", await a.process.status(a.process.command("true")));
 
+    # A process wait polls cooperatively and can be cancelled before kill.
+    var pcancel = a.process.command("sleep");
+    a.process.arg(pcancel, "1");
+    child = await a.process.spawn(pcancel);
+    waiter = a.process.wait(child);
+    await a.sleep(ms: 5);
+    waiter.abort();
+    waiter.wait();
+    a.process.kill(child);
+    assert((await a.process.wait(child)) >= 128);
+
     a.signal.install();
     print("pending:", a.signal.pending());
 

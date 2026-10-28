@@ -12,6 +12,7 @@
 #
 # POSIX only: `spawn` is unavailable on Windows (it raises).
 import os;
+import time;
 
 # Start building a command for `prog`; add arguments with `arg`/`args`.
 pub fn command(prog: Str) -> dict {
@@ -44,9 +45,14 @@ pub async fn spawn(cmd: dict) -> dict {
     return os.spawn(cmd["argv"]);
 }
 
-# Wait for a spawned child; returns its exit status and cleans up its temp files.
-pub fn wait(child: dict) -> Int {
-    code = os.wait(child["pid"]);
+# Wait for a spawned child cooperatively; returns its exit status and cleans up
+# its temp files. Polling keeps timer cancellation checkpoints available.
+pub async fn wait(child: dict) -> Int {
+    var code: any = none;
+    while code == none {
+        code = os.try_wait(child["pid"]);
+        if code == none { await time.after(5); }
+    }
     os.remove_file(child["out_path"]);
     os.remove_file(child["err_path"]);
     os.remove_file(child["in_path"]);
@@ -60,7 +66,11 @@ pub fn kill(child: dict) -> none {
 
 # Wait for a spawned child, then read and remove its captured output.
 pub async fn wait_with_output(child: dict) -> dict {
-    code = os.wait(child["pid"]);
+    var code: any = none;
+    while code == none {
+        code = os.try_wait(child["pid"]);
+        if code == none { await time.after(5); }
+    }
     out = os.read_file(child["out_path"]);
     er = os.read_file(child["err_path"]);
     os.remove_file(child["out_path"]);

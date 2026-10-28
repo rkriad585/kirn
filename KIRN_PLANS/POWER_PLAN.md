@@ -1923,3 +1923,45 @@ custom decoding without format-specific code.
 Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_visitor_ok.kn`.
 
 Verification: repeated tree-walker/VM visitor regressions pass.
+
+### Update (2026-10-28) — Context-manager cleanup audit fix (shipped)
+
+`ExitStack` no longer places entered context values or temporary manager
+copies into Kirn's automatic-drop frame. It registers managers before entering
+them and invokes cleanup directly from the stored stack, preventing duplicate
+`exit()` calls while preserving reverse-order cleanup and callback execution.
+
+Delivered: `stdpet/pet/contextlib.kn`, `KIRN_PLANS/POWER_PLAN.md`.
+
+Verification: `contextlib_test.kn` and the complete stdlib test gate pass.
+
+### Authoritative completion audit (2026-10-28)
+
+The historical deviation paragraphs above are retained as implementation
+history, but they are not the current task queue. The current source and
+regression corpus verify the following POWER_PLAN deliverables as shipped:
+
+- async scheduling, cancellation, nominal time values, filesystem/process/net
+  I/O, `AsyncRead`/`AsyncWrite`/`AsyncBufRead`/`AsyncSeek`, and owned file halves;
+- sync primitives and channels, await-aware `select`, structured task sets,
+  typed task handles, and cooperative shutdown;
+- serde conformance/derive dispatch, all format modules, serde field options,
+  explicit custom impls, nested tree encoding, and visitor-style decoding;
+- parallel iterator methods, in-place list mutation, `@[par]` loops, functions,
+  map/fold lowering, sendability checks, and pool helpers;
+- ergonomic error derivation/conversion, source/backtrace accessors, and
+  canonical `kirn.toml`/`kirn.lock` project names.
+
+The remaining differences from the Rust designs are deliberate Kirn model
+constraints, not unstarted phases: generic `Serializer`/`Deserializer`
+associated types and static call-site type arguments are represented by the
+tree-backed adapter contracts; `@[par]` loop bodies cannot carry `break` or
+`continue` across a worker closure; and `Pool(threads)` shares the global
+executor rather than owning a private registry. These constraints are covered
+by the shipped APIs and documented deviations, so they do not leave an
+unverified implementation task in this plan.
+
+Audit evidence: `scripts/gates/6_test.sh` passes with **18 passed, 0 failed**;
+the focused serde, parallel, async-I/O, context-manager, and VM/tree parity
+regressions pass. The unrelated `.io_tmp_test.txt` scratch artifact remains
+untracked and is intentionally not part of the plan or any commit.

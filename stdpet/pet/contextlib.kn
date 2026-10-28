@@ -101,9 +101,8 @@ pub struct ExitStackState {
     }
 
     fn enter_context(self, cm: any) -> any {
-        var entered = cm.enter();
         self.cms.append(cm);
-        return entered;
+        return cm.enter();
     }
 
     fn callback(self, f: any) -> any {
@@ -115,16 +114,14 @@ pub struct ExitStackState {
         var suppressed = false;
         var i = self.cms.len() - 1;
         while i >= 0 {
-            var cm = self.cms[i];
-            if cm.exit() {
+            if self.cms[i].exit() {
                 suppressed = true;
             }
             i = i - 1;
         }
         var j = self.callbacks.len() - 1;
         while j >= 0 {
-            var f = self.callbacks[j];
-            f();
+            self.callbacks[j]();
             j = j - 1;
         }
         self.cms.clear();

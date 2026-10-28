@@ -1514,6 +1514,20 @@ Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
 
 Verification: full build and VM/tree-walker derive tests pass.
 
+### Update (2026-10-28) — Derived defaults (shipped)
+
+`@[derive(Default)]` now exposes type-level `Type.default()` for derived
+structs. Construction delegates to the same field-default machinery used by
+reflection, including declared field defaults and container zero values.
+
+Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
+`tests/syntax/derive_common_ok.kn`.
+
+Verification: the default construction regression and all common-derive tests
+pass under both VM and tree-walker execution. Enum default-variant selection
+remains a separate follow-up because enum type references share variant
+constructor syntax.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

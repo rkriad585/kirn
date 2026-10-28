@@ -1815,7 +1815,7 @@ void Interpreter::registerDerivedSerdeTraits(const Stmt& s, Env env) {
                               std::string("Deserialize"),
                               std::string("Debug"), std::string("Eq"),
                               std::string("Hash"), std::string("Clone"),
-                              std::string("Ord")}) {
+                              std::string("Ord"), std::string("Default")}) {
         if (!decoratorDerives(s, trait)) continue;
         ImplEntry ent;
         ent.traitName = trait;
@@ -7733,6 +7733,31 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                         Value data = a.size() > 1 ? a[1] : Value::none();
                         return callValue(std::move(decoder), {obj, data}, 0, 0);
                     });
+                }
+            }
+            if ((obj.typeName.rfind("__struct__:", 0) == 0 ||
+                 obj.typeName.rfind("__enum__:", 0) == 0) &&
+                name == "default") {
+                std::string tn = obj.typeName.rfind("__struct__:", 0) == 0
+                                     ? obj.typeName.substr(11)
+                                     : obj.typeName.substr(9);
+                for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+                    if (it->traitName != "Default" || it->typeName != tn)
+                        continue;
+                    if (obj.typeName.rfind("__struct__:", 0) == 0) {
+                        Value reflect = Value::module("reflect");
+                        Value maker = moduleMember(reflect.typeName, "new");
+                        return bind({}, [this, obj, maker](std::vector<Value>&) mutable {
+                            return callValue(maker, {obj}, 0, 0);
+                        });
+                    }
+                    auto ei = enums_.find(tn);
+                    if (ei == enums_.end() || ei->second->variants.empty())
+                        break;
+                    Value out = Value::enumV(tn, ei->second->variants[0].name);
+                    out.payload.resize(ei->second->variants[0].payload.size(),
+                                       Value::none());
+                    return bind({}, [out](std::vector<Value>&) { return out; });
                 }
             }
             if (obj.typeName.rfind("__struct__:", 0) == 0 ||

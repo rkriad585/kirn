@@ -498,6 +498,7 @@ void Checker::predeclareBuiltins() {
     addDerivedTrait("Hash", "hash", intTy());
     addDerivedTrait("Clone", "clone", unkTy());
     addDerivedTrait("Ord", "cmp", intTy(), unkTy());
+    addDerivedTrait("Default", "default", unkTy());
 
     // result[OkT, ErrT] nominal + ok()/err() variant constructors (patterns).
     auto res = std::make_shared<Symbol>();
@@ -861,7 +862,8 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                                           std::string("Eq"),
                                           std::string("Hash"),
                                           std::string("Clone"),
-                                          std::string("Ord")})
+                                          std::string("Ord"),
+                                          std::string("Default")})
                     if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }
@@ -882,7 +884,8 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                                           std::string("Eq"),
                                           std::string("Hash"),
                                           std::string("Clone"),
-                                          std::string("Ord")})
+                                          std::string("Ord"),
+                                          std::string("Default")})
                     if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }
@@ -5033,6 +5036,13 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
     }
 
     if (obj->is(TyK::EnumName)) {
+        for (const auto& imp : impls_) {
+            if (imp.first != "Default" || imp.second != obj->name) continue;
+            auto ti = traits_.find(imp.first);
+            if (ti != traits_.end() && ti->second->sigs.count(name))
+                return fnTy(ti->second->sigs[name].params,
+                            ti->second->sigs[name].ret);
+        }
         Symbol* es = scope_->find(name);
         if (es && es->kind == SymK::EnumVariant && es->enumOf == obj->name) {
             auto et = std::shared_ptr<Ty>(new Ty());

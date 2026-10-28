@@ -7449,6 +7449,19 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
         std::string tn = obj.typeName.rfind("__struct__:", 0) == 0
                              ? obj.typeName.substr(11)
                              : obj.typeName.substr(9);
+        // Prefer an explicit user implementation over the marker-only
+        // derived bridge. This is the type-level counterpart of ordinary
+        // value method dispatch below: `impl Deserialize for T` can provide a
+        // custom decoder while `@[derive(Deserialize)]` remains the fallback.
+        for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+            if (it->traitName != "Deserialize" || it->typeName != tn)
+                continue;
+            auto mi = it->methods.find("deserialize");
+            if (mi != it->methods.end()) {
+                return runFunc(mi->second, {obj, pos[0]}, {},
+                               it->env ? it->env : globals_);
+            }
+        }
         bool derived = false;
         for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
             if (it->traitName == "Deserialize" && it->typeName == tn) {

@@ -1866,3 +1866,15 @@ Delivered: `src/interp/runtime.cpp`, `tests/syntax/parallel_fn_ok.kn`.
 
 Verification: full rebuild, tree-walker/VM parity, and the focused parallel
 function regression pass.
+
+### Update (2026-10-28) — Explicit serde impl dispatch (shipped)
+
+Type-level `Deserialize` dispatch now honors an explicit user implementation
+before falling back to the reflection-backed derived codec. This makes
+`impl Serialize/Deserialize for T` usable for custom wire representations
+while preserving `@[derive(...)]` as the default implementation.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/serde_impl_ok.kn`.
+
+Verification: full rebuild, checker, and tree-walker/VM parity pass for the
+explicit trait implementation regression.

@@ -1,0 +1,25 @@
+# Explicit serde trait implementations override derived fallback.
+struct Point {
+    x: Int;
+    y: Int;
+}
+
+impl Serialize for Point {
+    fn serialize(self) -> any {
+        return {"kind": "point", "x": self.x, "y": self.y};
+    }
+}
+
+impl Deserialize for Point {
+    fn deserialize(self, data: any) -> Point {
+        return Point(x: data["x"] - 1, y: data["y"] - 1);
+    }
+}
+
+fn main() -> none {
+    p = Point(x: 3, y: 4);
+    tree = p.serialize();
+    assert(tree["kind"] == "point");
+    q = Point.deserialize({"x": 10, "y": 20});
+    assert(q.x == 9 and q.y == 19);
+}

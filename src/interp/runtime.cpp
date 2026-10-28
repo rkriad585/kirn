@@ -38,6 +38,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <poll.h>
 #endif
 
 namespace kirn {
@@ -3966,6 +3967,21 @@ static int connectSocket(const std::string& addr, int socktype,
     if (fd < 0 && err.empty()) err = "connect failed";
     return fd;
 }
+
+// Poll in short slices so blocking socket operations remain cooperative with
+// Kirn task cancellation. The socket API stays blocking for callers; the
+// readiness wait is the cancellation checkpoint.
+static void waitSocketReady(int fd, short events) {
+    for (;;) {
+        if (g_currentTask && g_currentTask->aborted.load())
+            throw SignalCancel{};
+        pollfd p{fd, events, 0};
+        int r = ::poll(&p, 1, 10);
+        if (r > 0) return;
+        if (r < 0 && errno != EINTR)
+            panicHere(std::string("socket poll: ") + std::strerror(errno));
+    }
+}
 #endif
 }  // namespace
 
@@ -4988,6 +5004,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         if (name == "tcp_accept")
             return biFn({"fd"}, [](std::vector<Value>& a) -> Value {
                 int lfd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                waitSocketReady(lfd, POLLIN);
                 sockaddr_storage ss{};
                 socklen_t sl = sizeof ss;
                 int fd = ::accept(lfd, (sockaddr*)&ss, &sl);
@@ -5017,6 +5034,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                                : 4096;
                 std::string buf(n, '\0');
                 ssize_t k;
+                waitSocketReady(fd, POLLIN);
                 do {
                     k = ::recv(fd, buf.data(), n, 0);
                 } while (k < 0 && errno == EINTR);
@@ -5036,6 +5054,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                         : toStr(a.size() > 1 ? a[1] : Value());
                 size_t sent = 0;
                 while (sent < data.size()) {
+                    waitSocketReady(fd, POLLOUT);
                     ssize_t k = ::send(fd, data.data() + sent,
                                        data.size() - sent, 0);
                     if (k < 0) {
@@ -5097,6 +5116,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 sockaddr_storage ss{};
                 socklen_t sl = sizeof ss;
                 ssize_t k;
+                waitSocketReady(fd, POLLIN);
                 do {
                     k = ::recvfrom(fd, buf.data(), n, 0, (sockaddr*)&ss, &sl);
                 } while (k < 0 && errno == EINTR);

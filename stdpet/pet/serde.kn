@@ -37,6 +37,23 @@ pub trait Encoder {
 
 pub trait Decoder {
     fn read_any(self) -> any;
+    fn read_bool(self) -> Bool;
+    fn read_int(self) -> Int;
+    fn read_float(self) -> Float;
+    fn read_str(self) -> Str;
+    fn field(self, key: Str) -> any;
+    fn at(self, index: Int) -> any;
+    fn len(self) -> Int;
+    fn has_key(self, key: Str) -> Bool;
+}
+
+pub trait Visitor {
+    fn visit(self, decoder: any) -> any;
+}
+
+fn tree_has_key(d: any, key: Str) -> Bool {
+    for k in d { if k == key { return true; } }
+    return false;
 }
 
 pub struct TreeEncoder {
@@ -109,6 +126,40 @@ impl Encoder for TreeEncoder {}
 pub struct TreeDecoder {
     h: dict;
     fn read_any(self) -> any { return self.h["tree"]; }
+    fn read_bool(self) -> Bool {
+        if reflect.kind_of(self.h["tree"]) != "bool" { raise("serde decoder: expected bool"); }
+        return self.h["tree"];
+    }
+    fn read_int(self) -> Int {
+        if reflect.kind_of(self.h["tree"]) != "int" { raise("serde decoder: expected int"); }
+        return self.h["tree"];
+    }
+    fn read_float(self) -> Float {
+        if reflect.kind_of(self.h["tree"]) != "float" { raise("serde decoder: expected float"); }
+        return self.h["tree"];
+    }
+    fn read_str(self) -> Str {
+        if reflect.kind_of(self.h["tree"]) != "string" { raise("serde decoder: expected string"); }
+        return self.h["tree"];
+    }
+    fn field(self, key: Str) -> any {
+        if reflect.kind_of(self.h["tree"]) != "dict" or not tree_has_key(self.h["tree"], key) {
+            raise("serde decoder: missing field " + key);
+        }
+        return TreeDecoder(h: {"tree": self.h["tree"][key]});
+    }
+    fn at(self, index: Int) -> any {
+        if reflect.kind_of(self.h["tree"]) != "list" { raise("serde decoder: expected sequence"); }
+        return TreeDecoder(h: {"tree": self.h["tree"][index]});
+    }
+    fn len(self) -> Int {
+        k = reflect.kind_of(self.h["tree"]);
+        if k != "list" and k != "dict" { raise("serde decoder: expected container"); }
+        return self.h["tree"].len();
+    }
+    fn has_key(self, key: Str) -> Bool {
+        return reflect.kind_of(self.h["tree"]) == "dict" and tree_has_key(self.h["tree"], key);
+    }
 }
 
 impl Decoder for TreeDecoder {}
@@ -128,6 +179,10 @@ pub fn serialize_into(v: any, encoder: any) -> any {
 
 pub fn deserialize_from(T: any, decoder: any) -> any {
     return codec.coerce_type(T, decoder.read_any());
+}
+
+pub fn deserialize_with(T: any, decoder: any, visitor: any) -> any {
+    return codec.coerce_type(T, visitor(decoder));
 }
 
 # Format-agnostic trait-facing entry points. Derived types are registered as

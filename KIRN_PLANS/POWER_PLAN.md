@@ -1912,3 +1912,14 @@ ordered nested trees for adapter and format code.
 Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
 
 Verification: repeated tree-walker/VM nested adapter tests pass.
+
+### Update (2026-10-28) — Visitor-style tree decoding (shipped)
+
+`Decoder` now exposes typed scalar reads and structured navigation through
+`field`, `at`, `len`, and `has_key`. `deserialize_with` accepts a user visitor,
+then feeds its returned tree through the normal typed coercion path, providing
+custom decoding without format-specific code.
+
+Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_visitor_ok.kn`.
+
+Verification: repeated tree-walker/VM visitor regressions pass.

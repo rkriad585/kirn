@@ -1,0 +1,20 @@
+# Visitor-style tree decoding regression (POWER_PLAN §3.1).
+import pet.serde as serde;
+
+@[derive(Serialize, Deserialize)]
+struct Point { x: Int; y: Int; }
+
+fn visit_point(decoder: any) -> any {
+    return {"x": decoder.field("x").read_int(),
+            "y": decoder.field("y").read_int()};
+}
+
+fn main() -> none {
+    d = serde.tree_decoder({"x": 7, "y": 11, "items": [3, 5]});
+    assert(d.has_key("x"));
+    assert(d.field("items").len() == 2);
+    assert(d.field("items").at(1).read_int() == 5);
+    assert(d.field("x").read_int() == 7);
+    p = serde.deserialize_with(Point, d, visit_point);
+    assert(p.x == 7 and p.y == 11);
+}

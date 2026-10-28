@@ -1442,3 +1442,15 @@ Delivered: `src/sema/checker.cpp`,
 Verification: build, focused positive/negative checks, VM/native parallel
 execution, and syntax gate. Gate 2b is **76 passed, 1 failed, 0 hung**; the
 only failure remains the existing `async_byteio_ok.kn` TCP bind collision.
+
+### Update (2026-10-28) — Typed TaskSet insertion handles (shipped)
+
+`TaskSet.spawn` and `TaskSet.add` now preserve the type of the handle they
+store and return. A tracked `thread[T]` therefore retains its cancellation,
+completion, join, and await-result surface after insertion instead of being
+erased to `any`.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/async_typed_handle_ok.kn`.
+
+Verification: build, checker, VM, and native execution pass.

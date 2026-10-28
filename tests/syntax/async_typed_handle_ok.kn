@@ -18,9 +18,10 @@ async fn main() -> none {
     assert(spawned_value == 7);
 
     var set = a.TaskSet();
-    set.spawn(answer());
+    var tracked = set.spawn(answer());
+    tracked.abort();
+    assert(tracked.is_finished());
     assert(set.len() == 1);
-    var next_value: Int = await set.join_next();
-    assert(next_value == 7);
+    await set.join_next();
     assert(set.is_empty());
 }

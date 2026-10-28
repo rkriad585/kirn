@@ -5027,6 +5027,14 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
                 checkClosureSendable(*args[ci].value, "parallel");
         }
     }
+    if (recv && recv->is(TyK::Struct) && recv->name == "TaskSetState" &&
+        (name == "spawn" || name == "add") && !args.empty()) {
+        // TaskSet stores and returns the same handle; preserve thread[T]
+        // instead of erasing it to the method's dynamic fallback type.
+        TyP tracked = typeOf(*args[0].value);
+        if (tracked && !tracked->isUnknown() && !tracked->isError())
+            sig->ret = tracked;
+    }
 
     // sendability: values crossing threads through a channel must not carry
     // raw pointers/references, function values, or trait objects

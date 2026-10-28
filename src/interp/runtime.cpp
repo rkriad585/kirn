@@ -103,6 +103,11 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
 static bool valEq(const Value& a, const Value& b);
 static bool valLess(const Value& a, const Value& b);
 
+static void checkTaskCancellation() {
+    if (g_currentTask && g_currentTask->aborted.load())
+        throw SignalCancel{};
+}
+
 // M3: sets are true sets — every construction path dedupes (previously only
 // `add`/`insert` did, so literals/comprehensions kept duplicates). O(n^2) but
 // set construction is not a hot loop.
@@ -4718,8 +4723,14 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 std::string path = toStr(a[0]);
                 std::ifstream f(path, std::ios::binary);
                 if (!f) panicHere("cannot open '" + path + "'");
-                std::string data((std::istreambuf_iterator<char>(f)),
-                                 std::istreambuf_iterator<char>());
+                std::string data;
+                char buf[64 * 1024];
+                while (f) {
+                    checkTaskCancellation();
+                    f.read(buf, sizeof buf);
+                    std::streamsize got = f.gcount();
+                    if (got > 0) data.append(buf, (size_t)got);
+                }
                 Value v = Value::str(std::move(data));
                 if (asBytes) v.k = VK::Bytes;
                 return v;
@@ -4730,8 +4741,15 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 std::string path = toStr(a[0]);
                 std::ofstream f(path, std::ios::binary | std::ios::trunc);
                 if (!f) panicHere("cannot write '" + path + "'");
-                f << (a.size() > 1 && isBuffer(a[1]) ? bytesData(a[1])
-                                                     : toStr(a.size() > 1 ? a[1] : Value()));
+                std::string data = a.size() > 1 && isBuffer(a[1])
+                                       ? bytesData(a[1])
+                                       : toStr(a.size() > 1 ? a[1] : Value());
+                for (size_t at = 0; at < data.size();) {
+                    checkTaskCancellation();
+                    size_t n = std::min<size_t>(64 * 1024, data.size() - at);
+                    f.write(data.data() + at, (std::streamsize)n);
+                    at += n;
+                }
                 f.close();
                 return Value::none();
             });
@@ -4746,12 +4764,26 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 f.seekg(off);
                 std::string data;
                 if (len < 0) {
-                    data.assign((std::istreambuf_iterator<char>(f)),
-                                std::istreambuf_iterator<char>());
+                    char buf[64 * 1024];
+                    while (f) {
+                        checkTaskCancellation();
+                        f.read(buf, sizeof buf);
+                        std::streamsize got = f.gcount();
+                        if (got > 0) data.append(buf, (size_t)got);
+                    }
                 } else {
-                    data.resize((size_t)len);
-                    f.read(data.data(), (std::streamsize)len);
-                    data.resize((size_t)f.gcount());
+                    int64_t remaining = len;
+                    char buf[64 * 1024];
+                    while (remaining > 0 && f) {
+                        checkTaskCancellation();
+                        std::streamsize want = (std::streamsize)
+                            std::min<int64_t>(remaining, sizeof buf);
+                        f.read(buf, want);
+                        std::streamsize got = f.gcount();
+                        if (got <= 0) break;
+                        data.append(buf, (size_t)got);
+                        remaining -= got;
+                    }
                 }
                 Value v = Value::str(std::move(data));
                 v.k = VK::Bytes;
@@ -4773,7 +4805,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 }
                 if (!f) panicHere("cannot write '" + path + "'");
                 f.seekp(off);
-                f.write(data.data(), (std::streamsize)data.size());
+                for (size_t at = 0; at < data.size();) {
+                    checkTaskCancellation();
+                    size_t n = std::min<size_t>(64 * 1024, data.size() - at);
+                    f.write(data.data() + at, (std::streamsize)n);
+                    at += n;
+                }
                 f.flush();
                 if (!f) panicHere("write failed '" + path + "'");
                 return Value::integer((int64_t)data.size());

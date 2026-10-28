@@ -1520,6 +1520,23 @@ Delivered: `src/interp/runtime.cpp`.
 Verification: full build, async-net checks, elevated TCP/UDP VM/tree parity,
 and syntax gate 2b (**78 passed, 0 failed, 0 hung**).
 
+### Update (2026-10-28) — Cancellation checkpoints for filesystem I/O (shipped)
+
+Native whole-file and positional filesystem operations now transfer data in
+bounded 64 KiB chunks and check the current task cancellation flag between
+chunks. The public `pet.async.fs` and `pet.async.io` APIs remain unchanged,
+while large reads and writes can unwind cooperatively instead of completing a
+single uninterruptible whole-file operation.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/async_io_ok.kn`.
+
+Verification: full build, focused checker, tree-walker/VM parity, and syntax
+gate 2b. The focused async-I/O regression passed; the gate reported **77
+passed, 1 failed, 0 hung** because `async_byteio_ok.kn` cannot bind a localhost
+socket in the restricted test environment. The network regression passes when
+run with the required network permission, as recorded in the preceding
+network phases.
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

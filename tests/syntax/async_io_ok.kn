@@ -1,6 +1,7 @@
 # Async filesystem / process / signal surface (POWER_PLAN §2.9). Runs
 # identically under the tree-walker and the VM.
 import pet.async as a;
+import pet.strings as strings;
 
 async fn main() -> none {
     dir = "/tmp/kirn_syntax_async_io";
@@ -14,6 +15,19 @@ async fn main() -> none {
     await a.fs.copy(p, dir + "/b.txt");
     await a.fs.rename(dir + "/b.txt", dir + "/c.txt");
     print("renamed:", await a.fs.exists(dir + "/c.txt"));
+
+    # Large transfers cross the native 64 KiB checkpoints used by async fs
+    # and positional/cursor I/O.
+    large = dir + "/large.bin";
+    payload = strings.repeat("0123456789abcdef", 8192);
+    await a.fs.write(large, payload);
+    assert((await a.fs.metadata(large))["size"] == payload.len());
+    lf = a.io.open(large);
+    head = await lf.read(70000);
+    tail = await lf.read_to_end();
+    assert(head.len() == 70000);
+    assert(head.len() + tail.len() == payload.len());
+    await a.fs.remove_file(large);
 
     var c = a.process.command("printf");
     a.process.arg(c, "ok");

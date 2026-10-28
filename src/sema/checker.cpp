@@ -1673,6 +1673,31 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             if (sigit != tit->second->sigs.end()) return sigit->second;
         }
         // builtin struct protocols
+        if (recv->name == "TaskSetState") {
+            if (name == "spawn" || name == "add") {
+                FuncSig s;
+                s.params.push_back(unkTy());
+                s.names.push_back("t");
+                s.ret = unkTy();
+                return s;
+            }
+            if (name == "len") {
+                FuncSig s; s.ret = intTy(); return s;
+            }
+            if (name == "is_empty") {
+                FuncSig s; s.ret = boolTy(); return s;
+            }
+            if (name == "abort_all") {
+                FuncSig s; s.ret = noneTy(); return s;
+            }
+            if (name == "join_next") {
+                FuncSig s; s.ret = unkTy(); s.isAsync = true; return s;
+            }
+            if (name == "join_all" || name == "shutdown") {
+                FuncSig s; s.ret = listTy(unkTy()); s.isAsync = true; return s;
+            }
+            return std::nullopt;
+        }
         if (recv->name == "ParIter") {
             TyP elem = argAt(recv, 0);
             auto par = [&](TyP t) {
@@ -4943,6 +4968,16 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
                              uint32_t line, uint32_t col) {
     auto sig = methodLookup(recv, name);
     if (!sig) {
+        // File-backed pet modules are checked in isolation, so an imported
+        // module value is intentionally dynamic. Preserve the key async
+        // factory types here so `a.TaskSet().join_next()` remains checked
+        // without coupling the checker to module loading order.
+        if (dynish(recv) && name == "TaskSet") {
+            for (const auto& a : args) checkExpr(*a.value);
+            if (!args.empty())
+                error(line, col, "TaskSet() takes no arguments");
+            return Ty::named(TyK::Struct, "TaskSetState");
+        }
         if (recv && !recv->isError() && !recv->isUnknown() &&
             !recv->is(TyK::TypeVar)) {
             error(line, col, "no method '" + name + "' on " + toString(*recv));

@@ -1400,3 +1400,17 @@ Delivered: `src/sema/checker.cpp`,
 Verification: build and focused VM/native runs pass; gate 2b reports **75
 passed, 1 failed, 0 hung**, with only the existing `async_byteio_ok.kn` TCP
 bind collision.
+
+### Update (2026-10-28) — Typed async TaskSet surface (shipped)
+
+The checker now recognizes `pet.async.TaskSet()` as `TaskSetState` even when
+the file-backed module is imported dynamically. Its length, emptiness,
+cancellation, and join methods are checked; `join_next`, `join_all`, and
+`shutdown` retain async task-result shapes instead of collapsing to an
+untyped module value.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/async_typed_handle_ok.kn`.
+
+Verification: build, checker, VM, and native execution pass the TaskSet
+regression coverage.

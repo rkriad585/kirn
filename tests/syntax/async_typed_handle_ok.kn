@@ -1,3 +1,5 @@
+import pet.async as a;
+
 async fn answer() -> Int {
     return 7;
 }
@@ -14,4 +16,11 @@ async fn main() -> none {
     var spawned = spawn answer();
     var spawned_value: Int = await spawned;
     assert(spawned_value == 7);
+
+    var set = a.TaskSet();
+    set.spawn(answer());
+    assert(set.len() == 1);
+    var next_value: Int = await set.join_next();
+    assert(next_value == 7);
+    assert(set.is_empty());
 }

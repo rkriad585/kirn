@@ -59,6 +59,39 @@ struct ThreadImpl {
     // interrupted (there is no drop/cancellation unwinding); the thread is
     // still joined at interpreter shutdown.
     std::atomic<bool> aborted{false};
+    bool scheduled = false;
+};
+
+// A bounded work-stealing executor for eager async tasks. Each worker owns a
+// deque (LIFO locally, FIFO when stolen), which keeps short chains cache-local
+// while allowing idle workers to take work from busy workers.
+class TaskScheduler {
+public:
+    using Job = std::function<void()>;
+
+    TaskScheduler() = default;
+    ~TaskScheduler();
+    void start(size_t workers);
+    void enqueue(Job job);
+    bool runOne();
+    static bool helpCurrent();
+    void shutdown();
+
+private:
+    struct Queue {
+        std::mutex m;
+        std::deque<Job> jobs;
+    };
+    std::vector<std::unique_ptr<Queue>> queues_;
+    std::vector<std::thread> workers_;
+    std::mutex wakeM_;
+    std::condition_variable wakeCv_;
+    std::atomic<bool> stopping_{false};
+    std::atomic<size_t> nextQueue_{0};
+    static thread_local TaskScheduler* current_;
+    static thread_local size_t currentIndex_;
+    bool take(size_t index, Job& job);
+    void worker(size_t index);
 };
 
 // Non-local control flow.
@@ -154,6 +187,7 @@ private:
 
     std::mutex threadsM_;
     std::vector<std::shared_ptr<ThreadImpl>> threads_;
+    std::unique_ptr<TaskScheduler> taskScheduler_;
     // POWER_PLAN §2.10: rotates the starting arm of an unbiased `select` so a
     // permanently-ready arm cannot starve the others. `select biased` pins 0.
     size_t selectTurn_ = 0;

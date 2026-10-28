@@ -1455,6 +1455,23 @@ Delivered: `src/interp/runtime.cpp`, `stdpet/pet/serde_test.kn`.
 Verification: full rebuild and serde test execution pass under both the VM and
 tree-walker paths; the new type-level operation is covered by the regression.
 
+### Update (2026-10-28) — Work-stealing async task scheduler (shipped)
+
+Async tasks now run on a bounded worker pool instead of creating one OS thread
+per task. Each worker owns a deque, executes its own jobs LIFO, and steals jobs
+FIFO from other workers when idle. Awaiting workers help execute available
+tasks, preventing nested `join` trees from exhausting the pool. Explicit
+`sync.go` threads retain their existing lifecycle and are still joined during
+interpreter shutdown.
+
+Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`,
+`tests/syntax/async_scheduler_ok.kn`.
+
+Verification: full rebuild, existing async time/task regressions, and the
+96-task fan-out/ordered-join stress test pass under both VM and tree-walker
+execution. Timer and timeout waits also yield queued work where the scheduler
+has an active worker context.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

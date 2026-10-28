@@ -77,6 +77,103 @@ const char* envGet(const char* name) {
 
 thread_local std::vector<std::string> g_panicFrames;
 thread_local ThreadImpl* g_currentTask = nullptr;
+
+thread_local TaskScheduler* TaskScheduler::current_ = nullptr;
+thread_local size_t TaskScheduler::currentIndex_ = 0;
+
+TaskScheduler::~TaskScheduler() { shutdown(); }
+
+void TaskScheduler::start(size_t workers) {
+    if (!workers_.empty()) return;
+    workers = std::max<size_t>(2, workers);
+    queues_.reserve(workers);
+    for (size_t i = 0; i < workers; ++i)
+        queues_.push_back(std::make_unique<Queue>());
+    stopping_ = false;
+    for (size_t i = 0; i < workers; ++i)
+        workers_.emplace_back([this, i] { worker(i); });
+}
+
+bool TaskScheduler::take(size_t index, Job& job) {
+    if (index < queues_.size()) {
+        std::lock_guard<std::mutex> lk(queues_[index]->m);
+        if (!queues_[index]->jobs.empty()) {
+            job = std::move(queues_[index]->jobs.back());
+            queues_[index]->jobs.pop_back();
+            return true;
+        }
+    }
+    for (size_t n = 0; n < queues_.size(); ++n) {
+        size_t victim = (index + n + 1) % queues_.size();
+        std::lock_guard<std::mutex> lk(queues_[victim]->m);
+        if (!queues_[victim]->jobs.empty()) {
+            job = std::move(queues_[victim]->jobs.front());
+            queues_[victim]->jobs.pop_front();
+            return true;
+        }
+    }
+    return false;
+}
+
+void TaskScheduler::enqueue(Job job) {
+    if (!job || queues_.empty()) return;
+    size_t index = nextQueue_.fetch_add(1, std::memory_order_relaxed) % queues_.size();
+    {
+        std::lock_guard<std::mutex> lk(queues_[index]->m);
+        queues_[index]->jobs.push_back(std::move(job));
+    }
+    wakeCv_.notify_one();
+}
+
+bool TaskScheduler::runOne() {
+    if (queues_.empty()) return false;
+    size_t index = current_ == this ? currentIndex_ : 0;
+    Job job;
+    if (!take(index, job)) return false;
+    job();
+    return true;
+}
+
+bool TaskScheduler::helpCurrent() {
+    return current_ && current_->runOne();
+}
+
+void TaskScheduler::worker(size_t index) {
+    current_ = this;
+    currentIndex_ = index;
+    for (;;) {
+        Job job;
+        if (take(index, job)) {
+            job();
+            continue;
+        }
+        std::unique_lock<std::mutex> lk(wakeM_);
+        wakeCv_.wait(lk, [this] {
+            if (stopping_) return true;
+            for (const auto& q : queues_) {
+                std::lock_guard<std::mutex> qlk(q->m);
+                if (!q->jobs.empty()) return true;
+            }
+            return false;
+        });
+        if (stopping_) {
+            Job finalJob;
+            if (!take(index, finalJob)) break;
+            finalJob();
+        }
+    }
+    current_ = nullptr;
+}
+
+void TaskScheduler::shutdown() {
+    if (workers_.empty()) return;
+    stopping_ = true;
+    wakeCv_.notify_all();
+    for (auto& worker : workers_)
+        if (worker.joinable()) worker.join();
+    workers_.clear();
+    queues_.clear();
+}
 static thread_local Interpreter* g_nativeInterpreter = nullptr;
 
 CallFrameGuard::CallFrameGuard(std::string name, uint32_t line, uint32_t col) {
@@ -1664,6 +1761,9 @@ static int layoutAlignBytes(const ast::TypeP& t, const StructTable& structs,
 
 Interpreter::Interpreter(const Stmt& program) {
     globals_ = makeChild(nullptr);
+    taskScheduler_ = std::make_unique<TaskScheduler>();
+    unsigned hw = std::thread::hardware_concurrency();
+    taskScheduler_->start(std::min<size_t>(32, hw ? hw : 4));
     installBuiltins();
     program_ = &program;
 }
@@ -4622,13 +4722,18 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 auto t = a[0].thread;
                 if (!t) return Value::boolean(true);
                 int64_t ms = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
-                std::unique_lock<std::mutex> lk(t->m);
-                if (t->done) return Value::boolean(true);
-                if (ms <= 0) return Value::boolean(t->done);
-                bool ok =
-                    t->cv.wait_for(lk, std::chrono::milliseconds(ms),
-                                   [&] { return t->done; });
-                return Value::boolean(ok);
+                auto end = std::chrono::steady_clock::now() +
+                           std::chrono::milliseconds(std::max<int64_t>(0, ms));
+                for (;;) {
+                    {
+                        std::lock_guard<std::mutex> lk(t->m);
+                        if (t->done) return Value::boolean(true);
+                    }
+                    if (ms <= 0 || std::chrono::steady_clock::now() >= end)
+                        return Value::boolean(false);
+                    if (TaskScheduler::helpCurrent()) continue;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
             });
         }
         panicHere("time has no member '" + name + "'");
@@ -6111,10 +6216,10 @@ Value Interpreter::eval(const Expr& e, Env env) {
                     return r;
                 }
                 if (fut.k == VK::Timer) {
-                    int64_t now = nowMs();
-                    if (fut.deadlineMs > now)
-                        std::this_thread::sleep_for(
-                            std::chrono::milliseconds(fut.deadlineMs - now));
+                    while (fut.deadlineMs > nowMs()) {
+                        if (taskScheduler_ && taskScheduler_->runOne()) continue;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    }
                     // A timer wait is a cooperative cancellation point. An
                     // aborted task may wake naturally when its deadline
                     // arrives, but it must unwind before executing the next
@@ -11151,33 +11256,20 @@ Value Interpreter::spawnCall(const Expr& callExpr, Env env) {
         mapNamedIntoPos(slots, args, named);
     }
 
-    auto t = std::make_shared<ThreadImpl>();
-    {
-        std::lock_guard<std::mutex> lk(threadsM_);
-        threads_.push_back(t);
-    }
-    Value calleeCopy = callee;
-    calleeCopy.env = snapshotEnv(callee.env ? callee.env : globals_);
-    t->th = std::thread([this, calleeCopy, args, t]() {
-        threadEntry(calleeCopy, args, t);
-    });
-
-    Value h;
-    h.k = VK::ThreadH;
-    h.thread = t;
-    return h;
+    return spawnTask(std::move(callee), std::move(args));
 }
 
 Value Interpreter::spawnTask(Value callee, std::vector<Value> args) {
     auto t = std::make_shared<ThreadImpl>();
+    t->scheduled = true;
     {
         std::lock_guard<std::mutex> lk(threadsM_);
         threads_.push_back(t);
     }
     if (!callee.env) callee.env = globals_;
     callee.env = snapshotEnv(callee.env);
-    t->th = std::thread([this, callee, args, t]() {
-        threadEntry(callee, args, t);
+    taskScheduler_->enqueue([this, callee, args, t]() mutable {
+        threadEntry(std::move(callee), std::move(args), t);
     });
     Value h;
     h.k = VK::ThreadH;
@@ -11197,7 +11289,16 @@ Value Interpreter::awaitTask(const Value& task) {
     }
     if (!t->done) {
         std::unique_lock<std::mutex> lk(t->m);
-        t->cv.wait(lk, [&] { return t->done; });
+        while (!t->done) {
+            lk.unlock();
+            if (taskScheduler_ && taskScheduler_->runOne()) {
+                lk.lock();
+                continue;
+            }
+            lk.lock();
+            t->cv.wait_for(lk, std::chrono::milliseconds(1),
+                           [&] { return t->done; });
+        }
     }
     // Join the OS thread unless we are awaiting our own task.
     if (!t->joined && t->th.joinable()) {
@@ -11459,7 +11560,15 @@ void Interpreter::shutdownThreads() {
         std::lock_guard<std::mutex> lk(threadsM_);
         local.swap(threads_);
     }
-    // Join (never detach) outstanding tasks. A detached thread outlives this
+    // Complete scheduled tasks before stopping their worker pool. A scheduled
+    // task has no dedicated `std::thread`, so awaiting its condition is the
+    // equivalent of joining it. Explicit `go` threads are joined below.
+    for (auto& t : local) {
+        if (!t || !t->scheduled) continue;
+        std::unique_lock<std::mutex> lk(t->m);
+        t->cv.wait(lk, [&] { return t->done; });
+    }
+    // Join (never detach) outstanding explicit threads. A detached thread outlives this
     // Interpreter and keeps touching globals_/env while they are destroyed,
     // which segfaulted intermittently when main exited with a live task
     // (`var h = spawn f;` and not awaiting it). threadEntry catches every
@@ -11467,6 +11576,7 @@ void Interpreter::shutdownThreads() {
     // that never complete simply block here rather than crash.
     for (auto& t : local)
         if (t && t->th.joinable()) t->th.join();
+    if (taskScheduler_) taskScheduler_->shutdown();
 }
 
 // ---------------------------------------------------------------------------

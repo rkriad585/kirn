@@ -1,0 +1,17 @@
+# Work-stealing async scheduler regression: many tasks and nested awaits.
+import pet.async as a;
+
+async fn leaf(n: Int) -> Int {
+    await a.yield_now();
+    return n * 2;
+}
+
+async fn main() -> none {
+    tasks = [];
+    for i in 0..96 { tasks.append(leaf(i)); }
+    results = await a.join(tasks);
+    assert_eq(results.len(), 96);
+    assert_eq(results[0], 0);
+    assert_eq(results[95], 190);
+    print("async scheduler ok");
+}

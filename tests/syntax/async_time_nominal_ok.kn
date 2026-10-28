@@ -1,0 +1,23 @@
+# Nominal async time values coexist with the legacy integer-millisecond API.
+import pet.async as a;
+
+async fn main() -> none {
+    d = a.duration_ms(25);
+    assert_eq(d.from_millis(), 25);
+    assert(d.as_secs() > 0.02);
+    assert(not d.is_zero());
+
+    t0 = a.now_instant();
+    deadline = t0.add(d);
+    await a.sleep_duration(a.duration_ms(1));
+    elapsed = a.elapsed_value(t0);
+    assert(elapsed.as_millis() >= 1);
+    assert(elapsed.as_duration().from_millis() == elapsed.as_millis());
+    assert(deadline.as_millis() >= t0.as_millis() + 25);
+    assert(deadline.checked_duration_since(t0).from_millis() == 25);
+    assert(t0.checked_duration_since(deadline) == none);
+    assert(t0.saturating_duration_since(deadline).is_zero());
+
+    await a.sleep_until_instant(t0.add(a.duration_ms(2)));
+    print("async nominal time ok");
+}

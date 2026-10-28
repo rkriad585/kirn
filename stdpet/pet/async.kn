@@ -42,11 +42,69 @@ pub fn now_ms() -> Int {
 
 # ---- time: Instant / Duration / sleep_until / timeout / interval ------------
 #
-# Kirn has no dedicated Instant/Duration types in v1; both are Int milliseconds
-# (Instant = absolute epoch ms on the `time.after` clock, Duration = relative
-# ms), so they interoperate with `time.now`/`time.after` and arithmetic. This
-# mirrors tokio's `Instant`/`Duration` API (POWER_PLAN §2.8) without adding a
-# new nominal type to the language.
+# The original integer-millisecond API remains available for compatibility.
+# These nominal values provide a safer, self-documenting surface for new code,
+# while keeping conversion explicit at async/runtime boundaries.
+
+pub struct Duration {
+    millis: Int;
+
+    fn from_millis(self) -> Int { return self.millis; }
+    fn as_secs(self) -> Float { return Float(self.millis) / 1000.0; }
+    fn is_zero(self) -> Bool { return self.millis == 0; }
+}
+
+pub struct Instant {
+    epoch_ms: Int;
+
+    fn as_millis(self) -> Int { return self.epoch_ms; }
+    fn add(self, d: Duration) -> Instant {
+        return Instant(epoch_ms: self.epoch_ms + d.millis);
+    }
+    fn checked_duration_since(self, earlier: Instant) -> any {
+        if self.epoch_ms < earlier.epoch_ms { return none; }
+        return Duration(millis: self.epoch_ms - earlier.epoch_ms);
+    }
+    fn saturating_duration_since(self, earlier: Instant) -> Duration {
+        if self.epoch_ms < earlier.epoch_ms { return Duration(millis: 0); }
+        return Duration(millis: self.epoch_ms - earlier.epoch_ms);
+    }
+}
+
+pub struct Elapsed {
+    millis: Int;
+
+    fn as_millis(self) -> Int { return self.millis; }
+    fn as_duration(self) -> Duration { return Duration(millis: self.millis); }
+}
+
+pub fn duration_ms(ms: Int) -> Duration {
+    if ms < 0 { return Duration(millis: 0); }
+    return Duration(millis: ms);
+}
+
+pub fn duration_secs(seconds: Float) -> Duration {
+    if seconds <= 0.0 { return Duration(millis: 0); }
+    return Duration(millis: Int(seconds * 1000.0));
+}
+
+pub fn now_instant() -> Instant {
+    return Instant(epoch_ms: time.now());
+}
+
+pub fn elapsed_value(earlier: Instant) -> Elapsed {
+    d = time.now() - earlier.epoch_ms;
+    if d < 0 { d = 0; }
+    return Elapsed(millis: d);
+}
+
+pub fn sleep_duration(d: Duration) -> any {
+    return time.after(d.millis);
+}
+
+pub fn sleep_until_instant(deadline: Instant) -> any {
+    return time.after_at(deadline.epoch_ms);
+}
 
 # Current Instant (epoch ms). Alias of `now_ms`, named for tokio familiarity.
 pub fn instant() -> Int {

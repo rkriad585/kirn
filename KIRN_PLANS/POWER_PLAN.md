@@ -1427,6 +1427,21 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Nominal async time values (shipped)
+
+Added `Duration`, `Instant`, and `Elapsed` value types to `pet.async` while
+retaining the existing integer-millisecond timer API. The new values provide
+explicit millisecond/second conversion, absolute-instant arithmetic,
+checked/saturating duration calculations, elapsed measurements, and typed
+`sleep_duration`/`sleep_until_instant` helpers. Existing `instant`, `elapsed`,
+`sleep`, `timeout`, and interval callers remain source-compatible.
+
+Delivered: `stdpet/pet/async.kn`,
+`tests/syntax/async_time_nominal_ok.kn`.
+
+Verification: full build, focused VM/tree nominal-time parity, legacy async
+time VM/tree parity, and diff checks pass.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

@@ -80,6 +80,16 @@ fn hook(args: list, name: Str) -> any {
     return reflect.fn(p);
 }
 
+# `with = "module"` follows serde's paired-module convention: the final path
+# segment is resolved as `serialize` or `deserialize`. Kirn's reflection
+# resolver intentionally accepts the module-qualified spelling while keeping
+# function lookup lightweight.
+fn with_hook(args: list, operation: Str) -> any {
+    p = str_opt(args, "with");
+    if p == "" { return none; }
+    return reflect.fn(p + "::" + operation);
+}
+
 fn field_args(fattrs: any, fname: Str) -> list {
     if reflect.kind_of(fattrs) != "dict" { return []; }
     if not has_key(fattrs, fname) { return []; }
@@ -178,7 +188,8 @@ fn enc_struct(v: any) -> any {
         pred = hook(fargs, "skip_serializing_if");
         if reflect.kind_of(pred) != "none" and pred(fval) { continue; }
         var enc = none;
-        ser = hook(fargs, "serialize_with");
+        ser = with_hook(fargs, "serialize");
+        if reflect.kind_of(ser) == "none" { ser = hook(fargs, "serialize_with"); }
         if reflect.kind_of(ser) != "none" { enc = enc_tree(ser(fval)); }
         else { enc = enc_tree(fval); }
         if has_opt(fargs, "flatten") {
@@ -338,7 +349,8 @@ fn decode_struct(T: any, data: any) -> any {
             }
         }
         if present {
-            de = hook(fargs, "deserialize_with");
+            de = with_hook(fargs, "deserialize");
+            if reflect.kind_of(de) == "none" { de = hook(fargs, "deserialize_with"); }
             if reflect.kind_of(de) != "none" {
                 fields[fname] = de(raw);
             } else {

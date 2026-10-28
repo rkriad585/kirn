@@ -1446,6 +1446,20 @@ derive/code-generation surface stays explicitly in the active queue. The
 aggregate stdlib gate still has the pre-existing localhost bind and
 `contextlib_test.kn` ExitStack assertion failures.
 
+### Update (2026-10-28) — Serde paired `with` hooks (shipped)
+
+`@[serde(with = "module")]` now resolves the module's paired `serialize` and
+`deserialize` operations through the same reflection hook path used by the
+individual `serialize_with` and `deserialize_with` options. This keeps custom
+field representation format-agnostic and applies consistently to every format
+using `pet.codec`.
+
+Delivered: `stdpet/pet/codec.kn`, `stdpet/pet/serde_test.kn`.
+
+Verification: serde checks and VM/tree-walker round-trip tests pass. The
+aggregate stdlib gate retains the previously documented async localhost-bind
+and `contextlib_test.kn` ExitStack failures.
+
 ### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
 
 Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and

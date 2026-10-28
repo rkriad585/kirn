@@ -86,6 +86,7 @@ async fn main() -> none {
     assert_eq(Str(await a.timeout(1000, fast)), "ok(42)");
     slowt = spawn(async fn () -> Int { await a.sleep(ms: 300); return 1; });
     assert_eq(Str(await a.timeout(15, slowt)), "err('elapsed')");
+    assert(slowt.is_aborted());
     fast2 = spawn(async fn () -> Int { await a.sleep(ms: 5); return 9; });
     assert_eq(Str(await a.timeout_at(a.instant() + 1000, fast2)), "ok(9)");
 

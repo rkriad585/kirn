@@ -1427,6 +1427,20 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Timeout cancellation (shipped)
+
+`pet.async.timeout` now cooperatively aborts a task that exceeds its deadline
+before returning `err("elapsed")`. This uses the task handle cancellation
+surface and preserves the existing result/error behavior for tasks that finish
+within the timeout.
+
+Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_time_ok.kn`.
+
+Verification: async time checks and VM/native runs pass, including the
+`is_aborted()` assertion. The full async stdlib test remains unable to run in
+this environment because its unrelated TCP listener bind collides.
+
 ### Update (2026-10-28) — Parallel closure sendability checks (shipped)
 
 Parallel iterator callbacks now reuse the existing capture analysis used by

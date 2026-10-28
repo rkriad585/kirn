@@ -80,11 +80,15 @@ pub fn sleep_until(deadline_ms: Int) -> any {
 
 # Await `fut` but give up after `ms` milliseconds: `ok(v)` if it finished in
 # time, `err("elapsed")` otherwise. `fut` must be an already-started Task (calling
-# an `async fn` schedules it); on timeout the task keeps running detached. This
-# is the futures that `timeout_at`/`select` are built on (POWER_PLAN §2.8).
+# an `async fn` schedules it); on timeout the task is cooperatively aborted.
+# This is the futures surface that `timeout_at`/`select` are built on
+# (POWER_PLAN §2.8).
 pub async fn timeout(ms: Int, fut: any) -> any {
     waited = time.wait(fut, ms);
-    if not waited { return err("elapsed"); }
+    if not waited {
+        fut.abort();
+        return err("elapsed");
+    }
     return ok(await fut);
 }
 

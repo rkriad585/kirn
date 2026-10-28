@@ -18,7 +18,9 @@ async fn main() -> none {
     print("until ok");
 
     print("timeout:", await a.timeout(1000, work(2, 5)));
-    print("timeout slow:", await a.timeout(10, work(3, 250)));
+    slow = work(3, 250);
+    print("timeout slow:", await a.timeout(10, slow));
+    assert(slow.is_aborted());
 
     var iv = a.interval(period_ms: 15);
     var n = 0;

@@ -1842,3 +1842,15 @@ Delivered: `src/sema/checker.cpp`,
 `tests/syntax/async_typed_handle_ok.kn`.
 
 Verification: build, checker, VM, and native execution pass.
+
+### Update (2026-10-28) — Async buffered-read contract (shipped)
+
+`pet.async_io` now exposes `AsyncBufRead` with asynchronous `read_line` and
+`lines` operations. `File` and `BufReader` implement the contract while
+retaining their concrete APIs, so line-oriented consumers can use one stable
+async surface across unbuffered and buffered readers.
+
+Delivered: `stdpet/pet/async_io.kn`, `tests/syntax/async_bufread_ok.kn`.
+
+Verification: full build, checker, tree-walker/VM parity, and the async-I/O
+syntax regression pass.

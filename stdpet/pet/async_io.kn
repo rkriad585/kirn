@@ -29,6 +29,11 @@ pub trait AsyncSeek {
     async fn seek(self, pos: Int) -> Int;
 }
 
+pub trait AsyncBufRead {
+    async fn read_line(self) -> Str;
+    async fn lines(self) -> list;
+}
+
 pub struct File {
     h: dict;   # {path: Str, pos: Int}
 
@@ -139,6 +144,7 @@ pub struct File {
 impl AsyncRead for File {}
 impl AsyncWrite for File {}
 impl AsyncSeek for File {}
+impl AsyncBufRead for File {}
 
 # Open an existing file at position 0. Raises if it does not exist.
 pub fn open(path: Str) -> File {
@@ -241,6 +247,7 @@ pub fn buffered_reader(f: File) -> BufReader {
 
 impl AsyncRead for BufReader {}
 impl AsyncSeek for BufReader {}
+impl AsyncBufRead for BufReader {}
 
 # A writer that accumulates chunks until `flush`, then writes them in order.
 pub struct BufWriter {

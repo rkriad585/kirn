@@ -1,0 +1,25 @@
+# AsyncBufRead contract regression (POWER_PLAN §2.6).
+import pet.async as a;
+
+async fn read_lines(reader: any) -> list {
+    return await reader.lines();
+}
+
+async fn read_first_line(reader: any) -> Str {
+    return await reader.read_line();
+}
+
+async fn main() -> none {
+    path = "/tmp/kirn_async_bufread_ok.txt";
+    f = a.io.create(path);
+    f.write("one\ntwo\n");
+
+    first = await read_first_line(a.io.open(path));
+    assert(first == "one");
+
+    allLines = await read_lines(a.io.buffered_reader(a.io.open(path)));
+    assert(allLines.len() == 2);
+    assert(allLines[0] == "one");
+    assert(allLines[1] == "two");
+    await a.fs.remove_file(path);
+}

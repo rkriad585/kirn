@@ -450,6 +450,30 @@ void Checker::predeclareBuiltins() {
     traits_["Iterator"] = iter;
     scope_->declare(iter);
 
+    // Serde derives are language-level trait conformances. The concrete
+    // default implementations live in pet.serde, but predeclaring their
+    // method shapes lets the checker type-check `value.serialize()` and keeps
+    // the derive contract available to code that imports only the format API.
+    auto serialize = std::make_shared<Symbol>();
+    serialize->kind = SymK::Trait;
+    serialize->name = "Serialize";
+    FuncSig serializeSig;
+    serializeSig.ret = unkTy();
+    serialize->sigs["serialize"] = serializeSig;
+    traits_["Serialize"] = serialize;
+    scope_->declare(serialize);
+
+    auto deserialize = std::make_shared<Symbol>();
+    deserialize->kind = SymK::Trait;
+    deserialize->name = "Deserialize";
+    FuncSig deserializeSig;
+    deserializeSig.params.push_back(unkTy());
+    deserializeSig.names.push_back("data");
+    deserializeSig.ret = unkTy();
+    deserialize->sigs["deserialize"] = deserializeSig;
+    traits_["Deserialize"] = deserialize;
+    scope_->declare(deserialize);
+
     // result[OkT, ErrT] nominal + ok()/err() variant constructors (patterns).
     auto res = std::make_shared<Symbol>();
     res->kind = SymK::Struct;
@@ -770,6 +794,16 @@ SymP Checker::makeBuiltinFunc(std::string name, std::vector<TyP> params,
 // ========================== declaration collection ==========================
 
 void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
+    auto derivesSerde = [](const ast::Stmt& s, const char* trait) {
+        for (const auto& d : s.decorators) {
+            if (d.name != "derive") continue;
+            for (const auto& a : d.args)
+                if (a.value && a.value->kind == ast::ExKind::Ident &&
+                    a.value->text == trait)
+                    return true;
+        }
+        return false;
+    };
     for (const auto& st : prog) {
         switch (st->kind) {
             case StKind::StructDef: {
@@ -794,6 +828,10 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
+                if (derivesSerde(*st, "Serialize"))
+                    impls_.insert({"Serialize", st->name});
+                if (derivesSerde(*st, "Deserialize"))
+                    impls_.insert({"Deserialize", st->name});
                 break;
             }
             case StKind::EnumDef: {
@@ -805,6 +843,10 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                 if (scope_->declare(sym))
                     error(st->span.line, st->span.col,
                           "duplicate definition of '" + st->name + "'");
+                if (derivesSerde(*st, "Serialize"))
+                    impls_.insert({"Serialize", st->name});
+                if (derivesSerde(*st, "Deserialize"))
+                    impls_.insert({"Deserialize", st->name});
                 break;
             }
             case StKind::TraitDef: {

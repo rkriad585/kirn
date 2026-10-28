@@ -233,6 +233,7 @@ private:
     std::map<std::string, Env> loadedModules_;
     std::map<std::string, std::vector<ast::StmtP>> moduleAstCache_;
     Value loadModuleFile(const std::string& dotted);
+    void registerDerivedSerdeTraits(const ast::Stmt& s, Env env);
     Value formatFString(const Expr& e, Env env);
     std::string applySpec(const std::string& text, const std::string& spec);
     Value sortList(Value listVal, const std::vector<ast::CallArg>& args, Env env);

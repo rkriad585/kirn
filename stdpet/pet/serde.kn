@@ -15,12 +15,23 @@
 import pet.codec as codec;
 import pet.json as json;
 
+# Format-agnostic trait-facing entry points. Derived types are registered as
+# Serialize/Deserialize conformances by the compiler/runtime; these functions
+# keep the codec tree independent of any concrete text or binary format.
+pub fn serialize(v: any) -> any {
+    return codec.enc_tree(v);
+}
+
+pub fn deserialize(T: any, data: any) -> any {
+    return codec.coerce_type(T, data);
+}
+
 # ---- Encoding --------------------------------------------------------------
 # Structs/enums/lists/maps become a tree in pet.codec, then JSON text in
 # pet.json — output is identical to the original single-module encoder.
 
 pub fn to_json(v: any) -> Str {
-    return json.render(codec.enc_tree(v));
+    return json.render(serialize(v));
 }
 
 pub fn encode(v: any) -> Str {
@@ -40,5 +51,5 @@ pub fn decode(s: Str) -> any {
 
 # Parse JSON and coerce it into `T` (a struct or enum type reference).
 pub fn from_json_as(T: any, s: Str) -> any {
-    return codec.coerce_type(T, json.loads(s));
+    return deserialize(T, json.loads(s));
 }

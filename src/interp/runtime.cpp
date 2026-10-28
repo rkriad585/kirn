@@ -901,6 +901,17 @@ static void registerEnumDerive(const ast::Stmt& s) {
         if (decoratorDerivesError(d)) { g_errDerivedEnums[s.name] = &s; return; }
 }
 
+static bool decoratorDerives(const ast::Stmt& s, const std::string& trait) {
+    for (const auto& d : s.decorators) {
+        if (d.name != "derive") continue;
+        for (const auto& a : d.args)
+            if (a.value && a.value->kind == ast::ExKind::Ident &&
+                a.value->text == trait)
+                return true;
+    }
+    return false;
+}
+
 // Minimal `@[derive(Error)]` Display (thiserror): render the variant's
 // `@[error("…")]` template — `{field}`, `{0}`, `{field:?}`, `{{`/`}}` — or, for
 // `@[error(transparent)]`, delegate to the sole field's Display.
@@ -1697,6 +1708,20 @@ static bool isPreboundModule(const std::string& name) {
     return false;
 }
 
+void Interpreter::registerDerivedSerdeTraits(const Stmt& s, Env env) {
+    if (s.kind != ast::StKind::StructDef && s.kind != ast::StKind::EnumDef)
+        return;
+    for (const auto& trait : {std::string("Serialize"),
+                              std::string("Deserialize")}) {
+        if (!decoratorDerives(s, trait)) continue;
+        ImplEntry ent;
+        ent.traitName = trait;
+        ent.typeName = s.name;
+        ent.env = env;
+        impls_.push_back(std::move(ent));
+    }
+}
+
 void Interpreter::collectProgram(const Stmt& program) {
     for (const auto& sp : program.body) {
         const Stmt& s = *sp;
@@ -1712,8 +1737,13 @@ void Interpreter::collectProgram(const Stmt& program) {
             case ast::StKind::StructDef:
                 structs_[s.name] = &s;
                 structEnv_[s.name] = globals_;
+                registerDerivedSerdeTraits(s, globals_);
                 break;
-            case ast::StKind::EnumDef:   enums_[s.name] = &s;   registerEnumDerive(s); break;
+            case ast::StKind::EnumDef:
+                enums_[s.name] = &s;
+                registerEnumDerive(s);
+                registerDerivedSerdeTraits(s, globals_);
+                break;
             case ast::StKind::TraitDef:  traits_[s.name] = &s;  break;
             case ast::StKind::ImplDef: {
                 ImplEntry ent;
@@ -3632,6 +3662,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
             case ast::StKind::StructDef:
                 structs_[s.name] = &s;
                 structEnv_[s.name] = modEnv;
+                registerDerivedSerdeTraits(s, modEnv);
                 // export `pub struct`/`pub class` through the module namespace
                 // so consumers can reference `mod.Type` and construct it.
                 if (s.pub && !s.privateDecl)
@@ -3640,6 +3671,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
             case ast::StKind::EnumDef:
                 enums_[s.name] = &s;
                 registerEnumDerive(s);
+                registerDerivedSerdeTraits(s, modEnv);
                 if (s.pub && !s.privateDecl)
                     modEnv->vars[s.name] = Value::module("__enum__:" + s.name);
                 break;
@@ -5472,6 +5504,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
         case ast::StKind::StructDef: {
             structs_[s.name] = &s;
             structEnv_[s.name] = env;
+            registerDerivedSerdeTraits(s, env);
             env->vars[s.name] = Value::module("__struct__:" + s.name);
             return;
         }
@@ -5479,6 +5512,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
         case ast::StKind::EnumDef: {
             enums_[s.name] = &s;
             registerEnumDerive(s);
+            registerDerivedSerdeTraits(s, env);
             env->vars[s.name] = Value::module("__enum__:" + s.name);
             return;
         }
@@ -7335,6 +7369,30 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                     if (it->env) menv = it->env;
                     break;
                 }
+                // A derived serde impl may be marker-only. In that case use
+                // the default method supplied by the Serialize/Deserialize
+                // trait declaration, just as a generated impl would.
+                auto ti = traits_.find(it->traitName);
+                if (ti != traits_.end() && ti->second) {
+                    for (const auto& m : ti->second->body)
+                        if (m->kind == ast::StKind::FuncDef &&
+                            m->name == name) {
+                            method = m.get();
+                            if (it->env) menv = it->env;
+                            break;
+                        }
+                }
+                if (method) break;
+            }
+        }
+        if (!method) {
+            for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+                if (it->typeName != tn || it->traitName != "Serialize" ||
+                    name != "serialize")
+                    continue;
+                Value codec = loadModuleFile("pet.codec");
+                Value encoder = moduleMember(codec.typeName, "enc_tree");
+                return callValue(std::move(encoder), {obj}, line, col);
             }
         }
         if (!method)

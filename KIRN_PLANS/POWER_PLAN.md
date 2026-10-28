@@ -1427,6 +1427,25 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
+
+The serde layer now has a checker-visible `Serialize`/`Deserialize` trait
+contract. `@[derive(Serialize, Deserialize)]` on structs and enums registers
+the corresponding conformance, and derived values expose `.serialize()` through
+the shared format-agnostic codec. `pet.serde.serialize` and
+`pet.serde.deserialize` provide the same tree-level operations for JSON, TOML,
+YAML, and CBOR adapters without duplicating format logic.
+
+Delivered: `src/sema/checker.cpp`, `src/interp/runtime.h`,
+`src/interp/runtime.cpp`, `stdpet/pet/serde.kn`, and
+`stdpet/pet/serde_test.kn`.
+
+Verification: full build, serde module checks, focused serde syntax checks,
+and VM/tree-walker serde test parity pass. The remaining full visitor-based
+derive/code-generation surface stays explicitly in the active queue. The
+aggregate stdlib gate still has the pre-existing localhost bind and
+`contextlib_test.kn` ExitStack assertion failures.
+
 ### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
 
 Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and

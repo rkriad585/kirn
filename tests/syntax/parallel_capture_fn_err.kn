@@ -1,0 +1,10 @@
+# expect: cannot pass closure to 'parallel'
+fn apply(x: Int) -> Int {
+    return x + 1;
+}
+
+fn main() -> none {
+    var f = apply;
+    var xs = [1, 2, 3];
+    xs.par_iter().map(fn (x) { return f(x); }).collect();
+}

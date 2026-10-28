@@ -1426,3 +1426,19 @@ Delivered: `src/sema/checker.cpp`,
 `tests/syntax/parallel_method_ok.kn`.
 
 Verification: build, checker, VM, and native execution pass.
+
+### Update (2026-10-28) — Parallel closure sendability checks (shipped)
+
+Parallel iterator callbacks now reuse the existing capture analysis used by
+`spawn`. Closures passed to parallel combinators reject captured function
+values, raw pointers, references, and trait objects before execution crosses a
+worker boundary. Captured immutable/sendable data remains supported; shared
+mutation still requires the explicit synchronization APIs documented by the
+parallel layer.
+
+Delivered: `src/sema/checker.cpp`,
+`tests/syntax/parallel_capture_fn_err.kn`.
+
+Verification: build, focused positive/negative checks, VM/native parallel
+execution, and syntax gate. Gate 2b is **76 passed, 1 failed, 0 hung**; the
+only failure remains the existing `async_byteio_ok.kn` TCP bind collision.

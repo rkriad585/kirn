@@ -5011,6 +5011,21 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
                                                 {iterableElem(out)});
             }
         }
+        // Parallel callbacks cross a worker boundary just like spawned task
+        // closures. Reuse the capture analysis so function values, references,
+        // pointers, and trait objects cannot silently cross that boundary.
+        static const std::set<std::string> callbackMethods = {
+            "map", "filter", "filter_map", "flat_map", "chunk_by",
+            "inspect", "while_some", "for_each", "for_each_init", "fold",
+            "try_reduce", "reduce", "any", "all", "find_any", "find_first",
+            "find_last", "min_by", "max_by", "min_by_key", "max_by_key",
+            "positions", "map_with",
+        };
+        if (callbackMethods.count(name)) {
+            size_t ci = name == "map_with" ? 1 : 0;
+            if (ci < args.size() && args[ci].value->kind == ExKind::Lambda)
+                checkClosureSendable(*args[ci].value, "parallel");
+        }
     }
 
     // sendability: values crossing threads through a channel must not carry

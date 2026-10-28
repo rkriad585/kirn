@@ -3456,13 +3456,10 @@ static bool readFileIfExists(const std::string& path, std::string& out) {
 //     -> mod.kn -> <dirname>.kn -> lone *.kn
 static bool resolvePackageEntry(const std::string& dir, std::string& out) {
     std::string manifest;
-    if (readFileIfExists(dir + "/kirn.toml", manifest)) {
-        // current manifest name
-    } else if (readFileIfExists(dir + "/kirn.toml", manifest)) {
-        std::cerr << "note: found 'kirn.toml' in '" << dir
-                  << "' but expected 'kirn.toml' (manifest renamed in this "
-                     "release); run:  mv kirn.toml kirn.toml\n";
-    }
+    // Kirn has one canonical project manifest name. Do not silently probe or
+    // describe a legacy spelling here: installed packages and source projects
+    // both use kirn.toml.
+    readFileIfExists(dir + "/kirn.toml", manifest);
     if (!manifest.empty()) {
         kirn::tomlmini::Doc doc = kirn::tomlmini::parse(manifest);
         std::string mainf = kirn::tomlmini::get(doc, "package", "main");

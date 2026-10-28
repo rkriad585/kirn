@@ -1441,6 +1441,19 @@ Verification: async time checks and VM/native runs pass, including the
 `is_aborted()` assertion. The full async stdlib test remains unable to run in
 this environment because its unrelated TCP listener bind collides.
 
+### Update (2026-10-28) — Canonical manifest and lockfile names (shipped)
+
+Project and package loading now consistently use `kirn.toml` as the manifest
+and `kirn.lock` as the lockfile. Removed the dead duplicate manifest probe in
+the interpreter and the misleading legacy-rename diagnostics from both CLI
+lock readers. No `kirn.mod` compatibility path is introduced.
+
+Delivered: `src/interp/runtime.cpp`, `tools/kirn.cpp`,
+`src/driver/driver.cpp`.
+
+Verification: full build, `scripts/gates/5_conventions.sh` (**11 passed, 0
+failed, 0 hung**), CLI help, and target listing pass.
+
 ### Update (2026-10-28) — Parallel closure sendability checks (shipped)
 
 Parallel iterator callbacks now reuse the existing capture analysis used by

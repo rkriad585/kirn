@@ -305,12 +305,7 @@ struct LockEntry {
 std::vector<LockEntry> readLock(const fs::path& dir) {
     std::vector<LockEntry> out;
     std::string text;
-    if (!readFile((dir / "kirn.lock").string(), text)) {
-        if (fs::is_regular_file(dir / "kirn.lock"))
-            std::cerr << "kirn: ignoring stale 'kirn.lock' (renamed to "
-                         "'kirn.lock'); delete it and re-run:  rm kirn.lock\n";
-        return out;
-    }
+    if (!readFile((dir / "kirn.lock").string(), text)) return out;
     Doc d = kirn::tomlmini::parse(text);
     for (const auto& t : d.tables) {
         if (t.name != "lock") continue;

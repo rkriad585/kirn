@@ -1,0 +1,16 @@
+# In-place parallel list mutation (POWER_PLAN §4.3).
+import pet.parallel as p;
+
+fn main() -> none {
+    var xs = [];
+    var i = 0;
+    while i < 5000 {
+        xs.append(i);
+        i += 1;
+    }
+    p.par_iter_mut(xs).for_each_mut(fn (x) { return x * 2; });
+    assert(xs[0] == 0);
+    assert(xs[1] == 2);
+    assert(xs[4999] == 9998);
+    print("parallel mut ok");
+}

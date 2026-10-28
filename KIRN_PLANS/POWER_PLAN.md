@@ -1460,6 +1460,21 @@ Verification: serde checks and VM/tree-walker round-trip tests pass. The
 aggregate stdlib gate retains the previously documented async localhost-bind
 and `contextlib_test.kn` ExitStack failures.
 
+### Update (2026-10-28) — In-place parallel list mutation (shipped)
+
+`pet.parallel.par_iter_mut(xs)` now preserves the original list backing storage
+and exposes `for_each_mut(fn (value) -> replacement)`. Large lists are divided
+into disjoint index ranges and each worker writes replacements directly into
+its range; small inputs use the same mutation contract sequentially. This is
+the ownership-safe Kirn equivalent of rayon's `par_iter_mut` while avoiding
+unsound shared mutable references across worker closures.
+
+Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`.
+
+Verification: parallel module checks and VM/tree-walker execution pass on a
+5,000-element in-place mutation regression. The full syntax gate retains the
+known restricted-network failure in `async_byteio_ok.kn`.
+
 ### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
 
 Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and

@@ -610,6 +610,44 @@ struct ParIter {
         parallel.invoke(fns);
     }
 
+    # In-place parallel mutation over disjoint list indices. The callback
+    # returns the replacement value for the current element; the original list
+    # backing storage is updated rather than building a second collection.
+    # This is Kirn's ownership-safe equivalent of rayon's par_iter_mut: the
+    # range partition guarantees that no worker writes the same index.
+    fn for_each_mut(self, f) -> none {
+        xs = self.xs;
+        n = parallel.current_num_threads();
+        if xs.len() < self.grain() or n <= 1 {
+            var j = 0;
+            while j < xs.len() {
+                xs[j] = f(xs[j]);
+                j += 1;
+            }
+            return;
+        }
+        total = xs.len();
+        if n > total { n = total; }
+        size = (total + n - 1) // n;
+        fns = [];
+        var lo = 0;
+        while lo < total {
+            hi = lo + size;
+            if hi > total { hi = total; }
+            start = lo;
+            stop = hi;
+            fns.append(fn () -> none {
+                var j = start;
+                while j < stop {
+                    xs[j] = f(xs[j]);
+                    j += 1;
+                }
+            });
+            lo = hi;
+        }
+        parallel.invoke(fns);
+    }
+
     fn reduce(self, init, f) -> any {
         var acc = init;
         for e in self.xs { acc = f(acc, e); }
@@ -662,6 +700,12 @@ pub fn par_iter(xs) -> ParIter {
     list_xs = [];
     for e in xs { list_xs.append(e); }
     return ParIter(xs: list_xs, divided: false);
+}
+
+# Build a mutation-preserving parallel iterator over an existing list. Unlike
+# `par_iter`, this does not copy the list before callbacks run.
+pub fn par_iter_mut(xs: list) -> ParIter {
+    return ParIter(xs: xs, divided: false);
 }
 
 # ---- grouping entry points (POWER_PLAN 4.3) -------------------------------

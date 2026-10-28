@@ -6447,9 +6447,14 @@ Value Interpreter::eval(const Expr& e, Env env) {
                 e.lhs->lhs->kind == ast::ExKind::Ident) {
                 const std::string& ename = e.lhs->lhs->text;
                 if (!env->find(ename) && !funcs_.count(ename) &&
-                    !structs_.count(ename) && enums_.count(ename))
-                    return makeEnumV(ename, e.lhs->text, e.args, env,
-                                     e.span.line, e.span.col);
+                    !structs_.count(ename) && enums_.count(ename)) {
+                    bool variant = false;
+                    for (const auto& v : enums_.at(ename)->variants)
+                        if (v.name == e.lhs->text) { variant = true; break; }
+                    if (variant)
+                        return makeEnumV(ename, e.lhs->text, e.args, env,
+                                         e.span.line, e.span.col);
+                }
             }
 
             // struct literal construction: Circle(center: c, radius: r)
@@ -7758,6 +7763,19 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     out.payload.resize(ei->second->variants[0].payload.size(),
                                        Value::none());
                     return bind({}, [out](std::vector<Value>&) { return out; });
+                }
+                // Enum type references share the `Enum.Variant` namespace;
+                // accept the derived default directly after the impl scan so
+                // the call-site constructor fast path cannot reinterpret
+                // `Enum.default()` as a variant.
+                if (obj.typeName.rfind("__enum__:", 0) == 0) {
+                    auto ei = enums_.find(tn);
+                    if (ei != enums_.end() && !ei->second->variants.empty()) {
+                        Value out = Value::enumV(tn, ei->second->variants[0].name);
+                        out.payload.resize(ei->second->variants[0].payload.size(),
+                                           Value::none());
+                        return bind({}, [out](std::vector<Value>&) { return out; });
+                    }
                 }
             }
             if (obj.typeName.rfind("__struct__:", 0) == 0 ||

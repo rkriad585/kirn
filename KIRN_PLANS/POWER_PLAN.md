@@ -1524,9 +1524,20 @@ Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
 `tests/syntax/derive_common_ok.kn`.
 
 Verification: the default construction regression and all common-derive tests
-pass under both VM and tree-walker execution. Enum default-variant selection
-remains a separate follow-up because enum type references share variant
-constructor syntax.
+pass under both VM and tree-walker execution.
+
+### Update (2026-10-28) — Derived enum defaults (shipped)
+
+Enum type references now distinguish declared variants from derived trait
+operations, so `State.default()` selects the first declared variant and fills
+its payload with `none` values. The constructor fast path only handles actual
+variant names; `default` is dispatched as the derived type-level operation.
+
+Delivered: `src/interp/runtime.cpp`,
+`tests/syntax/derive_common_ok.kn`.
+
+Verification: struct and enum default regressions pass under both VM and
+tree-walker execution.
 
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 

@@ -17,5 +17,6 @@ fn main() -> none {
     assert(State.Ready.eq(State.Ready));
     d = Point.default();
     assert(d.x == 0 and d.y == 0);
+    assert(State.default().debug() == "State.Ready");
     print("common derives ok");
 }

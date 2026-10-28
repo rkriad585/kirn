@@ -7282,6 +7282,33 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
     (void)env;
     if (obj.k == VK::Weak) obj = lockHeap(obj);
 
+    // Derived serde implementations are generated at the trait boundary even
+    // when their bodies are supplied by the shared format-neutral codec. A
+    // type reference is the receiver for Deserialize, so handle it before the
+    // ordinary value/field method paths. This makes `User.deserialize(tree)`
+    // the same generated operation as `user.serialize()` and avoids requiring
+    // every format adapter to emit a duplicate implementation.
+    if (obj.k == VK::Module &&
+        (obj.typeName.rfind("__struct__:", 0) == 0 ||
+         obj.typeName.rfind("__enum__:", 0) == 0) &&
+        name == "deserialize" && pos.size() == 1) {
+        std::string tn = obj.typeName.rfind("__struct__:", 0) == 0
+                             ? obj.typeName.substr(11)
+                             : obj.typeName.substr(9);
+        bool derived = false;
+        for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+            if (it->traitName == "Deserialize" && it->typeName == tn) {
+                derived = true;
+                break;
+            }
+        }
+        if (derived) {
+            Value codec = loadModuleFile("pet.codec");
+            Value decoder = moduleMember(codec.typeName, "coerce_type");
+            return callValue(std::move(decoder), {obj, pos[0]}, line, col);
+        }
+    }
+
     if (obj.k == VK::EnumV) {
         if (name == "to_int") {
             auto ei = enums_.find(obj.typeName);
@@ -7518,6 +7545,23 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
             panicHere("cannot read '" + name + "' from none");
 
         case VK::Module:
+            if ((obj.typeName.rfind("__struct__:", 0) == 0 ||
+                 obj.typeName.rfind("__enum__:", 0) == 0) &&
+                name == "deserialize") {
+                std::string tn = obj.typeName.rfind("__struct__:", 0) == 0
+                                     ? obj.typeName.substr(11)
+                                     : obj.typeName.substr(9);
+                for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+                    if (it->traitName != "Deserialize" || it->typeName != tn)
+                        continue;
+                    return bind({"data"}, [this, obj](std::vector<Value>& a) {
+                        Value codec = loadModuleFile("pet.codec");
+                        Value decoder = moduleMember(codec.typeName, "coerce_type");
+                        Value data = a.size() > 1 ? a[1] : Value::none();
+                        return callValue(std::move(decoder), {obj, data}, 0, 0);
+                    });
+                }
+            }
             if (obj.typeName.rfind("__struct__:", 0) == 0 ||
                 obj.typeName.rfind("__enum__:", 0) == 0)
                 panicHere("type reference has no member '" + name + "'");

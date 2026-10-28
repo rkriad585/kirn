@@ -67,6 +67,7 @@ fn main() -> none {
     p = Point(x: 3, y: 4);
     assert(p.serialize()["x"] == 3);
     assert(serde.deserialize(Point, {"x": 9, "y": 10}).y == 10);
+    assert(Point.deserialize({"x": 11, "y": 12}).x == 11);
     assert(serde.to_json(p) == "{\"x\":3,\"y\":4}");
 
     line = Line(a: Point(x: 0, y: 0), b: Point(x: 1, y: 1), label: "diag");

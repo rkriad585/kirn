@@ -1442,6 +1442,19 @@ Delivered: `stdpet/pet/async.kn`,
 Verification: full build, focused VM/tree nominal-time parity, legacy async
 time VM/tree parity, and diff checks pass.
 
+### Update (2026-10-28) — Generated serde type operations (shipped)
+
+Derived `Deserialize` conformance now exposes the generated type-level
+operation `Type.deserialize(tree)`, alongside the existing value-level
+`value.serialize()`. Both dispatch through the shared `pet.codec` tree
+encoder/coercer, so nested structs, enums, and all format adapters retain one
+implementation rather than diverging generated copies.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/serde_test.kn`.
+
+Verification: full rebuild and serde test execution pass under both the VM and
+tree-walker paths; the new type-level operation is covered by the regression.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

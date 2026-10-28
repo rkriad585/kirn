@@ -1,0 +1,17 @@
+# Synchronous process waits used inside async tasks must observe cancellation.
+import pet.async as a;
+import os;
+
+async fn blocking_run() -> any {
+    return os.run(["sh", "-c", "sleep 2"]);
+}
+
+async fn main() -> none {
+    h = blocking_run();
+    await a.sleep(ms: 10);
+    h.abort();
+    t0 = a.now_ms();
+    assert(await h == none);
+    assert(a.now_ms() - t0 < 500);
+    print("async process cancellation ok");
+}

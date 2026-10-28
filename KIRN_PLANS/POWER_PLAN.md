@@ -1472,6 +1472,21 @@ Verification: full rebuild, existing async time/task regressions, and the
 execution. Timer and timeout waits also yield queued work where the scheduler
 has an active worker context.
 
+### Update (2026-10-28) — Cancellable synchronous process waits (shipped)
+
+Native `os.run` and `os.wait` now use short `waitpid(WNOHANG)` polling slices
+with task cancellation checkpoints. If cancellation arrives, a running child
+is killed and reaped before the cancellation propagates, preventing leaked
+children or blocked worker threads. Process output is read in bounded chunks
+with the same checkpoints.
+
+Delivered: `src/interp/runtime.cpp`,
+`tests/syntax/async_process_cancel_ok.kn`.
+
+Verification: full rebuild and the cancellation regression pass under both VM
+and tree-walker execution; the child wait returns within the bounded test
+deadline.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

@@ -3949,13 +3949,20 @@ static bool launchProcess(const std::vector<std::string>& argv,
 #endif
 }
 
-static int waitProcess(int pid) {
+static int waitProcessCancelable(int pid) {
 #ifndef _WIN32
-    int status = 0;
-    if (::waitpid((pid_t)pid, &status, 0) < 0) return -1;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
-    return -1;
+    for (;;) {
+        checkTaskCancellation();
+        int status = 0;
+        pid_t r = ::waitpid((pid_t)pid, &status, WNOHANG);
+        if (r == (pid_t)pid) {
+            if (WIFEXITED(status)) return WEXITSTATUS(status);
+            if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+            return -1;
+        }
+        if (r < 0) return -1;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 #else
     (void)pid;
     return -1;
@@ -3977,19 +3984,37 @@ static std::optional<int> tryWaitProcess(int pid) {
 #endif
 }
 
-static std::string slurpFile(const std::string& path) {
+static std::string slurpFileCancelable(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
-    return std::string((std::istreambuf_iterator<char>(f)),
-                       std::istreambuf_iterator<char>());
+    if (!f) return {};
+    std::string out;
+    char buf[64 * 1024];
+    while (f) {
+        checkTaskCancellation();
+        f.read(buf, sizeof buf);
+        std::streamsize got = f.gcount();
+        if (got > 0) out.append(buf, (size_t)got);
+    }
+    return out;
 }
 
 static Value runProcess(const std::vector<std::string>& argv) {
     SpawnedProc sp;
     std::string err;
     if (!launchProcess(argv, sp, err)) panicHere(err);
-    int code = waitProcess(sp.pid);
-    std::string out = slurpFile(sp.outPath);
-    std::string errOut = slurpFile(sp.errPath);
+    int code = -1;
+    try {
+        code = waitProcessCancelable(sp.pid);
+    } catch (const SignalCancel&) {
+#ifndef _WIN32
+        ::kill((pid_t)sp.pid, SIGKILL);
+        int status = 0;
+        while (::waitpid((pid_t)sp.pid, &status, 0) < 0 && errno == EINTR) {}
+#endif
+        throw;
+    }
+    std::string out = slurpFileCancelable(sp.outPath);
+    std::string errOut = slurpFileCancelable(sp.errPath);
     std::error_code ec;
     std::filesystem::remove(sp.outPath, ec);
     std::filesystem::remove(sp.errPath, ec);
@@ -5072,7 +5097,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         if (name == "wait")
             return biFn({"pid"}, [](std::vector<Value>& a) -> Value {
                 int pid = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
-                return Value::integer(waitProcess(pid));
+                return Value::integer(waitProcessCancelable(pid));
             });
         if (name == "try_wait")
             return biFn({"pid"}, [](std::vector<Value>& a) -> Value {

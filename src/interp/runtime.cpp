@@ -7154,7 +7154,7 @@ Value Interpreter::callValue(Value callee, std::vector<Value> args, int line,
             }
             return callee.bi(args);
         }
-case VK::Fn: {
+        case VK::Fn: {
             std::string name = callee.lam ? "<lambda>"
                               : (callee.fn ? callee.fn->name : "?");
             // POWER_PLAN §2: calling an `async fn` schedules a task and returns
@@ -7163,6 +7163,22 @@ case VK::Fn: {
                 return spawnTask(callee, std::move(args));
             if (callee.lam && callee.lam->isAsync)
                 return spawnTask(callee, std::move(args));
+            // POWER_PLAN §4.4: `@[par] fn` opts a pure synchronous function
+            // into the shared parallel scheduler. The call remains
+            // synchronous at the language boundary, so callers receive the
+            // function result directly while the body runs on a worker.
+            bool parallelFn = false;
+            if (callee.fn) {
+                for (const auto& d : callee.fn->decorators)
+                    if (d.bracket && d.name == "par") {
+                        parallelFn = true;
+                        break;
+                    }
+            }
+            if (parallelFn && !callee.fn->externDef) {
+                Value task = spawnTask(callee, std::move(args));
+                return awaitTask(task);
+            }
             CallFrameGuard guard(std::move(name),
                                  line > 0 ? (uint32_t)line : 0,
                                  col > 0 ? (uint32_t)col : 0);

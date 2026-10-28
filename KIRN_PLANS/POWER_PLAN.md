@@ -1854,3 +1854,15 @@ Delivered: `stdpet/pet/async_io.kn`, `tests/syntax/async_bufread_ok.kn`.
 
 Verification: full build, checker, tree-walker/VM parity, and the async-I/O
 syntax regression pass.
+
+### Update (2026-10-28) — Parallel function decorator (shipped)
+
+The remaining function form of `@[par]` is now active. A synchronous function
+marked `@[par]` runs on the shared parallel scheduler and its call waits for
+the worker result, preserving ordinary return-value and panic behavior. The
+existing `@[par] for` lowering remains unchanged.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/parallel_fn_ok.kn`.
+
+Verification: full rebuild, tree-walker/VM parity, and the focused parallel
+function regression pass.

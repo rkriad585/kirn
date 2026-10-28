@@ -1,0 +1,15 @@
+# `@[par] fn` regression (POWER_PLAN §4.4).
+@[par]
+fn square(x: Int) -> Int {
+    return x * x;
+}
+
+@[par]
+fn add(a: Int, b: Int) -> Int {
+    return a + b;
+}
+
+fn main() -> none {
+    assert(square(12) == 144);
+    assert(add(20, 22) == 42);
+}

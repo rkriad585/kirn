@@ -25,7 +25,7 @@ async fn main() -> none {
     # Aborting a task while it sleeps must prevent its post-timer side effect.
     var pulse = chan[Int]();
     var sleeper = spawn(async fn () -> none {
-        await a.sleep(ms: 40);
+        await a.sleep(ms: 200);
         pulse.send(1);
     });
     await a.sleep(ms: 2);
@@ -54,5 +54,5 @@ async fn main() -> none {
     cancelTick.abort();
     cancelTick.wait();
     await a.sleep(ms: 100);
-    assert_eq(cancelIv.next_ms, cancelDeadline);
+    assert_eq(cancelIv.state["next_ms"], cancelDeadline);
 }

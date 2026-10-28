@@ -1763,7 +1763,11 @@ Interpreter::Interpreter(const Stmt& program) {
     globals_ = makeChild(nullptr);
     taskScheduler_ = std::make_unique<TaskScheduler>();
     unsigned hw = std::thread::hardware_concurrency();
-    taskScheduler_->start(std::min<size_t>(32, hw ? hw : 4));
+    // Async methods are eager tasks and may await other async methods. Keep a
+    // small reserve of workers for those nested continuations; with only one
+    // worker per hardware thread, a chain of parent tasks waiting on children
+    // can exhaust the pool even though every child is runnable.
+    taskScheduler_->start(std::max<size_t>(8, std::min<size_t>(32, hw ? hw : 4)));
     installBuiltins();
     program_ = &program;
 }
@@ -6256,10 +6260,8 @@ Value Interpreter::eval(const Expr& e, Env env) {
                     return r;
                 }
                 if (fut.k == VK::Timer) {
-                    while (fut.deadlineMs > nowMs()) {
-                        if (taskScheduler_ && taskScheduler_->runOne()) continue;
+                    while (fut.deadlineMs > nowMs())
                         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                    }
                     // A timer wait is a cooperative cancellation point. An
                     // aborted task may wake naturally when its deadline
                     // arrives, but it must unwind before executing the next
@@ -11498,12 +11500,9 @@ Value Interpreter::awaitTask(const Value& task) {
     if (!t->done) {
         std::unique_lock<std::mutex> lk(t->m);
         while (!t->done) {
-            lk.unlock();
-            if (taskScheduler_ && taskScheduler_->runOne()) {
-                lk.lock();
-                continue;
-            }
-            lk.lock();
+            // Do not execute another task inline while waiting. That task may
+            // block on I/O or a timer and serialize the worker that must
+            // deliver the cancellation or completion signal.
             t->cv.wait_for(lk, std::chrono::milliseconds(1),
                            [&] { return t->done; });
         }

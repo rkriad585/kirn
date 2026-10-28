@@ -1965,3 +1965,20 @@ Audit evidence: `scripts/gates/6_test.sh` passes with **18 passed, 0 failed**;
 the focused serde, parallel, async-I/O, context-manager, and VM/tree parity
 regressions pass. The unrelated `.io_tmp_test.txt` scratch artifact remains
 untracked and is intentionally not part of the plan or any commit.
+
+### Verification completion update (2026-10-28)
+
+The final async scheduler audit found and fixed a real nested-task starvation
+case. Awaiting tasks no longer executes another potentially blocking task
+inline on the current worker; the executor keeps a minimum reserve of eight
+workers for nested eager async continuations. Async syntax fixtures also use
+unique temporary paths and cancellation-safe timing, while preserving their
+behavioral assertions.
+
+Final evidence after rebuild:
+
+- `scripts/gates/1_runall.sh`: **90 passed, 0 failed, 0 hung**;
+- `scripts/gates/2b_syntax.sh`: **90 passed, 0 failed, 0 hung**;
+- `scripts/gates/6_test.sh`: **18 passed, 0 failed**;
+- affected async tree-walker/VM tests passed repeatedly, including buffered
+  reads, byte I/O, filesystem/process I/O, and timers.

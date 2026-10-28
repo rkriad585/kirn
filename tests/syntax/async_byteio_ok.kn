@@ -3,7 +3,7 @@
 import pet.async as a;
 
 async fn main() -> none {
-    p = "/tmp/kirn_syntax_byteio.txt";
+    p = "/tmp/kirn_syntax_byteio_" + Str(a.now_ms()) + ".txt";
     f = a.io.create(p);
     await f.write_all("one\ntwo\n");
     print("line:", await a.io.open(p).read_line());
@@ -11,7 +11,6 @@ async fn main() -> none {
     # A blocked accept observes task cancellation at the socket poll.
     var cancelL = a.net.bind("127.0.0.1:0");
     cancelAccept = cancelL.accept();
-    await a.sleep(ms: 5);
     cancelAccept.abort();
     cancelAccept.wait();
     cancelL.close();

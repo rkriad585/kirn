@@ -1482,6 +1482,19 @@ Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
 Verification: full build, process-module checks, VM/tree parity, and syntax
 gate 2b (**78 passed, 0 failed, 0 hung**).
 
+### Update (2026-10-28) — Cancel-safe process output and status (shipped)
+
+`pet.async_process.output` and `status` now spawn their child and poll
+`os.try_wait` directly instead of nesting a blocking run or an await of another
+task. Deferred cleanup kills and reaps a child when the owning task is
+cancelled, and normal completion removes all capture files.
+
+Delivered: `stdpet/pet/async_process.kn`, `tests/syntax/async_io_ok.kn`.
+
+Verification: process-module checks, VM/tree cancellation parity (cancelled
+wait completes in under 500 ms), and syntax gate 2b (**78 passed, 0 failed,
+0 hung**).
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

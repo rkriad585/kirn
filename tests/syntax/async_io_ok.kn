@@ -21,6 +21,17 @@ async fn main() -> none {
     print("proc:", out["code"], out["stdout"]);
     print("status:", await a.process.status(a.process.command("true")));
 
+    # output/status use cooperative polling and clean up cancelled children.
+    slowcmd = a.process.command("sleep");
+    a.process.arg(slowcmd, "1");
+    tproc = a.process.output(slowcmd);
+    tproc0 = a.instant();
+    await a.sleep(ms: 5);
+    tproc.abort();
+    tproc.wait();
+    procElapsed = a.elapsed(tproc0);
+    assert(procElapsed < 500);
+
     # A process wait polls cooperatively and can be cancelled before kill.
     var pcancel = a.process.command("sleep");
     a.process.arg(pcancel, "1");

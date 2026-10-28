@@ -29,30 +29,73 @@ pub fn args(cmd: dict, values: list) -> none {
     }
 }
 
+# Cancel-safe cleanup for child handles owned by an async operation. A normal
+# wait marks the child done before returning; cancellation kills and reaps it.
+fn cleanup_child(child: dict) -> none {
+    if child["done"] != true {
+        os.kill(child["pid"]);
+        os.wait(child["pid"]);
+    }
+    os.remove_file(child["out_path"]);
+    os.remove_file(child["err_path"]);
+    os.remove_file(child["in_path"]);
+}
+
 # Run to completion; returns {code, stdout, stderr}. stdin is empty.
 pub async fn output(cmd: dict) -> dict {
-    return os.run(cmd["argv"]);
-}
-
-# Run to completion; returns only the exit status.
-pub async fn status(cmd: dict) -> Int {
-    return os.run(cmd["argv"])["code"];
-}
-
-# Start the command without waiting; returns a child handle
-# {pid, out_path, err_path, in_path}.
-pub async fn spawn(cmd: dict) -> dict {
-    return os.spawn(cmd["argv"]);
-}
-
-# Wait for a spawned child cooperatively; returns its exit status and cleans up
-# its temp files. Polling keeps timer cancellation checkpoints available.
-pub async fn wait(child: dict) -> Int {
+    child = os.spawn(cmd["argv"]);
+    child["done"] = false;
+    defer cleanup_child(child);
     var code: any = none;
     while code == none {
         code = os.try_wait(child["pid"]);
         if code == none { await time.after(5); }
     }
+    out = os.read_file(child["out_path"]);
+    er = os.read_file(child["err_path"]);
+    result = {"code": code, "stdout": out, "stderr": er};
+    child["done"] = true;
+    os.remove_file(child["out_path"]);
+    os.remove_file(child["err_path"]);
+    os.remove_file(child["in_path"]);
+    return result;
+}
+
+# Run to completion; returns only the exit status.
+pub async fn status(cmd: dict) -> Int {
+    child = os.spawn(cmd["argv"]);
+    child["done"] = false;
+    defer cleanup_child(child);
+    var code: any = none;
+    while code == none {
+        code = os.try_wait(child["pid"]);
+        if code == none { await time.after(5); }
+    }
+    child["done"] = true;
+    os.remove_file(child["out_path"]);
+    os.remove_file(child["err_path"]);
+    os.remove_file(child["in_path"]);
+    return code;
+}
+
+# Start the command without waiting; returns a child handle
+# {pid, out_path, err_path, in_path}.
+pub async fn spawn(cmd: dict) -> dict {
+    child = os.spawn(cmd["argv"]);
+    child["done"] = false;
+    return child;
+}
+
+# Wait for a spawned child cooperatively; returns its exit status and cleans up
+# its temp files. Polling keeps timer cancellation checkpoints available.
+pub async fn wait(child: dict) -> Int {
+    defer cleanup_child(child);
+    var code: any = none;
+    while code == none {
+        code = os.try_wait(child["pid"]);
+        if code == none { await time.after(5); }
+    }
+    child["done"] = true;
     os.remove_file(child["out_path"]);
     os.remove_file(child["err_path"]);
     os.remove_file(child["in_path"]);
@@ -66,11 +109,13 @@ pub fn kill(child: dict) -> none {
 
 # Wait for a spawned child, then read and remove its captured output.
 pub async fn wait_with_output(child: dict) -> dict {
+    defer cleanup_child(child);
     var code: any = none;
     while code == none {
         code = os.try_wait(child["pid"]);
         if code == none { await time.after(5); }
     }
+    child["done"] = true;
     out = os.read_file(child["out_path"]);
     er = os.read_file(child["err_path"]);
     os.remove_file(child["out_path"]);

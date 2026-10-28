@@ -111,56 +111,56 @@ pub const SKIP: Str = "skip";
 # spent doing work between ticks, so the cadence does not drift. The first
 # `tick()` resolves immediately after creation (matching tokio's `interval`).
 #
-# `tick()` is an ordinary (non-`async`) method that advances the schedule and
-# returns an awaitable timer, so `await iv.tick()` both waits for the tick and
-# persists the new schedule in `iv` (an `async fn` method cannot: its receiver
-# is a per-task copy and field writes are not written back). The schedule
-# advances when `tick()` is *called*, not when the await resumes - the same
-# point tokio's `poll_tick` uses - so `Burst`/`Skip` remain aligned to the
-# original phase. The value of `await iv.tick()` is `none`.
+# `tick()` returns an awaitable task. The schedule is committed only after
+# the timer fires, so cancelling a tick cannot consume it. Shared dict state
+# preserves the public scalar field API across the async receiver copy.
 struct Interval {
+    state: dict;
     period_ms: Int;
     next_ms: Int;
     behaviour: Str;
 
-    fn tick(self) -> any {
+    async fn tick(self) -> any {
         now = time.now();
-        deadline = self.next_ms;
+        deadline = self.state["next_ms"];
+        period = self.state["period_ms"];
+        behaviour = self.state["behaviour"];
         # Assume a normal tick: the next one is a full period after the deadline
         # this tick represents (tokio's `Burst` default). Only a genuine overrun
         # (>5ms past the deadline) triggers a missed-tick strategy.
-        next = deadline + self.period_ms;
+        next = deadline + period;
         if now > deadline + 5 {
-            if self.behaviour == DELAY {
+            if behaviour == DELAY {
                 # Restart the period from the moment tick() was called.
-                next = now + self.period_ms;
-            } else if self.behaviour == SKIP {
+                next = now + period;
+            } else if behaviour == SKIP {
                 # Jump to the next tick aligned to the original phase.
-                off = (now - deadline) % self.period_ms;
-                next = now + (self.period_ms - off);
+                off = (now - deadline) % period;
+                next = now + (period - off);
             }
             # "burst" keeps next = deadline + period, firing missed ticks
             # back-to-back until caught up.
         }
-        self.next_ms = next;
-        return time.after_at(deadline);
+        await time.after_at(deadline);
+        self.state["next_ms"] = next;
+        return none;
     }
 
     fn set_missed_tick_behavior(self, behaviour: Str) -> none {
-        self.behaviour = behaviour;
+        self.state["behaviour"] = behaviour;
     }
 
     fn missed_tick_behavior(self) -> Str {
-        return self.behaviour;
+        return self.state["behaviour"];
     }
 
     fn period(self) -> Int {
-        return self.period_ms;
+        return self.state["period_ms"];
     }
 
     # Reset so the next `tick()` fires one full period from now.
     fn reset(self) -> none {
-        self.next_ms = time.now() + self.period_ms;
+        self.state["next_ms"] = time.now() + self.state["period_ms"];
     }
 }
 
@@ -171,13 +171,18 @@ struct Interval {
 #   while true { await iv.tick(); ... }
 pub fn interval(period_ms: Int) -> Interval {
     if period_ms <= 0 { raise "interval period must be positive"; }
-    return Interval(period_ms: period_ms, next_ms: time.now(), behaviour: BURST);
+    now = time.now();
+    return Interval(state: {"period_ms": period_ms, "next_ms": now,
+                             "behaviour": BURST},
+                    period_ms: period_ms, next_ms: now, behaviour: BURST);
 }
 
 # Periodic ticker whose first tick fires at the absolute Instant `start_ms`.
 pub fn interval_at(start_ms: Int, period_ms: Int) -> Interval {
     if period_ms <= 0 { raise "interval period must be positive"; }
-    return Interval(period_ms: period_ms, next_ms: start_ms, behaviour: BURST);
+    return Interval(state: {"period_ms": period_ms, "next_ms": start_ms,
+                             "behaviour": BURST},
+                    period_ms: period_ms, next_ms: start_ms, behaviour: BURST);
 }
 
 # Await every task in `ts`, returning their results in order (POWER_PLAN §2.10).

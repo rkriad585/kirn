@@ -1454,6 +1454,20 @@ mutation, and the still-limited `@[par]` decorator forms. Subsequent phases
 must address those items or document a verified language-model constraint;
 superseded historical bullets are not pending tasks.
 
+### Update (2026-10-28) — Cancellation-safe interval ticks (shipped)
+
+`Interval.tick()` is now an async task that commits its next deadline only
+after the timer completes. Its schedule is held in shared state while the
+legacy `iv.next_ms`, `period_ms`, and `behaviour` field API remains readable.
+Cancelling a tick therefore leaves the schedule unchanged, matching Tokio's
+cancel-safe tick contract.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async.kn`,
+`tests/syntax/async_time_ok.kn`.
+
+Verification: full build, async module checks, VM/tree parity, and syntax gate
+2b (**78 passed, 0 failed, 0 hung**).
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

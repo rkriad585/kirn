@@ -970,6 +970,13 @@ static const Value* structField(const Value& v, const std::string& n) {
             if (f.first == n) return &f.second;
     return nullptr;
 }
+static const Value* dictField(const Value& v, const std::string& n) {
+    if (v.k != VK::Dict || !v.map) return nullptr;
+    Value key = Value::str(n);
+    for (const auto& kv : *v.map)
+        if (valEq(kv.first, key)) return &kv.second;
+    return nullptr;
+}
 static std::string errorFieldStr(const Value& v, const std::string& n) {
     const Value* f = structField(v, n);
     return f ? toStr(*f) : std::string();
@@ -7289,6 +7296,15 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         Value self = obj;
         if (self.k == VK::Weak) self = lockHeap(self);
         if (self.k == VK::Struct || self.k == VK::Heap) {
+            // Interval stores its schedule in shared state so async ticks can
+            // commit only after their timer wait completes.
+            if (self.typeName == "Interval" &&
+                (name == "next_ms" || name == "period_ms" ||
+                 name == "behaviour")) {
+                if (const Value* state = structField(self, "state"))
+                    if (const Value* value = dictField(*state, name))
+                        return *value;
+            }
             const std::vector<std::pair<std::string, Value>>& fs =
                 self.k == VK::Heap ? self.heap->fields : self.fields;
             for (const auto& f : fs)

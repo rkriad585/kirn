@@ -45,4 +45,14 @@ async fn main() -> none {
         n += 1;
     }
     print("ticks:", n, "period:", iv.period(), "behaviour:", iv.missed_tick_behavior());
+
+    # A cancelled tick must not advance the shared schedule.
+    cancelDeadline = a.instant() + 80;
+    var cancelIv = a.interval_at(cancelDeadline, 20);
+    var cancelTick = cancelIv.tick();
+    await a.sleep(ms: 2);
+    cancelTick.abort();
+    cancelTick.wait();
+    await a.sleep(ms: 100);
+    assert_eq(cancelIv.next_ms, cancelDeadline);
 }

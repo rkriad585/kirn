@@ -1427,6 +1427,21 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Guard-aware select cancellation (shipped)
+
+Select now cancels only enabled losing task arms. A task arm excluded by a
+false `if` guard remains untouched, so guards control both readiness and
+cancellation participation. Added a tree/VM parity regression covering the
+disabled-task case and stabilized the task-order fixture with distinct delays.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/select_ok.kn`,
+`tests/syntax/async_tasks_ok.kn`.
+
+Verification: full build, focused checker/VM/tree runs, and syntax gate 2b
+(**78 passed, 0 failed, 0 hung**). This supersedes the earlier deviation that
+select did not cancel losing task arms; cancellation remains cooperative for
+the selected runtime tasks.
+
 ### Update (2026-10-28) — Select arm guards (shipped)
 
 Select arms now accept `if CONDITION` guards. Guards are type-checked as

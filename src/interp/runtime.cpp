@@ -11088,13 +11088,18 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
             seen = bus.gen;
         }
         bool hasGate = false;
-        int64_t nextTimer = INT64_MAX;        for (size_t k = 0; k < n; ++k) {
+        int64_t nextTimer = INT64_MAX;
+        std::vector<bool> enabled(n, true);
+        for (size_t k = 0; k < n; ++k) {
             const size_t idx = (start + k) % n;
             auto& pr = prepared[idx];
             if (pr.guard) {
                 // A false guard must not consume a channel value or task.
                 hasGate = true;
-                if (!truthy(eval(*pr.guard, env))) continue;
+                if (!truthy(eval(*pr.guard, env))) {
+                    enabled[idx] = false;
+                    continue;
+                }
             }
             bool ready = false;
             Value payload;
@@ -11142,7 +11147,7 @@ Value Interpreter::selectExec(const Stmt& s, Env env) {
             // threads still finish, but their handles become cancelled and a
             // later `await`/`join` returns `none` instead of blocking.
             for (size_t j = 0; j < n; ++j) {
-                if (j == idx) continue;
+                if (j == idx || !enabled[j]) continue;
                 if (prepared[j].kind == Prepared::Task &&
                     prepared[j].cached.thread)
                     prepared[j].cached.thread->aborted = true;

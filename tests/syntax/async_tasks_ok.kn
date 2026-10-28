@@ -13,7 +13,7 @@ async fn main() -> none {
 
     set = a.TaskSet();
     set.spawn(work(2, 1));
-    set.spawn(work(3, 1));
+    set.spawn(work(3, 10));
     print("tracked:", set.len());
     print("next:", await set.join_next());
     print("all:", await set.join_all(), set.is_empty());

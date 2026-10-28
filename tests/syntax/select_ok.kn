@@ -54,6 +54,23 @@ async fn main() -> none {
         else { print("guard miss"); }
     }
 
+    # A disabled task arm is not a participant and must not be cancelled.
+    var disabled: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 20);
+        return 9;
+    });
+    var selected = spawn(async fn () -> Int {
+        await a.sleep(ms: 1);
+        return 3;
+    });
+    select biased {
+        case _v = disabled if false { print("disabled"); }
+        case _v = selected { print("selected", _v); }
+    }
+    assert(not disabled.is_aborted());
+    disabled.abort();
+    assert(await disabled == none);
+
     # A select with no ready arm sleeps until a task sends on the channel.
     var ch2 = chan[Int]();
     var prod = produce(ch2);

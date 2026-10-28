@@ -474,6 +474,30 @@ void Checker::predeclareBuiltins() {
     traits_["Deserialize"] = deserialize;
     scope_->declare(deserialize);
 
+    // Common derive contracts. Runtime implementations are structural and
+    // deterministic, but the checker still exposes nominal method shapes so
+    // derived values are statically usable without importing a helper module.
+    auto addDerivedTrait = [&](const std::string& name,
+                               const std::string& method,
+                               TyP ret, TyP arg = nullptr) {
+        auto trait = std::make_shared<Symbol>();
+        trait->kind = SymK::Trait;
+        trait->name = name;
+        FuncSig sig;
+        if (arg) {
+            sig.params.push_back(arg);
+            sig.names.push_back("other");
+        }
+        sig.ret = ret;
+        trait->sigs[method] = sig;
+        traits_[name] = trait;
+        scope_->declare(trait);
+    };
+    addDerivedTrait("Debug", "debug", strTy());
+    addDerivedTrait("Eq", "eq", boolTy(), unkTy());
+    addDerivedTrait("Hash", "hash", intTy());
+    addDerivedTrait("Clone", "clone", unkTy());
+
     // result[OkT, ErrT] nominal + ok()/err() variant constructors (patterns).
     auto res = std::make_shared<Symbol>();
     res->kind = SymK::Struct;
@@ -832,6 +856,11 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                     impls_.insert({"Serialize", st->name});
                 if (derivesSerde(*st, "Deserialize"))
                     impls_.insert({"Deserialize", st->name});
+                for (const auto& trait : {std::string("Debug"),
+                                          std::string("Eq"),
+                                          std::string("Hash"),
+                                          std::string("Clone")})
+                    if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }
             case StKind::EnumDef: {
@@ -847,6 +876,11 @@ void Checker::registerNominals(const std::vector<ast::StmtP>& prog) {
                     impls_.insert({"Serialize", st->name});
                 if (derivesSerde(*st, "Deserialize"))
                     impls_.insert({"Deserialize", st->name});
+                for (const auto& trait : {std::string("Debug"),
+                                          std::string("Eq"),
+                                          std::string("Hash"),
+                                          std::string("Clone")})
+                    if (derivesSerde(*st, trait.c_str())) impls_.insert({trait, st->name});
                 break;
             }
             case StKind::TraitDef: {
@@ -4957,6 +4991,14 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
             if (mit != it->second->methods.end())
                 return fnTy(mit->second.params, mit->second.ret);
         }
+        for (const auto& imp : impls_) {
+            if (imp.second != obj->name) continue;
+            auto ti = traits_.find(imp.first);
+            if (ti == traits_.end()) continue;
+            auto mi = ti->second->sigs.find(name);
+            if (mi != ti->second->sigs.end())
+                return fnTy(mi->second.params, mi->second.ret);
+        }
         // result[T,E] pseudo-struct: expose payload fields
         if (obj->name == "result" && name == "value") return argAt(obj, 0);
         if (obj->name == "result" && name == "err") return argAt(obj, 1);
@@ -4970,6 +5012,14 @@ TyP Checker::memberAccess(const TyP& obj, const std::string& name,
 
     if (obj->is(TyK::EnumVal)) {
         if (name == "source" || name == "backtrace") return unkTy();
+        for (const auto& imp : impls_) {
+            if (imp.second != obj->name) continue;
+            auto ti = traits_.find(imp.first);
+            if (ti == traits_.end()) continue;
+            auto mi = ti->second->sigs.find(name);
+            if (mi != ti->second->sigs.end())
+                return fnTy(mi->second.params, mi->second.ret);
+        }
         Symbol* es = scope_->find(obj->variant);
         if (es && es->kind == SymK::EnumVariant)
             for (const auto& p : es->payloads)

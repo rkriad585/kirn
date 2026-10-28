@@ -1812,7 +1812,9 @@ void Interpreter::registerDerivedSerdeTraits(const Stmt& s, Env env) {
     if (s.kind != ast::StKind::StructDef && s.kind != ast::StKind::EnumDef)
         return;
     for (const auto& trait : {std::string("Serialize"),
-                              std::string("Deserialize")}) {
+                              std::string("Deserialize"),
+                              std::string("Debug"), std::string("Eq"),
+                              std::string("Hash"), std::string("Clone")}) {
         if (!decoratorDerives(s, trait)) continue;
         ImplEntry ent;
         ent.traitName = trait;
@@ -7467,6 +7469,16 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             }
             return Value::none();
         }
+        for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+            if (it->typeName != obj.typeName) continue;
+            if (it->traitName == "Debug" && name == "debug")
+                return Value::str(repr(obj));
+            if (it->traitName == "Eq" && name == "eq")
+                return Value::boolean(!pos.empty() && valEq(obj, pos[0]));
+            if (it->traitName == "Hash" && name == "hash")
+                return Value::integer((int64_t)std::hash<std::string>{}(repr(obj)));
+            if (it->traitName == "Clone" && name == "clone") return obj;
+        }
         panicHere("enum '" + obj.typeName + "' has no method '" + name + "'");
     }
 
@@ -7562,6 +7574,28 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                 Value codec = loadModuleFile("pet.codec");
                 Value encoder = moduleMember(codec.typeName, "enc_tree");
                 return callValue(std::move(encoder), {obj}, line, col);
+            }
+        }
+        if (!method) {
+            for (auto it = impls_.rbegin(); it != impls_.rend(); ++it) {
+                if (it->typeName != tn) continue;
+                if (it->traitName == "Debug" && name == "debug")
+                    return Value::str(repr(obj));
+                if (it->traitName == "Eq" && name == "eq")
+                    return Value::boolean(!pos.empty() && valEq(obj, pos[0]));
+                if (it->traitName == "Hash" && name == "hash")
+                    return Value::integer((int64_t)std::hash<std::string>{}(repr(obj)));
+                if (it->traitName == "Clone" && name == "clone") {
+                    // Value fields are immutable handles by default; clone the
+                    // outer value so the derived operation never aliases a
+                    // mutable struct's field vector.
+                    if (obj.k == VK::Struct) {
+                        Value copy = Value::structV(obj.typeName);
+                        copy.fields = obj.fields;
+                        return copy;
+                    }
+                    return obj;
+                }
             }
         }
         if (!method)

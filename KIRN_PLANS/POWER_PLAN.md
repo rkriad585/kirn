@@ -1487,6 +1487,21 @@ Verification: full rebuild and the cancellation regression pass under both VM
 and tree-walker execution; the child wait returns within the bounded test
 deadline.
 
+### Update (2026-10-28) — Common derived traits (shipped)
+
+`@[derive(Debug, Eq, Hash, Clone)]` now creates checker-visible trait
+conformances and runtime-backed operations for structs and enums. `debug()`
+uses Kirn's structural representation, `eq()` uses deep value equality,
+`hash()` is deterministic for the representation, and `clone()` returns an
+independent struct value shell. Explicit user methods still take precedence
+over the derived fallback.
+
+Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
+`tests/syntax/derive_common_ok.kn`.
+
+Verification: full build plus VM/tree-walker execution of struct and enum
+derive regressions pass.
+
 ### Update (2026-10-28) — Serde trait conformance and derive bridge (shipped)
 
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait

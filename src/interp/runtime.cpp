@@ -5954,6 +5954,12 @@ Value Interpreter::eval(const Expr& e, Env env) {
                     if (fut.deadlineMs > now)
                         std::this_thread::sleep_for(
                             std::chrono::milliseconds(fut.deadlineMs - now));
+                    // A timer wait is a cooperative cancellation point. An
+                    // aborted task may wake naturally when its deadline
+                    // arrives, but it must unwind before executing the next
+                    // user statement.
+                    if (g_currentTask && g_currentTask->aborted.load())
+                        throw SignalCancel{};
                     return Value::none();
                 }
                 return fut;

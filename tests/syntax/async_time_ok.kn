@@ -22,6 +22,22 @@ async fn main() -> none {
     print("timeout slow:", await a.timeout(10, slow));
     assert(slow.is_aborted());
 
+    # Aborting a task while it sleeps must prevent its post-timer side effect.
+    var pulse = chan[Int]();
+    var sleeper = spawn(async fn () -> none {
+        await a.sleep(ms: 40);
+        pulse.send(1);
+    });
+    await a.sleep(ms: 2);
+    sleeper.abort();
+    await a.sleep(ms: 60);
+    var pulseSeen = false;
+    select {
+        case _v = pulse.recv() { pulseSeen = true; }
+        else { pulseSeen = false; }
+    }
+    assert(not pulseSeen);
+
     var iv = a.interval(period_ms: 15);
     var n = 0;
     while n < 2 {

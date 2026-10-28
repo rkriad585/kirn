@@ -1427,6 +1427,18 @@ Delivered: `src/sema/checker.cpp`,
 
 Verification: build, checker, VM, and native execution pass.
 
+### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
+
+Timer awaits now check the current task's cooperative cancellation flag after
+the deadline wait and unwind before the next user statement. This prevents an
+aborted sleeper from performing post-sleep side effects, while preserving the
+existing non-interruptible behavior of ordinary blocking I/O.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/async_time_ok.kn`.
+
+Verification: full build, focused checker/VM/tree parity, and syntax gate 2b
+(**78 passed, 0 failed, 0 hung**).
+
 ### Update (2026-10-28) — Guard-aware select cancellation (shipped)
 
 Select now cancels only enabled losing task arms. A task arm excluded by a

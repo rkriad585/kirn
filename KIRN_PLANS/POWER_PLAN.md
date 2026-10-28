@@ -1322,6 +1322,14 @@ range and rejects values above `0x10FFFF` or UTF-16 surrogate code points.
 Both helpers are available without imports and are covered by VM/tree-walker
 syntax tests.
 
+### Update (2026-10-27) — Optional error context (shipped)
+
+Optional values now support `.context(message)` and `.with_context(fn)`. A
+present value becomes `ok(value)`; `none` becomes `err(error.Error)` with the
+provided context, matching the existing result-context behavior and the
+anyhow `Context` contract. The option methods are checker-typed and covered by
+the error integration test.
+
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
 `stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
 

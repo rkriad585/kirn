@@ -1720,6 +1720,15 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             s.ret = argAt(recv, 0);
             return s;
         }
+        if (name == "context" || name == "with_context") {
+            FuncSig s;
+            s.ret = nominalWithArgs(TyK::Struct, "result",
+                                    {argAt(recv, 0), unkTy()});
+            s.params.push_back(name == "context" ? strTy() : unkTy());
+            s.names.push_back(name == "context" ? "ctx" : "f");
+            s.required = 1;
+            return s;
+        }
         return std::nullopt;
     }
 

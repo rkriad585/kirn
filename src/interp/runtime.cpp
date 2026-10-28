@@ -7287,6 +7287,29 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         }
     }
 
+    // POWER_PLAN §5.1: anyhow-style Context for optional values. Optional
+    // values are represented directly (none or the contained value), so this
+    // protocol is installed before the value-kind dispatch. The checker only
+    // exposes it for an optional-typed receiver.
+    bool optionalContextValue = obj.k != VK::Result &&
+        !(obj.k == VK::Struct && isErrorStruct(obj.typeName)) &&
+        !(obj.k == VK::Heap && obj.heap && isErrorStruct(obj.heap->typeName));
+    if (optionalContextValue && name == "context")
+        return bind({"ctx"}, [](std::vector<Value>& a) -> Value {
+            std::string ctx = a.size() > 1 ? toStr(a[1]) : "";
+            if (!a.empty() && a[0].k == VK::None)
+                return Value::resultErr(mkError(ctx, Value::none(), Value::none()));
+            return Value::resultOk(a.empty() ? Value::none() : a[0]);
+        });
+    if (optionalContextValue && name == "with_context")
+        return bind({"f"}, [this](std::vector<Value>& a) -> Value {
+            Value ctx = Value::none();
+            if (a.size() > 1) ctx = callValue(a[1], {}, 0, 0);
+            if (!a.empty() && a[0].k == VK::None)
+                return Value::resultErr(mkError(toStr(ctx), Value::none(), Value::none()));
+            return Value::resultOk(a.empty() ? Value::none() : a[0]);
+        });
+
     switch (obj.k) {
         case VK::None:
             panicHere("cannot read '" + name + "' from none");

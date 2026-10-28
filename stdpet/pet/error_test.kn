@@ -61,6 +61,11 @@ fn traced_question() -> result[Int, AutoTraceErr] {
     return value;
 }
 
+fn maybe_user(ok: Bool) -> Int? {
+    if ok { return 7; }
+    return none;
+}
+
 fn main() -> none {
     # --- §5.1 dynamic Error: msg / Display / chain ---
     var e = error.msg("boom");
@@ -140,6 +145,16 @@ fn main() -> none {
             assert(converted.source() == "traced source");
             assert(converted.backtrace().len() > 0);
         }
+        case ok(_) { assert(false); }
+    }
+
+    # --- option context converts none to a dynamic error ---
+    match maybe_user(true).context("ignored") {
+        case ok(v) { assert(v == 7); }
+        case err(_) { assert(false); }
+    }
+    match maybe_user(false).with_context(fn () -> Str { return "missing user"; }) {
+        case err(er) { assert(error.display(er) == "missing user"); }
         case ok(_) { assert(false); }
     }
 

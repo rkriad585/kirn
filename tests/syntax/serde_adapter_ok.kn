@@ -13,4 +13,18 @@ fn main() -> none {
     decoder = serde.tree_decoder({"x": 12, "y": 15});
     q = serde.deserialize_from(Point, decoder);
     assert(q.x == 12 and q.y == 15);
+
+    nested = serde.tree_encoder();
+    nested.begin_map(2);
+    nested.write_key("items");
+    nested.begin_seq(2);
+    nested.write_int(1);
+    nested.write_int(2);
+    nested.end();
+    nested.write_key("ok");
+    nested.write_bool(true);
+    nested.end();
+    tree2 = nested.finish();
+    assert(tree2["items"][0] == 1 and tree2["items"][1] == 2);
+    assert(tree2["ok"] == true);
 }

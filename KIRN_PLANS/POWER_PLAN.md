@@ -1901,3 +1901,14 @@ code to exchange typed trees without depending directly on JSON rendering.
 Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
 
 Verification: checker and repeated tree-walker/VM serde adapter tests pass.
+
+### Update (2026-10-28) — Nested tree encoder writers (shipped)
+
+`TreeEncoder` now maintains a nested container stack. `begin_seq`,
+`begin_map`, `begin_struct`, and `begin_enum` attach child containers to the
+current parent, while `write_key`, scalar writers, `end`, and `finish` preserve
+ordered nested trees for adapter and format code.
+
+Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
+
+Verification: repeated tree-walker/VM nested adapter tests pass.

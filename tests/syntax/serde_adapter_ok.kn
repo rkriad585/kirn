@@ -1,0 +1,16 @@
+# Format-neutral serde adapter regression (POWER_PLAN §3.1).
+import pet.serde as serde;
+
+@[derive(Serialize, Deserialize)]
+struct Point { x: Int; y: Int; }
+
+fn main() -> none {
+    p = Point(x: 4, y: 9);
+    encoder = serde.tree_encoder();
+    tree = serde.serialize_into(p, encoder);
+    assert(tree["x"] == 4 and tree["y"] == 9);
+
+    decoder = serde.tree_decoder({"x": 12, "y": 15});
+    q = serde.deserialize_from(Point, decoder);
+    assert(q.x == 12 and q.y == 15);
+}

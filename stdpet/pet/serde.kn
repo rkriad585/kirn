@@ -14,6 +14,103 @@
 
 import pet.codec as codec;
 import pet.json as json;
+import reflect;
+
+# Format-neutral adapter contracts. Kirn's runtime represents serialized
+# values as trees, so these adapters expose the same separation as serde's
+# Serializer/Deserializer without requiring a format-specific implementation.
+pub trait Encoder {
+    fn write_bool(self, v: Bool) -> any;
+    fn write_int(self, v: Int) -> any;
+    fn write_float(self, v: Float) -> any;
+    fn write_str(self, v: Str) -> any;
+    fn write_nil(self) -> any;
+    fn begin_seq(self, n: Int) -> any;
+    fn begin_map(self, n: Int) -> any;
+    fn begin_struct(self, name: Str, n: Int) -> any;
+    fn begin_enum(self, name: Str, variant: Str, n: Int) -> any;
+    fn write_key(self, key: Str) -> any;
+    fn set_tree(self, tree: any) -> any;
+    fn finish(self) -> any;
+}
+
+pub trait Decoder {
+    fn read_any(self) -> any;
+}
+
+pub struct TreeEncoder {
+    h: dict;
+
+    fn put(self, v: any) -> none {
+        if self.h["tree"] == none {
+            self.h["tree"] = v;
+        } else if reflect.kind_of(self.h["tree"]) == "list" {
+            self.h["tree"].append(v);
+        } else if self.h["key"] != none {
+            self.h["tree"][self.h["key"]] = v;
+            self.h["key"] = none;
+        } else {
+            self.h["tree"] = v;
+        }
+    }
+
+    fn write_bool(self, v: Bool) -> any { self.put(v); return none; }
+    fn write_int(self, v: Int) -> any { self.put(v); return none; }
+    fn write_float(self, v: Float) -> any { self.put(v); return none; }
+    fn write_str(self, v: Str) -> any { self.put(v); return none; }
+    fn write_nil(self) -> any { self.put(none); return none; }
+    fn begin_seq(self, n: Int) -> any {
+        self.h["tree"] = [];
+        self.h["key"] = none;
+        return self;
+    }
+    fn begin_map(self, n: Int) -> any {
+        self.h["tree"] = {};
+        self.h["key"] = none;
+        return self;
+    }
+    fn begin_struct(self, name: Str, n: Int) -> any {
+        return self.begin_map(n);
+    }
+    fn begin_enum(self, name: Str, variant: Str, n: Int) -> any {
+        return self.begin_map(n);
+    }
+    fn write_key(self, key: Str) -> any {
+        self.h["key"] = key;
+        return none;
+    }
+    fn set_tree(self, tree: any) -> any {
+        self.h["tree"] = tree;
+        return none;
+    }
+    fn finish(self) -> any { return self.h["tree"]; }
+}
+
+impl Encoder for TreeEncoder {}
+
+pub struct TreeDecoder {
+    h: dict;
+    fn read_any(self) -> any { return self.h["tree"]; }
+}
+
+impl Decoder for TreeDecoder {}
+
+pub fn tree_encoder() -> TreeEncoder {
+    return TreeEncoder(h: {"tree": none, "key": none});
+}
+
+pub fn tree_decoder(tree: any) -> TreeDecoder {
+    return TreeDecoder(h: {"tree": tree});
+}
+
+pub fn serialize_into(v: any, encoder: any) -> any {
+    encoder.set_tree(codec.enc_tree(v));
+    return encoder.finish();
+}
+
+pub fn deserialize_from(T: any, decoder: any) -> any {
+    return codec.coerce_type(T, decoder.read_any());
+}
 
 # Format-agnostic trait-facing entry points. Derived types are registered as
 # Serialize/Deserialize conformances by the compiler/runtime; these functions

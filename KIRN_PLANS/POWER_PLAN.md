@@ -1890,3 +1890,14 @@ Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`,
 `tests/syntax/parallel_map_fold_ok.kn`.
 
 Verification: full rebuild, checker, and repeated tree-walker/VM parity pass.
+
+### Update (2026-10-28) — Tree encoder/decoder adapter surface (shipped)
+
+`pet.serde` now exposes format-neutral `Encoder` and `Decoder` contracts plus
+`TreeEncoder`/`TreeDecoder` adapters. `serialize_into` and `deserialize_from`
+connect those adapters to the shared codec, allowing format modules and user
+code to exchange typed trees without depending directly on JSON rendering.
+
+Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
+
+Verification: checker and repeated tree-walker/VM serde adapter tests pass.

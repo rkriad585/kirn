@@ -53,6 +53,19 @@ fn main() -> none {
     assert(parallel.par_windows([1, 2, 3, 4], 2).collect() == [[1, 2], [2, 3], [3, 4]]);
     assert(parallel.par_windows([1, 2], 5).collect() == []);
 
+    # mutable chunks update disjoint source ranges through explicit windows
+    var mutable = [];
+    var mi = 0;
+    while mi < 12 { mutable.append(mi); mi += 1; }
+    parallel.par_chunks_mut(mutable, 3).for_each(fn (c) {
+        var cj = 0;
+        while cj < c.len() { c.set(cj, c.get(cj) * 10); cj += 1; }
+    });
+    assert(mutable == [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]);
+    assert(parallel.par_chunks_mut(mutable, 5).count() == 3);
+    assert(parallel.par_drain(mutable, 3, 6) == [30, 40, 50]);
+    assert(mutable == [0, 10, 20, 60, 70, 80, 90, 100, 110]);
+
     # split: separators dropped, absent separator returns the whole run,
     # adjacent separators produce empty groups
     assert(parallel.par_split([1, 0, 2, 0, 3], 0).collect() == [[1], [2], [3]]);

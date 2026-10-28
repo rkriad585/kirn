@@ -12,5 +12,20 @@ fn main() -> none {
     assert(xs[0] == 0);
     assert(xs[1] == 2);
     assert(xs[4999] == 9998);
+
+    var chunks = [];
+    i = 0;
+    while i < 20 { chunks.append(i); i += 1; }
+    p.par_chunks_mut(chunks, 5).for_each(fn (c) {
+        var j = 0;
+        while j < c.len() { c.set(j, c.get(j) + 100); j += 1; }
+    });
+    assert(chunks[0] == 100 and chunks[4] == 104 and chunks[19] == 119);
+    assert(p.par_chunks_mut(chunks, 6).count() == 4);
+
+    alias = chunks;
+    drained = p.par_drain(chunks, 5, 10);
+    assert(drained == [105, 106, 107, 108, 109]);
+    assert(alias == [100, 101, 102, 103, 104, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]);
     print("parallel mut ok");
 }

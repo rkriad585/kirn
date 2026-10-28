@@ -1982,3 +1982,20 @@ Final evidence after rebuild:
 - `scripts/gates/6_test.sh`: **18 passed, 0 failed**;
 - affected async tree-walker/VM tests passed repeatedly, including buffered
   reads, byte I/O, filesystem/process I/O, and timers.
+
+### Update (2026-10-28) — Mutable parallel chunks and drain ranges (shipped)
+
+The remaining §4.3 mutable collection gap is now covered without introducing
+an unsound reference model. `par_chunks_mut(xs, n)` returns disjoint indexed
+`MutChunk` windows; callbacks use explicit `get`/`set` operations and execute
+through the shared parallel pool. `par_drain(xs, start, end)` removes a
+half-open range while preserving the original list handle, so aliases observe
+the mutation and the removed values are returned in order.
+
+Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
+the stdlib parallel regression coverage.
+
+Verification: mutable tree-walker/VM parity passes; `kirn test stdpet/pet`
+passes with **18 passed, 0 failed**. The earlier `par_chunks_mut` and
+`ParallelDrainRange` deviation is superseded by this explicit-window Kirn API;
+Rust-style borrowed references remain intentionally absent.

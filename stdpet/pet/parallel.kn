@@ -695,6 +695,60 @@ struct ParIter {
     }
 }
 
+# A disjoint mutable window over a shared list. Kirn has no `&mut` references,
+# so the window carries an owning list handle plus an index range. `set` writes
+# through that handle; callers must keep writes within their own window.
+struct MutChunk {
+    xs: list;
+    lo: Int;
+    hi: Int;
+
+    fn len(self) -> Int { return self.hi - self.lo; }
+
+    fn get(self, i: Int) -> any {
+        if i < 0 or i >= self.len() { raise "parallel mutable chunk: index out of range"; }
+        return self.xs[self.lo + i];
+    }
+
+    fn set(self, i: Int, value: any) -> none {
+        if i < 0 or i >= self.len() { raise "parallel mutable chunk: index out of range"; }
+        self.xs[self.lo + i] = value;
+    }
+
+    fn to_list(self) -> list {
+        out = [];
+        var i = 0;
+        while i < self.len() { out.append(self.get(i)); i += 1; }
+        return out;
+    }
+}
+
+# A parallel collection of disjoint mutable windows. This is the Kirn
+# equivalent of rayon's `par_chunks_mut`: callbacks receive a MutChunk and use
+# `get`/`set`, so writes are explicit and remain disjoint across workers.
+struct MutChunks {
+    xs: list;
+    size: Int;
+
+    fn for_each(self, f) -> none {
+        fns = [];
+        var lo = 0;
+        while lo < self.xs.len() {
+            hi = lo + self.size;
+            if hi > self.xs.len() { hi = self.xs.len(); }
+            var chunk = MutChunk(xs: self.xs, lo: lo, hi: hi);
+            fns.append(fn () -> none { f(chunk); });
+            lo = hi;
+        }
+        if fns.len() > 0 { parallel.invoke(fns); }
+    }
+
+    fn count(self) -> Int {
+        if self.xs.len() == 0 { return 0; }
+        return (self.xs.len() + self.size - 1) // self.size;
+    }
+}
+
 # Build a parallel iterator over a list or a range (`1..=n`).
 pub fn par_iter(xs) -> ParIter {
     list_xs = [];
@@ -713,6 +767,36 @@ pub fn par_iter_mut(xs: list) -> ParIter {
 # `par_chunks(xs, n)` == `par_iter(xs).chunks(n)`; likewise for the rest.
 pub fn par_chunks(xs, n: Int) -> ParIter {
     return par_iter(xs).chunks(n);
+}
+
+# Mutable fixed-size windows over `xs`; the source list is updated in place.
+pub fn par_chunks_mut(xs: list, n: Int) -> MutChunks {
+    if n <= 0 { raise "parallel.par_chunks_mut: size must be > 0"; }
+    return MutChunks(xs: xs, size: n);
+}
+
+# Remove the half-open range `[start, end)` from `xs`, preserving the same list
+# handle so aliases observe the mutation. The returned list contains the
+# removed values in their original order.
+pub fn par_drain(xs: list, start: Int, end: Int) -> list {
+    var lo = start;
+    var hi = end;
+    if lo < 0 { lo += xs.len(); }
+    if hi < 0 { hi += xs.len(); }
+    if lo < 0 { lo = 0; }
+    if hi > xs.len() { hi = xs.len(); }
+    if lo > hi { raise "parallel.par_drain: start must not exceed end"; }
+    removed = [];
+    kept = [];
+    var i = 0;
+    while i < xs.len() {
+        if i >= lo and i < hi { removed.append(xs[i]); }
+        else { kept.append(xs[i]); }
+        i += 1;
+    }
+    xs.clear();
+    xs.extend(kept);
+    return removed;
 }
 
 pub fn par_windows(xs, n: Int) -> ParIter {

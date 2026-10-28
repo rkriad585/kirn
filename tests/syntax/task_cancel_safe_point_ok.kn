@@ -1,0 +1,16 @@
+fn cancellable(signal: chan[Int]) -> none {
+    signal.send(1);
+    while true {
+        var _x = 1 + 1;
+    }
+}
+
+fn main() -> none {
+    var signal = chan(1);
+    var task = spawn cancellable(signal);
+    signal.recv();
+    task.abort();
+    assert(task.is_aborted());
+    assert(task.join() == none);
+    print("task cancellation safe point ok");
+}

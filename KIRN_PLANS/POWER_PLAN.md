@@ -1330,6 +1330,14 @@ provided context, matching the existing result-context behavior and the
 anyhow `Context` contract. The option methods are checker-typed and covered by
 the error integration test.
 
+### Update (2026-10-28) — Cooperative task cancellation safe points (shipped)
+
+`Task.abort()` now cooperatively unwinds a running interpreter task at statement
+and function-call checkpoints. The task records cancellation as a completed,
+non-panicking handle, so `join()`/`await` still yields `none` and existing
+`is_aborted()` behavior is preserved. Blocking native operations remain
+non-interruptible and finish before their task can observe cancellation.
+
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
 `stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
 

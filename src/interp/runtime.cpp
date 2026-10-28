@@ -75,6 +75,7 @@ const char* envGet(const char* name) {
 }
 
 thread_local std::vector<std::string> g_panicFrames;
+thread_local ThreadImpl* g_currentTask = nullptr;
 static thread_local Interpreter* g_nativeInterpreter = nullptr;
 
 CallFrameGuard::CallFrameGuard(std::string name, uint32_t line, uint32_t col) {
@@ -5221,6 +5222,8 @@ void Interpreter::execBlock(const std::vector<ast::StmtP>& body, Env env) {
 }
 
 void Interpreter::exec(const Stmt& s, Env env) {
+    if (g_currentTask && g_currentTask->aborted.load())
+        throw SignalCancel{};
     switch (s.kind) {
         case ast::StKind::Pass:
         case ast::StKind::Export:
@@ -6835,6 +6838,8 @@ static Value sliceOf(const Value& obj, int64_t lo, int64_t hi, bool incl,
 
 Value Interpreter::callValue(Value callee, std::vector<Value> args, int line,
                              int col) {
+    if (g_currentTask && g_currentTask->aborted.load())
+        throw SignalCancel{};
     switch (callee.k) {
         case VK::Builtin: {
             if (!callee.boundSelf.empty()) {
@@ -10953,6 +10958,8 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
     Value raiseValue;
     std::string msg;
     std::vector<std::string> frames;
+    ThreadImpl* previousTask = g_currentTask;
+    g_currentTask = t.get();
     try {
         // Invoke the callee directly. Going through `callValue` would re-enter
         // the async dispatch and spawn a nested task forever for `async fn`.
@@ -10973,6 +10980,8 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
         // it and let awaitTask re-raise it in the awaiting context.
         raised = true;
         raiseValue = r.errResult;
+    } catch (const SignalCancel&) {
+        t->aborted = true;
     } catch (...) {
         panicked = true;
         msg = "unknown error in task";
@@ -11000,6 +11009,7 @@ void Interpreter::threadEntry(Value callee, std::vector<Value> args,
         for (const auto& f : frames) full += "\n  " + f;
         fputs((full + "\n").c_str(), stderr);
     }
+    g_currentTask = previousTask;
 }
 
 Value Interpreter::selectExec(const Stmt& s, Env env) {

@@ -70,6 +70,8 @@ struct PanicSignal {
     std::vector<std::string> frames;    // source-level call stack (outermost first)
 };
 struct SignalRaise { Value errResult; };
+// Cooperative task cancellation, handled separately from user panics.
+struct SignalCancel {};
 struct SignalGoto { std::string label; };
 // `gather <expr>,` emits this to the enclosing `gather { ... }` loop.
 // kind==Done appends `value` to the worklist; kind==Stop (from a bare
@@ -77,6 +79,7 @@ struct SignalGoto { std::string label; };
 struct SignalGather { bool stop = false; Value value; };
 
 extern thread_local std::vector<std::string> g_panicFrames;
+extern thread_local ThreadImpl* g_currentTask;
 
 // RAII guard recording one source-level call frame for panic backtraces.
 // Pushed at user-function/lambda entry; popped on any exit (incl. exceptions).

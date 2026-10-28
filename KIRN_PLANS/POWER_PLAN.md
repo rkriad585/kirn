@@ -1508,6 +1508,18 @@ Verification: full build, async-net checks, elevated TCP/UDP VM/tree parity
 including cancelled `accept`, and syntax gate 2b (**78 passed, 0 failed,
 0 hung**).
 
+### Update (2026-10-28) — Cancellation-aware TCP connect (shipped)
+
+`net.tcp_connect` now establishes connections in nonblocking mode, waits for
+`POLLOUT` readiness in cancellation-aware slices, validates `SO_ERROR`, and
+restores the socket's blocking mode before returning. A cancelled connection
+closes its descriptor during unwinding.
+
+Delivered: `src/interp/runtime.cpp`.
+
+Verification: full build, async-net checks, elevated TCP/UDP VM/tree parity,
+and syntax gate 2b (**78 passed, 0 failed, 0 hung**).
+
 ### Update (2026-10-28) — Timer-await cancellation checkpoint (shipped)
 
 Timer awaits now check the current task's cooperative cancellation flag after

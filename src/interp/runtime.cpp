@@ -3947,6 +3947,8 @@ static int bindSocket(const std::string& addr, int socktype, std::string& bound,
     return fd;
 }
 
+static void waitSocketReady(int fd, short events);
+
 static int connectSocket(const std::string& addr, int socktype,
                          std::string& peer, std::string& err) {
     addrinfo* res = nullptr;
@@ -3955,7 +3957,35 @@ static int connectSocket(const std::string& addr, int socktype,
     for (addrinfo* ai = res; ai; ai = ai->ai_next) {
         fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd < 0) continue;
-        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+        int flags = ::fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            err = std::string("fcntl: ") + std::strerror(errno);
+            ::close(fd);
+            fd = -1;
+            continue;
+        }
+        int rc = ::connect(fd, ai->ai_addr, ai->ai_addrlen);
+        if (rc < 0 && errno == EINPROGRESS) {
+            try {
+                waitSocketReady(fd, POLLOUT);
+            } catch (...) {
+                ::close(fd);
+                freeaddrinfo(res);
+                throw;
+            }
+            int soerr = 0;
+            socklen_t sl = sizeof soerr;
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl) < 0) {
+                rc = -1;
+            } else if (soerr != 0) {
+                errno = soerr;
+                rc = -1;
+            } else {
+                rc = 0;
+            }
+        }
+        ::fcntl(fd, F_SETFL, flags);
+        if (rc == 0) {
             peer = addr;
             break;
         }

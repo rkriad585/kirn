@@ -49,6 +49,7 @@ broadcast fanout: ok
 broadcast subscribe future only: ok
 broadcast lag: ok
 broadcast close drains: ok
+timed channels: ok
 watch changed: ok
 watch borrow vs update: ok
 watch modify callbacks: ok

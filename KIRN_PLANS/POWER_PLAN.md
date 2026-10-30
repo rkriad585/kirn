@@ -2090,6 +2090,23 @@ failed, 0 hung** after rerun; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
 passed, 0 failed**.
 
+### Update (2026-10-30) — Timed channel operations (shipped)
+
+The synchronization channel surface now includes deadline-aware bounded waits:
+`BroadcastRx.recv_timeout(ms)` returns a value, `none` after close, or the
+existing `["timeout"]` marker, while `MpscSender.send_timeout(value, ms)`
+returns `true` when enqueued and `false` when capacity remains unavailable.
+Both operations recheck predicates after wakeups and preserve messages that
+arrive at the deadline.
+
+Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
+golden, and this plan update.
+
+Verification: focused checker and timed channel tests pass; syntax gate **94
+passed, 0 failed, 0 hung** after rerun; stdlib gate **1 passed, 0 failed, 0
+hung** (19 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite
+**419 passed, 0 failed**.
+
 Verification: checker plus tree-walker/VM pool parity pass; syntax gate **94
 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**.

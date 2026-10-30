@@ -310,6 +310,24 @@ fn test_broadcast_close_drains() -> none {
     print("broadcast close drains: ok");
 }
 
+fn test_timed_channels() -> none {
+    var b = sync.Broadcast(2);
+    var br = b.subscribe();
+    assert(br.recv_timeout(1) == ["timeout"]);
+    b.send(7);
+    assert(br.recv_timeout(10) == 7);
+
+    var pair = sync.Mpsc(1);
+    var tx = pair[0];
+    var rx = pair[1];
+    assert(tx.send_timeout(1, 10));
+    assert(not tx.send_timeout(2, 1));
+    assert(rx.recv_timeout(10) == 1);
+    assert(tx.send_timeout(3, 10));
+    assert(rx.recv_timeout(10) == 3);
+    print("timed channels: ok");
+}
+
 # ---- Watch ------------------------------------------------------------------
 
 fn test_watch_changed() -> none {
@@ -449,6 +467,7 @@ fn main() -> none {
     test_broadcast_subscribe_sees_future_only();
     test_broadcast_lag();
     test_broadcast_close_drains();
+    test_timed_channels();
     test_watch_changed();
     test_watch_borrow_vs_update();
     test_watch_modify_callbacks();

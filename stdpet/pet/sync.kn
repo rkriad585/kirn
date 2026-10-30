@@ -545,6 +545,46 @@ struct BroadcastRx {
         }
     }
 
+    # Receive before the absolute deadline; timeout is reported with the same
+    # marker used by the other timed channel operations.
+    fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        var c = s[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while true {
+            var total: Int = s[3];
+            var head: Int = total - s[4].len();
+            if inner[0] < head {
+                inner[1] = inner[1] + (head - inner[0]);
+                inner[0] = head;
+            }
+            if inner[0] < total {
+                var v = s[4][inner[0] - head];
+                inner[0] = inner[0] + 1;
+                m.unlock();
+                return v;
+            }
+            if s[5] { m.unlock(); return none; }
+            remaining = deadline - time.now();
+            if remaining <= 0 { m.unlock(); return ["timeout"]; }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout {
+                # Recheck the queue once after the timed wake so a message
+                # published at the deadline wins over the timeout marker.
+                total = s[3];
+                head = total - s[4].len();
+                if inner[0] >= total and not s[5] {
+                    m.unlock();
+                    return ["timeout"];
+                }
+            }
+        }
+    }
+
     fn try_recv(self) -> any {
         var s = self.st[0];
         var inner = self.st[1];
@@ -633,6 +673,31 @@ struct MpscSender {
         s[3].append(v);
         c.broadcast();
         m.unlock();
+    }
+
+    # Bounded send with a deadline. Unbounded senders complete immediately.
+    fn send_timeout(self, v: any, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while s[2] >= 0 and s[3].len() >= s[2] {
+            if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+            remaining = deadline - time.now();
+            if remaining <= 0 { m.unlock(); return false; }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and s[3].len() >= s[2] {
+                m.unlock();
+                return false;
+            }
+        }
+        if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+        return true;
     }
 
     fn try_send(self, v: any) -> Bool {

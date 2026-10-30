@@ -1,0 +1,15 @@
+# Phase 0 native crypto substrate regression.
+import crypto;
+import bytes;
+
+fn main() -> none {
+    assert(crypto.sha256("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert(crypto.sha512("abc").len() == 128);
+    mac = crypto.hmac("sha256", "key", "The quick brown fox jumps over the lazy dog");
+    assert(bytes.hex(mac) == "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
+    random = crypto.random_bytes(32);
+    assert(bytes.len(random) == 32);
+    assert(crypto.constant_time_eq(random, random));
+    assert(crypto.constant_time_eq("a", "b") == false);
+    print("crypto_test ok");
+}

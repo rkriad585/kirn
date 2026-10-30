@@ -1,0 +1,6 @@
+import crypto;
+
+fn main() -> none {
+    assert(crypto.sha256("abc").len() == 64);
+    assert(crypto.random_bytes(8).len() == 8);
+}

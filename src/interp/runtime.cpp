@@ -27,6 +27,10 @@
 #include <atomic>
 #include <set>
 #include <unordered_set>
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/rand.h>
 
 #ifndef _WIN32
 #include <csignal>
@@ -1861,7 +1865,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket"})
+          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket", "crypto"})
         if (name == m) return true;
     return false;
 }
@@ -3690,7 +3694,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "sys", "process", "socket"})
+          "error", "sync", "reflect", "net", "sys", "process", "socket", "crypto"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5125,6 +5129,89 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         for (const char* n : names)
             if (name == n) return moduleMember("net", name);
         panicHere("socket has no member '" + name + "'");
+    }
+
+    if (mod == "crypto") {
+        auto asBytes = [](const std::string& s) {
+            Value out = Value::str(s); out.k = VK::Bytes; return out;
+        };
+        auto inputOf = [](const Value& v) {
+            return v.k == VK::Str ? v.s : bytesData(v);
+        };
+        auto digestName = [](const std::string& algorithm) -> const EVP_MD* {
+            if (algorithm == "md5") return EVP_md5();
+            if (algorithm == "sha1") return EVP_sha1();
+            if (algorithm == "sha256") return EVP_sha256();
+            if (algorithm == "sha512") return EVP_sha512();
+            return nullptr;
+        };
+        if (name == "digest" || name == "hexdigest")
+            return biFn({"algorithm", "data"}, [name, asBytes, inputOf, digestName](std::vector<Value>& a) -> Value {
+                const EVP_MD* md = digestName(toStr(a[0]));
+                if (!md) panicHere("crypto: unsupported digest algorithm");
+                std::string input = a.size() > 1 ? inputOf(a[1]) : "";
+                unsigned char out[EVP_MAX_MD_SIZE];
+                unsigned int n = 0;
+                if (EVP_Digest(input.data(), input.size(), out, &n, md, nullptr) != 1)
+                    panicHere("crypto: digest failed");
+                std::string raw(reinterpret_cast<char*>(out), n);
+                if (name == "digest") return asBytes(raw);
+                static const char* hex = "0123456789abcdef";
+                std::string text;
+                text.reserve(n * 2);
+                for (unsigned int i = 0; i < n; ++i) {
+                    text.push_back(hex[out[i] >> 4]); text.push_back(hex[out[i] & 15]);
+                }
+                return Value::str(std::move(text));
+            });
+        if (name == "md5" || name == "sha1" || name == "sha256" || name == "sha512")
+            return biFn({"data"}, [name, asBytes, inputOf, digestName](std::vector<Value>& a) -> Value {
+                const EVP_MD* md = digestName(name);
+                std::string input = a.empty() ? "" : inputOf(a[0]);
+                unsigned char out[EVP_MAX_MD_SIZE];
+                unsigned int n = 0;
+                if (EVP_Digest(input.data(), input.size(), out, &n, md, nullptr) != 1)
+                    panicHere("crypto: digest failed");
+                static const char* hex = "0123456789abcdef";
+                std::string text;
+                text.reserve(n * 2);
+                for (unsigned int i = 0; i < n; ++i) {
+                    text.push_back(hex[out[i] >> 4]); text.push_back(hex[out[i] & 15]);
+                }
+                return Value::str(std::move(text));
+            });
+        if (name == "hmac")
+            return biFn({"algorithm", "key", "data"}, [asBytes, inputOf, digestName](std::vector<Value>& a) -> Value {
+                const EVP_MD* md = digestName(toStr(a[0]));
+                if (!md) panicHere("crypto.hmac: unsupported digest algorithm");
+                std::string key = a.size() > 1 ? inputOf(a[1]) : "";
+                std::string data = a.size() > 2 ? inputOf(a[2]) : "";
+                unsigned char out[EVP_MAX_MD_SIZE];
+                unsigned int n = 0;
+                if (!HMAC(md, key.data(), (int)key.size(),
+                          reinterpret_cast<const unsigned char*>(data.data()), data.size(),
+                          out, &n))
+                    panicHere("crypto: HMAC failed");
+                return asBytes(std::string(reinterpret_cast<char*>(out), n));
+            });
+        if (name == "random_bytes")
+            return biFn({"count"}, [asBytes](std::vector<Value>& a) -> Value {
+                int64_t count = a.empty() ? 0 : a[0].i;
+                if (count < 0 || count > 16 * 1024 * 1024)
+                    panicHere("crypto.random_bytes: count out of range");
+                std::string out((size_t)count, '\0');
+                if (count && RAND_bytes(reinterpret_cast<unsigned char*>(out.data()), (int)count) != 1)
+                    panicHere("crypto.random_bytes: system RNG failed");
+                return asBytes(out);
+            });
+        if (name == "constant_time_eq")
+            return biFn({"left", "right"}, [inputOf](std::vector<Value>& a) -> Value {
+                std::string left = a.empty() ? "" : inputOf(a[0]);
+                std::string right = a.size() > 1 ? inputOf(a[1]) : "";
+                if (left.size() != right.size()) return Value::boolean(false);
+                return Value::boolean(CRYPTO_memcmp(left.data(), right.data(), left.size()) == 0);
+            });
+        panicHere("crypto has no member '" + name + "'");
     }
 
     if (mod == "process" &&
@@ -12412,7 +12499,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os","bytes","sys","process","socket",
+        "math","time","io","mem","json","text","os","bytes","sys","process","socket","crypto",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

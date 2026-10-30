@@ -2102,6 +2102,22 @@ arrive at the deadline.
 Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
 golden, and this plan update.
 
+### Update (2026-10-30) — Explicit async runtime builders (shipped)
+
+`pet.async` now exposes `multi_thread(workers)` and `current_thread()` runtime
+builders with `Runtime.block_on`, `spawn`, `spawn_blocking`, `handle`,
+`shutdown_timeout`, and `shutdown_background`. Runtime handles retain the
+configured flavor/worker metadata, share task tracking through a common state
+cell, reject new work after shutdown, and provide bounded shutdown waits.
+
+Delivered: `stdpet/pet/async.kn`,
+`tests/syntax/async_runtime_builder_ok.kn`, and this plan update.
+
+Verification: checker plus tree-walker/VM runtime-builder execution pass; syntax
+gate **95 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0
+hung** (19 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite
+**419 passed, 0 failed**.
+
 ### Update (2026-10-30) — Deadline-safe existing channel waits (shipped)
 
 The pre-existing timeout methods on `Oneshot`, `MpscReceiver`, and `WatchRx`

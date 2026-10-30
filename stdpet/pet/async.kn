@@ -24,6 +24,111 @@ import pet.async_signal as signal;
 import sync as sysnc;
 import pet.sync as psync;
 
+# ---- §2.1 explicit runtime builders ----------------------------------------
+#
+# The interpreter owns one scheduler per program. These builder values provide
+# the tokio-shaped explicit API without creating a second incompatible runtime:
+# `workers`/`flavor` are retained for introspection, while tasks use the same
+# bounded scheduler as `spawn`. The shared state list makes copies and handles
+# observe the same task registry and shutdown flag.
+
+pub struct Runtime {
+    workers: Int;
+    flavor: Str;
+    state: list;       # [closed, tracked task handles]
+
+    fn worker_count(self) -> Int { return self.workers; }
+    fn flavor_name(self) -> Str { return self.flavor; }
+
+    fn ensure_open(self) -> none {
+        if self.state[0] { raise("async.Runtime is shut down"); }
+    }
+
+    # `fut` is an already-started async task. Joining here gives block_on its
+    # synchronous, runtime-entry-point shape.
+    fn block_on(self, fut: any) -> any {
+        self.ensure_open();
+        return fut.join();
+    }
+
+    fn spawn(self, fut: any) -> any {
+        self.ensure_open();
+        self.state[1].append(fut);
+        return fut;
+    }
+
+    fn spawn_blocking(self, f: any) -> any {
+        self.ensure_open();
+        h = spawn f();
+        self.state[1].append(h);
+        return h;
+    }
+
+    fn handle(self) -> RuntimeHandle {
+        self.ensure_open();
+        return RuntimeHandle(state: self.state, workers: self.workers,
+                             flavor: self.flavor);
+    }
+
+    # Wait for tracked tasks up to the supplied bound. Returns true when all
+    # tracked work is complete and false when the deadline expires.
+    fn shutdown_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        deadline = time.now() + ms;
+        for t in self.state[1] {
+            remaining = deadline - time.now();
+            if remaining < 0 { remaining = 0; }
+            if not time.wait(t, remaining) {
+                return false;
+            }
+        }
+        self.state[0] = true;
+        return true;
+    }
+
+    # Stop accepting new work and leave already-running tasks detached.
+    fn shutdown_background(self) -> none {
+        self.state[0] = true;
+    }
+}
+
+pub struct RuntimeHandle {
+    state: list;
+    workers: Int;
+    flavor: Str;
+
+    fn worker_count(self) -> Int { return self.workers; }
+    fn flavor_name(self) -> Str { return self.flavor; }
+
+    fn spawn(self, fut: any) -> any {
+        if self.state[0] { raise("async.Runtime is shut down"); }
+        self.state[1].append(fut);
+        return fut;
+    }
+
+    fn spawn_blocking(self, f: any) -> any {
+        if self.state[0] { raise("async.Runtime is shut down"); }
+        h = spawn f();
+        self.state[1].append(h);
+        return h;
+    }
+
+    fn block_on(self, fut: any) -> any {
+        if self.state[0] { raise("async.Runtime is shut down"); }
+        return fut.join();
+    }
+}
+
+pub fn multi_thread(workers: Int) -> Runtime {
+    if workers <= 0 { raise("async.Runtime workers must be positive"); }
+    return Runtime(workers: workers, flavor: "multi_thread",
+                   state: [false, []]);
+}
+
+pub fn current_thread() -> Runtime {
+    return Runtime(workers: 1, flavor: "current_thread", state: [false, []]);
+}
+
 # Sleep for `ms` milliseconds. Returns an awaitable timer, so `await sleep(..)`
 # cooperates with other tasks instead of blocking a worker thread.
 pub fn sleep(ms: Int) -> any {

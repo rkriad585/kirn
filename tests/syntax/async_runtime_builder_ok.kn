@@ -1,0 +1,26 @@
+# Explicit async runtime builder surface (POWER_PLAN §2.1).
+import pet.async as a;
+
+async fn value(x: Int) -> Int {
+    await a.sleep(1);
+    return x;
+}
+
+fn main() -> none {
+    rt = a.multi_thread(2);
+    assert(rt.worker_count() == 2);
+    assert(rt.flavor_name() == "multi_thread");
+    h = rt.spawn(value(7));
+    assert(rt.block_on(h) == 7);
+
+    handle = rt.handle();
+    assert(handle.worker_count() == 2);
+    assert(handle.block_on(handle.spawn(value(8))) == 8);
+
+    one = a.current_thread();
+    assert(one.worker_count() == 1);
+    assert(one.flavor_name() == "current_thread");
+    assert(one.block_on(value(9)) == 9);
+    assert(one.shutdown_timeout(1000));
+    print("runtime builder: ok");
+}

@@ -36,6 +36,8 @@ test ./stdpet/pet/regexp_test.kn ... regexp_test ok
 PASS
 test ./stdpet/pet/serde_test.kn ... serde_test ok
 PASS
+test ./stdpet/pet/socket_test.kn ... socket_test ok
+PASS
 test ./stdpet/pet/strings_test.kn ... strings_test ok
 PASS
 test ./stdpet/pet/sync_test.kn ... barrier single party: ok
@@ -69,5 +71,5 @@ test ./stdpet/pet/toml_test.kn ... toml_test ok
 PASS
 test ./stdpet/pet/yaml_test.kn ... yaml_test ok
 PASS
-21 passed, 0 failed
+22 passed, 0 failed
 [exit 0]

@@ -2188,5 +2188,23 @@ checks; syntax gate **99 passed, 0 failed, 0 hung**; stdlib gate **21 tests
 passed**; examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
 passed, 0 failed**.
 
+### Update (2026-10-30) — Standalone socket module (Phase 0 checkpoint)
+
+The existing cancellation-aware POSIX TCP/UDP descriptor implementation is now
+also available through a dedicated `socket` namespace. It exposes the TCP bind,
+accept, connect, read, write, and socket-option operations; UDP bind, connect,
+send, receive, datagram addressing, options, close, and host lookup. The
+historical `net` namespace remains unchanged and both paths share the same
+native implementation.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/socket_test.kn`, `tests/syntax/socket_phase0_ok.kn`, and this plan
+update.
+
+Verification: full build; focused TCP/UDP namespace checks including localhost
+UDP round-trip; syntax gate **100 passed, 0 failed, 0 hung**; stdlib gate **22
+tests passed** with localhost networking enabled; examples gate **90 passed, 0
+failed, 0 hung**; golden suite **419 passed, 0 failed**.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

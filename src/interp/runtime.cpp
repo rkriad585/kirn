@@ -1861,7 +1861,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "bytes", "sys", "process"})
+          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket"})
         if (name == m) return true;
     return false;
 }
@@ -3690,7 +3690,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "sys", "process"})
+          "error", "sync", "reflect", "net", "sys", "process", "socket"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5113,6 +5113,19 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             out.flush();
             return Value::none();
         });
+
+    if (mod == "socket") {
+        static const char* names[] = {
+            "tcp_bind", "tcp_accept", "tcp_connect", "tcp_read", "tcp_write",
+            "tcp_set_nodelay", "tcp_set_keepalive", "socket_set_reuseaddr",
+            "socket_set_recv_buffer", "socket_set_send_buffer", "udp_set_broadcast",
+            "udp_set_ttl", "close", "udp_bind", "udp_connect", "udp_send",
+            "udp_recv", "udp_send_to", "udp_recv_from", "lookup_host"
+        };
+        for (const char* n : names)
+            if (name == n) return moduleMember("net", name);
+        panicHere("socket has no member '" + name + "'");
+    }
 
     if (mod == "process" &&
         (name == "run" || name == "spawn" || name == "wait" ||
@@ -12399,7 +12412,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os","bytes","sys","process",
+        "math","time","io","mem","json","text","os","bytes","sys","process","socket",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

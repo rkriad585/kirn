@@ -1,0 +1,21 @@
+# Phase 0 standalone socket namespace regression.
+import socket;
+import bytes;
+
+fn main() -> none {
+    hosts = socket.lookup_host("localhost");
+    assert(hosts.len() > 0);
+    assert(socket.tcp_bind != nil);
+    assert(socket.tcp_connect != nil);
+    assert(socket.udp_bind != nil);
+    assert(socket.udp_send_to != nil);
+    assert(socket.udp_recv_from != nil);
+    left = socket.udp_bind("127.0.0.1:0");
+    right = socket.udp_bind("127.0.0.1:0");
+    socket.udp_send_to(left["fd"], "ping", right["addr"]);
+    packet = socket.udp_recv_from(right["fd"], 32);
+    assert(bytes.to_str(packet["data"]) == "ping");
+    socket.close(left["fd"]);
+    socket.close(right["fd"]);
+    print("socket_test ok");
+}

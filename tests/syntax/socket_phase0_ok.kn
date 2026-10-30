@@ -1,0 +1,7 @@
+import socket;
+
+fn main() -> none {
+    assert(socket.tcp_bind != nil);
+    assert(socket.udp_connect != nil);
+    assert(socket.lookup_host != nil);
+}

@@ -1,0 +1,28 @@
+# Async socket option surface (POWER_PLAN §2.7).
+import pet.async as a;
+
+async fn main() -> none {
+    l = a.net.bind("127.0.0.1:0");
+    l.set_reuseaddr(true);
+    var server = spawn(async fn () -> none {
+        s = await l.accept();
+        s.set_nodelay(true);
+        s.set_keepalive(true);
+        d = await s.read(8);
+        await s.write_all(d);
+        s.close();
+    });
+    c = await a.net.connect(l.local_addr());
+    c.set_nodelay(false);
+    c.set_keepalive(false);
+    await c.write_all("ok");
+    assert((await c.read(8)).decode("utf-8") == "ok");
+    c.close();
+    server.wait();
+    l.close();
+
+    u = a.net.udp_bind("127.0.0.1:0");
+    u.set_broadcast(false);
+    u.close();
+    print("async net options ok");
+}

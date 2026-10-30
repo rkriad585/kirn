@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <poll.h>
@@ -5302,6 +5303,46 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     sent += (size_t)k;
                 }
                 return Value::integer((int64_t)sent);
+            });
+        if (name == "tcp_set_nodelay")
+            return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
+                if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &enabled,
+                                 sizeof enabled) != 0)
+                    panicHere(std::string("tcp_set_nodelay: ") +
+                              std::strerror(errno));
+                return Value::none();
+            });
+        if (name == "tcp_set_keepalive")
+            return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
+                if (::setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enabled,
+                                 sizeof enabled) != 0)
+                    panicHere(std::string("tcp_set_keepalive: ") +
+                              std::strerror(errno));
+                return Value::none();
+            });
+        if (name == "socket_set_reuseaddr")
+            return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
+                if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enabled,
+                                 sizeof enabled) != 0)
+                    panicHere(std::string("socket_set_reuseaddr: ") +
+                              std::strerror(errno));
+                return Value::none();
+            });
+        if (name == "udp_set_broadcast")
+            return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
+                if (::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enabled,
+                                 sizeof enabled) != 0)
+                    panicHere(std::string("udp_set_broadcast: ") +
+                              std::strerror(errno));
+                return Value::none();
             });
         if (name == "close")
             return biFn({"fd"}, [](std::vector<Value>& a) -> Value {

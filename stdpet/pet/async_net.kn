@@ -32,6 +32,14 @@ pub struct TcpStream {
         net.tcp_write(self.fd, data);
     }
 
+    fn set_nodelay(self, enabled: Bool) -> none {
+        net.tcp_set_nodelay(self.fd, enabled);
+    }
+
+    fn set_keepalive(self, enabled: Bool) -> none {
+        net.tcp_set_keepalive(self.fd, enabled);
+    }
+
     fn peer_addr(self) -> Str {
         return self.peer;
     }
@@ -105,6 +113,10 @@ pub struct TcpListener {
     fn close(self) -> none {
         net.close(self.fd);
     }
+
+    fn set_reuseaddr(self, enabled: Bool) -> none {
+        net.socket_set_reuseaddr(self.fd, enabled);
+    }
 }
 
 # Bind and listen on `addr` ("host:port", port 0 = ephemeral).
@@ -138,6 +150,10 @@ pub struct UdpSocket {
 
     fn close(self) -> none {
         net.close(self.fd);
+    }
+
+    fn set_broadcast(self, enabled: Bool) -> none {
+        net.udp_set_broadcast(self.fd, enabled);
     }
 }
 

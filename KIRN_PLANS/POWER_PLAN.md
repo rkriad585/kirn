@@ -971,7 +971,7 @@ Deviations / not shipped (documented):
 - **No formal `AsyncRead`/`AsyncWrite`/`AsyncBufRead`/`AsyncSeek` traits.** Kirn has no trait-object machinery; the method set is a structural interface, and `copy` accepts any reader/writer with `read_to_end`/`write_all`.
 - **`File` is a path cursor, not an OS handle.** Every read/write reopens the path at the recorded offset. There is no shared file description, no locking beyond the OS, and no `close` side effect. `write` does not truncate (use `create`). `append` records EOF at open time, so concurrent appenders can overwrite.
 - **`split`/`into_split` share one fd** rather than duplicating it; the halves are values, not ownership transfer, and closing a half is not supported (close the stream). This is deliberate: the plan's borrowed/owned distinction has no analogue without lifetimes.
-- **Networking is POSIX-only and blocking.** On Windows the `net` members raise. `await` yields, but there is no readiness reactor, so a blocked `accept` occupies a task thread. No `TcpSocket`/`UdpSocket` options (nodelay, TTL, broadcast) yet.
+- **Networking is POSIX-only and blocking.** On Windows the `net` members raise. `await` yields, but there is no readiness reactor, so a blocked `accept` occupies a task thread. The shipped option subset covers TCP_NODELAY, SO_KEEPALIVE, SO_REUSEADDR, and SO_BROADCAST; other platform-specific socket options remain out of scope.
 - **`lookup_host` returns address strings without ports** (the native resolver is called with a null service); combine with a port manually. No `ToSocketAddrs` port parsing beyond the `host:port` form used by `bind`/`connect`.
 - **`BufReader` does not buffer** — whole-file reads are one syscall, and per-`read` buffering only complicates the cursor. `BufWriter` buffers `Str` chunks only.
 - **No cancellation.** Dropping an await leaves the blocking syscall on its thread until it returns; `split` halves do not add independent shutdown.
@@ -1982,6 +1982,22 @@ Final evidence after rebuild:
 - `scripts/gates/6_test.sh`: **18 passed, 0 failed**;
 - affected async tree-walker/VM tests passed repeatedly, including buffered
   reads, byte I/O, filesystem/process I/O, and timers.
+
+### Update (2026-10-30) — Async socket options (shipped)
+
+`pet.async_net` now exposes practical POSIX socket configuration methods:
+`TcpStream.set_nodelay`, `TcpStream.set_keepalive`,
+`TcpListener.set_reuseaddr`, and `UdpSocket.set_broadcast`. The native `net`
+module applies them through checked `setsockopt` calls and reports failures as
+Kirn panics with the platform error text. This closes the previously missing
+TCP_NODELAY/keepalive/reuse-address/broadcast subset while retaining the
+documented POSIX-only and blocking-task model.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`, and
+`tests/syntax/async_net_options_ok.kn`.
+
+Verification: checker plus tree-walker/VM network execution pass; full syntax,
+stdlib, and examples gates pass after rebuild.
 
 ### Update (2026-10-28) — Mutable parallel chunks and drain ranges (shipped)
 

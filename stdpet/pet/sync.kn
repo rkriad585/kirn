@@ -94,6 +94,7 @@ struct BarrierState {
         var c = self.st[1];
         m.lock();
         var gen: Int = self.st[4];
+        var deadline = time.now() + ms;
         self.st[3] = self.st[3] + 1;
         if self.st[3] >= self.st[2] {
             self.st[3] = 0;
@@ -102,15 +103,21 @@ struct BarrierState {
             m.unlock();
             return true;
         }
-        var timedout = c.wait_timeout(m, ms);
-        if timedout and gen == self.st[4] {
-            self.st[3] = self.st[3] - 1;
-            c.broadcast();
-            m.unlock();
-            return false;
-        }
         while gen == self.st[4] {
-            c.wait(m);
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                self.st[3] = self.st[3] - 1;
+                c.broadcast();
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and gen == self.st[4] {
+                self.st[3] = self.st[3] - 1;
+                c.broadcast();
+                m.unlock();
+                return false;
+            }
         }
         m.unlock();
         return true;
@@ -164,18 +171,22 @@ struct SemaphoreState {
             m.unlock();
             return true;
         }
-        var timedout = c.wait_timeout(m, ms);
-        if timedout and self.st[2] < n {
-            m.unlock();
-            return false;
+        var deadline = time.now() + ms;
+        while self.st[2] < n {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and self.st[2] < n {
+                m.unlock();
+                return false;
+            }
         }
-        if self.st[2] >= n {
-            self.st[2] = self.st[2] - n;
-            m.unlock();
-            return true;
-        }
+        self.st[2] = self.st[2] - n;
         m.unlock();
-        return false;
+        return true;
     }
 
     fn try_acquire(self) -> Bool {
@@ -290,15 +301,21 @@ struct NotifyState {
             return true;
         }
         var gen: Int = self.st[2];
+        var deadline = time.now() + ms;
         self.st[3] = self.st[3] + 1;
-        var timedout = c.wait_timeout(m, ms);
-        if timedout and gen == self.st[2] {
-            self.st[3] = self.st[3] - 1;
-            m.unlock();
-            return false;
-        }
         while gen == self.st[2] {
-            c.wait(m);
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                self.st[3] = self.st[3] - 1;
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and gen == self.st[2] {
+                self.st[3] = self.st[3] - 1;
+                m.unlock();
+                return false;
+            }
         }
         self.st[3] = self.st[3] - 1;
         m.unlock();

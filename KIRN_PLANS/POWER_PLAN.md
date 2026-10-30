@@ -2075,6 +2075,21 @@ public per-pool concurrency contract is now honored.
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
+### Update (2026-10-30) — Deadline-correct timed synchronization (shipped)
+
+Timed `Barrier`, `Semaphore`, and `Notify` waits now preserve their original
+deadline across condition-variable wakeups. Each wait recomputes the remaining
+duration and rechecks its predicate, so a spurious or unrelated wake cannot
+turn a bounded operation into an unbounded one. Barrier timeout cleanup still
+removes the participant from the current generation.
+
+Delivered: `stdpet/pet/sync.kn` and this plan update.
+
+Verification: focused timed-sync tests pass; syntax gate **94 passed, 0
+failed, 0 hung** after rerun; stdlib gate **1 passed, 0 failed, 0 hung** (19
+tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
+passed, 0 failed**.
+
 Verification: checker plus tree-walker/VM pool parity pass; syntax gate **94
 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**.

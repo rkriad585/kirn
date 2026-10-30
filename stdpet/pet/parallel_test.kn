@@ -20,6 +20,9 @@ fn main() -> none {
 
     # par_iter map/filter/collect/sum
     assert(parallel.par_iter([1, 2, 3]).map(fn (x) { return x * 10; }).collect() == [10, 20, 30]);
+    var method_mut = [1, 2, 3];
+    method_mut.par_iter_mut().for_each_mut(fn (x) { return x + 1; });
+    assert(method_mut == [2, 3, 4]);
     assert(parallel.par_iter([1, 2, 3, 4]).filter(fn (x) { return x % 2 == 0; }).collect() == [2, 4]);
     assert(parallel.par_iter([1, 2, 3, 4]).sum() == 10);
     assert(parallel.par_iter([2, 3, 4]).product() == 24);

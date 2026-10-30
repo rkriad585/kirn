@@ -8544,6 +8544,15 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     Value source = a.empty() ? Value::list() : a[0];
                     return callValue(f, {source}, 0, 0);
                 });
+            if (name == "par_iter_mut")
+                return bind({}, [this](std::vector<Value>& a) -> Value {
+                    Value mod = loadModuleFile("pet.parallel");
+                    if (mod.k != VK::Module)
+                        panicHere("list mutable parallel iterator module is unavailable");
+                    Value f = moduleMember(mod.typeName, "par_iter_mut");
+                    Value source = a.empty() ? Value::list() : a[0];
+                    return callValue(f, {source}, 0, 0);
+                });
             if (name == "sum")
                 return bind({}, [](std::vector<Value>& a) -> Value {
                     double acc = 0;

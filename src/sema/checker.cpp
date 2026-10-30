@@ -1833,6 +1833,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                 return s;
             }
             if (name == "chunk_by" || name == "for_each" ||
+                name == "for_each_mut" ||
                 name == "for_each_init" || name == "fold" ||
                 name == "try_reduce" || name == "reduce" ||
                 name == "any" || name == "all" || name == "find_any" ||
@@ -1845,13 +1846,14 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
                 if (name == "chunk_by") {
                     s.params.push_back(unkTy()); s.names.push_back("f");
                     s.ret = par(listTy(elem));
-                } else if (name == "for_each" || name == "any" || name == "all" ||
+                } else if (name == "for_each" || name == "for_each_mut" ||
+                           name == "any" || name == "all" ||
                            name == "find_any" || name == "find_first" ||
                            name == "find_last" || name == "min_by" ||
                            name == "max_by" || name == "min_by_key" ||
                            name == "max_by_key" || name == "positions") {
                     s.params.push_back(unkTy()); s.names.push_back("f");
-                    s.ret = name == "for_each" ? noneTy()
+                    s.ret = (name == "for_each" || name == "for_each_mut") ? noneTy()
                            : (name == "any" || name == "all" ? boolTy()
                               : (name == "positions" ? listTy(intTy()) : optTy(elem)));
                 } else if (name == "slices") {
@@ -2239,7 +2241,8 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             s.required = 1;
             return s;
         }
-        if (name == "par_iter" || name == "into_par_iter") {
+        if (name == "par_iter" || name == "into_par_iter" ||
+            name == "par_iter_mut") {
             FuncSig s;
             s.ret = nominalWithArgs(TyK::Struct, "ParIter", {elem});
             return s;
@@ -5134,6 +5137,7 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
         static const std::set<std::string> callbackMethods = {
             "map", "filter", "filter_map", "flat_map", "chunk_by",
             "inspect", "while_some", "for_each", "for_each_init", "fold",
+            "for_each_mut",
             "try_reduce", "reduce", "any", "all", "find_any", "find_first",
             "find_last", "min_by", "max_by", "min_by_key", "max_by_key",
             "positions", "map_with",

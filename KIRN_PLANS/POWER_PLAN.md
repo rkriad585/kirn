@@ -2036,3 +2036,13 @@ implementation while honoring in-place mutation.
 
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
 stdlib parallel regression coverage.
+
+### Update (2026-10-30) — Mutable iterator method dispatch fix (shipped)
+
+The existing list method registry accepted `par_iter_mut` but accidentally
+constructed an immutable `ParIter`, making `.par_iter_mut().for_each_mut(...)`
+silently operate on a copied sequence. Dispatch now selects the explicit
+mutable constructor, preserving source-list updates and alias visibility.
+
+Delivered: `src/interp/runtime.cpp`, `tests/syntax/parallel_method_ok.kn`, and
+stdlib parallel regression coverage.

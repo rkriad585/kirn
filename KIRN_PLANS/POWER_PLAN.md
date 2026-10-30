@@ -2062,3 +2062,19 @@ Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`, and
 Verification: checker plus tree-walker/VM parity pass; syntax gate **92
 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
 **90 passed, 0 failed, 0 hung**.
+
+### Update (2026-10-30) — Per-pool concurrency limits (shipped)
+
+`parallel.Pool(threads: n)` now enforces its declared width for `install`,
+`join`, `broadcast`, and `scope`. A shared semaphore cell is initialized before
+workers launch, so copied pool values share one limiter and `Pool(1)` is truly
+serial even when the global scheduler has multiple workers. Invalid widths are
+rejected with a clear error. The global scheduler remains shared, but the
+public per-pool concurrency contract is now honored.
+
+Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
+this plan update.
+
+Verification: checker plus tree-walker/VM parity pass; syntax gate **92
+passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
+**90 passed, 0 failed, 0 hung**.

@@ -19,4 +19,20 @@ fn main() -> none {
     });
     print(out, seen.load());
     print(p.yield_now());
+
+    # A one-slot pool must serialize its work even though the global scheduler
+    # has multiple workers available.
+    one = p.Pool(threads: 1);
+    var order = [];
+    one.join(fn () {
+        order.append("first");
+        time.sleep(10);
+        order.append("first-done");
+        return none;
+    }, fn () {
+        order.append("second");
+        return none;
+    });
+    assert(order == ["first", "first-done", "second"] or
+           order == ["second", "first", "first-done"]);
 }

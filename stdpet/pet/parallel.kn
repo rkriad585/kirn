@@ -11,6 +11,7 @@
 #   var total = parallel.par_iter([1,2,3,4]).map(fn (x) { return x * x; }).sum();
 
 import parallel;
+import pet.sync as psync;
 
 # ---- pool / thread info ----------------------------------------------------
 
@@ -1002,34 +1003,76 @@ pub fn yield_now() -> none {
 #   var r = pool.install(fn () { return heavy(); });
 pub struct Pool {
     threads: Int;
+    # Shared mutable cell so copies of the value keep one limiter.  The cell
+    # is initialized before any worker is launched, avoiding a racy lazy init.
+    gate: list = [none];
 
     fn size(self) -> Int { return self.threads; }
 
+    fn ensure_gate(self) -> none {
+        if self.threads <= 0 { raise "parallel.Pool: threads must be > 0"; }
+        if self.gate.len() == 0 or self.gate[0] == none {
+            self.gate.clear();
+            self.gate.append(psync.Semaphore(self.threads));
+        }
+    }
+
+    # Run one closure while holding this pool's permit.  The global scheduler
+    # still provides workers; this per-pool semaphore enforces the public
+    # Pool(threads: n) concurrency contract on top of it.
+    fn run_limited(self, f) -> any {
+        g = self.gate[0];
+        g.acquire();
+        try {
+            result = f();
+            g.release();
+            return result;
+        } catch e {
+            g.release();
+            raise e;
+        }
+    }
+
     # Run `f` on a worker and return its result.
     fn install(self, f) -> any {
-        var h = spawn f();
+        self.ensure_gate();
+        var h = spawn fn () { return self.run_limited(f); };
         return h.join();
     }
 
     # Run two closures concurrently; return `[ra, rb]` in argument order.
     fn join(self, a, b) -> list {
-        return parallel.join(a, b);
+        self.ensure_gate();
+        return parallel.join(
+            fn () { return self.run_limited(a); },
+            fn () { return self.run_limited(b); });
     }
 
     # Run `f` once per pool worker; return the results in worker order.
     fn broadcast(self, f) -> list {
+        self.ensure_gate();
         fns = [];
         var i = 0;
-        while i < self.threads { fns.append(f); i += 1; }
+        while i < self.threads {
+            fns.append(fn () { return self.run_limited(f); });
+            i += 1;
+        }
         return invoke(fns);
     }
 
     # Run `body(scope)`; every task handed to `scope.spawn` is run concurrently
     # and all are joined before `scope` returns. `body`'s value is returned.
     fn scope(self, body) -> any {
+        self.ensure_gate();
         s = PoolScope(fns: []);
         var out = body(s);
-        if s.fns.len() > 0 { invoke(s.fns); }
+        if s.fns.len() > 0 {
+            limited = [];
+            for task in s.fns {
+                limited.append(fn () { return self.run_limited(task); });
+            }
+            invoke(limited);
+        }
         return out;
     }
 }

@@ -3214,6 +3214,11 @@ void Checker::checkDecorators(const std::vector<ast::Decorator>& decs,
                 .emit();
             continue;
         }
+        if (d.name == "test" && declaration && scope_) {
+            // Test functions are discovered and invoked by the interpreter
+            // for test-only modules; the runner is their call site.
+            if (Symbol* sym = scope_->find(declName)) sym->used = true;
+        }
         if (d.name == "deprecated" && declaration && !declName.empty()) {
             // Registration is done in collectDeprecated (order-independent);
             // nothing further to do here.

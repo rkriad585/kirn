@@ -1,0 +1,13 @@
+# A test-only module may omit main when it contains @[test] functions.
+import pet.async as a;
+
+@[test]
+async fn async_attribute_test() -> none {
+    await a.sleep(ms: 1);
+    assert(2 + 2 == 4);
+}
+
+@[test]
+fn sync_attribute_test() -> none {
+    assert("kirn".upper() == "KIRN");
+}

@@ -2078,3 +2078,20 @@ this plan update.
 Verification: checker plus tree-walker/VM parity pass; syntax gate **92
 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
 **90 passed, 0 failed, 0 hung**.
+
+### Update (2026-10-30) — Test-only `@[test]` modules (shipped)
+
+`@[test]` declarations now have an executable runtime path. A module without a
+`main` function is accepted when it contains one or more bracket-form test
+functions; the interpreter runs them in source order and supports both sync and
+`async fn` tests. A target with neither `main` nor `@[test]` declarations keeps
+the existing `no main() defined` diagnostic, so ordinary run behavior is
+unchanged.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`tests/syntax/attribute_test_module_ok.kn`,
+and this plan update.
+
+Verification: focused checker and tree-walker/VM execution pass; syntax gate
+**93 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples
+gate **90 passed, 0 failed, 0 hung**.

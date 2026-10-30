@@ -2121,3 +2121,18 @@ including the new decorated-test runner output. The verifier now passes all
 **419 golden snapshots** with zero failures.
 
 Delivered: refreshed snapshots under `scripts/golden/` and this plan update.
+
+### Update (2026-10-30) — Decorator-selected main entry (shipped)
+
+The runtime now honors `@[main]` when the entry function is not literally named
+`main`. It selects exactly one bracket-decorated entry in source order and
+rejects ambiguous multiple `@[main]` functions. The checker treats both
+`@[main]` and `@[test]` as runtime call sites, preventing false unused-function
+diagnostics. A normal `main()` remains the preferred entry when present.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`tests/syntax/attribute_main_ok.kn`, and this plan update.
+
+Verification: decorated entry checker and tree-walker/VM execution pass; syntax
+gate **94 passed, 0 failed, 0 hung**; test gate **1 passed, 0 failed, 0 hung**
+(19 tests); examples gate **90 passed, 0 failed, 0 hung**.

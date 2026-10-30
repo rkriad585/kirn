@@ -1813,8 +1813,24 @@ Value Interpreter::run(bool testMode) {
         }
         return tests.size();
     };
+    const Stmt* entry = nullptr;
     auto it = funcs_.find("main");
-    if (it == funcs_.end()) {
+    if (it != funcs_.end()) {
+        entry = it->second;
+    } else {
+        for (const auto& sp : program_->body) {
+            const Stmt& candidate = *sp;
+            if (candidate.kind != ast::StKind::FuncDef) continue;
+            for (const auto& d : candidate.decorators) {
+                if (!d.bracket || d.name != "main") continue;
+                if (entry)
+                    panicHere("multiple functions marked @[main]");
+                entry = &candidate;
+                break;
+            }
+        }
+    }
+    if (!entry) {
         // A test-only module may omit main and expose one or more
         // `@[test] fn` declarations.  Run each test in source/collection
         // order; async test bodies use the same task-aware interpreter path
@@ -1824,9 +1840,9 @@ Value Interpreter::run(bool testMode) {
         shutdownThreads();
         return Value::none();
     }
-    CallFrameGuard mainGuard(it->second->name, it->second->span.line,
-                             it->second->span.col);
-    Value r = runFunc(it->second, {}, {}, globals_);
+    CallFrameGuard mainGuard(entry->name, entry->span.line,
+                             entry->span.col);
+    Value r = runFunc(entry, {}, {}, globals_);
     if (testMode) runTests();
     shutdownThreads();
     return r;

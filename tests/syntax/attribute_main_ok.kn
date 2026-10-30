@@ -1,0 +1,5 @@
+# `@[main]` may select an entry function whose source name is not `main`.
+@[main]
+fn boot_application() -> none {
+    print("decorated main");
+}

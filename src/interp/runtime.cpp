@@ -5334,6 +5334,17 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                               std::strerror(errno));
                 return Value::none();
             });
+        if (name == "socket_set_recv_buffer" || name == "socket_set_send_buffer")
+            return biFn({"fd", "bytes"}, [name](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int bytes = a.size() > 1 && a[1].k == VK::Int ? (int)a[1].i : 0;
+                if (bytes <= 0)
+                    panicHere("socket buffer size must be positive");
+                int option = name == "socket_set_recv_buffer" ? SO_RCVBUF : SO_SNDBUF;
+                if (::setsockopt(fd, SOL_SOCKET, option, &bytes, sizeof bytes) != 0)
+                    panicHere(std::string(name) + ": " + std::strerror(errno));
+                return Value::none();
+            });
         if (name == "udp_set_broadcast")
             return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
                 int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
@@ -5342,6 +5353,16 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                                  sizeof enabled) != 0)
                     panicHere(std::string("udp_set_broadcast: ") +
                               std::strerror(errno));
+                return Value::none();
+            });
+        if (name == "udp_set_ttl")
+            return biFn({"fd", "ttl"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                int ttl = a.size() > 1 && a[1].k == VK::Int ? (int)a[1].i : 0;
+                if (ttl <= 0 || ttl > 255)
+                    panicHere("udp ttl must be between 1 and 255");
+                if (::setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof ttl) != 0)
+                    panicHere(std::string("udp_set_ttl: ") + std::strerror(errno));
                 return Value::none();
             });
         if (name == "close")

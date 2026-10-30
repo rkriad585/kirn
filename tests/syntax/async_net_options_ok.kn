@@ -8,6 +8,8 @@ async fn main() -> none {
         s = await l.accept();
         s.set_nodelay(true);
         s.set_keepalive(true);
+        s.set_recv_buffer(16384);
+        s.set_send_buffer(16384);
         d = await s.read(8);
         await s.write_all(d);
         s.close();
@@ -23,6 +25,9 @@ async fn main() -> none {
 
     u = a.net.udp_bind("127.0.0.1:0");
     u.set_broadcast(false);
+    u.set_ttl(64);
+    u.set_recv_buffer(16384);
+    u.set_send_buffer(16384);
     u.close();
     print("async net options ok");
 }

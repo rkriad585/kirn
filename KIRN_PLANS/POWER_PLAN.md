@@ -1999,6 +1999,15 @@ Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`, and
 Verification: checker plus tree-walker/VM network execution pass; full syntax,
 stdlib, and examples gates pass after rebuild.
 
+### Update (2026-10-30) — Async socket buffers and UDP TTL (shipped)
+
+The async network handles now also expose receive/send buffer sizing on TCP
+and UDP sockets, plus IPv4 UDP TTL. Values are validated before checked native
+`setsockopt` calls, with clear range errors for invalid sizes or TTLs.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`, and the
+expanded `tests/syntax/async_net_options_ok.kn` regression.
+
 ### Update (2026-10-28) — Mutable parallel chunks and drain ranges (shipped)
 
 The remaining §4.3 mutable collection gap is now covered without introducing

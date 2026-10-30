@@ -40,6 +40,14 @@ pub struct TcpStream {
         net.tcp_set_keepalive(self.fd, enabled);
     }
 
+    fn set_recv_buffer(self, bytes: Int) -> none {
+        net.socket_set_recv_buffer(self.fd, bytes);
+    }
+
+    fn set_send_buffer(self, bytes: Int) -> none {
+        net.socket_set_send_buffer(self.fd, bytes);
+    }
+
     fn peer_addr(self) -> Str {
         return self.peer;
     }
@@ -154,6 +162,18 @@ pub struct UdpSocket {
 
     fn set_broadcast(self, enabled: Bool) -> none {
         net.udp_set_broadcast(self.fd, enabled);
+    }
+
+    fn set_ttl(self, ttl: Int) -> none {
+        net.udp_set_ttl(self.fd, ttl);
+    }
+
+    fn set_recv_buffer(self, bytes: Int) -> none {
+        net.socket_set_recv_buffer(self.fd, bytes);
+    }
+
+    fn set_send_buffer(self, bytes: Int) -> none {
+        net.socket_set_send_buffer(self.fd, bytes);
     }
 }
 

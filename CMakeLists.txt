@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # feeds clangd/LSP
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(ZLIB REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -112,7 +113,7 @@ add_library(kirn_interp STATIC
 )
 # Threads::Threads propagates to every consumer (kirnrun, kirn) so POSIX
 # link lines get their -pthread.
-target_link_libraries(kirn_interp PUBLIC kirn_vm Threads::Threads OpenSSL::Crypto ZLIB::ZLIB)
+target_link_libraries(kirn_interp PUBLIC kirn_vm Threads::Threads OpenSSL::Crypto ZLIB::ZLIB SQLite3::SQLite3)
 
 add_library(kirn_backend STATIC
     src/backend/native.cpp

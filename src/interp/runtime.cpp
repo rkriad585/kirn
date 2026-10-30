@@ -32,6 +32,7 @@
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <zlib.h>
+#include <sqlite3.h>
 
 #ifndef _WIN32
 #include <csignal>
@@ -1213,6 +1214,7 @@ std::string toStr(const Value& v) {
         case VK::ThreadH:   return "<task>";
         case VK::Timer:     return "<timer>";
         case VK::File:      return "<file>";
+        case VK::Sqlite:    return "<sqlite>";
         case VK::Arena:     return "<arena>";
         case VK::Ptr:       return "<ptr>";
         case VK::Mutex:     return "<mutex>";
@@ -1437,6 +1439,7 @@ static std::string typeName(const Value& v) {
         case VK::Cond:   return "Cond";
         case VK::Atomic: return "Atomic";
         case VK::Module: return "module";
+        case VK::Sqlite: return "sqlite";
         case VK::Ptr:    return "ptr";
         default:         return "value";
     }
@@ -1866,7 +1869,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket", "crypto", "compress"})
+          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket", "crypto", "compress", "sqlite"})
         if (name == m) return true;
     return false;
 }
@@ -3695,7 +3698,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "sys", "process", "socket", "crypto", "compress"})
+          "error", "sync", "reflect", "net", "sys", "process", "socket", "crypto", "compress", "sqlite"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5268,6 +5271,26 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     reinterpret_cast<const Bytef*>(input.data()), (uInt)input.size()));
             });
         panicHere("compress has no member '" + name + "'");
+    }
+
+    if (mod == "sqlite") {
+        if (name == "connect")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::string path = a.empty() ? ":memory:" : toStr(a[0]);
+                sqlite3* db = nullptr;
+                int rc = sqlite3_open(path.c_str(), &db);
+                if (rc != SQLITE_OK) {
+                    std::string msg = db ? sqlite3_errmsg(db) : "unable to open database";
+                    if (db) sqlite3_close(db);
+                    panicHere("sqlite.connect: " + msg);
+                }
+                Value out;
+                out.k = VK::Sqlite;
+                out.sqlite = std::make_shared<SqliteImpl>();
+                out.sqlite->db = db;
+                return out;
+            });
+        panicHere("sqlite has no member '" + name + "'");
     }
 
     if (mod == "process" &&
@@ -8763,6 +8786,96 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 if (a[0].file) a[0].file->closed = true;
                 return Value::none();
             });
+            break;
+
+        case VK::Sqlite:
+            if (name == "close")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sqlite || a[0].sqlite->closed) return Value::none();
+                    auto* db = static_cast<sqlite3*>(a[0].sqlite->db);
+                    if (db) sqlite3_close(db);
+                    a[0].sqlite->db = nullptr;
+                    a[0].sqlite->closed = true;
+                    return Value::none();
+                });
+            if (name == "exec")
+                return bind({"sql"}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sqlite || a[0].sqlite->closed)
+                        panicHere("sqlite exec on closed connection");
+                    auto* db = static_cast<sqlite3*>(a[0].sqlite->db);
+                    char* error = nullptr;
+                    std::string sql = toStr(a.size() > 1 ? a[1] : Value::str(""));
+                    int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &error);
+                    if (rc != SQLITE_OK) {
+                        std::string msg = error ? error : sqlite3_errmsg(db);
+                        sqlite3_free(error);
+                        panicHere("sqlite.exec: " + msg);
+                    }
+                    return Value::none();
+                });
+            if (name == "query")
+                return bind({"sql"}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sqlite || a[0].sqlite->closed)
+                        panicHere("sqlite query on closed connection");
+                    auto* db = static_cast<sqlite3*>(a[0].sqlite->db);
+                    sqlite3_stmt* stmt = nullptr;
+                    std::string sql = toStr(a.size() > 1 ? a[1] : Value::str(""));
+                    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+                    if (rc != SQLITE_OK)
+                        panicHere("sqlite.query: " + std::string(sqlite3_errmsg(db)));
+                    Value rows = Value::list();
+                    int cols = sqlite3_column_count(stmt);
+                    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                        Value row = Value::tuple({});
+                        for (int i = 0; i < cols; ++i) {
+                            switch (sqlite3_column_type(stmt, i)) {
+                                case SQLITE_INTEGER:
+                                    row.vec->push_back(Value::integer(sqlite3_column_int64(stmt, i)));
+                                    break;
+                                case SQLITE_FLOAT:
+                                    row.vec->push_back(Value::floating(sqlite3_column_double(stmt, i)));
+                                    break;
+                                case SQLITE_BLOB: {
+                                    const void* data = sqlite3_column_blob(stmt, i);
+                                    int size = sqlite3_column_bytes(stmt, i);
+                                    Value v = Value::str(std::string(static_cast<const char*>(data),
+                                                                     static_cast<size_t>(size)));
+                                    v.k = VK::Bytes;
+                                    row.vec->push_back(std::move(v));
+                                    break;
+                                }
+                                case SQLITE_NULL:
+                                    row.vec->push_back(Value::none());
+                                    break;
+                                default:
+                                    row.vec->push_back(Value::str(reinterpret_cast<const char*>(
+                                        sqlite3_column_text(stmt, i))));
+                                    break;
+                            }
+                        }
+                        rows.vec->push_back(std::move(row));
+                    }
+                    if (rc != SQLITE_DONE) {
+                        std::string msg = sqlite3_errmsg(db);
+                        sqlite3_finalize(stmt);
+                        panicHere("sqlite.query: " + msg);
+                    }
+                    sqlite3_finalize(stmt);
+                    return rows;
+                });
+            if (name == "changes")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sqlite || a[0].sqlite->closed)
+                        panicHere("sqlite changes on closed connection");
+                    return Value::integer(sqlite3_changes(static_cast<sqlite3*>(a[0].sqlite->db)));
+                });
+            if (name == "last_insert_rowid")
+                return bind({}, [](std::vector<Value>& a) -> Value {
+                    if (!a[0].sqlite || a[0].sqlite->closed)
+                        panicHere("sqlite last_insert_rowid on closed connection");
+                    return Value::integer(sqlite3_last_insert_rowid(
+                        static_cast<sqlite3*>(a[0].sqlite->db)));
+                });
             break;
 
         case VK::Arena:
@@ -12555,7 +12668,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os","bytes","sys","process","socket","crypto","compress",
+        "math","time","io","mem","json","text","os","bytes","sys","process","socket","crypto","compress","sqlite",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

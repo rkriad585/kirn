@@ -1,0 +1,17 @@
+import sqlite;
+
+fn main() -> none {
+    db = sqlite.connect(":memory:");
+    db.exec("create table users (id integer primary key, name text, score real)");
+    db.exec("insert into users(name, score) values ('ada', 3.5)");
+    assert(db.changes() == 1);
+    assert(db.last_insert_rowid() == 1);
+    rows = db.query("select id, name, score from users");
+    assert(rows.len() == 1);
+    assert(rows[0][0] == 1);
+    assert(rows[0][1] == "ada");
+    assert(rows[0][2] == 3.5);
+    db.close();
+    db.close();
+    print("sqlite_test ok");
+}

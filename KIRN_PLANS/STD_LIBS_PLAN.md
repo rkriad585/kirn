@@ -2240,5 +2240,25 @@ and `kirn test` checks; syntax gate **102 passed, 0 failed, 0 hung**; stdlib
 gate **24 tests passed**; examples gate **90 passed, 0 failed, 0 hung**; golden
 suite **419 passed, 0 failed**.
 
+### Update (2026-10-30) — Native SQLite connections and typed queries (Phase 0 checkpoint)
+
+The native `sqlite` module now provides shared SQLite connections with explicit
+`connect`, idempotent `close`, SQL `exec`, typed row-producing `query`, and
+`changes`/`last_insert_rowid` metadata. Query values preserve SQLite integer,
+real, text, blob, and null types, while prepared statements and connection
+errors are finalized and reported through Kirn panics. CMake links the system
+SQLite3 library explicitly.
+
+Delivered: `CMakeLists.txt`, `src/interp/value.h`, `src/interp/runtime.cpp`,
+`src/sema/checker.cpp`, `stdpet/pet/sqlite_test.kn`,
+`tests/syntax/sqlite_phase0_ok.kn`, the test gate, and its golden snapshot.
+
+Verification: full build with SQLite3 linkage; focused SQLite test passed;
+stdlib gate **25 tests passed** with localhost networking enabled; the SQLite
+syntax fixture passed in both tree and VM modes. The syntax gate had unrelated
+localhost TCP port contention in two existing socket fixtures in the first
+run and should be rerun when the ports are free; golden output is updated for
+the new 25-test suite.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

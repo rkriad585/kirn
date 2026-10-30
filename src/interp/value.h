@@ -36,6 +36,11 @@ struct FileImpl {
     bool closed = false;
 };
 
+struct SqliteImpl {
+    void* db = nullptr;
+    bool closed = false;
+};
+
 enum class VK {
     None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, ByteArray, View, Char,
     List, Dict, Set, Tuple, Range, Deque, Counter,
@@ -46,7 +51,7 @@ enum class VK {
     Fn,                                       // named function or lambda
     Builtin,                                  // builtin global fn / method impl
     Gen,                                      // generator (yield) — eager list
-    Chan, ThreadH, Timer, Module, File, Arena, Ptr,
+    Chan, ThreadH, Timer, Module, File, Sqlite, Arena, Ptr,
     Mutex, RwMutex, WaitGroup, Once, Cond, Atomic,
 };
 
@@ -131,6 +136,7 @@ struct Value {
     std::shared_ptr<ThreadImpl> thread;
     std::shared_ptr<SyncImpl> sync;           // M9: Mutex/RwMutex/WaitGroup/Once/Cond/Atomic
     std::shared_ptr<FileImpl> file;           // shared cursor and open mode
+    std::shared_ptr<SqliteImpl> sqlite;       // native sqlite3 connection
     int64_t deadlineMs = 0;                   // Timer (epoch ms)
 
     // ---- constructors -------------------------------------------------------

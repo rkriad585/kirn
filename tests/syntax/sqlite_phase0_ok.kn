@@ -1,0 +1,10 @@
+import sqlite;
+
+fn main() -> none {
+    db = sqlite.connect(":memory:");
+    db.exec("create table t (value integer)");
+    db.exec("insert into t values (7)");
+    rows = db.query("select value from t");
+    assert(rows[0][0] == 7);
+    db.close();
+}

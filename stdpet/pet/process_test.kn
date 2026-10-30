@@ -1,0 +1,13 @@
+# Phase 0 explicit process namespace regression.
+import process;
+
+fn main() -> none {
+    result = process.run(["sh", "-c", "printf process-ok; printf error-ok >&2"]);
+    assert(result["code"] == 0);
+    assert(result["stdout"] == "process-ok");
+    assert(result["stderr"] == "error-ok");
+    assert(process.wait != nil);
+    assert(process.try_wait != nil);
+    assert(process.kill != nil);
+    print("process_test ok");
+}

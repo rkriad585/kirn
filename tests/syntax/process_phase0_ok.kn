@@ -1,0 +1,7 @@
+import process;
+
+fn main() -> none {
+    result = process.run(["sh", "-c", "printf ok"]);
+    assert(result["code"] == 0);
+    assert(result["stdout"] == "ok");
+}

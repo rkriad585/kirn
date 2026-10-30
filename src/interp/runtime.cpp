@@ -1861,7 +1861,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "bytes", "sys"})
+          "error", "sync", "reflect", "net", "bytes", "sys", "process"})
         if (name == m) return true;
     return false;
 }
@@ -3690,7 +3690,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "sys"})
+          "error", "sync", "reflect", "net", "sys", "process"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5113,6 +5113,11 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             out.flush();
             return Value::none();
         });
+
+    if (mod == "process" &&
+        (name == "run" || name == "spawn" || name == "wait" ||
+         name == "try_wait" || name == "kill"))
+        return moduleMember("os", name);
 
     if (mod == "os") {
         if (name == "exit")
@@ -12394,7 +12399,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os","bytes","sys",
+        "math","time","io","mem","json","text","os","bytes","sys","process",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

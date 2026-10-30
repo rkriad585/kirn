@@ -30,6 +30,8 @@ test ./stdpet/pet/parallel_test.kn ... parallel_test ok
 PASS
 test ./stdpet/pet/path_test.kn ... path_test ok
 PASS
+test ./stdpet/pet/process_test.kn ... process_test ok
+PASS
 test ./stdpet/pet/regexp_test.kn ... regexp_test ok
 PASS
 test ./stdpet/pet/serde_test.kn ... serde_test ok
@@ -67,5 +69,5 @@ test ./stdpet/pet/toml_test.kn ... toml_test ok
 PASS
 test ./stdpet/pet/yaml_test.kn ... yaml_test ok
 PASS
-20 passed, 0 failed
+21 passed, 0 failed
 [exit 0]

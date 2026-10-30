@@ -2172,5 +2172,21 @@ checks; syntax gate **98 passed, 0 failed, 0 hung**; stdlib gate **20 tests
 passed**; examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
 passed, 0 failed**.
 
+### Update (2026-10-30) — Standalone process module (Phase 0 checkpoint)
+
+The cancellation-aware native process launcher is now also available through a
+dedicated `process` namespace: `run`, `spawn`, `wait`, `try_wait`, and `kill`.
+These names share the existing safe fork/exec, nonblocking wait, capture, and
+cleanup implementation used by `os`, so existing callers remain compatible.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/process_test.kn`, `tests/syntax/process_phase0_ok.kn`, and this
+plan update.
+
+Verification: full build; focused checker/tree-walker/compiler and `kirn test`
+checks; syntax gate **99 passed, 0 failed, 0 hung**; stdlib gate **21 tests
+passed**; examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
+passed, 0 failed**.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

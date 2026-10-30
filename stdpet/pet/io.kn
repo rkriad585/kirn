@@ -2,9 +2,8 @@
 # Built on the runtime `io` pseudo-module (open) and the File value methods
 # (read/write/close). Import with: import pet.io;
 #
-# NOTE: the substrate File.write appends, there is no truncate primitive, and
-# missing files read back as "" (no existence probe), so write_file is
-# append-oriented for now.
+# The substrate File supports explicit r/w/a modes, a shared cursor, seek/tell,
+# truncation, and append/truncate convenience writes.
 #
 # The pseudo-module is captured at load time (the module's own namespace is
 # bound under the same name `io` in the consumer, which would otherwise shadow
@@ -15,6 +14,10 @@ priv_open = io.open;
 # Open a runtime file value for structural reader/writer APIs.
 pub fn open(path: Str) -> any {
     return priv_open(path);
+}
+
+pub fn open_mode(path: Str, mode: Str) -> any {
+    return priv_open(path, mode);
 }
 
 # Read an entire file as text; "" if the file cannot be opened.

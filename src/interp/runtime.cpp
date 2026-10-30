@@ -4952,10 +4952,25 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
 
     if (mod == "io") {
         if (name == "open")
-            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+            return biFn({"path", "mode"}, [](std::vector<Value>& a) -> Value {
                 Value f;
                 f.k = VK::File;
                 f.s = toStr(a[0]);
+                f.file = std::make_shared<FileImpl>();
+                f.file->path = f.s;
+                f.file->mode = a.size() > 1 ? toStr(a[1]) : "a+";
+                if (f.file->mode != "r" && f.file->mode != "w" &&
+                    f.file->mode != "a" && f.file->mode != "r+" &&
+                    f.file->mode != "w+" && f.file->mode != "a+")
+                    panicHere("io.open: mode must be r, w, a, r+, w+, or a+");
+                if (f.file->mode == "w" || f.file->mode == "w+") {
+                    std::ofstream trunc(f.s, std::ios::binary | std::ios::trunc);
+                    if (!trunc) panicHere("io.open: cannot open '" + f.s + "'");
+                } else if (f.file->mode == "a" || f.file->mode == "a+") {
+                    std::ofstream create(f.s, std::ios::binary | std::ios::app);
+                    if (!create) panicHere("io.open: cannot open '" + f.s + "'");
+                    create.close();
+                }
                 return f;
             });
         panicHere("io has no member '" + name + "'");
@@ -8274,18 +8289,85 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
         case VK::File:
             if (name == "read")
                 return bind({}, [this](std::vector<Value>& a) -> Value {
-                    std::ifstream f(a[0].s, std::ios::binary);
-                    std::string data((std::istreambuf_iterator<char>(f)),
-                                     std::istreambuf_iterator<char>());
+                    if (!a[0].file || a[0].file->closed)
+                        panicHere("read on closed file");
+                    std::ifstream f(a[0].file->path, std::ios::binary);
+                    if (!f) panicHere("cannot open '" + a[0].file->path + "'");
+                    f.seekg(a[0].file->position);
+                    std::string data;
+                    if (a.size() > 1 && a[1].k == VK::Int && a[1].i >= 0) {
+                        data.resize((size_t)a[1].i);
+                        f.read(data.data(), (std::streamsize)data.size());
+                        data.resize((size_t)f.gcount());
+                    } else {
+                        data.assign(std::istreambuf_iterator<char>(f),
+                                    std::istreambuf_iterator<char>());
+                    }
+                    a[0].file->position += (int64_t)data.size();
                     return Value::str(data);
                 });
             if (name == "write")
                 return bind({}, [this](std::vector<Value>& a) -> Value {
-                    std::ofstream f(a[0].s, std::ios::binary | std::ios::app);
-                    f << toStr(a.size() > 1 ? a[1] : Value::str(""));
+                    if (!a[0].file || a[0].file->closed)
+                        panicHere("write on closed file");
+                    if (a[0].file->mode == "r") panicHere("file is read-only");
+                    std::fstream f(a[0].file->path,
+                                   std::ios::binary | std::ios::in | std::ios::out);
+                    if (!f) panicHere("cannot open '" + a[0].file->path + "'");
+                    if (a[0].file->mode == "a" || a[0].file->mode == "a+")
+                        f.seekp(0, std::ios::end);
+                    else
+                        f.seekp(a[0].file->position);
+                    std::string data = toStr(a.size() > 1 ? a[1] : Value::str(""));
+                    f.write(data.data(), (std::streamsize)data.size());
+                    if (!f) panicHere("write failed '" + a[0].file->path + "'");
+                    a[0].file->position = (int64_t)f.tellp();
                     return Value::none();
                 });
-            if (name == "close") return bind({}, [](std::vector<Value>&) -> Value {
+            if (name == "write_w" || name == "write_a")
+                return bind({"data"}, [name](std::vector<Value>& a) -> Value {
+                    if (!a[0].file || a[0].file->closed)
+                        panicHere("write on closed file");
+                    std::ios::openmode mode = std::ios::binary |
+                        (name == "write_w" ? std::ios::trunc : std::ios::app);
+                    std::ofstream f(a[0].file->path, mode);
+                    if (!f) panicHere("cannot open '" + a[0].file->path + "'");
+                    std::string data = toStr(a.size() > 1 ? a[1] : Value::str(""));
+                    f.write(data.data(), (std::streamsize)data.size());
+                    return Value::none();
+                });
+            if (name == "truncate") return bind({"size"}, [](std::vector<Value>& a) -> Value {
+                if (!a[0].file || a[0].file->closed)
+                    panicHere("truncate on closed file");
+                int64_t n = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                if (n < 0) panicHere("truncate size must be non-negative");
+                std::error_code ec;
+                std::filesystem::resize_file(a[0].file->path, (uintmax_t)n, ec);
+                if (ec) panicHere("truncate '" + a[0].file->path + "': " + ec.message());
+                if (a[0].file->position > n) a[0].file->position = n;
+                return Value::none();
+            });
+            if (name == "seek") return bind({"offset", "whence"}, [](std::vector<Value>& a) -> Value {
+                if (!a[0].file || a[0].file->closed) panicHere("seek on closed file");
+                int64_t off = a.size() > 1 && a[1].k == VK::Int ? a[1].i : 0;
+                int64_t whence = a.size() > 2 && a[2].k == VK::Int ? a[2].i : 0;
+                int64_t base = 0;
+                if (whence == 1) base = a[0].file->position;
+                else if (whence == 2) {
+                    std::error_code ec;
+                    base = (int64_t)std::filesystem::file_size(a[0].file->path, ec);
+                    if (ec) panicHere("seek: " + ec.message());
+                } else if (whence != 0) panicHere("seek whence must be 0, 1, or 2");
+                if (base + off < 0) panicHere("seek before start of file");
+                a[0].file->position = base + off;
+                return Value::integer(a[0].file->position);
+            });
+            if (name == "tell") return bind({}, [](std::vector<Value>& a) -> Value {
+                if (!a[0].file || a[0].file->closed) panicHere("tell on closed file");
+                return Value::integer(a[0].file->position);
+            });
+            if (name == "close") return bind({}, [](std::vector<Value>& a) -> Value {
+                if (a[0].file) a[0].file->closed = true;
                 return Value::none();
             });
             break;

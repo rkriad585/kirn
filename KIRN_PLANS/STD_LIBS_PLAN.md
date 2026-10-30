@@ -2126,5 +2126,20 @@ mkdir_p touch`; `Pathname.join basename dirname extname exist? file? read write`
 
 ---
 
+### Update (2026-10-30) — Mode-aware file handles (Phase 0 checkpoint)
+
+The native `io` file handle now preserves shared cursor state and supports explicit
+`r`, `w`, `a`, `r+`, `w+`, and `a+` modes. `File.read` accepts an optional byte
+count, `write` honors the cursor or append mode, and `truncate`, `seek`, `tell`,
+`write_w`, and `write_a` are available. The existing default open behavior remains
+append-compatible, while `pet.io.open_mode` exposes the explicit mode surface.
+
+Delivered: `src/interp/value.h`, `src/interp/runtime.cpp`,
+`stdpet/pet/io.kn`, and `stdpet/pet/io_test.kn`.
+
+Verification: full build; focused checker/tree-walker/compiler checks; syntax gate
+**97 passed, 0 failed, 0 hung**; stdlib gate **19 tests passed**; examples gate
+**90 passed, 0 failed, 0 hung**; golden suite **419 passed, 0 failed**.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

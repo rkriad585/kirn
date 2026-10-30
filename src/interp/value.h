@@ -29,6 +29,13 @@ struct HeapObj;
 struct ThreadImpl;
 struct SyncImpl;
 
+struct FileImpl {
+    std::string path;
+    std::string mode;
+    int64_t position = 0;
+    bool closed = false;
+};
+
 enum class VK {
     None, Bool, Int, Float, Rational, BigInt, Complex, Decimal, Str, Bytes, ByteArray, View, Char,
     List, Dict, Set, Tuple, Range, Deque, Counter,
@@ -123,6 +130,7 @@ struct Value {
     std::shared_ptr<ChanImpl> chan;
     std::shared_ptr<ThreadImpl> thread;
     std::shared_ptr<SyncImpl> sync;           // M9: Mutex/RwMutex/WaitGroup/Once/Cond/Atomic
+    std::shared_ptr<FileImpl> file;           // shared cursor and open mode
     int64_t deadlineMs = 0;                   // Timer (epoch ms)
 
     // ---- constructors -------------------------------------------------------

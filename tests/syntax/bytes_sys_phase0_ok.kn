@@ -1,0 +1,12 @@
+import bytes;
+import sys;
+
+fn main() -> none {
+    raw = bytes.Bytes("kirn");
+    assert(bytes.len(raw) == 4);
+    assert(bytes.get(raw, 0) == 107);
+    assert(bytes.to_str(bytes.slice(raw, 1, 4)) == "irn");
+    assert(bytes.hex(raw) == "6b69726e");
+    assert(sys.platform == "linux");
+    assert(sys.version == "kirn");
+}

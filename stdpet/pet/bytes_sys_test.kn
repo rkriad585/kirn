@@ -1,0 +1,21 @@
+# Phase 0 native bytes/sys substrate regression.
+import bytes;
+import sys;
+
+fn main() -> none {
+    raw = bytes.Bytes("abc");
+
+    assert(bytes.len(raw) == 3);
+    assert(bytes.get(raw, 0) == 97);
+    assert(bytes.get(raw, -1) == 99);
+    assert(bytes.to_str(bytes.slice(raw, 1, 3)) == "bc");
+    assert(bytes.to_str(bytes.concat(raw, bytes.from_str("!"))) == "abc!");
+    assert(bytes.hex(raw) == "616263");
+    assert(bytes.to_str(bytes.unhex("616263")) == "abc");
+    assert(sys.platform == "linux");
+    assert(sys.version == "kirn");
+    assert(sys.argv.len() >= 0);
+    assert(sys.stdin.read_line != nil);
+    assert(sys.stdout.write != nil);
+    print("bytes_sys_test ok");
+}

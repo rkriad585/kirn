@@ -2,6 +2,8 @@ $ <ROOT>/build/kirn test
 test ./stdpet/pet/async_test.kn ... async_test ok
 PASS
 test ./stdpet/pet/attribute_runner_test.kn ... PASS
+test ./stdpet/pet/bytes_sys_test.kn ... bytes_sys_test ok
+PASS
 test ./stdpet/pet/cbor_test.kn ... cbor_test ok
 PASS
 test ./stdpet/pet/collections_test.kn ... collections_test ok
@@ -65,5 +67,5 @@ test ./stdpet/pet/toml_test.kn ... toml_test ok
 PASS
 test ./stdpet/pet/yaml_test.kn ... yaml_test ok
 PASS
-19 passed, 0 failed
+20 passed, 0 failed
 [exit 0]

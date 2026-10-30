@@ -2154,5 +2154,23 @@ mutation.
 Delivered: `src/interp/runtime.cpp`, `stdpet/pet/os.kn`, and
 `stdpet/pet/os_test.kn`.
 
+### Update (2026-10-30) — Explicit bytes and system modules (Phase 0 checkpoint)
+
+The native substrate now exposes an explicit `bytes` module with `Bytes`/`new`,
+`len`, indexed access, slicing, concatenation, string conversion, and hex
+conversion. A `sys` module now provides `argv`, `platform`, `version`, `exit`,
+and stream modules with `stdin.read_line`, `stdout.write`, and `stderr.write`.
+The existing global `bytes(...)` constructor remains intact even when the
+module is imported.
+
+Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
+`stdpet/pet/bytes_sys_test.kn`, `tests/syntax/bytes_sys_phase0_ok.kn`, and
+this plan update.
+
+Verification: full build; focused checker/tree-walker/compiler and `kirn test`
+checks; syntax gate **98 passed, 0 failed, 0 hung**; stdlib gate **20 tests
+passed**; examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
+passed, 0 failed**.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

@@ -1861,7 +1861,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net"})
+          "error", "sync", "reflect", "net", "bytes", "sys"})
         if (name == m) return true;
     return false;
 }
@@ -3690,7 +3690,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net"})
+          "error", "sync", "reflect", "net", "sys"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5002,6 +5002,116 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
     if (mod == "text.slug" && name == "slugify")
         return biFn({"text"}, [](std::vector<Value>& a) -> Value {
             return Value::str(slugifyStr(toStr(a[0])));
+        });
+
+    // Phase 0 byte substrate. The value representation and constructors are
+    // already shared with the language-level `bytes(...)` builtin; this module
+    // exposes the explicit stdlib-style names without duplicating storage.
+    if (mod == "bytes") {
+        auto makeBytes = [] {
+            return biFn({"value"}, [](std::vector<Value>& a) -> Value {
+                if (a.empty() || a[0].k == VK::None) {
+                    Value v = Value::str(""); v.k = VK::Bytes; return v;
+                }
+                if (a[0].k == VK::Bytes) return a[0];
+                std::string s;
+                if (a[0].k == VK::ByteArray) s = a[0].bstr ? *a[0].bstr : "";
+                else if (a[0].k == VK::View) s = bytesData(a[0]);
+                else if (a[0].k == VK::Str) s = a[0].s;
+                else if (a[0].k == VK::List) {
+                    for (auto& e : *a[0].vec) s.push_back((char)(e.i & 0xff));
+                } else panicHere("bytes.Bytes: unsupported operand");
+                Value v = Value::str(std::move(s)); v.k = VK::Bytes; return v;
+            });
+        };
+        if (name == "Bytes") {
+            return makeBytes();
+        }
+        if (name == "new") return makeBytes();
+        if (name == "len")
+            return biFn({"value"}, [](std::vector<Value>& a) -> Value {
+                return Value::integer((int64_t)bytesData(a[0]).size());
+            });
+        if (name == "get")
+            return biFn({"value", "index"}, [](std::vector<Value>& a) -> Value {
+                std::string s = bytesData(a[0]);
+                int64_t i = a.size() > 1 ? a[1].i : 0;
+                if (i < 0) i += (int64_t)s.size();
+                if (i < 0 || (size_t)i >= s.size()) panicHere("bytes.get: index out of range");
+                return Value::integer((unsigned char)s[(size_t)i]);
+            });
+        if (name == "slice")
+            return biFn({"value", "start", "end"}, [](std::vector<Value>& a) -> Value {
+                std::string s = bytesData(a[0]);
+                int64_t n = (int64_t)s.size();
+                int64_t first = a.size() > 1 ? a[1].i : 0;
+                int64_t last = a.size() > 2 && a[2].k != VK::None ? a[2].i : n;
+                if (first < 0) first += n;
+                if (last < 0) last += n;
+                first = std::max<int64_t>(0, std::min(first, n));
+                last = std::max<int64_t>(first, std::min(last, n));
+                Value out = Value::str(s.substr((size_t)first, (size_t)(last - first)));
+                out.k = VK::Bytes;
+                return out;
+            });
+        if (name == "concat")
+            return biFn({"left", "right"}, [](std::vector<Value>& a) -> Value {
+                Value out = Value::str(bytesData(a[0]) + bytesData(a[1]));
+                out.k = VK::Bytes;
+                return out;
+            });
+        if (name == "from_str")
+            return biFn({"value"}, [](std::vector<Value>& a) -> Value {
+                Value out = Value::str(toStr(a[0])); out.k = VK::Bytes; return out;
+            });
+        if (name == "to_str")
+            return biFn({"value"}, [](std::vector<Value>& a) -> Value {
+                return Value::str(bytesData(a[0]));
+            });
+        if (name == "hex")
+            return biFn({"value"}, [](std::vector<Value>& a) -> Value {
+                static const char* digits = "0123456789abcdef";
+                std::string out;
+                for (unsigned char c : bytesData(a[0])) {
+                    out.push_back(digits[c >> 4]); out.push_back(digits[c & 15]);
+                }
+                return Value::str(std::move(out));
+            });
+        if (name == "unhex")
+            return globals_->vars["fromhex"];
+        panicHere("bytes has no member '" + name + "'");
+    }
+
+    // Phase 0 process/system streams. `stdin`, `stdout`, and `stderr` are
+    // module values so their methods remain discoverable and composable.
+    if (mod == "sys") {
+        if (name == "stdin" || name == "stdout" || name == "stderr")
+            return Value::module("sys." + name);
+        if (name == "argv") {
+            Value out = Value::list();
+            for (const auto& arg : argv_) out.vec->push_back(Value::str(arg));
+            return out;
+        }
+        if (name == "platform") return Value::str("linux");
+        if (name == "version") return Value::str("kirn");
+        if (name == "exit")
+            return biFn({"code"}, [](std::vector<Value>& a) -> Value {
+                std::exit(a.empty() || a[0].k != VK::Int ? 0 : (int)a[0].i);
+            });
+        panicHere("sys has no member '" + name + "'");
+    }
+    if (mod == "sys.stdin" && name == "read_line")
+        return biFn({}, [](std::vector<Value>&) -> Value {
+            std::string line;
+            if (!std::getline(std::cin, line)) return Value::none();
+            return Value::str(std::move(line));
+        });
+    if ((mod == "sys.stdout" || mod == "sys.stderr") && name == "write")
+        return biFn({"value"}, [mod](std::vector<Value>& a) -> Value {
+            std::ostream& out = mod == "sys.stderr" ? std::cerr : std::cout;
+            out << toStr(a.size() > 0 ? a[0] : Value::none());
+            out.flush();
+            return Value::none();
         });
 
     if (mod == "os") {
@@ -12284,7 +12394,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os",
+        "math","time","io","mem","json","text","os","bytes","sys",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

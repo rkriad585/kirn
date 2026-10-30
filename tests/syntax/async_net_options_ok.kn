@@ -28,6 +28,12 @@ async fn main() -> none {
     u.set_ttl(64);
     u.set_recv_buffer(16384);
     u.set_send_buffer(16384);
+    v = a.net.udp_bind("127.0.0.1:0");
+    u.connect(v.local_addr());
+    v.connect(u.local_addr());
+    await u.send("connected");
+    assert((await v.recv(32)).decode("utf-8") == "connected");
     u.close();
+    v.close();
     print("async net options ok");
 }

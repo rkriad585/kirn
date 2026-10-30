@@ -208,9 +208,22 @@ pub struct UdpSocket {
         return net.udp_send_to(self.fd, data, addr);
     }
 
+    # Connect a default peer so send/recv mirror Tokio's connected UDP API.
+    fn connect(self, addr: Str) -> none {
+        net.udp_connect(self.fd, addr);
+    }
+
+    async fn send(self, data: any) -> Int {
+        return net.udp_send(self.fd, data);
+    }
+
     # Receive up to `n` bytes: `{data: bytes, addr: "host:port"}`.
     async fn recv_from(self, n: Int) -> dict {
         return net.udp_recv_from(self.fd, n);
+    }
+
+    async fn recv(self, n: Int) -> any {
+        return net.udp_recv(self.fd, n);
     }
 
     fn local_addr(self) -> Str {

@@ -2144,6 +2144,21 @@ file readers, so generic async I/O helpers can operate across files and sockets.
 Delivered: `stdpet/pet/async_net.kn`,
 `tests/syntax/async_net_trait_ok.kn`, and this plan update.
 
+### Update (2026-10-30) — Connected UDP convenience API (shipped)
+
+`UdpSocket` now supports Tokio-style connected operation: `connect(peer)`,
+`send(data)`, and `recv(max_bytes)`. The native socket layer validates and
+connects the datagram descriptor, waits for readiness, and preserves the
+existing `send_to`/`recv_from` APIs for connectionless traffic.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`,
+`tests/syntax/async_net_options_ok.kn`, and this plan update.
+
+Verification: full build; focused UDP/TCP regression passes under tree-walker
+and VM with localhost networking enabled; syntax gate **97 passed, 0 failed, 0
+hung**; stdlib **19 passed, 0 failed** with networking enabled; examples **90
+passed, 0 failed, 0 hung**; golden suite **419 passed, 0 failed**.
+
 Verification: async-net module and trait fixture check cleanly; tree-walker/VM
 fixture parity passes; syntax gate **97 passed, 0 failed, 0 hung**; stdlib gate
 **1 passed, 0 failed, 0 hung** (19 tests); examples gate **90 passed, 0 failed,

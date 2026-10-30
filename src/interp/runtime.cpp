@@ -5499,6 +5499,57 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 dictPutInPlace(d, Value::str("addr"), Value::str(bound));
                 return d;
             });
+        if (name == "udp_connect")
+            return biFn({"fd", "addr"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                std::string addr = a.size() > 1 ? toStr(a[1]) : "";
+                addrinfo* res = nullptr;
+                std::string err;
+                if (!resolveAddr(addr, SOCK_DGRAM, false, res, err))
+                    panicHere("udp_connect: " + err);
+                bool connected = false;
+                for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+                    if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+                        connected = true;
+                        break;
+                    }
+                }
+                freeaddrinfo(res);
+                if (!connected)
+                    panicHere(std::string("udp_connect: ") + std::strerror(errno));
+                return Value::none();
+            });
+        if (name == "udp_send")
+            return biFn({"fd", "data"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                std::string data = a.size() > 1 && isBuffer(a[1])
+                                       ? bytesData(a[1])
+                                       : toStr(a.size() > 1 ? a[1] : Value());
+                waitSocketReady(fd, POLLOUT);
+                ssize_t k;
+                do { k = ::send(fd, data.data(), data.size(), 0); }
+                while (k < 0 && errno == EINTR);
+                if (k < 0)
+                    panicHere(std::string("udp_send: ") + std::strerror(errno));
+                return Value::integer((int64_t)k);
+            });
+        if (name == "udp_recv")
+            return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
+                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
+                               ? (size_t)a[1].i : 4096;
+                std::string buf(n, '\0');
+                waitSocketReady(fd, POLLIN);
+                ssize_t k;
+                do { k = ::recv(fd, buf.data(), n, 0); }
+                while (k < 0 && errno == EINTR);
+                if (k < 0)
+                    panicHere(std::string("udp_recv: ") + std::strerror(errno));
+                buf.resize((size_t)k);
+                Value v = Value::str(std::move(buf));
+                v.k = VK::Bytes;
+                return v;
+            });
         if (name == "udp_send_to")
             return biFn({"fd", "data", "addr"}, [](std::vector<Value>& a) -> Value {
                 int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;

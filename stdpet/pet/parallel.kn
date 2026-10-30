@@ -920,6 +920,33 @@ pub fn par_sort_unstable(xs: list) -> list {
     return merge_sort(xs, 0);
 }
 
+# In-place sort variants. Kirn lists are shared handles, so rebuilding the
+# existing list after sorting preserves every alias while keeping the sorting
+# implementation deterministic and allocation-safe.
+pub fn par_sort_mut(xs: list) -> none {
+    sorted = merge_sort(xs, 0);
+    xs.clear();
+    xs.extend(sorted);
+}
+
+pub fn par_sort_by_key_mut(xs: list, key) -> none {
+    sorted = merge_sort_key(xs, key, 0);
+    xs.clear();
+    xs.extend(sorted);
+}
+
+pub fn par_sort_by_mut(xs: list, cmp) -> none {
+    sorted = merge_sort_cmp(xs, cmp, 0);
+    xs.clear();
+    xs.extend(sorted);
+}
+
+pub fn par_sort_unstable_mut(xs: list) -> none {
+    # Kirn's unstable-compatible implementation remains stable, but mutates
+    # the caller's list handle just like the named API promises.
+    par_sort_mut(xs);
+}
+
 # ---- parallel strings (§4.3) ----------------------------------------------
 
 # Split `s` on `\n` and return a ParIter over the lines.

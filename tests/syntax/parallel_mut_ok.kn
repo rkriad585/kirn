@@ -27,5 +27,16 @@ fn main() -> none {
     drained = p.par_drain(chunks, 5, 10);
     assert(drained == [105, 106, 107, 108, 109]);
     assert(alias == [100, 101, 102, 103, 104, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]);
+
+    var sortable = [4, 1, 3, 2];
+    sortAlias = sortable;
+    p.par_sort_mut(sortable);
+    assert(sortAlias == [1, 2, 3, 4]);
+    p.par_sort_by_mut(sortable, fn (a, b) { return b - a; });
+    assert(sortable == [4, 3, 2, 1]);
+    p.par_sort_by_key_mut(sortable, fn (x) { return -x; });
+    assert(sortable == [4, 3, 2, 1]);
+    p.par_sort_unstable_mut(sortable);
+    assert(sortable == [1, 2, 3, 4]);
     print("parallel mut ok");
 }

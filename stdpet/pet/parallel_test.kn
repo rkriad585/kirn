@@ -205,6 +205,14 @@ fn main() -> none {
     assert(parallel.par_sort_by([3, 1, 2], fn (a, b) { return b - a; }) ==
            [3, 2, 1]);
     assert(parallel.par_sort_unstable([4, 2, 3, 1]) == [1, 2, 3, 4]);
+    var in_place = [4, 1, 3, 2];
+    var in_place_alias = in_place;
+    parallel.par_sort_mut(in_place);
+    assert(in_place_alias == [1, 2, 3, 4]);
+    parallel.par_sort_by_mut(in_place, fn (a, b) { return b - a; });
+    assert(in_place == [4, 3, 2, 1]);
+    parallel.par_sort_by_key_mut(in_place, fn (x) { return -x; });
+    assert(in_place == [4, 3, 2, 1]);
     assert(parallel.par_lines("a\nbb\nccc").map(
         fn (l) { return l.len(); }).collect() == [1, 2, 3]);
     assert(parallel.par_str_split("a:b:c", ":").collect() == ["a", "b", "c"]);

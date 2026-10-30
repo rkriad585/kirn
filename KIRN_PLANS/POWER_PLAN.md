@@ -2015,3 +2015,15 @@ Verification: mutable tree-walker/VM parity passes; `kirn test stdpet/pet`
 passes with **18 passed, 0 failed**. The earlier `par_chunks_mut` and
 `ParallelDrainRange` deviation is superseded by this explicit-window Kirn API;
 Rust-style borrowed references remain intentionally absent.
+
+### Update (2026-10-30) — In-place parallel sorting (shipped)
+
+The mutable collection surface now includes `par_sort_mut`,
+`par_sort_by_mut`, `par_sort_by_key_mut`, and `par_sort_unstable_mut`. Each
+sort preserves the original list handle and updates it through `clear`/`extend`,
+so aliases observe the sorted result without introducing Rust-style borrowed
+references. The unstable-named form retains Kirn's deterministic stable
+implementation while honoring in-place mutation.
+
+Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
+stdlib parallel regression coverage.

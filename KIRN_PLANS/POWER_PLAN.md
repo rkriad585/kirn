@@ -2118,6 +2118,22 @@ gate **95 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0
 hung** (19 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite
 **419 passed, 0 failed**.
 
+### Update (2026-10-30) — Plain async-channel prelude constructors (shipped)
+
+Because `async` is a reserved keyword, the common channel constructors are now
+also available without imports as `oneshot()`, `broadcast(capacity)`,
+`watch(initial)`, `mpsc(capacity)`, and `unbounded()`. They delegate to the
+canonical `pet.sync` implementations, so behavior and channel state are not
+duplicated; the namespaced `pet.async`/`pet.sync` APIs remain available.
+
+Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
+`tests/syntax/async_channel_prelude_ok.kn`, and this plan update.
+
+Verification: checker plus tree-walker/VM execution pass; syntax gate **96
+passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
+tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
+passed, 0 failed**.
+
 ### Update (2026-10-30) — Deadline-safe existing channel waits (shipped)
 
 The pre-existing timeout methods on `Oneshot`, `MpscReceiver`, and `WatchRx`

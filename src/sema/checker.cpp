@@ -551,6 +551,13 @@ void Checker::predeclareBuiltins() {
     makeBuiltinFunc("bail", {unkTy()}, {"msg"}, unkTy(), false, 1);
     makeBuiltinFunc("ensure", {boolTy(), unkTy()}, {"cond", "msg"}, noneTy(),
                     false, 2);
+    // POWER_PLAN §6 async-channel prelude: `async` is a keyword, so the
+    // channel constructors are also available as plain lowercase names.
+    makeBuiltinFunc("oneshot", {}, {}, unkTy(), false, 0);
+    makeBuiltinFunc("broadcast", {intTy()}, {"capacity"}, unkTy(), false, 1);
+    makeBuiltinFunc("watch", {unkTy()}, {"initial"}, unkTy(), false, 1);
+    makeBuiltinFunc("mpsc", {intTy()}, {"capacity"}, unkTy(), false, 1);
+    makeBuiltinFunc("unbounded", {}, {}, unkTy(), false, 0);
     // Rational and float builtins (Phase 2)
     makeBuiltinFunc("Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);
     makeBuiltinFunc("__Rational", {intTy(), intTy()}, {"num", "den"}, rationalTy(), false, 1);

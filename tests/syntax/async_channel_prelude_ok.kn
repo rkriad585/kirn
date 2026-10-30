@@ -1,0 +1,27 @@
+# Plain async-channel constructors are available without imports because
+# `async` is a reserved keyword and cannot be used as a namespace identifier.
+
+fn main() -> none {
+    o = oneshot();
+    o.send(7);
+    assert(o.recv() == 7);
+
+    b = broadcast(2);
+    br = b.subscribe();
+    b.send(8);
+    assert(br.recv() == 8);
+
+    w = watch("ready");
+    wr = w.subscribe();
+    w.send("done");
+    assert(wr.changed());
+    assert(wr.borrow() == "done");
+
+    pair = mpsc(1);
+    pair[0].send(9);
+    assert(pair[1].recv() == 9);
+    up = unbounded();
+    up[0].send(10);
+    assert(up[1].recv() == 10);
+    print("async channel prelude: ok");
+}

@@ -2763,6 +2763,31 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
             return Value::none();
         });
 
+    // POWER_PLAN §6 async-channel prelude. The `async` namespace cannot be
+    // used as an identifier because it is a language keyword, so these plain
+    // constructors delegate to the canonical pet.sync implementations.
+    auto syncCtor = [this](const std::string& name,
+                           std::vector<Value> args) -> Value {
+        Value mod = loadModuleFile("pet.sync");
+        Value fn = moduleMember(mod.typeName, name);
+        return callValue(fn, std::move(args), 0, 0);
+    };
+    globals_->vars["oneshot"] = biFn({}, [syncCtor](std::vector<Value>&) mutable {
+        return syncCtor("Oneshot", {});
+    });
+    globals_->vars["broadcast"] = biFn({"capacity"}, [syncCtor](std::vector<Value>& a) mutable {
+        return syncCtor("Broadcast", {a[0]});
+    });
+    globals_->vars["watch"] = biFn({"initial"}, [syncCtor](std::vector<Value>& a) mutable {
+        return syncCtor("Watch", {a[0]});
+    });
+    globals_->vars["mpsc"] = biFn({"capacity"}, [syncCtor](std::vector<Value>& a) mutable {
+        return syncCtor("Mpsc", {a[0]});
+    });
+    globals_->vars["unbounded"] = biFn({}, [syncCtor](std::vector<Value>&) mutable {
+        return syncCtor("Unbounded", {});
+    });
+
     globals_->vars["range"] = biFn({"start", "stop"},
                                    [](std::vector<Value>& a) -> Value {
                                        if (a.size() == 1)

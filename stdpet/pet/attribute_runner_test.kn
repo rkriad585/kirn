@@ -1,0 +1,12 @@
+# `kirn test` runs decorated tests after the module's main entry.
+var booted = false;
+
+fn main() -> none {
+    global booted;
+    booted = true;
+}
+
+@[test]
+fn runner_sees_main() -> none {
+    assert(booted);
+}

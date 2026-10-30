@@ -135,7 +135,7 @@ class Interpreter {
 public:
     explicit Interpreter(const ast::Stmt& program);
     ~Interpreter();
-    Value run();                  // executes module top level, then main()
+    Value run(bool testMode = false); // executes entry and optional @[test] fns
     void setProgramArgs(const std::vector<std::string>& args) { argv_ = args; }
 
 private:

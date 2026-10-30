@@ -1783,20 +1783,14 @@ size_t Interpreter::collectGc() {
     return collectHeapCycles();
 }
 
-Value Interpreter::run() {
+Value Interpreter::run(bool testMode) {
     // deferred so hosts can configure module search paths between
     // construction and execution (imports run during collection)
     if (!collected_) {
         collected_ = true;
         collectProgram(*program_);
     }
-    auto it = funcs_.find("main");
-    if (it == funcs_.end()) {
-        // A test-only module may omit main and expose one or more
-        // `@[test] fn` declarations.  Run each test in source/collection
-        // order; async test bodies use the same task-aware interpreter path
-        // as an async main.  Ordinary run targets still retain the clear
-        // no-main diagnostic when they contain no test declarations.
+    auto runTests = [this]() -> size_t {
         std::vector<const Stmt*> tests;
         for (const auto& entry : funcs_) {
             const Stmt* fn = entry.second;
@@ -1807,7 +1801,6 @@ Value Interpreter::run() {
                 }
             }
         }
-        if (tests.empty()) panicHere("no main() defined");
         std::sort(tests.begin(), tests.end(),
                   [](const Stmt* a, const Stmt* b) {
                       if (a->span.line != b->span.line)
@@ -1818,12 +1811,23 @@ Value Interpreter::run() {
             CallFrameGuard guard(test->name, test->span.line, test->span.col);
             runFunc(test, {}, {}, globals_);
         }
+        return tests.size();
+    };
+    auto it = funcs_.find("main");
+    if (it == funcs_.end()) {
+        // A test-only module may omit main and expose one or more
+        // `@[test] fn` declarations.  Run each test in source/collection
+        // order; async test bodies use the same task-aware interpreter path
+        // as an async main.  Ordinary run targets still retain the clear
+        // no-main diagnostic when they contain no test declarations.
+        if (runTests() == 0) panicHere("no main() defined");
         shutdownThreads();
         return Value::none();
     }
     CallFrameGuard mainGuard(it->second->name, it->second->span.line,
                              it->second->span.col);
     Value r = runFunc(it->second, {}, {}, globals_);
+    if (testMode) runTests();
     shutdownThreads();
     return r;
 }

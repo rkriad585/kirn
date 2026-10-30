@@ -1355,7 +1355,7 @@ int cmdTest(const std::vector<std::string>& args, size_t from) {
     int pass = 0, fail = 0;
     for (const auto& f : files) {
         std::cout << "test " << f.string() << " ... " << std::flush;
-        int rc = runProgram(f.string(), dirs);
+        int rc = runProgram(f.string(), dirs, {}, {}, false, true);
         if (rc == 0) {
             std::cout << "PASS\n";
             ++pass;

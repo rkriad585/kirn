@@ -2095,3 +2095,18 @@ and this plan update.
 Verification: focused checker and tree-walker/VM execution pass; syntax gate
 **93 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples
 gate **90 passed, 0 failed, 0 hung**.
+
+### Update (2026-10-30) — Driver test-mode execution (shipped)
+
+`kirn test` now invokes decorated `@[test]` functions after a module's normal
+`main()` entry has completed. Test functions run in source order and support
+both synchronous and asynchronous bodies; ordinary `kirn run` still executes
+only `main()`. This completes the runner wiring for modules that use `main` for
+setup and `@[test]` for assertions.
+
+Delivered: `src/interp/runtime.{h,cpp}`, `src/driver/driver.{h,cpp}`,
+`tools/kirn.cpp`, `stdpet/pet/attribute_runner_test.kn`, and this plan update.
+
+Verification: focused checker and tree-walker/VM execution pass; syntax gate
+**93 passed, 0 failed, 0 hung**; stdlib gate **19 passed, 0 failed**; examples
+gate **90 passed, 0 failed, 0 hung**.

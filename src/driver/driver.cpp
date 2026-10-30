@@ -549,7 +549,8 @@ int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
                   const std::vector<std::string>& progArgs,
-                  bool gc) {
+                  bool gc,
+                  bool testMode) {
     kirn::DiagEngine diags;
     auto body = frontEnd(label, src, diags);
     if (diags.errorCount()) {
@@ -568,7 +569,7 @@ int runProgramSrc(const std::string& label, const std::string& src,
             interp.addEmbeddedSource(name, esrc);
         interp.setProgramArgs(progArgs);
         interp.enableVm();   // bytecode VM is the default runner
-        kirn::interp::Value r = interp.run();
+        kirn::interp::Value r = interp.run(testMode);
         return r.k == kirn::interp::VK::Int ? (int)r.i : 0;
     } catch (const kirn::interp::PanicSignal& p) {
         fflush(stdout);
@@ -1137,13 +1138,15 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
                    const std::vector<std::string>& dirs,
                    const std::map<std::string, std::string>& embedded = {},
                    const std::vector<std::string>& progArgs = {},
-                   bool gc = false) {
+                   bool gc = false,
+                   bool testMode = false) {
       std::string src;
     if (!readFile(entryPath, src)) {
         std::cerr << "kirn: cannot read '" << entryPath << "'\n";
         return 66;
     }
-    return runProgramSrc(entryPath, src, dirs, embedded, progArgs, gc);
+    return runProgramSrc(entryPath, src, dirs, embedded, progArgs, gc,
+                         testMode);
 }
 
 // ---------------------------------------------------------------------------
@@ -2077,7 +2080,7 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
     int pass = 0, fail = 0;
     for (const auto& f : files) {
         std::cout << "test " << f.string() << " ... " << std::flush;
-        int rc = runProgram(f.string(), dirs);
+        int rc = runProgram(f.string(), dirs, {}, {}, false, true);
         if (rc == 0) {
             std::cout << "PASS\n";
             ++pass;
@@ -4043,15 +4046,15 @@ void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
 int runProgramSrc(const std::string& label, const std::string& src,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs, bool gc) {
-    return ::runProgramSrc(label, src, dirs, embedded, progArgs, gc);
+    const std::vector<std::string>& progArgs, bool gc, bool testMode) {
+    return ::runProgramSrc(label, src, dirs, embedded, progArgs, gc, testMode);
 }
 
 int runProgram(const std::string& entryPath,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs, bool gc) {
-    return ::runProgram(entryPath, dirs, embedded, progArgs, gc);
+    const std::vector<std::string>& progArgs, bool gc, bool testMode) {
+    return ::runProgram(entryPath, dirs, embedded, progArgs, gc, testMode);
 }
 
 int cmdLex(const std::vector<std::string>& args, const char* toolName) {

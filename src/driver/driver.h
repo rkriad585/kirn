@@ -135,12 +135,14 @@ int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
                   const std::vector<std::string>& progArgs = {},
-                  bool gc = false);
+                  bool gc = false,
+                  bool testMode = false);
 int runProgram(const std::string& entryPath,
                const std::vector<std::string>& dirs,
                const std::map<std::string, std::string>& embedded = {},
                const std::vector<std::string>& progArgs = {},
-               bool gc = false);
+               bool gc = false,
+               bool testMode = false);
 
 // --- stage-oracle verbs (phase 1) -------------------------------------------
 // Extracted from the kirnlex / kirnparse / kirncheck main()s so `kirnc

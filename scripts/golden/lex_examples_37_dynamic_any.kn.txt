@@ -166,7 +166,7 @@ Punct	32:15	]
 Punct	32:16	)
 Punct	32:17	;
 Punct	33:1	}
-Eof	33:2	
+Eof	34:1	
 <ROOT>/examples/37_dynamic_any.kn: OK (167 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

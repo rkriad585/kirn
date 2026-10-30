@@ -1,0 +1,29 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/90_gc_cycle.kn
+StructDef "Node"
+  Field "next" var : Node?
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "node"
+      Value 
+        Call
+          Callee 
+            New type=Node
+    Assign
+      Target 
+        Member name="next"
+          Obj Ident "node"
+      Value Ident "node"
+    Del
+      Ident "node"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "gc_collect"
+<ROOT>/examples/90_gc_cycle.kn: OK (2 top-level statements)
+[exit 0]

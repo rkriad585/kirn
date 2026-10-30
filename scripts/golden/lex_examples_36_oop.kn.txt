@@ -534,7 +534,7 @@ Punct	82:45	)
 Punct	82:46	)
 Punct	82:47	;
 Punct	83:1	}
-Eof	83:2	
+Eof	84:1	
 <ROOT>/examples/36_oop.kn: OK (535 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

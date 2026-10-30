@@ -1,0 +1,76 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/40_pub_types_module.kn
+Ident	1:1	pub
+Ident	1:5	interface
+Ident	1:15	Named
+Punct	1:21	{
+Ident	2:5	fn
+Ident	2:8	name
+Punct	2:12	(
+Ident	2:13	self
+Punct	2:17	)
+Op	2:19	->
+Ident	2:22	Str
+Punct	2:25	;
+Punct	3:1	}
+Ident	5:1	pub
+Ident	5:5	class
+Ident	5:11	Dog
+Ident	5:15	implements
+Ident	5:26	Named
+Punct	5:32	{
+Ident	6:5	name
+Punct	6:9	:
+Ident	6:11	Str
+Punct	6:14	;
+Ident	7:5	fn
+Ident	7:8	speak
+Punct	7:13	(
+Ident	7:14	self
+Punct	7:18	)
+Op	7:20	->
+Ident	7:23	Str
+Punct	7:27	{
+Ident	7:29	return
+Str	7:36	woof:
+Op	7:44	+
+Ident	7:46	self
+Punct	7:50	.
+Ident	7:51	name
+Punct	7:55	;
+Punct	7:57	}
+Punct	8:1	}
+Ident	10:1	pub
+Ident	10:5	record
+Ident	10:12	Point
+Punct	10:17	(
+Ident	10:18	x
+Punct	10:19	:
+Ident	10:21	Int
+Punct	10:24	,
+Ident	10:26	y
+Punct	10:27	:
+Ident	10:29	Int
+Punct	10:32	)
+Punct	10:34	{
+Punct	10:36	}
+Ident	12:1	class
+Ident	12:7	Hidden
+Punct	12:14	{
+Ident	13:5	value
+Punct	13:10	:
+Ident	13:12	Int
+Punct	13:15	;
+Punct	14:1	}
+Ident	18:1	fn
+Ident	18:4	main
+Punct	18:8	(
+Punct	18:9	)
+Op	18:11	->
+Ident	18:14	none
+Punct	18:19	{
+Punct	18:21	}
+Eof	19:1	
+<ROOT>/examples/40_pub_types_module.kn: OK (70 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

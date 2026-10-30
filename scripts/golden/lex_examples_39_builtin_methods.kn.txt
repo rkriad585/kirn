@@ -332,7 +332,7 @@ Punct	47:18	)
 Punct	47:19	)
 Punct	47:20	;
 Punct	48:1	}
-Eof	48:2	
+Eof	49:1	
 <ROOT>/examples/39_builtin_methods.kn: OK (333 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

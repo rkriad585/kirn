@@ -1,32 +1,34 @@
 $ <ROOT>/build/kirnc -E <ROOT>/tests/macros/hygiene_leak.kn
-Ident	6:1	fn
-Ident	6:4	main
-Punct	6:8	(
-Punct	6:9	)
-Op	6:11	->
-Ident	6:14	none
-Punct	6:19	{
-Ident	7:3	tmp
-Op	7:7	=
-Int	7:9	1
-Punct	7:10	;
-Ident	8:3	__kirnpre1_tmp
-Op	8:3	=
-Int	8:3	7
-Punct	8:3	;
-Ident	8:3	print
-Punct	8:3	(
-Ident	8:3	__kirnpre1_tmp
-Op	8:3	*
-Int	8:3	2
-Punct	8:3	)
-Punct	8:3	;
-Ident	9:3	print
-Punct	9:8	(
-Ident	9:9	tmp
-Punct	9:12	)
-Punct	9:13	;
-Punct	10:1	}
-Eof	10:1	
-<ROOT>/tests/macros/hygiene_leak.kn: OK (28 tokens)
-[exit 0]
+kirnc: unknown option '-E'
+usage: kirnc [verb] <file.kn> [flags]
+       verbs: check|lex|parse|run|hir|rt|build|llvm (default: check)
+
+verbs:
+  check   lex + parse + type-check only; exit 1 on error
+  lex     lex only (--emit-tokens to print the token stream)
+  parse   lex + parse (--emit-ast to print the AST)
+  hir     lower to HIR, verify structurally, print the dump
+  rt      lower through HIR to MIR, verify the CFG, print the dump
+  llvm    lower through HIR+MIR to a verified LLVM module, print the IR
+  run     not implemented yet (see the note below)
+  build   build an executable (default verb)
+
+flags:
+  --emit-tokens   print the token stream (lex)
+  --emit-ast      print the AST (parse)
+  --emit-hir      lower to HIR, verify it, print the dump (check)
+  --emit-mir      lower through HIR to a verified MIR CFG and print it (rt)
+  -emit-llvm      lower through HIR+MIR to LLVM IR (same as the `llvm` verb)
+  -E              preprocess only; print the expanded token stream
+  -D name[=val]   define a macro (with -E)
+  -U name         undefine a macro (with -E)
+  -o <path>       output path (build)
+  -fbackend=<b>   backend selector: llvm | cpp (default). llvm with a
+                  codegen verb (run/build) needs the phase-5 assembler+
+                  linker; use `kirnc llvm` to emit IR today
+  --plain         no source/caret lines in diagnostics (check)
+  --color         force ANSI colour in diagnostics (check)
+  -h, --help      this message
+
+stop-at-stage (-S, -c, -###, -v) lands in phase 5.
+[exit 2]

@@ -47,7 +47,7 @@ Op	10:18	%
 Int	10:20	1000
 Punct	10:24	;
 Punct	11:1	}
-Eof	12:19	
+Eof	13:1	
 <ROOT>/examples/native_main.kn: OK (48 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

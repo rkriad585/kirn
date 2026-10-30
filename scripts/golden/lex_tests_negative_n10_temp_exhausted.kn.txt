@@ -27,7 +27,7 @@ Op	6:7	=
 Ident	6:9	t
 Punct	6:10	;
 Punct	7:1	}
-Eof	7:2	
+Eof	8:1	
 <ROOT>/tests/negative/n10_temp_exhausted.kn: OK (28 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

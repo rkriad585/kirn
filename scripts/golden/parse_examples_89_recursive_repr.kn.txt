@@ -1,0 +1,53 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/89_recursive_repr.kn
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "xs"
+      Value 
+        List len=0
+    ExprStmt
+      Value 
+        Call
+          Callee 
+            Member name="append"
+              Obj Ident "xs"
+          Arg
+            Value Ident "xs"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "xs"
+    Assign
+      Target Ident "d"
+      Value 
+        Dict len=0
+    Assign
+      Target 
+        Index
+          Obj Ident "d"
+          At Str "self"
+      Value Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value Ident "d"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee Ident "repr"
+                Arg
+                  Value 
+                    List len=2
+                      Item Ident "xs"
+                      Item Ident "d"
+<ROOT>/examples/89_recursive_repr.kn: OK (1 top-level statements)
+[exit 0]

@@ -279,7 +279,7 @@ Punct	73:27	)
 Punct	73:28	)
 Punct	73:29	;
 Punct	74:1	}
-Eof	74:2	
+Eof	75:1	
 <ROOT>/examples/42_control_goto_gather.kn: OK (280 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

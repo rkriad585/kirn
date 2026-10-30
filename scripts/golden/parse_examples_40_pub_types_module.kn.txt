@@ -1,0 +1,37 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/40_pub_types_module.kn
+TraitDef "Named" pub
+  Sig name(self: <inferred>) -> Str
+StructDef "Dog" pub
+  Field "name" : Str
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret Str
+    Body
+      Return
+        Value 
+          Binary op="+"
+            Lhs Str "woof:"
+            Rhs 
+              Member name="name"
+                Obj Ident "self"
+ImplDef Named for Dog
+  FuncDef "speak"
+    Param "self" self : <inferred>
+    Ret Str
+    Body
+      ExprStmt
+        Value 
+          Call
+            Callee 
+              Member name="speak"
+                Obj Ident "self"
+StructDef "Point" pub
+  Field "x" : Int
+  Field "y" : Int
+StructDef "Hidden"
+  Field "value" : Int
+FuncDef "main"
+  Ret none
+  Body
+<ROOT>/examples/40_pub_types_module.kn: OK (6 top-level statements)
+[exit 0]

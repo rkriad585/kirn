@@ -32,7 +32,7 @@ Punct	8:13	.
 Ident	8:14	y
 Punct	8:15	;
 Punct	9:1	}
-Eof	9:2	
+Eof	10:1	
 <ROOT>/tests/negative/n09_undefined_base.kn: OK (33 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

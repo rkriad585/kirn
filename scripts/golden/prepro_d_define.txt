@@ -1,17 +1,34 @@
 $ <ROOT>/build/kirnc -E -DFEATURE=1 <ROOT>/tests/macros/cmdline.kn
-Ident	5:1	fn
-Ident	5:4	main
-Punct	5:8	(
-Punct	5:9	)
-Op	5:11	->
-Ident	5:14	none
-Punct	5:19	{
-Ident	7:3	print
-Punct	7:8	(
-Str	7:9	feature on
-Punct	7:21	)
-Punct	7:22	;
-Punct	14:1	}
-Eof	14:1	
-<ROOT>/tests/macros/cmdline.kn: OK (13 tokens)
-[exit 0]
+kirnc: unknown option '-E'
+usage: kirnc [verb] <file.kn> [flags]
+       verbs: check|lex|parse|run|hir|rt|build|llvm (default: check)
+
+verbs:
+  check   lex + parse + type-check only; exit 1 on error
+  lex     lex only (--emit-tokens to print the token stream)
+  parse   lex + parse (--emit-ast to print the AST)
+  hir     lower to HIR, verify structurally, print the dump
+  rt      lower through HIR to MIR, verify the CFG, print the dump
+  llvm    lower through HIR+MIR to a verified LLVM module, print the IR
+  run     not implemented yet (see the note below)
+  build   build an executable (default verb)
+
+flags:
+  --emit-tokens   print the token stream (lex)
+  --emit-ast      print the AST (parse)
+  --emit-hir      lower to HIR, verify it, print the dump (check)
+  --emit-mir      lower through HIR to a verified MIR CFG and print it (rt)
+  -emit-llvm      lower through HIR+MIR to LLVM IR (same as the `llvm` verb)
+  -E              preprocess only; print the expanded token stream
+  -D name[=val]   define a macro (with -E)
+  -U name         undefine a macro (with -E)
+  -o <path>       output path (build)
+  -fbackend=<b>   backend selector: llvm | cpp (default). llvm with a
+                  codegen verb (run/build) needs the phase-5 assembler+
+                  linker; use `kirnc llvm` to emit IR today
+  --plain         no source/caret lines in diagnostics (check)
+  --color         force ANSI colour in diagnostics (check)
+  -h, --help      this message
+
+stop-at-stage (-S, -c, -###, -v) lands in phase 5.
+[exit 2]

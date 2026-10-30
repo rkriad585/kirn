@@ -25,7 +25,7 @@ Punct	7:15	)
 Punct	7:16	)
 Punct	7:17	;
 Punct	8:1	}
-Eof	8:2	
+Eof	9:1	
 <ROOT>/tests/negative/n14_yield_wrong_ret.kn: OK (26 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

@@ -310,7 +310,7 @@ Ident	46:31	m
 Punct	46:32	)
 Punct	46:33	;
 Punct	47:1	}
-Eof	47:2	
+Eof	48:1	
 <ROOT>/examples/38_patterns_power.kn: OK (311 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

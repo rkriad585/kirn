@@ -1,0 +1,57 @@
+$ KIRN_DUMP_NATIVE kirn build --native tests/codegen/list_matmul.kn
+#define KIRN_HAS_NATIVE 1
+#include <cmath>
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+namespace kirn_native {
+static inline void co_panic(const char* m){ kirn::interp::panicHere(m); }
+static inline int64_t co_iadd(int64_t a,int64_t b){ if((b>0&&a>std::numeric_limits<int64_t>::max()-b)||(b<0&&a<std::numeric_limits<int64_t>::min()-b))co_panic("integer overflow"); return a+b; }
+static inline int64_t co_isub(int64_t a,int64_t b){ if((b<0&&a>std::numeric_limits<int64_t>::max()+b)||(b>0&&a<std::numeric_limits<int64_t>::min()+b))co_panic("integer overflow"); return a-b; }
+static inline int64_t co_imul(int64_t a,int64_t b){ if(a==0||b==0)return 0; if((a==std::numeric_limits<int64_t>::min()&&b==-1)||(b==std::numeric_limits<int64_t>::min()&&a==-1))co_panic("integer overflow"); if(a>0 ? (b>0 ? a>std::numeric_limits<int64_t>::max()/b : b<std::numeric_limits<int64_t>::min()/a) : (b>0 ? a<std::numeric_limits<int64_t>::min()/b : a!=0&&b<std::numeric_limits<int64_t>::max()/a))co_panic("integer overflow"); return a*b; }
+static inline int64_t co_ineg(int64_t a){ if(a==std::numeric_limits<int64_t>::min())co_panic("integer overflow"); return -a; }
+static inline int64_t co_floordiv(int64_t a,int64_t b){ if(b==0)co_panic("division by zero"); if(a==std::numeric_limits<int64_t>::min()&&b==-1)co_panic("integer overflow"); int64_t q=a/b; if((a%b!=0)&&((a<0)!=(b<0)))--q; return q; }
+static inline int64_t co_mod(int64_t a,int64_t b){ if(b==0)co_panic("modulo by zero"); if(a==std::numeric_limits<int64_t>::min()&&b==-1)co_panic("integer overflow"); int64_t m=a%b; if(m!=0&&((m<0)!=(b<0)))m+=b; return m; }
+static inline double co_fdiv(double a,double b){ if(b==0.0)co_panic("division by zero"); return a/b; }
+static inline double co_fmodm(double a,double b){ return std::fmod(std::fmod(a,b)+b,b); }
+static inline int64_t co_ipow(int64_t b,int64_t e){ int64_t o=1; while(e>0){ if(e&1)o=co_imul(o,b); e>>=1; if(e)b=co_imul(b,b);} return o; }
+static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return (int64_t)((uint64_t)a<<b); }
+static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return a>>b; }
+static inline const kirn::interp::Value& co_field(const kirn::interp::Value& v,const char* n){ const auto* fs = v.k == kirn::interp::VK::Struct ? &v.fields : (v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr); if(!fs) kirn::interp::panicHere("native field access on non-struct"); for(const auto& f:*fs) if(f.first == n) return f.second; kirn::interp::panicHere("native field not found"); return v; }
+static inline kirn::interp::Value& co_field_mut(kirn::interp::Value& v,const char* n){ if(v.k != kirn::interp::VK::Struct) kirn::interp::panicHere("native mutable field access on non-struct"); for(auto& f:v.fields) if(f.first == n) return f.second; kirn::interp::panicHere("native field not found"); return v; }
+static inline std::optional<kirn::interp::Value> co_optional_field(const kirn::interp::Value& v,const char* n){ const auto& f = co_field(v,n); if(f.isNone()) return {}; return f; }
+static inline kirn::interp::Value co_trait_call(const kirn::interp::Value& v,const char* n,std::vector<kirn::interp::Value> a){ return kirn::interp::nativeInvokeMethod(v,n,std::move(a)); }
+static double co_native_1_dot(std::vector<kirn::interp::Value> v_a, std::vector<kirn::interp::Value> v_b) {
+    return [&]{ auto &__a = (v_a); auto &__b = (v_b); if (__a.size() != __b.size()) kirn_native::co_panic("matmul dimension mismatch"); double __acc = 0.0; for (size_t __i = 0; __i < __a.size(); ++__i) __acc += __a[__i].d * __b[__i].d; return __acc; }();
+    return 0.0;
+}
+static std::vector<kirn::interp::Value> co_native_2_mat_vec(std::vector<kirn::interp::Value> v_a, std::vector<kirn::interp::Value> v_b) {
+    return [&]{ auto &__a = (v_a); auto &__b = (v_b); std::vector<kirn::interp::Value> __out; for (const auto& __row : __a) { if (__row.vec->size() != __b.size()) kirn_native::co_panic("matmul dimension mismatch"); double __acc = 0.0; for (size_t __k = 0; __k < __b.size(); ++__k) __acc += __row.vec->at(__k).d * __b[__k].d; __out.push_back(kirn::interp::Value::floating(__acc)); } return __out; }();
+    return {};
+}
+static std::vector<kirn::interp::Value> co_native_3_mat_mat(std::vector<kirn::interp::Value> v_a, std::vector<kirn::interp::Value> v_b) {
+    return [&]{ auto &__a = (v_a); auto &__b = (v_b); size_t __inner = __a.empty() ? 0 : __a[0].vec->size(); if (__b.size() != __inner) kirn_native::co_panic("matmul dimension mismatch"); size_t __cols = __b.empty() ? 0 : __b[0].vec->size(); std::vector<kirn::interp::Value> __out; for (const auto& __row : __a) { if (__row.vec->size() != __inner) kirn_native::co_panic("matmul ragged matrix"); std::vector<kirn::interp::Value> __orow; for (size_t __j = 0; __j < __cols; ++__j) { double __acc = 0.0; for (size_t __k = 0; __k < __inner; ++__k) { if (__b[__k].vec->size() != __cols) kirn_native::co_panic("matmul ragged matrix"); __acc += __row.vec->at(__k).d * __b[__k].vec->at(__j).d; } __orow.push_back(kirn::interp::Value::floating(__acc)); } __out.push_back(kirn::interp::Value::list(std::move(__orow))); } return __out; }();
+    return {};
+}
+}
+inline void kirn_native_register(kirn::interp::Interpreter& interp, const std::vector<kirn::ast::StmtP>& prog) {
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "dot") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::vector<kirn::interp::Value> v_a = *interp.nativeEnvVar(e, "a").vec;
+        std::vector<kirn::interp::Value> v_b = *interp.nativeEnvVar(e, "b").vec;
+        return kirn::interp::Value::floating(kirn_native::co_native_1_dot(v_a, v_b));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "mat_mat") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::vector<kirn::interp::Value> v_a = *interp.nativeEnvVar(e, "a").vec;
+        std::vector<kirn::interp::Value> v_b = *interp.nativeEnvVar(e, "b").vec;
+        return kirn::interp::Value::list(kirn_native::co_native_3_mat_mat(v_a, v_b));
+    }); }
+    for (const auto& d : prog) if (d->kind == kirn::ast::StKind::FuncDef && d->name == "mat_vec") { interp.enableNative(); interp.registerNative(d.get(), [&interp](kirn::interp::Env e) -> kirn::interp::Value {
+        std::vector<kirn::interp::Value> v_a = *interp.nativeEnvVar(e, "a").vec;
+        std::vector<kirn::interp::Value> v_b = *interp.nativeEnvVar(e, "b").vec;
+        return kirn::interp::Value::list(kirn_native::co_native_2_mat_vec(v_a, v_b));
+    }); }
+}
+[exit 0]

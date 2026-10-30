@@ -184,7 +184,7 @@ Ident	41:29	f
 Punct	41:30	)
 Punct	41:31	;
 Punct	42:1	}
-Eof	42:2	
+Eof	43:1	
 <ROOT>/examples/native_scalar_mix.kn: OK (185 tokens)
 ---
 1/1 files clean, 0 diagnostic(s)

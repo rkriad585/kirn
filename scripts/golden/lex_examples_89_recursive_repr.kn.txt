@@ -1,0 +1,60 @@
+$ <ROOT>/build/kirnlex --dump <ROOT>/examples/89_recursive_repr.kn
+Ident	3:1	fn
+Ident	3:4	main
+Punct	3:8	(
+Punct	3:9	)
+Op	3:11	->
+Ident	3:14	none
+Punct	3:19	{
+Ident	4:5	xs
+Op	4:8	=
+Punct	4:10	[
+Punct	4:11	]
+Punct	4:12	;
+Ident	5:5	xs
+Punct	5:7	.
+Ident	5:8	append
+Punct	5:14	(
+Ident	5:15	xs
+Punct	5:17	)
+Punct	5:18	;
+Ident	6:5	print
+Punct	6:10	(
+Ident	6:11	xs
+Punct	6:13	)
+Punct	6:14	;
+Ident	8:5	d
+Op	8:7	=
+Punct	8:9	{
+Punct	8:10	}
+Punct	8:11	;
+Ident	9:5	d
+Punct	9:6	[
+Str	9:7	self
+Punct	9:13	]
+Op	9:15	=
+Ident	9:17	d
+Punct	9:18	;
+Ident	10:5	print
+Punct	10:10	(
+Ident	10:11	d
+Punct	10:12	)
+Punct	10:13	;
+Ident	12:5	print
+Punct	12:10	(
+Ident	12:11	repr
+Punct	12:15	(
+Punct	12:16	[
+Ident	12:17	xs
+Punct	12:19	,
+Ident	12:21	d
+Punct	12:22	]
+Punct	12:23	)
+Punct	12:24	)
+Punct	12:25	;
+Punct	13:1	}
+Eof	14:1	
+<ROOT>/examples/89_recursive_repr.kn: OK (54 tokens)
+---
+1/1 files clean, 0 diagnostic(s)
+[exit 0]

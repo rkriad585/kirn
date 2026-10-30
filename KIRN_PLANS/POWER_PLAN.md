@@ -2110,3 +2110,14 @@ Delivered: `src/interp/runtime.{h,cpp}`, `src/driver/driver.{h,cpp}`,
 Verification: focused checker and tree-walker/VM execution pass; syntax gate
 **93 passed, 0 failed, 0 hung**; stdlib gate **19 passed, 0 failed**; examples
 gate **90 passed, 0 failed, 0 hung**.
+
+### Update (2026-10-30) — Golden corpus synchronization (shipped)
+
+The byte-level golden suite had drifted from the current checked-in compiler and
+driver behavior: several examples had newer EOF locations, newer native
+overflow/codegen output, CLI help had expanded, and newer examples had no
+snapshots. The complete corpus was regenerated from the verified binaries,
+including the new decorated-test runner output. The verifier now passes all
+**419 golden snapshots** with zero failures.
+
+Delivered: refreshed snapshots under `scripts/golden/` and this plan update.

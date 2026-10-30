@@ -1,0 +1,73 @@
+$ <ROOT>/build/kirnparse --ast <ROOT>/examples/91_10k_crawler.kn
+Import pet.parallel as p
+FuncDef "main"
+  Ret none
+  Body
+    Assign
+      Target Ident "urls"
+      Value 
+        List len=0
+    For
+      PatBind i
+      Iter 
+        Binary op=".."
+          Lhs Int "0"
+          Rhs Int "10000"
+      Body
+        ExprStmt
+          Value 
+            Call
+              Callee 
+                Member name="append"
+                  Obj Ident "urls"
+              Arg
+                Value 
+                  Binary op="+"
+                    Lhs Str "https://kirn.local/page/"
+                    Rhs 
+                      Call
+                        Callee Ident "Str"
+                        Arg
+                          Value Ident "i"
+    Assign
+      Target Ident "lengths"
+      Value 
+        Call
+          Callee 
+            Member name="map"
+              Obj 
+                Call
+                  Callee 
+                    Member name="par_iter"
+                      Obj Ident "p"
+                  Arg
+                    Value Ident "urls"
+          Arg
+            Value 
+              Lambda params=(url: <inferred>)
+                Ret Int
+                Body
+                  Return
+                    Value 
+                      Call
+                        Callee 
+                          Member name="len"
+                            Obj Ident "url"
+    ExprStmt
+      Value 
+        Call
+          Callee Ident "print"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="len"
+                    Obj Ident "urls"
+          Arg
+            Value 
+              Call
+                Callee 
+                  Member name="sum"
+                    Obj Ident "lengths"
+<ROOT>/examples/91_10k_crawler.kn: OK (2 top-level statements)
+[exit 0]

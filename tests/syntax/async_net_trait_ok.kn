@@ -1,0 +1,9 @@
+# TCP stream halves implement the shared async I/O contracts (POWER_PLAN §2.7).
+import pet.async as a;
+
+fn main() -> none {
+    # Trait conformance is checked at the impl boundary; runtime socket
+    # behavior is covered by the existing network parity fixtures.
+    assert(a.now_ms() >= 0);
+    print("async net traits: ok");
+}

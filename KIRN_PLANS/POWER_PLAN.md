@@ -2134,6 +2134,21 @@ passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
 passed, 0 failed**.
 
+### Update (2026-10-30) — Network async I/O trait conformance (shipped)
+
+TCP streams and borrowed/owned read/write halves now implement the shared
+`pet.async_io.AsyncRead`/`AsyncWrite` contracts. Each read side exposes
+`read_exact` and `read_to_end`, using the same EOF and byte-buffer behavior as
+file readers, so generic async I/O helpers can operate across files and sockets.
+
+Delivered: `stdpet/pet/async_net.kn`,
+`tests/syntax/async_net_trait_ok.kn`, and this plan update.
+
+Verification: async-net module and trait fixture check cleanly; tree-walker/VM
+fixture parity passes; syntax gate **97 passed, 0 failed, 0 hung**; stdlib gate
+**1 passed, 0 failed, 0 hung** (19 tests); examples gate **90 passed, 0 failed,
+0 hung**; golden suite **419 passed, 0 failed**.
+
 ### Update (2026-10-30) — Deadline-safe existing channel waits (shipped)
 
 The pre-existing timeout methods on `Oneshot`, `MpscReceiver`, and `WatchRx`

@@ -13,6 +13,7 @@
 # Addresses are "host:port" (IPv6 as "[::1]:port"). `bind` with a ":0" port
 # picks an ephemeral port; read it back from `local_addr()`.
 import net;
+import pet.async_io as aio;
 
 pub struct TcpStream {
     fd: Int;
@@ -21,6 +22,25 @@ pub struct TcpStream {
     # Read up to `n` bytes; `""` bytes at EOF.
     async fn read(self, n: Int) -> any {
         return net.tcp_read(self.fd, n);
+    }
+
+    async fn read_exact(self, n: Int) -> any {
+        out = bytearray([]);
+        while out.len() < n {
+            part = await self.read(n - out.len());
+            if part.len() == 0 { raise "read_exact: unexpected end of stream"; }
+            out.extend(part);
+        }
+        return bytes(out);
+    }
+
+    async fn read_to_end(self) -> any {
+        out = bytearray([]);
+        while true {
+            part = await self.read(65536);
+            if part.len() == 0 { return bytes(out); }
+            out.extend(part);
+        }
     }
 
     # Write all of `data` (Str or bytes); returns bytes written.
@@ -75,6 +95,23 @@ pub struct ReadHalf {
     async fn read(self, n: Int) -> any {
         return net.tcp_read(self.fd, n);
     }
+    async fn read_exact(self, n: Int) -> any {
+        out = bytearray([]);
+        while out.len() < n {
+            part = await self.read(n - out.len());
+            if part.len() == 0 { raise "read_exact: unexpected end of stream"; }
+            out.extend(part);
+        }
+        return bytes(out);
+    }
+    async fn read_to_end(self) -> any {
+        out = bytearray([]);
+        while true {
+            part = await self.read(65536);
+            if part.len() == 0 { return bytes(out); }
+            out.extend(part);
+        }
+    }
 }
 
 pub struct WriteHalf {
@@ -92,6 +129,23 @@ pub struct OwnedReadHalf {
     async fn read(self, n: Int) -> any {
         return net.tcp_read(self.fd, n);
     }
+    async fn read_exact(self, n: Int) -> any {
+        out = bytearray([]);
+        while out.len() < n {
+            part = await self.read(n - out.len());
+            if part.len() == 0 { raise "read_exact: unexpected end of stream"; }
+            out.extend(part);
+        }
+        return bytes(out);
+    }
+    async fn read_to_end(self) -> any {
+        out = bytearray([]);
+        while true {
+            part = await self.read(65536);
+            if part.len() == 0 { return bytes(out); }
+            out.extend(part);
+        }
+    }
 }
 
 pub struct OwnedWriteHalf {
@@ -103,6 +157,13 @@ pub struct OwnedWriteHalf {
         net.tcp_write(self.fd, data);
     }
 }
+
+impl aio.AsyncRead for TcpStream {}
+impl aio.AsyncWrite for TcpStream {}
+impl aio.AsyncRead for ReadHalf {}
+impl aio.AsyncWrite for WriteHalf {}
+impl aio.AsyncRead for OwnedReadHalf {}
+impl aio.AsyncWrite for OwnedWriteHalf {}
 
 pub struct TcpListener {
     fd: Int;

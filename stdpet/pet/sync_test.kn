@@ -77,6 +77,24 @@ fn test_semaphore_counts() -> none {
     print("semaphore counts: ok");
 }
 
+fn test_timed_waits() -> none {
+    var b = sync.Barrier(2);
+    assert(not b.wait_timeout(1));
+    var single = sync.Barrier(1);
+    assert(single.wait_timeout(10));
+
+    var s = sync.Semaphore(0);
+    assert(not s.acquire_timeout(1));
+    s.release();
+    assert(s.acquire_timeout(10));
+
+    var n = sync.Notify();
+    assert(not n.wait_timeout(1));
+    n.notify_one();
+    assert(n.wait_timeout(10));
+    print("timed waits: ok");
+}
+
 fn test_semaphore_blocking_acquire() -> none {
     var s = sync.Semaphore(0);
     var slot = [0];
@@ -419,6 +437,7 @@ fn main() -> none {
     test_barrier_single_party();
     test_barrier_four_parties();
     test_semaphore_counts();
+    test_timed_waits();
     test_semaphore_blocking_acquire();
     test_semaphore_release_n_wakes_two_waiters();
     test_semaphore_limits_concurrency();

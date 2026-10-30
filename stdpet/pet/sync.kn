@@ -84,6 +84,37 @@ struct BarrierState {
         m.unlock();
         return gen;
     }
+
+    # Wait for the generation to complete, returning false if the deadline
+    # expires. A timed-out party leaves the generation so later rounds remain
+    # usable instead of permanently retaining a missing participant.
+    fn wait_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        var gen: Int = self.st[4];
+        self.st[3] = self.st[3] + 1;
+        if self.st[3] >= self.st[2] {
+            self.st[3] = 0;
+            self.st[4] = self.st[4] + 1;
+            c.broadcast();
+            m.unlock();
+            return true;
+        }
+        var timedout = c.wait_timeout(m, ms);
+        if timedout and gen == self.st[4] {
+            self.st[3] = self.st[3] - 1;
+            c.broadcast();
+            m.unlock();
+            return false;
+        }
+        while gen == self.st[4] {
+            c.wait(m);
+        }
+        m.unlock();
+        return true;
+    }
 }
 
 pub fn Barrier(parties: Int) -> BarrierState {
@@ -115,6 +146,36 @@ struct SemaphoreState {
         }
         self.st[2] = self.st[2] - n;
         m.unlock();
+    }
+
+    # Attempt to acquire one permit before `ms` milliseconds elapse.
+    fn acquire_timeout(self, ms: Int) -> Bool {
+        return self.acquire_n_timeout(1, ms);
+    }
+
+    fn acquire_n_timeout(self, n: Int, ms: Int) -> Bool {
+        if n < 0 { raise("sync: Semaphore.acquire_n_timeout needs a non-negative count"); }
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[2] >= n {
+            self.st[2] = self.st[2] - n;
+            m.unlock();
+            return true;
+        }
+        var timedout = c.wait_timeout(m, ms);
+        if timedout and self.st[2] < n {
+            m.unlock();
+            return false;
+        }
+        if self.st[2] >= n {
+            self.st[2] = self.st[2] - n;
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
     }
 
     fn try_acquire(self) -> Bool {
@@ -214,6 +275,34 @@ struct NotifyState {
         }
         self.st[3] = self.st[3] - 1;
         m.unlock();
+    }
+
+    # Wait for one notification, returning false when no notification arrives
+    # before the timeout. A stored permit is consumed without waiting.
+    fn wait_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] {
+            self.st[4] = false;
+            m.unlock();
+            return true;
+        }
+        var gen: Int = self.st[2];
+        self.st[3] = self.st[3] + 1;
+        var timedout = c.wait_timeout(m, ms);
+        if timedout and gen == self.st[2] {
+            self.st[3] = self.st[3] - 1;
+            m.unlock();
+            return false;
+        }
+        while gen == self.st[2] {
+            c.wait(m);
+        }
+        self.st[3] = self.st[3] - 1;
+        m.unlock();
+        return true;
     }
 
     fn waiter_count(self) -> Int {

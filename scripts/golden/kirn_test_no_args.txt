@@ -37,6 +37,7 @@ PASS
 test ./stdpet/pet/sync_test.kn ... barrier single party: ok
 barrier four parties: ok
 semaphore counts: ok
+timed waits: ok
 semaphore blocking acquire: ok
 semaphore release n wakes two: ok
 semaphore limits concurrency: ok

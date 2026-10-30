@@ -2079,6 +2079,23 @@ Verification: checker plus tree-walker/VM pool parity pass; syntax gate **94
 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**.
 
+### Update (2026-10-30) — Timed `pet.sync` waits (shipped)
+
+The higher-level synchronization primitives now expose bounded waits backed by
+the native timed condition variable: `Barrier.wait_timeout(ms) -> Bool`,
+`Semaphore.acquire_timeout(ms)` / `acquire_n_timeout(n, ms) -> Bool`, and
+`Notify.wait_timeout(ms) -> Bool`. Timeout returns `false`; an immediately
+available permit or notification returns `true`. A timed-out barrier participant
+leaves its generation so a missed party cannot permanently wedge later rounds.
+
+Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
+golden, and this plan update.
+
+Verification: focused checker and sync test pass; syntax gate **94 passed, 0
+failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19 tests);
+examples gate **90 passed, 0 failed, 0 hung**; golden suite **419 passed, 0
+failed**.
+
 Verification: checker plus tree-walker/VM parity pass; syntax gate **92
 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
 **90 passed, 0 failed, 0 hung**.

@@ -18,6 +18,21 @@ fn main() -> none {
         return 0;
     });
     print(out, seen.load());
+
+    # Scoped work starts before the body returns, while scope still joins it.
+    var started = sync.Atomic(0);
+    var finished = sync.Atomic(0);
+    pool.scope(fn (s) {
+        s.spawn(fn () {
+            started.add(1);
+            time.sleep(100);
+            finished.add(1);
+        });
+        time.sleep(20);
+        assert(started.load() == 1);
+        assert(finished.load() == 0);
+    });
+    assert(finished.load() == 1);
     print(p.yield_now());
 
     # A one-slot pool must serialize its work even though the global scheduler

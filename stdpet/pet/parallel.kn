@@ -1060,27 +1060,27 @@ pub struct Pool {
         return invoke(fns);
     }
 
-    # Run `body(scope)`; every task handed to `scope.spawn` is run concurrently
+    # Run `body(scope)`; every task handed to `scope.spawn` starts immediately
     # and all are joined before `scope` returns. `body`'s value is returned.
     fn scope(self, body) -> any {
         self.ensure_gate();
-        s = PoolScope(fns: []);
+        s = PoolScope(tasks: [], pool: self);
         var out = body(s);
-        if s.fns.len() > 0 {
-            limited = [];
-            for task in s.fns {
-                limited.append(fn () { return self.run_limited(task); });
-            }
-            invoke(limited);
+        if s.tasks.len() > 0 {
+            for task in s.tasks { task.join(); }
         }
         return out;
     }
 }
 
-# Handle passed to a `Pool.scope` body. `spawn(f)` queues a task; the tasks run
-# together when the body returns. Closures capture shared values (lists/dicts),
-# so mutations are observable - keep tasks pure, as everywhere in `parallel`.
+# Handle passed to a `Pool.scope` body. `spawn(f)` starts a task immediately;
+# the enclosing scope joins every task before returning. Closures capture
+# shared values (lists/dicts), so mutations are observable - synchronize shared
+# mutation explicitly, as everywhere in `parallel`.
 pub struct PoolScope {
-    fns: list;
-    fn spawn(self, f) -> none { self.fns.append(f); }
+    tasks: list;
+    pool: Pool;
+    fn spawn(self, f) -> none {
+        self.tasks.append(spawn fn () { return self.pool.run_limited(f); });
+    }
 }

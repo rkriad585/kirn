@@ -2075,6 +2075,10 @@ public per-pool concurrency contract is now honored.
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
+Verification: checker plus tree-walker/VM pool parity pass; syntax gate **94
+passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
+tests); examples gate **90 passed, 0 failed, 0 hung**.
+
 Verification: checker plus tree-walker/VM parity pass; syntax gate **92
 passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
 **90 passed, 0 failed, 0 hung**.
@@ -2136,3 +2140,15 @@ Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
 Verification: decorated entry checker and tree-walker/VM execution pass; syntax
 gate **94 passed, 0 failed, 0 hung**; test gate **1 passed, 0 failed, 0 hung**
 (19 tests); examples gate **90 passed, 0 failed, 0 hung**.
+
+### Update (2026-10-30) — Concurrent scoped pool tasks (shipped)
+
+`parallel.Pool.scope` now starts each `scope.spawn` closure immediately on the
+shared scheduler while retaining the structured join-before-return guarantee.
+The scope handle stores task handles rather than deferred closures, so the body
+can observe work in progress and all spawned work is complete when the scope
+returns. Pool permits and cancellation/error propagation continue to use the
+existing task machinery.
+
+Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
+this plan update.

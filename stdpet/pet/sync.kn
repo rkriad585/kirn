@@ -377,12 +377,19 @@ struct OneshotState {
     }
 
     fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
         var m = self.st[0];
         var c = self.st[1];
+        var deadline = time.now() + ms;
         m.lock();
-        if not self.st[3] and not self.st[4] {
-            var timedout = c.wait_timeout(m, ms);
-            if timedout and not self.st[3] {
+        while not self.st[3] and not self.st[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return ["timeout"];
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and not self.st[3] and not self.st[4] {
                 m.unlock();
                 return ["timeout"];
             }
@@ -758,13 +765,20 @@ struct MpscReceiver {
     }
 
     fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
         var s = self.st[0];
         var m = s[0];
         var c = s[1];
         m.lock();
-        if s[3].len() == 0 and not s[4] {
-            var timedout = c.wait_timeout(m, ms);
-            if timedout and s[3].len() == 0 {
+        var deadline = time.now() + ms;
+        while s[3].len() == 0 and not s[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return ["timeout"];
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and s[3].len() == 0 and not s[4] {
                 m.unlock();
                 return ["timeout"];
             }
@@ -1013,13 +1027,20 @@ struct WatchRx {
     }
 
     fn changed_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
         var s = self.st[0];
         var m = s[0];
         var c = s[1];
+        var deadline = time.now() + ms;
         m.lock();
-        if self.st[1][0] == s[3] and not s[4] {
-            var timedout = c.wait_timeout(m, ms);
-            if timedout and self.st[1][0] == s[3] {
+        while self.st[1][0] == s[3] and not s[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and self.st[1][0] == s[3] and not s[4] {
                 m.unlock();
                 return false;
             }

@@ -2102,6 +2102,21 @@ arrive at the deadline.
 Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
 golden, and this plan update.
 
+### Update (2026-10-30) — Deadline-safe existing channel waits (shipped)
+
+The pre-existing timeout methods on `Oneshot`, `MpscReceiver`, and `WatchRx`
+now use one absolute deadline and predicate loops. Spurious condition-variable
+wakes no longer return a false empty/unchanged result early or extend the
+operation beyond its requested bound; close and queued-value behavior remains
+unchanged.
+
+Delivered: `stdpet/pet/sync.kn` and this plan update.
+
+Verification: focused checker and full sync test pass; syntax gate **94 passed,
+0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19 tests);
+examples gate **90 passed, 0 failed, 0 hung**; golden suite **419 passed, 0
+failed**.
+
 Verification: focused checker and timed channel tests pass; syntax gate **94
 passed, 0 failed, 0 hung** after rerun; stdlib gate **1 passed, 0 failed, 0
 hung** (19 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite

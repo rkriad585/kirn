@@ -2046,3 +2046,19 @@ mutable constructor, preserving source-list updates and alias visibility.
 
 Delivered: `src/interp/runtime.cpp`, `tests/syntax/parallel_method_ok.kn`, and
 stdlib parallel regression coverage.
+
+### Update (2026-10-30) — Method decorator dispatch (shipped)
+
+Tier-2 user decorators now apply to struct methods and trait-implementation
+methods as well as top-level functions. Decorated method values are built once
+after inheritance/impl collection and cached by declaration, preserving
+Python-style bottom-up wrapper order without re-wrapping recursive or repeated
+calls. The cached wrapper receives the method's explicit `self` argument and
+the normal positional arguments.
+
+Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`, and
+`tests/syntax/method_decorator_ok.kn`.
+
+Verification: checker plus tree-walker/VM parity pass; syntax gate **92
+passed, 0 failed, 0 hung**; stdlib gate **18 passed, 0 failed**; examples gate
+**90 passed, 0 failed, 0 hung**.

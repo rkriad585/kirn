@@ -1,0 +1,26 @@
+# Method decorators are applied once and receive the explicit self argument.
+var calls = 0;
+
+fn add_one(f: fn(any, Int) -> Int) -> fn(any, Int) -> Int {
+    return fn (self: any, value: Int) -> Int {
+        global calls;
+        calls += 1;
+        return f(self, value) + 1;
+    };
+}
+
+struct DecoratedCounter {
+    value: Int;
+
+    @add_one
+    fn add(self, value: Int) -> Int {
+        return self.value + value;
+    }
+}
+
+fn main() -> none {
+    c = DecoratedCounter(value: 3);
+    assert(c.add(4) == 8);
+    assert(c.add(5) == 9);
+    assert(calls == 2);
+}

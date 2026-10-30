@@ -150,6 +150,9 @@ private:
     // Defining module environment per struct, so a method body resolves the
     // module's own consts/imports (not just the entry file's globals).
     std::unordered_map<std::string, Env> structEnv_;
+    // Runtime Tier-2 decorators applied to methods.  Keep the wrapped value
+    // per declaration so recursive calls do not re-apply the decorator.
+    std::unordered_map<const Stmt*, Value> methodDecorators_;
     struct ImplEntry {
         std::string traitName, typeName;
         std::unordered_map<std::string, const Stmt*> methods;

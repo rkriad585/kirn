@@ -1965,6 +1965,51 @@ void Interpreter::collectProgram(const Stmt& program) {
         globals_->vars[s.name] = std::move(fn);
     }
     mergeInheritance();
+
+    // Methods use the same Python-style bottom-up decorator semantics as
+    // top-level functions.  Cache the resulting callable by declaration so a
+    // recursive method call does not stack the wrapper repeatedly.
+    auto decorateMethod = [this](const Stmt* method, Env menv) {
+        if (!method || method->kind != ast::StKind::FuncDef || method->externDef)
+            return;
+        bool bare = false;
+        for (const auto& d : method->decorators)
+            if (!d.bracket) { bare = true; break; }
+        if (!bare) return;
+        Value fn;
+        fn.k = VK::Fn;
+        fn.fn = method;
+        fn.env = menv ? menv : globals_;
+        for (auto it = method->decorators.rbegin();
+             it != method->decorators.rend(); ++it) {
+            if (it->bracket) continue;
+            ast::Expr id;
+            id.kind = ast::ExKind::Ident;
+            id.text = it->name;
+            id.span = it->span;
+            Value dec = eval(id, globals_);
+            if (!it->args.empty()) {
+                std::vector<Value> dargs;
+                for (const auto& a : it->args)
+                    dargs.push_back(eval(*a.value, globals_));
+                dec = callValue(std::move(dec), std::move(dargs),
+                                it->span.line, it->span.col);
+            }
+            fn = callValue(std::move(dec), {std::move(fn)}, it->span.line,
+                           it->span.col);
+        }
+        methodDecorators_[method] = std::move(fn);
+    };
+    for (const auto& entry : structs_) {
+        Env menv = globals_;
+        auto ei = structEnv_.find(entry.first);
+        if (ei != structEnv_.end() && ei->second) menv = ei->second;
+        for (const auto& m : entry.second->body)
+            decorateMethod(m.get(), menv);
+    }
+    for (const auto& impl : impls_)
+        for (const auto& method : impl.methods)
+            decorateMethod(method.second, impl.env);
 }
 
 // Materialize single-inheritance: for every StructDef whose `baseName` is set,
@@ -7775,7 +7820,7 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
         }
         if (!method)
             panicHere("type '" + tn + "' has no method '" + name + "'");
-std::vector<Value> full;
+        std::vector<Value> full;
         full.reserve(1 + pos.size());
         full.push_back(obj);
         for (auto& v : pos) full.push_back(std::move(v));
@@ -7787,6 +7832,9 @@ std::vector<Value> full;
             fv.env = menv;
             return spawnTask(std::move(fv), std::move(full));
         }
+        auto wrapped = methodDecorators_.find(method);
+        if (wrapped != methodDecorators_.end())
+            return callValue(wrapped->second, std::move(full), line, col);
         CallFrameGuard guard(method->name, line, col);
         return runFunc(method, std::move(full), std::move(named), menv,
                        selfOut);

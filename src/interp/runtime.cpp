@@ -42,6 +42,10 @@
 #include <poll.h>
 #endif
 
+#ifndef _WIN32
+extern char **environ;
+#endif
+
 namespace kirn {
 namespace interp {
 
@@ -5017,6 +5021,115 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 const char* v = envGet(toStr(a[0]).c_str());
                 return v ? Value::str(v) : Value::none();
             });
+        if (name == "setenv")
+            return biFn({"name", "value"}, [](std::vector<Value>& a) -> Value {
+                std::string key = toStr(a[0]);
+                std::string value = a.size() > 1 ? toStr(a[1]) : "";
+#ifdef _WIN32
+                if (_putenv_s(key.c_str(), value.c_str()) != 0)
+                    panicHere("setenv failed for '" + key + "'");
+#else
+                if (::setenv(key.c_str(), value.c_str(), 1) != 0)
+                    panicHere("setenv '" + key + "': " + std::strerror(errno));
+#endif
+                return Value::none();
+            });
+        if (name == "unsetenv")
+            return biFn({"name"}, [](std::vector<Value>& a) -> Value {
+                std::string key = toStr(a[0]);
+#ifdef _WIN32
+                if (_putenv_s(key.c_str(), "") != 0)
+                    panicHere("unsetenv failed for '" + key + "'");
+#else
+                if (::unsetenv(key.c_str()) != 0)
+                    panicHere("unsetenv '" + key + "': " + std::strerror(errno));
+#endif
+                return Value::none();
+            });
+        if (name == "cwd")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                std::error_code ec;
+                auto p = std::filesystem::current_path(ec);
+                if (ec) panicHere("cwd: " + ec.message());
+                return Value::str(p.string());
+            });
+        if (name == "chdir")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                std::filesystem::current_path(toStr(a[0]), ec);
+                if (ec) panicHere("chdir: " + ec.message());
+                return Value::none();
+            });
+        if (name == "home")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                const char* h = envGet("HOME");
+#ifdef _WIN32
+                if (!h) h = envGet("USERPROFILE");
+#endif
+                return h ? Value::str(h) : Value::none();
+            });
+        if (name == "tmpdir")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                std::error_code ec;
+                auto p = std::filesystem::temp_directory_path(ec);
+                if (ec) panicHere("tmpdir: " + ec.message());
+                return Value::str(p.string());
+            });
+        if (name == "getpid")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+#ifdef _WIN32
+                return Value::integer((int64_t)::GetCurrentProcessId());
+#else
+                return Value::integer((int64_t)::getpid());
+#endif
+            });
+        if (name == "cpu_count")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                unsigned n = std::thread::hardware_concurrency();
+                return Value::integer(n ? (int64_t)n : 1);
+            });
+        if (name == "hostname")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                char buf[256] = {};
+#ifdef _WIN32
+                return Value::str("localhost");
+#else
+                if (::gethostname(buf, sizeof(buf) - 1) != 0)
+                    panicHere("hostname: " + std::string(std::strerror(errno)));
+                return Value::str(buf);
+#endif
+            });
+        if (name == "environ")
+            return biFn({}, [](std::vector<Value>&) -> Value {
+                Value out = Value::dict();
+#ifndef _WIN32
+                for (char **p = ::environ; p && *p; ++p) {
+                    std::string entry(*p);
+                    size_t eq = entry.find('=');
+                    if (eq != std::string::npos)
+                        dictPutInPlace(out, Value::str(entry.substr(0, eq)),
+                                       Value::str(entry.substr(eq + 1)));
+                }
+#endif
+                return out;
+            });
+        if (name == "mkdir" || name == "mkdir_all")
+            return biFn({"path"}, [name](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                bool ok = name == "mkdir_all"
+                    ? std::filesystem::create_directories(toStr(a[0]), ec)
+                    : std::filesystem::create_directory(toStr(a[0]), ec);
+                if (ec) panicHere(name + " '" + toStr(a[0]) + "': " + ec.message());
+                return Value::boolean(ok || std::filesystem::exists(toStr(a[0])));
+            });
+        if (name == "rmdir")
+            return biFn({"path"}, [](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                bool ok = std::filesystem::remove(toStr(a[0]), ec);
+                if (ec) panicHere("rmdir '" + toStr(a[0]) + "': " + ec.message());
+                if (!ok) panicHere("rmdir '" + toStr(a[0]) + "': no such directory");
+                return Value::none();
+            });
         // ---- filesystem primitives (POWER_PLAN §2.9) -----------------------
         // These are the blocking syscalls. `pet.async.fs` wraps each in an
         // `async fn`, so the call runs on a task thread instead of the caller
@@ -5144,7 +5257,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                                   toStr(a[1]) + "': " + ec.message());
                 return Value::none();
             });
-        if (name == "remove_file")
+        if (name == "remove_file" || name == "remove")
             return biFn({"path"}, [](std::vector<Value>& a) -> Value {
                 std::error_code ec;
                 bool removed = std::filesystem::remove(toStr(a[0]), ec);
@@ -5160,13 +5273,13 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                                   ec.message());
                 return Value::none();
             });
-        if (name == "exists")
+        if (name == "exists" || name == "exist")
             return biFn({"path"}, [](std::vector<Value>& a) -> Value {
                 std::error_code ec;
                 bool ok = std::filesystem::exists(toStr(a[0]), ec);
                 return Value::boolean(ok && !ec);
             });
-        if (name == "metadata")
+        if (name == "metadata" || name == "stat")
             return biFn({"path"}, [](std::vector<Value>& a) -> Value {
                 std::string path = toStr(a[0]);
                 std::error_code ec;
@@ -5194,7 +5307,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                                Value::integer(ms));
                 return d;
             });
-        if (name == "read_dir")
+        if (name == "read_dir" || name == "listdir")
             return biFn({"path"}, [](std::vector<Value>& a) -> Value {
                 std::string path = toStr(a[0]);
                 std::error_code ec;
@@ -5206,6 +5319,15 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     out.vec->push_back(Value::str(it->path().filename().string()));
                 }
                 return out;
+            });
+        if (name == "is_file" || name == "is_dir")
+            return biFn({"path"}, [name](std::vector<Value>& a) -> Value {
+                std::error_code ec;
+                auto st = std::filesystem::status(toStr(a[0]), ec);
+                if (ec) return Value::boolean(false);
+                return Value::boolean(name == "is_file"
+                    ? std::filesystem::is_regular_file(st)
+                    : std::filesystem::is_directory(st));
             });
         // ---- process primitives (POWER_PLAN §2.9) --------------------------
         // `run` blocks to completion and captures output; `spawn` returns a

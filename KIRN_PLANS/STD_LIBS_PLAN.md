@@ -2141,5 +2141,18 @@ Verification: full build; focused checker/tree-walker/compiler checks; syntax ga
 **97 passed, 0 failed, 0 hung**; stdlib gate **19 tests passed**; examples gate
 **90 passed, 0 failed, 0 hung**; golden suite **419 passed, 0 failed**.
 
+### Update (2026-10-30) — OS filesystem and host queries (Phase 0 checkpoint)
+
+The native `os` substrate now covers the portable filesystem and process-query
+surface planned for Phase 0: `cwd`, `chdir`, `mkdir`, `mkdir_all`, `rmdir`,
+`remove`, `rename`, `listdir`, `stat`, `exists`/`exist`, `is_dir`, `is_file`,
+`home`, `tmpdir`, `getpid`, `cpu_count`, `hostname`, `environ`, `setenv`, and
+`unsetenv`. The `pet.os` wrapper exports the same operations, and its regression
+now exercises nested directory creation, metadata, cleanup, and environment
+mutation.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/os.kn`, and
+`stdpet/pet/os_test.kn`.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

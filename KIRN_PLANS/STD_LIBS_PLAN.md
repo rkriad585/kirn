@@ -2224,5 +2224,21 @@ hung** after the timing-sensitive async fixture rerun; stdlib gate **23 tests
 passed**; examples gate **90 passed, 0 failed, 0 hung**; golden suite **419
 passed, 0 failed**.
 
+### Update (2026-10-30) — Native compression primitives (Phase 0 checkpoint)
+
+The native `compress` module now provides zlib-backed `deflate`, bounded
+`inflate`, and CRC32 over strings or byte buffers. CMake links `ZLIB::ZLIB`,
+and decompression growth is capped at 64 MiB to prevent unbounded allocation
+from malformed input.
+
+Delivered: `CMakeLists.txt`, `src/interp/runtime.cpp`,
+`src/sema/checker.cpp`, `stdpet/pet/compress_test.kn`,
+`tests/syntax/compress_phase0_ok.kn`, and this plan update.
+
+Verification: full build with zlib linkage; focused checker/tree-walker/compiler
+and `kirn test` checks; syntax gate **102 passed, 0 failed, 0 hung**; stdlib
+gate **24 tests passed**; examples gate **90 passed, 0 failed, 0 hung**; golden
+suite **419 passed, 0 failed**.
+
 _This document is a living plan; as substrate capabilities land (Phase 0) the API
 inventory in §5 becomes normative and per-phase `*_test.kn` files are the contract._

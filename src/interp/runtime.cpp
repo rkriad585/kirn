@@ -31,6 +31,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
+#include <zlib.h>
 
 #ifndef _WIN32
 #include <csignal>
@@ -1865,7 +1866,7 @@ Value Interpreter::run(bool testMode) {
 static bool isPreboundModule(const std::string& name) {
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket", "crypto"})
+          "error", "sync", "reflect", "net", "bytes", "sys", "process", "socket", "crypto", "compress"})
         if (name == m) return true;
     return false;
 }
@@ -3694,7 +3695,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
     // pseudo-modules are prebound; explicit imports rebind the same values
     for (const char* m :
          {"math", "time", "io", "mem", "json", "text", "os", "parallel",
-          "error", "sync", "reflect", "net", "sys", "process", "socket", "crypto"})
+          "error", "sync", "reflect", "net", "sys", "process", "socket", "crypto", "compress"})
         globals_->vars[m] = Value::module(m);
 }
 
@@ -5212,6 +5213,61 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::boolean(CRYPTO_memcmp(left.data(), right.data(), left.size()) == 0);
             });
         panicHere("crypto has no member '" + name + "'");
+    }
+
+    if (mod == "compress") {
+        auto inputOf = [](const Value& v) {
+            return v.k == VK::Str ? v.s : bytesData(v);
+        };
+        auto asBytes = [](std::string s) {
+            Value out = Value::str(std::move(s)); out.k = VK::Bytes; return out;
+        };
+        if (name == "deflate")
+            return biFn({"data", "level"}, [inputOf, asBytes](std::vector<Value>& a) -> Value {
+                std::string input = a.empty() ? "" : inputOf(a[0]);
+                int level = 6;
+                if (a.size() > 1 && a[1].k == VK::Int) level = (int)a[1].i;
+                else if (a.size() > 1 && a[1].k == VK::Float) level = (int)a[1].d;
+                if (level < Z_NO_COMPRESSION || level > Z_BEST_COMPRESSION)
+                    panicHere("compress.deflate: level must be between 0 and 9");
+                uLongf cap = compressBound((uLong)input.size());
+                std::string output((size_t)cap, '\0');
+                uLongf actual = cap;
+                int rc = compress2(reinterpret_cast<Bytef*>(output.data()), &actual,
+                                    reinterpret_cast<const Bytef*>(input.data()),
+                                    (uLong)input.size(), level);
+                if (rc != Z_OK) panicHere("compress.deflate failed");
+                output.resize((size_t)actual);
+                return asBytes(std::move(output));
+            });
+        if (name == "inflate")
+            return biFn({"data", "size"}, [inputOf, asBytes](std::vector<Value>& a) -> Value {
+                std::string input = a.empty() ? "" : inputOf(a[0]);
+                size_t cap = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
+                    ? (size_t)a[1].i : std::max<size_t>(256, input.size() * 4);
+                if (cap > 64 * 1024 * 1024) panicHere("compress.inflate: output too large");
+                for (;;) {
+                    std::string output(cap, '\0');
+                    uLongf actual = (uLongf)cap;
+                    int rc = uncompress(reinterpret_cast<Bytef*>(output.data()), &actual,
+                                        reinterpret_cast<const Bytef*>(input.data()),
+                                        (uLong)input.size());
+                    if (rc == Z_OK) {
+                        output.resize((size_t)actual);
+                        return asBytes(std::move(output));
+                    }
+                    if (rc != Z_BUF_ERROR || cap >= 64 * 1024 * 1024)
+                        panicHere("compress.inflate failed: invalid or truncated data");
+                    cap = std::min<size_t>(cap * 2, 64 * 1024 * 1024);
+                }
+            });
+        if (name == "crc32")
+            return biFn({"data"}, [inputOf](std::vector<Value>& a) -> Value {
+                std::string input = a.empty() ? "" : inputOf(a[0]);
+                return Value::integer((int64_t)crc32(0,
+                    reinterpret_cast<const Bytef*>(input.data()), (uInt)input.size()));
+            });
+        panicHere("compress has no member '" + name + "'");
     }
 
     if (mod == "process" &&
@@ -12499,7 +12555,7 @@ void Interpreter::enableVm() {
         "sizeof","alignof",
     };
     std::unordered_set<std::string> mod = {
-        "math","time","io","mem","json","text","os","bytes","sys","process","socket","crypto",
+        "math","time","io","mem","json","text","os","bytes","sys","process","socket","crypto","compress",
     };
     vmProg_ = std::make_unique<vm::CompileResult>(
         vm::compileProgram(program_->body, mainFn, uf, bi, mod));

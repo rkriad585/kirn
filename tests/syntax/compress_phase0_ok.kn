@@ -1,0 +1,7 @@
+import compress;
+import bytes;
+
+fn main() -> none {
+    data = compress.deflate("kirn");
+    assert(bytes.to_str(compress.inflate(data)) == "kirn");
+}

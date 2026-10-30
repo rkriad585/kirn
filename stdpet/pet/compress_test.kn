@@ -1,0 +1,13 @@
+# Phase 0 native compression substrate regression.
+import compress;
+import bytes;
+
+fn main() -> none {
+    source = "hello hello hello hello";
+    packed = compress.deflate(source, 9);
+    assert(bytes.len(packed) > 0);
+    assert(bytes.to_str(compress.inflate(packed)) == source);
+    assert(compress.crc32(source) == 2369606115);
+    assert(bytes.to_str(compress.inflate(compress.deflate(bytes.from_str("bytes")))) == "bytes");
+    print("compress_test ok");
+}

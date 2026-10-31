@@ -123,6 +123,9 @@ std::vector<std::string> libDirsFor(const std::string& script);
 fs::path pkgBase(bool global_);
 fs::path appsBinDir(bool global_);
 std::string selfExeDir();
+// Installation/resource root: KIRN_ROOT override, otherwise the parent of the
+// executable directory (checkout build/ or installed bin/).
+std::string resourceRoot();
 
 // --- front end and run -----------------------------------------------------
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,

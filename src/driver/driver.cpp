@@ -14,6 +14,7 @@
 // See driver.h for the public surface and src/driver/README.md for the
 // extraction map.
 #include "driver/driver.h"
+#include "driver/payload.h"
 
 #include "ast/ast.h"
 #include "backend/native.h"
@@ -414,6 +415,7 @@ std::string globalAppsBinDir() {
 // Defined with the other executable/root helpers below; the shared resolver
 // needs it here so installed binaries can discover <prefix>/stdpet.
 std::string selfExeDir();
+std::string resourceRoot();
 
 std::vector<std::string> libDirsFor(const std::string& script) {
     std::vector<std::string> dirs;
@@ -455,9 +457,7 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     // <prefix>/stdpet.  Source-tree builds have the same shape at
     // <checkout>/build and <checkout>/stdpet.  Resolve both without requiring
     // KIRN_STDLIB, while retaining the explicit override above as first choice.
-    const std::string exeDir = selfExeDir();
-    dirs.push_back((fs::path(exeDir) / ".." / "stdpet").generic_string());
-    dirs.push_back((fs::path(exeDir) / "stdpet").generic_string());
+    dirs.push_back((fs::path(resourceRoot()) / "stdpet").generic_string());
     dirs.push_back(dir);   // a project/package can import itself
     return dirs;
 }
@@ -1582,6 +1582,18 @@ std::string selfExeDir() {
     std::string self(exeBuf);
     size_t ds = self.find_last_of("/\\");
     return ds == std::string::npos ? "." : self.substr(0, ds);
+}
+
+// One installation-root rule for every resource lookup.  KIRN_ROOT is an
+// explicit test/relocation override; otherwise both a source checkout
+// (<root>/build/kirn) and an installed tree (<root>/bin/kirn) resolve to the
+// directory containing stdpet, src, and tools.  Keeping this decision in one
+// function prevents each backend from inventing a different relative path.
+std::string resourceRoot() {
+    if (const char* env = std::getenv("KIRN_ROOT"); env && *env)
+        return fs::path(env).lexically_normal().generic_string();
+    fs::path exe(selfExeDir());
+    return exe.parent_path().lexically_normal().generic_string();
 }
 
 // Install one resolved reference. Returns process exit code.
@@ -2723,15 +2735,8 @@ std::string bundleTail(const std::string& name, const std::string& version,
                        const std::string& target, const std::string& entry,
                        const std::string& entrySrc,
                        const std::map<std::string, std::string>& embedded) {
-    std::ostringstream o;
-    o << "\nKIRNBUNDLE/1\n"
-      << "@@FILE @meta\n" << name << "\n"
-      << (version.empty() ? "0.0.0" : version) << "\n" << target << "\n"
-      << entry << "\n@@END\n"
-      << "@@FILE " << entry << "\n" << entrySrc << "\n@@END\n";
-    for (const auto& [k, src] : embedded)
-        if (k != entry) o << "@@FILE " << k << "\n" << src << "\n@@END\n";
-    return o.str();
+    return kirn::payload::bundleTail(name, version, target, entry, entrySrc,
+                                     embedded);
 }
 
 // copy the runner to out, append the payload, make it executable
@@ -2771,10 +2776,10 @@ std::string ensureRunner() {
         (fs::path(binDir) / "kirnrt").generic_string() + hostExeSuffix();
     if (fs::is_regular_file(cached)) return cached;
 
-    const std::string srcRoot =
-        (fs::path(binDir) / ".." / "src").generic_string();
+    const std::string root = resourceRoot();
+    const std::string srcRoot = (fs::path(root) / "src").generic_string();
     const std::string runnerCpp =
-        (fs::path(binDir) / ".." / "tools" / "runner.cpp").generic_string();
+        (fs::path(root) / "tools" / "runner.cpp").generic_string();
     auto srcs = collectRuntimeSources(srcRoot);
     if (srcs.empty() || !fs::is_regular_file(runnerCpp)) {
         std::cerr << "kirnrt: runtime sources not found at " << srcRoot
@@ -3534,7 +3539,7 @@ int buildProgram(const std::string& name, const std::string& version,
     const bool useGnuCross = !isHost || !hostHasMsvc || opts.asan;
     if (useGnuCross && !crossCxx.empty()) {
         const std::string srcRoot =
-            (fs::path(binRoot) / ".." / "src").generic_string();
+            (fs::path(resourceRoot()) / "src").generic_string();
         auto srcs = collectRuntimeSources(srcRoot);
         if (srcs.empty()) {
             std::cerr << "kirn build: runtime sources not found at "
@@ -3715,7 +3720,7 @@ int buildProgram(const std::string& name, const std::string& version,
     }
     std::string cmd =
         "cd . && \"" + clPath + "\" /nologo /EHsc " + flags + " /std:c++20" +
-        " /I\"" + binRoot + "\\..\\src\""
+        " /I\"" + (fs::path(resourceRoot()) / "src").generic_string() + "\""
         " /Fobuild\\ " + genCpp +
         " /Fe:" + exeOut + " /link /LIBPATH:\"" + binRoot +
         "\" kirn_interp.lib kirn_vm.lib kirn_sema.lib kirn_parser.lib"
@@ -4103,6 +4108,10 @@ fs::path appsBinDir(bool global_) {
 
 std::string selfExeDir() {
     return ::selfExeDir();
+}
+
+std::string resourceRoot() {
+    return ::resourceRoot();
 }
 
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,

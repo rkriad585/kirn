@@ -12,6 +12,7 @@
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "sema/checker.h"
+#include "driver/payload.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -52,43 +53,6 @@ bool slurp(const std::string& path, std::string& out) {
     return true;
 }
 
-struct Bundle {
-    std::string name, version, target, entry;
-    std::vector<std::pair<std::string, std::string>> sections;  // key, body
-};
-
-// split the KIRNBUNDLE/1 payload off the tail of our own binary
-bool parseBundle(const std::string& data, Bundle& b) {
-    const char magic[] = "\nKIRNBUNDLE/1\n";
-    size_t pos = data.rfind(magic);
-    if (pos == std::string::npos) return false;
-    pos += strlen(magic);
-    std::istringstream in(data.substr(pos));
-    std::string line;
-    std::string curKey;
-    std::string cur;
-    while (std::getline(in, line)) {
-        if (line.rfind("@@FILE ", 0) == 0) {
-            curKey = line.substr(7);
-            cur.clear();
-        } else if (line == "@@END") {
-            if (curKey == "@meta") {
-                std::istringstream m(cur);
-                std::getline(m, b.name);
-                std::getline(m, b.version);
-                std::getline(m, b.target);
-                std::getline(m, b.entry);
-            } else if (!curKey.empty()) {
-                b.sections.push_back({curKey, cur});
-            }
-            curKey.clear();
-        } else {
-            cur += line + "\n";
-        }
-    }
-    return !b.entry.empty();
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -98,8 +62,8 @@ int main(int argc, char** argv) {
         std::fputs("kirnrt: cannot read own executable\n", stderr);
         return 65;
     }
-    Bundle b;
-    if (!parseBundle(data, b)) {
+    kirn::payload::Bundle b;
+    if (!kirn::payload::parseBundle(data, b)) {
         std::fputs("kirnrt: no KIRNBUNDLE payload attached\n", stderr);
         return 65;
     }

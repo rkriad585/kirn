@@ -113,6 +113,7 @@ using kirn::driver::resolveEntry;
 using kirn::driver::runProgram;
 using kirn::driver::runProgramSrc;
 using kirn::driver::selfExeDir;
+using kirn::driver::resourceRoot;
 using kirn::driver::shellNullDevice;
 using kirn::driver::trimSlashes;
 using kirn::driver::unpackPet;
@@ -177,7 +178,7 @@ int delegateToKirnc(const std::vector<std::string>& tail) {
 int cmdDoctor() {
     const fs::path bin = selfExeDir();
     const fs::path compiler = bin / "kirnc";
-    const fs::path prefixStdlib = bin / ".." / "stdpet";
+    const fs::path prefixStdlib = fs::path(resourceRoot()) / "stdpet";
     const char* overrideStdlib = std::getenv("KIRN_STDLIB");
     const fs::path stdlib = overrideStdlib && *overrideStdlib
                                 ? fs::path(overrideStdlib)

@@ -2031,3 +2031,21 @@ the Kirn runtime contract.
 Verification: AOT default and explicit runtime artifacts both execute;
 `scripts/gates/8_bundle.sh` **23/23**; stop-at object/assembly and dry-run
 checks remain green; macro artifact safety remains exit 65.
+
+### Update (2026-10-31) — Resource roots and bundle framing shared (shipped)
+
+The remaining driver-core path and payload prerequisites are now centralized.
+`KIRN_ROOT` is an explicit relocation/test override; otherwise one
+`resourceRoot()` derives the parent of the executable directory for both
+checkout (`build/`) and installed (`bin/`) layouts. Standard-library lookup,
+the lazy runner source, generated AOT includes, and the MSVC include path all
+use that same root, so no backend silently assumes the source checkout.
+
+`src/driver/payload.h` now owns the `KIRNBUNDLE/1` writer and reader framing.
+The driver and `tools/runner.cpp` share the exact section/meta parser, including
+the intentional last-marker-wins rule for appended payloads. A cold runner
+rebuild and execution pass after switching both sides to the shared contract.
+
+Verification: serial CMake build, clean installed-tree import with
+`KIRN_STDLIB` unset, `KIRN_ROOT` doctor override, and a cold explicit-runtime
+bundle execution with the shared payload implementation.

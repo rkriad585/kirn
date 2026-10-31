@@ -2059,10 +2059,11 @@ host assembly without spawning `llc`, `opt`, or an external assembler. The
 existing `kirnc llvm` IR verb remains available, and all three paths share the
 same front-end, HIR/MIR verification, and LLVM lowering.
 
-This phase deliberately does not claim in-process LLD linking: the installed
-environment provides LLVM 22 but no LLD development library, so executable
-linking remains on the established C++ backend until the optional LLD
-integration can be built and tested against an available LLD API.
+In-process LLD is an optional ELF-host integration because many distribution
+LLVM packages ship LLVM without matching LLD development archives. When
+enabled with `KIRN_WITH_LLD=ON` and matching LLD/LLVM build paths, executable
+linking calls `lld::elf::link` directly; the established `clang++` route
+remains available through `KIRN_LLVM_LINKER` for custom sysroots and linkers.
 
 Delivered: `src/backends/llvm/emit_llvm.h`, `src/backends/llvm/emit_llvm.cpp`,
 and `tools/kirnc.cpp`.
@@ -2070,7 +2071,7 @@ and `tools/kirnc.cpp`.
 Verification: LLVM-enabled CMake build; LLVM IR output; ELF relocatable object
 output; and target assembly output checks. `git diff --check` passes.
 
-### Update (2026-10-31) — LLVM executable link route (increment shipped)
+### Update (2026-10-31) — LLVM executable link route (shipped)
 
 The LLVM backend now also handles `kirnc build -fbackend=llvm`: it emits the
 verified host object through the same in-process TargetMachine path and links
@@ -2084,7 +2085,10 @@ stdout/exit status matched the interpreter for every positive fixture; all
 negative fixtures were rejected. The installed environment still has no
 `ld.lld` executable or LLD development library, so the default linker is an
 explicitly configurable host linker rather than a falsely claimed in-process
-LLD implementation. LLD remains the next portability/linker increment.
+LLD implementation. A matching LLVM/LLD development build was compiled and
+validated with the in-process ELF driver; its generated binary ran with the
+same exit status and output. `KIRN_LLVM_LINKER` still selects the external
+fallback when needed.
 
 Delivered: `tools/kirnc.cpp`.
 
@@ -2142,5 +2146,7 @@ the host C runtime.
 Machine-header verification passed for all six release targets: ELF x86-64,
 ELF AArch64, COFF x86-64, COFF ARM64, Mach-O x86-64, and Mach-O arm64. This
 closes the cross-target object/assembly part of Phase 5; cross executable
-linking still requires matching target runtimes/toolchains, and true in-process
-LLD remains pending the unavailable LLD development package.
+linking still requires matching target runtimes/toolchains. Host ELF executable
+linking is complete through the optional in-process LLD route, with the
+external-linker fallback retained for installations without matching LLD
+development archives.

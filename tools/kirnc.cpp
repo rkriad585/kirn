@@ -31,6 +31,12 @@
 
 #ifdef KIRN_HAS_LLVM
 #include "backends/llvm/emit_llvm.h"
+#include "llvm/Support/raw_ostream.h"
+#endif
+
+#ifdef KIRN_HAS_LLD
+#include "lld/Common/Driver.h"
+LLD_HAS_DRIVER(elf)
 #endif
 
 namespace {
@@ -295,8 +301,18 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
                                     "\" -no-pie -o \"" + out + "\" \"" +
                                     objectPath + "\"";
     if (dryRun) {
-        if (executable)
+        if (executable) {
+#ifdef KIRN_HAS_LLD
+            if (!linker || !*linker) {
+                std::cout << "[in-process LLD ELF] " << out << " <- "
+                          << objectPath << "\n";
+            } else {
+                std::cout << linkCommand << "\n";
+            }
+#else
             std::cout << linkCommand << "\n";
+#endif
+        }
         else
             std::cout << "<LLVM TargetMachine> -> " << objectPath << "\n";
         return 0;
@@ -309,6 +325,36 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
         return 65;
     }
     if (executable) {
+#ifdef KIRN_HAS_LLD
+        // An explicit linker keeps the long-standing escape hatch for custom
+        // sysroots and cross toolchains. Otherwise use LLD directly so an
+        // LLVM-enabled installation does not need to shell out to clang++.
+        if (!linker || !*linker) {
+            std::vector<std::string> lldArgs = {
+                "ld.lld", "-o", out, "-e", "_start",
+                KIRN_LLD_CRT1_PATH, KIRN_LLD_CRTI_PATH, objectPath,
+                "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2",
+                "-L/usr/lib", "-L/lib", "-lc", KIRN_LLD_CRTN_PATH};
+            std::vector<const char*> argv;
+            argv.reserve(lldArgs.size());
+            for (const auto& arg : lldArgs) argv.push_back(arg.c_str());
+            std::string stdoutText;
+            std::string stderrText;
+            llvm::raw_string_ostream stdoutStream(stdoutText);
+            llvm::raw_string_ostream stderrStream(stderrText);
+            const bool linked = lld::elf::link(argv, stdoutStream, stderrStream,
+                                               false, false);
+            stdoutStream.flush();
+            stderrStream.flush();
+            std::remove(objectPath.c_str());
+            if (!linked) {
+                if (!stderrText.empty()) std::cerr << stderrText;
+                std::cerr << toolName << ": in-process LLD ELF linker failed\n";
+                return 65;
+            }
+            return 0;
+        }
+#endif
         const int rc = std::system(linkCommand.c_str());
         std::remove(objectPath.c_str());
         if (rc != 0) {

@@ -44,6 +44,11 @@ endif()
 # a normal build stays dependency-free; the driver library never links LLVM --
 # only kirnc does, behind KIRN_HAS_LLVM.
 option(KIRN_WITH_LLVM "Build the LLVM MIR->IR backend and `kirnc llvm` verb" OFF)
+option(KIRN_WITH_LLD "Link LLVM executables through the in-process LLD ELF driver" OFF)
+set(KIRN_LLD_INCLUDE_DIR "" CACHE PATH
+    "Directory containing lld/Common/Driver.h (from a matching LLD build)")
+set(KIRN_LLD_LIBRARY_DIR "" CACHE PATH
+    "Directory containing the matching lldELF and lldCommon libraries")
 
 add_library(kirn_support INTERFACE)
 target_include_directories(kirn_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -167,11 +172,50 @@ if(KIRN_WITH_LLVM)
     # LLVM's own headers stay out of the warnings budget.
     target_include_directories(kirn_llvm SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
     target_compile_definitions(kirn_llvm PRIVATE ${LLVM_DEFINITIONS})
-    target_link_libraries(kirn_llvm PUBLIC LLVM)
+    if(NOT KIRN_WITH_LLD)
+        target_link_libraries(kirn_llvm PUBLIC LLVM)
+    endif()
     target_compile_features(kirn_llvm PRIVATE cxx_std_20)
 
     target_link_libraries(kirnc PRIVATE kirn_llvm)
     target_compile_definitions(kirnc PRIVATE KIRN_HAS_LLVM=1)
+
+    if(KIRN_WITH_LLD)
+        if(NOT UNIX OR APPLE)
+            message(FATAL_ERROR "KIRN_WITH_LLD currently supports ELF hosts only")
+        endif()
+        if(NOT KIRN_LLD_INCLUDE_DIR OR NOT KIRN_LLD_LIBRARY_DIR)
+            message(FATAL_ERROR
+                "KIRN_WITH_LLD requires KIRN_LLD_INCLUDE_DIR and KIRN_LLD_LIBRARY_DIR")
+        endif()
+        find_path(KIRN_LLD_DRIVER_INCLUDE lld/Common/Driver.h
+            PATHS "${KIRN_LLD_INCLUDE_DIR}" NO_DEFAULT_PATH REQUIRED)
+        find_library(KIRN_LLD_ELF_LIBRARY NAMES lldELF
+            PATHS "${KIRN_LLD_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
+        find_library(KIRN_LLD_COMMON_LIBRARY NAMES lldCommon
+            PATHS "${KIRN_LLD_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
+        find_library(KIRN_ZSTD_LIBRARY NAMES zstd REQUIRED)
+        find_library(KIRN_LZMA_LIBRARY NAMES lzma REQUIRED)
+        find_file(KIRN_CRT1_FILE NAMES crt1.o PATHS /usr/lib /usr/lib64 /lib /lib64
+            REQUIRED)
+        find_file(KIRN_CRTI_FILE NAMES crti.o PATHS /usr/lib /usr/lib64 /lib /lib64
+            REQUIRED)
+        find_file(KIRN_CRTN_FILE NAMES crtn.o PATHS /usr/lib /usr/lib64 /lib /lib64
+            REQUIRED)
+        file(GLOB KIRN_LLVM_STATIC_LIBS "${LLVM_LIBRARY_DIRS}/libLLVM*.a")
+        target_include_directories(kirnc SYSTEM PRIVATE ${KIRN_LLD_DRIVER_INCLUDE})
+        target_compile_definitions(kirnc PRIVATE KIRN_HAS_LLD=1
+            KIRN_LLD_CRT1_PATH="${KIRN_CRT1_FILE}"
+            KIRN_LLD_CRTI_PATH="${KIRN_CRTI_FILE}"
+            KIRN_LLD_CRTN_PATH="${KIRN_CRTN_FILE}")
+        # LLD is a static library and its LLVM dependencies are cyclic. Keep
+        # the complete matching LLVM component set in one linker group so the
+        # integration remains correct across LLVM component graph changes.
+        target_link_libraries(kirnc PRIVATE "-Wl,--start-group"
+            ${KIRN_LLD_ELF_LIBRARY} ${KIRN_LLD_COMMON_LIBRARY}
+            ${KIRN_LLVM_STATIC_LIBS} ${KIRN_ZSTD_LIBRARY} ${KIRN_LZMA_LIBRARY}
+            "-Wl,--end-group")
+    endif()
 endif()
 
 add_executable(kirn tools/kirn.cpp)

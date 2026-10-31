@@ -1,0 +1,18 @@
+import pet.parallel as parallel;
+
+fn main() -> none {
+    workers = parallel.current_num_threads();
+    assert(workers >= 2);
+    var handles = [];
+    var i = 0;
+    while i < workers * 2 {
+        handles.append(spawn fn () -> Int {
+            return parallel.current_thread_index();
+        });
+        i += 1;
+    }
+    for h in handles {
+        idx = h.join();
+        assert(idx >= 0 and idx < workers);
+    }
+}

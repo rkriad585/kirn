@@ -74,6 +74,8 @@ public:
     void start(size_t workers);
     void enqueue(Job job);
     bool runOne();
+    size_t size() const { return queues_.size(); }
+    static size_t workerIndex();
     static bool helpCurrent();
     void shutdown();
 

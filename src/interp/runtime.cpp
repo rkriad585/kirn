@@ -128,7 +128,12 @@ bool TaskScheduler::take(size_t index, Job& job) {
 
 void TaskScheduler::enqueue(Job job) {
     if (!job || queues_.empty()) return;
-    size_t index = nextQueue_.fetch_add(1, std::memory_order_relaxed) % queues_.size();
+    // Local pushes and pops are LIFO, keeping short async chains cache-local;
+    // idle workers steal the oldest item from the front. External producers
+    // retain round-robin placement so one caller cannot monopolize a worker.
+    size_t index = current_ == this
+        ? currentIndex_
+        : nextQueue_.fetch_add(1, std::memory_order_relaxed) % queues_.size();
     {
         std::lock_guard<std::mutex> lk(queues_[index]->m);
         queues_[index]->jobs.push_back(std::move(job));
@@ -143,6 +148,10 @@ bool TaskScheduler::runOne() {
     if (!take(index, job)) return false;
     job();
     return true;
+}
+
+size_t TaskScheduler::workerIndex() {
+    return current_ ? currentIndex_ : 0;
 }
 
 bool TaskScheduler::helpCurrent() {
@@ -1780,7 +1789,14 @@ Interpreter::Interpreter(const Stmt& program) {
     // small reserve of workers for those nested continuations; with only one
     // worker per hardware thread, a chain of parent tasks waiting on children
     // can exhaust the pool even though every child is runnable.
-    taskScheduler_->start(std::max<size_t>(8, std::min<size_t>(32, hw ? hw : 4)));
+    size_t workers = std::max<size_t>(2, std::min<size_t>(32, hw ? hw : 4));
+    if (const char* configured = envGet("KIRN_NUM_THREADS")) {
+        char* end = nullptr;
+        long requested = std::strtol(configured, &end, 10);
+        if (end != configured && *end == '\0' && requested >= 2 && requested <= 4096)
+            workers = static_cast<size_t>(requested);
+    }
+    taskScheduler_->start(workers);
     installBuiltins();
     program_ = &program;
 }
@@ -4936,22 +4952,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return out;
             });
         if (name == "current_num_threads")
-            return biFn({}, [](std::vector<Value>&) -> Value {
-                const char* e = envGet("KIRN_NUM_THREADS");
-                if (e && *e) {
-                    char* end = nullptr;
-                    long n = std::strtol(e, &end, 10);
-                    if (end != e && n >= 1 && n <= 4096)
-                        return Value::integer((int64_t)n);
-                }
-                unsigned n = std::thread::hardware_concurrency();
-                return Value::integer(n ? (int64_t)n : 1);
+            return biFn({}, [this](std::vector<Value>&) -> Value {
+                return Value::integer(static_cast<int64_t>(taskScheduler_->size()));
             });
         if (name == "current_thread_index")
             return biFn({}, [](std::vector<Value>&) -> Value {
-                static std::atomic<int> next{0};
-                static thread_local int idx = next.fetch_add(1);
-                return Value::integer(idx);
+                return Value::integer(static_cast<int64_t>(TaskScheduler::workerIndex()));
             });
         // POWER_PLAN §4.1: a cooperative scheduling hint for spinning workers.
         if (name == "yield_now")
@@ -12332,9 +12338,16 @@ Value Interpreter::awaitTask(const Value& task) {
     if (!t->done) {
         std::unique_lock<std::mutex> lk(t->m);
         while (!t->done) {
-            // Do not execute another task inline while waiting. That task may
-            // block on I/O or a timer and serialize the worker that must
-            // deliver the cancellation or completion signal.
+            // A worker waiting on a child must help its local deque. Local
+            // task submission is what gives the executor work-first locality,
+            // but without this hand-off a small configured pool can have every
+            // worker waiting on a child that is queued behind it.
+            lk.unlock();
+            if (TaskScheduler::helpCurrent()) {
+                lk.lock();
+                continue;
+            }
+            lk.lock();
             t->cv.wait_for(lk, std::chrono::milliseconds(1),
                            [&] { return t->done; });
         }

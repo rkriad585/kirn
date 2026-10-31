@@ -2075,6 +2075,31 @@ public per-pool concurrency contract is now honored.
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
+### Update (2026-10-30) — Scheduler-local work stealing and configured worker identity (shipped)
+
+The async/parallel executor now follows the intended work-stealing submission
+policy: tasks spawned from a worker are pushed onto that worker's local deque,
+where the worker consumes newest work first; idle workers steal oldest work from
+other deques. External producers retain round-robin placement. The scheduler
+worker count now honors `KIRN_NUM_THREADS` (with a safe minimum of two workers
+for nested task progress), `parallel.current_num_threads()` reports the actual
+executor width, and `current_thread_index()` reports the scheduler worker
+identity rather than a process-global counter.
+
+Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`, and this plan
+update. This closes the scheduler-locality/configuration gap without changing
+the public task or parallel APIs.
+
+The scheduler checkpoint also adds a work-first hand-off in `awaitTask`: a
+worker waiting for a child executes available local/stealable work before
+sleeping. This preserves progress for small explicitly configured pools while
+retaining cancellation and result propagation semantics.
+
+Verification: full rebuild; `parallel_scheduler_ok.kn` passes with
+`KIRN_NUM_THREADS=2` and `KIRN_NUM_THREADS=4`; syntax gate **104 passed, 0
+failed, 0 hung**; stdlib gate **25 passed, 0 failed**; examples gate **90
+passed, 0 failed, 0 hung**; golden suite **419 passed, 0 failed**.
+
 ### Update (2026-10-30) — Deadline-correct timed synchronization (shipped)
 
 Timed `Barrier`, `Semaphore`, and `Notify` waits now preserve their original

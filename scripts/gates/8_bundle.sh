@@ -248,6 +248,23 @@ if [ "$code" = 0 ] && printf '%s' "$out" | grep -q '^3.0$'; then
 else
     report FAIL "installed tree resolves stdpet" "exit $code; out: $out"
 fi
+out=$(env -u KIRN_STDLIB -u KIRN_PETS "$installRoot/bin/kirn" check \
+      "$TMP/installed-project/main.kn" 2>&1); code=$?
+if [ "$code" = 0 ] && printf '%s' "$out" | grep -q ': OK$'; then
+    report PASS "installed kirn check" "check delegates through the installed kirnc"
+else
+    report FAIL "installed kirn check" "exit $code; out: $out"
+fi
+installedBin="$TMP/installed-project/app"
+out=$(cd "$TMP/installed-project" && env -u KIRN_STDLIB -u KIRN_PETS \
+      "$installRoot/bin/kirn" build main.kn -o "$installedBin" 2>&1); code=$?
+if [ "$code" = 0 ] && [ -x "$installedBin" ] &&
+   "$installedBin" >"$TMP/installed-build.out" 2>&1 &&
+   grep -q '^3.0$' "$TMP/installed-build.out"; then
+    report PASS "installed kirn build" "AOT build and execution need no source checkout"
+else
+    report FAIL "installed kirn build" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
 
 # ---- HIR (phase 3) ---------------------------------------------------------
 # `kirnc hir` lowers to HIR, runs the structural verifier, and prints the dump.

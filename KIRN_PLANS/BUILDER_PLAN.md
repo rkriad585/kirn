@@ -2119,6 +2119,17 @@ Verification: dedicated preprocessor gate **3/3**; HIR/MIR macro fixtures;
 clean CMake build. Existing syntax, golden, and cross-check suites remain
 green.
 
+### Update (2026-10-31) — Installed-tree Phase 6 acceptance (shipped)
+
+The shipping gate now proves the complete clean-prefix workflow, not only
+stdlib import discovery: installed `kirn check` delegates to the installed
+`kirnc`, and installed `kirn build` produces and executes an AOT application
+with `KIRN_STDLIB`/`KIRN_PETS` unset and no source-checkout paths available.
+The installation is still asserted to contain exactly the two user-facing
+executables, `kirn` and `kirnc`.
+
+Delivered: `scripts/gates/8_bundle.sh`.
+
 ### Update (2026-10-31) — LLVM cross-target artifact selection (shipped)
 
 LLVM stop-at-stage output now accepts `--target=<triple>` (and the Kirn target

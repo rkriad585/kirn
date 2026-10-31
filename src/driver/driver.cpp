@@ -2747,7 +2747,10 @@ std::string resolveHostCl() {
 // every launcher build require LLVM headers and libraries.
 const char* const kNonRuntimeDirs[] = {
     "driver",  // the compiler driver: build plumbing, packaging, docs server
-    "prepro",  // phase 2: preprocessor
+    // The interpreter preprocesses imported module sources at runtime, so the
+    // preprocessor is part of every standalone runner.  Keep compiler-only
+    // HIR/MIR/LLVM stages out of the launcher, but do not omit this runtime
+    // dependency (otherwise bundled imports fail to link).
     "hir",     // phase 3
     "mir",     // phase 3
     "backends" // phase 4: LLVM codegen, plus its external dependency

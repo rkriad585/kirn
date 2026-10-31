@@ -24,6 +24,8 @@
 
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -176,7 +178,7 @@ int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
 }
 
 int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
-                  bool assembly) {
+                  bool assembly, bool executable) {
 #ifdef KIRN_HAS_LLVM
     const auto llvmHostTriple = []() {
 #if defined(_WIN32)
@@ -191,6 +193,7 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
     };
     std::vector<std::string> files;
     std::string out;
+    bool dryRun = false;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
         if ((a == "-o" || a == "--output") && i + 1 < args.size()) {
@@ -205,6 +208,10 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
             assembly = false;
             continue;
         }
+        if (a == "-###") {
+            dryRun = true;
+            continue;
+        }
         if (!a.empty() && a[0] == '-') continue;
         files.push_back(a);
     }
@@ -216,7 +223,7 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
     }
     if (out.empty()) {
         const std::string stem = files[0].substr(0, files[0].find_last_of('.'));
-        out = stem + (assembly ? ".s" : ".o");
+        out = stem + (assembly ? ".s" : (executable ? "" : ".o"));
     }
     kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName);
     if (m.rc == 66) { std::cerr << m.err; return m.rc; }
@@ -224,18 +231,42 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
 
     kirn::backends::llvm::EmitOptions opts;
     std::vector<kirn::backends::llvm::EmitDiag> diags;
+    std::string objectPath = out;
+    if (executable) objectPath += ".kirn-llvm.o";
+    const char* linker = std::getenv("KIRN_LLVM_LINKER");
+    const std::string linkerCmd = linker && *linker ? linker : "clang++";
+    const std::string linkCommand = "\"" + linkerCmd +
+                                    "\" -no-pie -o \"" + out + "\" \"" +
+                                    objectPath + "\"";
+    if (dryRun) {
+        if (executable)
+            std::cout << linkCommand << "\n";
+        else
+            std::cout << "<LLVM TargetMachine> -> " << objectPath << "\n";
+        return 0;
+    }
     if (!kirn::backends::llvm::emitTargetFile(
-            *m.prog, opts, llvmHostTriple(), out, assembly, diags)) {
+            *m.prog, opts, llvmHostTriple(), objectPath, assembly, diags)) {
         for (const auto& d : diags)
             std::cerr << files[0] << ":" << d.line << ":" << d.col
                       << ": error: " << d.message << "\n";
         return 65;
+    }
+    if (executable) {
+        const int rc = std::system(linkCommand.c_str());
+        std::remove(objectPath.c_str());
+        if (rc != 0) {
+            std::cerr << toolName << ": LLVM linker failed (" << linkerCmd
+                      << ")\n";
+            return 65;
+        }
     }
     return 0;
 #else
     (void)args;
     (void)toolName;
     (void)assembly;
+    (void)executable;
     std::cerr << "kirnc: '-fbackend=llvm' requires a build with LLVM enabled\n";
     return 2;
 #endif
@@ -391,8 +422,8 @@ int main(int argc, char** argv) {
                     assembly = true;
                 }
             }
-            if (verb == "build" && targetFile)
-                return cmdLlvmTarget(rest, "kirnc", assembly);
+            if (verb == "build")
+                return cmdLlvmTarget(rest, "kirnc", assembly, !targetFile);
             std::cerr << "kirnc " << verb << ": '-fbackend=llvm' is recognised, "
                          "but running or building an executable from LLVM IR "
                          "lands in phase 5\n"

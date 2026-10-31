@@ -2069,3 +2069,21 @@ and `tools/kirnc.cpp`.
 
 Verification: LLVM-enabled CMake build; LLVM IR output; ELF relocatable object
 output; and target assembly output checks. `git diff --check` passes.
+
+### Update (2026-10-31) — LLVM executable link route (increment shipped)
+
+The LLVM backend now also handles `kirnc build -fbackend=llvm`: it emits the
+verified host object through the same in-process TargetMachine path and links
+an executable through `KIRN_LLVM_LINKER` (defaulting to `clang++`). The
+temporary object is removed after linking. `-###` prints the exact linker
+command without executing it, while `-c` and `-S` remain stop-at-stage outputs.
+
+The resulting executable was run successfully against the scalar LLVM corpus.
+LLVM IR was verified with `opt -passes=verify`, executed with `lli`, and its
+stdout/exit status matched the interpreter for every positive fixture; all
+negative fixtures were rejected. The installed environment still has no
+`ld.lld` executable or LLD development library, so the default linker is an
+explicitly configurable host linker rather than a falsely claimed in-process
+LLD implementation. LLD remains the next portability/linker increment.
+
+Delivered: `tools/kirnc.cpp`.

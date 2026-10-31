@@ -2421,3 +2421,14 @@ file filesystem helpers remain unchanged.
 
 Delivered: `stdpet/pet/async_fs.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Awaitable JSON stream adapters (shipped)
+
+`pet.json.write_to` and `read_from` now bridge serde-aware JSON with the
+`AsyncWrite`/`AsyncRead` contract. They await buffered or direct file handles,
+while the existing synchronous `to_writer`/`from_reader` helpers remain
+available for legacy streams. `BufWriter` now also implements the complete
+`write_all` method required by `AsyncWrite`.
+
+Delivered: `stdpet/pet/json.kn`, `stdpet/pet/async_io.kn`,
+`stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.

@@ -3,6 +3,12 @@
 import pet.async as a;
 import pet.strings as strings;
 import bytes as byte_ops;
+import pet.json as json;
+
+struct AsyncUser {
+    name: Str;
+    score: Int;
+}
 
 async fn main() -> none {
     dir = "/tmp/kirn_syntax_async_io_" + Str(a.now_ms());
@@ -49,6 +55,16 @@ async fn main() -> none {
     try { await buffered_reader.read(1); }
     catch _e2 { buffered_error = true; }
     assert(buffered_error);
+    json_path = dir + "/async.json";
+    json_writer = a.io.buffered_writer(a.io.create(json_path));
+    await json.write_to(json_writer, AsyncUser(name: "async", score: 9));
+    await json_writer.close();
+    json_reader = a.io.buffered_reader(a.io.open(json_path));
+    json_user: AsyncUser = await json.read_from(AsyncUser, json_reader);
+    assert(json_user.name == "async");
+    assert(json_user.score == 9);
+    json_reader.close();
+    await a.fs.remove_file(json_path);
     await a.fs.remove_file(buffered_path);
     halves = a.io.open(large).into_split();
     ownedReader = halves[0];

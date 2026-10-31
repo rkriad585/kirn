@@ -44,6 +44,19 @@ pub fn from_reader(T: any, reader: any) -> any {
     return from_string(T, reader.read());
 }
 
+# Awaitable counterparts for `pet.async_io` and other async stream adapters.
+# The synchronous helpers above remain available for legacy writer/reader
+# values; these use the AsyncRead/AsyncWrite protocol without coupling JSON to
+# a concrete file type.
+pub async fn write_to(writer: any, v: any) -> none {
+    await writer.write_all(to_string(v));
+    return none;
+}
+
+pub async fn read_from(T: any, reader: any) -> any {
+    return from_string(T, await reader.read_to_string());
+}
+
 # Render a decoded tree (from loads/codec.enc_tree) as JSON text.
 pub fn render(v: any) -> Str {
     k = reflect.kind_of(v);

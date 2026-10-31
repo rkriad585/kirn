@@ -297,6 +297,9 @@ pub struct BufWriter {
         self.b["chunks"].append(s);
         return s.len();
     }
+    async fn write_all(self, data: any) -> none {
+        await self.write(data);
+    }
     fn write_line(self, data: Str) -> none {
         self.b["chunks"].append(data + "\n");
     }

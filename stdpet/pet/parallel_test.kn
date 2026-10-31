@@ -33,6 +33,31 @@ fn main() -> none {
     assert(parallel.par_iter([2, 4]).all(fn (x) { return x % 2 == 0; }));
     assert(parallel.par_iter([1, 2, 3]).reduce(0, fn (a, b) { return a + b; }) == 6);
 
+    # map_with initializes independent state once per slice and preserves
+    # source order while the slices run through the worker pool.
+    assert(parallel.par_iter([1, 2, 3]).map_with(
+        fn () { return [0]; }, fn (st, e) {
+            st[0] += 1;
+            return st[0] + e;
+        }).collect() == [2, 4, 6]);
+    var stateful = [];
+    var si = 1;
+    while si <= 20000 { stateful.append(si); si += 1; }
+    mapped_state = parallel.par_iter(stateful).map_with(
+        fn () { return [0]; }, fn (st, _e) {
+            st[0] += 1;
+            return st[0];
+        }).collect();
+    assert(mapped_state.len() == 20000 and mapped_state[0] == 1);
+    var resets = 0;
+    var sj = 1;
+    while sj < mapped_state.len() {
+        if mapped_state[sj] == 1 { resets += 1; }
+        else { assert(mapped_state[sj] == mapped_state[sj - 1] + 1); }
+        sj += 1;
+    }
+    assert(resets > 0);
+
     # a large parallel map exercises the chunked invoke path
     var big = [];
     var i = 5000;

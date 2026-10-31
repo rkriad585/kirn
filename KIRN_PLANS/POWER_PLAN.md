@@ -2326,3 +2326,14 @@ existing task machinery.
 
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
+
+### Update (2026-10-31) — Parallel stateful `map_with` (shipped)
+
+`ParIter.map_with` now creates one state value inside each slice task and runs
+the mapping closure through `parallel.invoke`, then flattens the completed
+slices in source order. This makes the existing Rayon-style API genuinely
+parallel for large inputs while keeping per-slice state isolated and ordered
+results deterministic.
+
+Delivered: `stdpet/pet/parallel.kn`, `stdpet/pet/parallel_test.kn`, and this
+plan update.

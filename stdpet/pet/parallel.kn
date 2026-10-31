@@ -462,16 +462,21 @@ struct ParIter {
     }
 
     fn map_with(self, init, map_fn) -> ParIter {
-        # map with per-worker state via for_each_init not possible to return iter;
-        # materialize per-slice then map serially over results
-        out = [];
+        # Each slice owns one state value, just like rayon's `map_with`: the
+        # state is initialized inside the worker closure and never crosses a
+        # task boundary. Results are flattened in slice order after invoke.
+        fns = [];
         for c in self.slices() {
-            st = init();
-            var i = 0;
-            while i < c.len() {
-                out.append(map_fn(st, c[i]));
-                i += 1;
-            }
+            fns.append(fn () -> list {
+                part = [];
+                st = init();
+                for e in c { part.append(map_fn(st, e)); }
+                return part;
+            });
+        }
+        out = [];
+        for part in parallel.invoke(fns) {
+            for e in part { out.append(e); }
         }
         return ParIter(xs: out, divided: false);
     }

@@ -118,13 +118,45 @@ std::string takeBackendSelector(std::vector<std::string>& rest) {
     return sel;
 }
 
+bool takeMacroSelectors(
+    const std::vector<std::string>& args,
+    std::vector<std::string>& stripped,
+    std::vector<kirn::prepro::CommandLineDefine>& defines,
+    std::string& error) {
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a != "-D" && a != "-U" && a.rfind("-D", 0) != 0 &&
+            a.rfind("-U", 0) != 0) {
+            stripped.push_back(a);
+            continue;
+        }
+        const char kind = a[1];
+        std::string spec = a.size() > 2 ? a.substr(2) : "";
+        if (spec.empty()) {
+            if (i + 1 >= args.size() || args[i + 1].empty() ||
+                args[i + 1][0] == '-') {
+                error = a + " requires an argument";
+                return false;
+            }
+            spec = args[++i];
+        }
+        if (kind == 'U' && spec.find('=') != std::string::npos) {
+            error = a + " does not accept a value";
+            return false;
+        }
+        defines.emplace_back(kind, std::move(spec));
+    }
+    return true;
+}
+
 // `kirnc llvm`: the phase-4 LLVM backend. Runs the same front-end pipeline as
 // `rt`, then lowers the verified MIR to LLVM IR (rejecting anything outside the
 // scalar subset with a diagnostic). With no -o the IR goes to stdout; with -o a
 // file. Exit code: 0 functionally OK, 1 source/HIR errors, 65 verification or
 // scalar-subset rejection or unwritable output -- matching the other stage
 // verbs in driver.cpp.
-int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
+int cmdLlvm(const std::vector<std::string>& args, const char* toolName,
+            const std::vector<kirn::prepro::CommandLineDefine>& defines = {}) {
 #ifdef KIRN_HAS_LLVM
     std::vector<std::string> files;
     std::string out;
@@ -144,7 +176,8 @@ int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
         std::cerr << "usage: " << toolName << " llvm <file.kn> [-o out.ll]\n";
         return 2;
     }
-    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName);
+    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName,
+                                                           false, defines);
     if (m.rc == 66) { std::cerr << m.err; return m.rc; }
     if (m.rc != 0) { std::cout << m.err; return m.rc; }
 
@@ -178,7 +211,8 @@ int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
 }
 
 int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
-                  bool assembly, bool executable) {
+                  bool assembly, bool executable,
+                  const std::vector<kirn::prepro::CommandLineDefine>& defines = {}) {
 #ifdef KIRN_HAS_LLVM
     const auto llvmHostTriple = []() {
 #if defined(_WIN32)
@@ -246,7 +280,8 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
         const std::string stem = files[0].substr(0, files[0].find_last_of('.'));
         out = stem + (assembly ? ".s" : (executable ? "" : ".o"));
     }
-    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName);
+    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName,
+                                                           false, defines);
     if (m.rc == 66) { std::cerr << m.err; return m.rc; }
     if (m.rc != 0) { std::cout << m.err; return m.rc; }
 
@@ -443,8 +478,18 @@ int main(int argc, char** argv) {
                     assembly = true;
                 }
             }
-            if (verb == "build")
-                return cmdLlvmTarget(rest, "kirnc", assembly, !targetFile);
+            if (verb == "build") {
+                std::vector<std::string> targetArgs;
+                std::vector<kirn::prepro::CommandLineDefine> targetDefines;
+                std::string targetError;
+                if (!takeMacroSelectors(rest, targetArgs, targetDefines,
+                                        targetError)) {
+                    std::cerr << "kirnc build: " << targetError << "\n";
+                    return 2;
+                }
+                return cmdLlvmTarget(targetArgs, "kirnc", assembly,
+                                     !targetFile, targetDefines);
+            }
             std::cerr << "kirnc " << verb << ": '-fbackend=llvm' is recognised, "
                          "but running or building an executable from LLVM IR "
                          "lands in phase 5\n"
@@ -482,6 +527,14 @@ int main(int argc, char** argv) {
         return kirn::driver::cmdPreprocess(a, "kirnc");
     }
 
+    std::vector<std::string> stageRest;
+    std::vector<kirn::prepro::CommandLineDefine> stageDefines;
+    std::string stageDefineError;
+    if (!takeMacroSelectors(rest, stageRest, stageDefines, stageDefineError)) {
+        std::cerr << "kirnc " << verb << ": " << stageDefineError << "\n";
+        return 2;
+    }
+
     // -D/-U only have an effect on -E for now. The preprocessor does run in
     // front of `check` (see frontEnd), so threading the flags into every verb is
     // real remaining work -- but rejecting them is strictly better than the
@@ -503,9 +556,9 @@ int main(int argc, char** argv) {
         // matching how --emit-ast rides on `parse`. The flag form exists so
         // `--emit-hir` composes with a verb, the way rustc's --emit= does.
         std::vector<std::string> a;
-        for (const auto& s : rest)
+        for (const auto& s : stageRest)
             if (s != "--emit-hir" && s != "-emit-hir") a.push_back(s);
-        return kirn::driver::cmdHir(a, "kirnc");
+        return kirn::driver::cmdHir(a, "kirnc", stageDefines);
     }
     if (verb == "rt" || hasFlag("--emit-mir")) {
         // `rt` is the MIR dumper for this phase. BUILDER-PLAN section 6 gives it
@@ -513,9 +566,9 @@ int main(int argc, char** argv) {
         // phase-3 text resolves it as the dumper; the runner meaning is deferred
         // to the phase that retires the bundle.
         std::vector<std::string> a;
-        for (const auto& s : rest)
+        for (const auto& s : stageRest)
             if (s != "--emit-mir" && s != "-emit-mir") a.push_back(s);
-        return kirn::driver::cmdRt(a, "kirnc");
+        return kirn::driver::cmdRt(a, "kirnc", stageDefines);
     }
     // `--emit-llvm` is accepted as an alternate spelling of the `llvm` verb for
     // any stage verb that would need the full pipeline (bcc-style: the flag
@@ -527,9 +580,9 @@ int main(int argc, char** argv) {
             return 2;
         }
         std::vector<std::string> a;
-        for (const auto& s : rest)
+        for (const auto& s : stageRest)
             if (s != "--emit-llvm" && s != "-emit-llvm") a.push_back(s);
-        return cmdLlvm(a, "kirnc");
+        return cmdLlvm(a, "kirnc", stageDefines);
     }
     if (verb == "check") {
         // --plain/--color/--no-color are cmdCheck's own flags; pass them

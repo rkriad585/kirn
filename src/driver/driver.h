@@ -180,13 +180,15 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName);
 // -E: preprocess only, print the expanded token stream. Phase 2.
 int cmdPreprocess(const std::vector<std::string>& args, const char* toolName);
 // --emit-hir: lower to HIR, verify it structurally, and print the dump. Phase 3.
-int cmdHir(const std::vector<std::string>& args, const char* toolName);
+int cmdHir(const std::vector<std::string>& args, const char* toolName,
+           const std::vector<kirn::prepro::CommandLineDefine>& defines = {});
 // rt / --emit-mir: lower through HIR to MIR, verify the CFG, print the dump.
 // `rt` is the MIR dumper for this phase; BUILDER-PLAN section 6 gives `rt` two
 // incompatible meanings and resolves it as the dumper here, because the phase-3
 // text says "kirnc rt dumps MIR". The runner meaning is deferred to the phase
 // that retires the bundle.
-int cmdRt(const std::vector<std::string>& args, const char* toolName);
+int cmdRt(const std::vector<std::string>& args, const char* toolName,
+          const std::vector<kirn::prepro::CommandLineDefine>& defines = {});
 
 // --- MIR pipeline (shared by `rt` and `--emit-llvm`) ------------------------
 // Front-end -> HIR -> verify -> MIR -> verify, with all diagnostics captured so
@@ -209,7 +211,9 @@ struct MirOutcome {
     // driver.cpp sees the complete type.
     ~MirOutcome();
 };
-MirOutcome produceMir(const std::string& file, const char* toolName, bool strict = false);
+MirOutcome produceMir(const std::string& file, const char* toolName,
+                      bool strict = false,
+                      const std::vector<kirn::prepro::CommandLineDefine>& defines = {});
 
 // --- source graph / embedding ---------------------------------------------
 bool resolveSource(const std::string& dotted,

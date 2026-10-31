@@ -2107,6 +2107,18 @@ Delivered: `src/prepro/prepro.{h,cpp}`, `src/driver/driver.{h,cpp}`,
 Verification: preprocessor gate **2/2**; syntax **104/104**; golden corpus
 **419/419**; cross-check **999/999**; clean CMake build.
 
+### Update (2026-10-31) — Preprocessor definitions across IR stages (shipped)
+
+Command-line `-D/-U` definitions now flow through HIR, MIR, and the optional
+LLVM lowering path as well as check/parse/run. The `kirnc` driver strips the
+selectors once, preserves their order, and passes the same definition table to
+each stage's shared front end. This removes the last stage-specific gap in the
+Phase 2 command-line contract.
+
+Verification: dedicated preprocessor gate **3/3**; HIR/MIR macro fixtures;
+clean CMake build. Existing syntax, golden, and cross-check suites remain
+green.
+
 ### Update (2026-10-31) — LLVM cross-target artifact selection (shipped)
 
 LLVM stop-at-stage output now accepts `--target=<triple>` (and the Kirn target

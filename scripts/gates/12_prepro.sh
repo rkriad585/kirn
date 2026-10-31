@@ -19,6 +19,13 @@ else
     report FAIL "kirnc check -D/-U" "check rejected a valid command-line macro sequence"
 fi
 
+if "$KN" hir -DFEATURE "$src" >/dev/null 2>&1 &&
+   "$KN" rt -DFEATURE "$src" >/dev/null 2>&1; then
+    report PASS "HIR/MIR -D" "stage drivers share the command-line macro environment"
+else
+    report FAIL "HIR/MIR -D" "a later stage did not receive command-line definitions"
+fi
+
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))
 echo "GATE RESULT: $pass passed, $fail failed, $hung hung, 0ms par file, 0m:${GATE_DUR}s took"

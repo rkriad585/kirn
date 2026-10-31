@@ -510,10 +510,6 @@ bool ensureUserPathContains(const std::string& dirRaw) {
 // ---------------------------------------------------------------------------
 
 // Defined below; declared here because the 3-argument form forwards to it.
-std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
-                                       const std::string& src,
-                                       kirn::DiagEngine& diags,
-                                       std::unique_ptr<kirn::sema::Checker>& chkOut);
 std::vector<kirn::ast::StmtP> frontEnd(
     const std::string& path, const std::string& src, kirn::DiagEngine& diags,
     std::unique_ptr<kirn::sema::Checker>& chkOut,
@@ -532,12 +528,6 @@ std::vector<kirn::ast::StmtP> frontEnd(
     const std::vector<kirn::prepro::CommandLineDefine>& defines) {
     std::unique_ptr<kirn::sema::Checker> chk;
     return frontEnd(path, src, diags, chk, defines);
-}
-
-std::vector<kirn::ast::StmtP> frontEnd(
-    const std::string& path, const std::string& src, kirn::DiagEngine& diags,
-    std::unique_ptr<kirn::sema::Checker>& chkOut) {
-    return frontEnd(path, src, diags, chkOut, {});
 }
 
 // Same pipeline, but hands back the Checker.
@@ -1014,7 +1004,8 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
   // verifier is the honest replacement, and it is what LLVM and Swift rely on
   // at the equivalent stage. A dump that verifies is worth something; a dump
   // that does not is a screenshot of a bug.
-  int cmdHir(const std::vector<std::string>& args, const char* toolName) {
+  int cmdHir(const std::vector<std::string>& args, const char* toolName,
+             const std::vector<kirn::prepro::CommandLineDefine>& defines) {
       std::vector<std::string> files;
       for (const auto& a : args) {
           if (a == "-h" || a == "--help") {
@@ -1043,7 +1034,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
   
       kirn::DiagEngine diags;
       std::unique_ptr<kirn::sema::Checker> chk;
-      auto body = frontEnd(file, src, diags, chk);
+      auto body = frontEnd(file, src, diags, chk, defines);
       // errorCount(), not count(): a W0105 shadowing warning must not stop the
       // lowering. `count()` includes warnings, so the scoping regression fixture
       // -- which is full of deliberate shadowing -- exited 1 before HIR ran at
@@ -1096,7 +1087,9 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
   // failures). On rc != 0, `o.err` carries the fully rendered, ready-to-print
   // text; on rc == 0 the program fills `o.prog` with the verified MIR. Bytes
   // match exactly what `cmdRt` produced historically -- goldens pin that text.
-  MirOutcome produceMir(const std::string& file, const char* toolName, bool strict) {
+  MirOutcome produceMir(
+      const std::string& file, const char* toolName, bool strict,
+      const std::vector<kirn::prepro::CommandLineDefine>& defines) {
       MirOutcome o;
       if (!readSourceVerbatim(file, o.src)) {
           o.rc = 66;
@@ -1106,7 +1099,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
       const std::string& src = o.src;
       kirn::DiagEngine diags;
       std::unique_ptr<kirn::sema::Checker> chk;
-      auto body = frontEnd(file, src, diags, chk);
+      auto body = frontEnd(file, src, diags, chk, defines);
       auto bail = [&](const char* what, const std::vector<kirn::ast::Span>& spans,
                       const std::vector<std::string>& msgs) {
           kirn::SourceMap sm(src);
@@ -1179,7 +1172,8 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
       return o;
   }
   
-  int cmdRt(const std::vector<std::string>& args, const char* toolName) {
+  int cmdRt(const std::vector<std::string>& args, const char* toolName,
+            const std::vector<kirn::prepro::CommandLineDefine>& defines) {
       std::vector<std::string> files;
       bool strict = false;
       for (const auto& a : args) {
@@ -1202,7 +1196,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
           return 2;
       }
       const std::string& file = files[0];
-      MirOutcome m = produceMir(file, toolName, strict);
+      MirOutcome m = produceMir(file, toolName, strict, defines);
       if (m.rc == 66) {
           std::cerr << m.err;
           return m.rc;
@@ -4285,16 +4279,20 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdPreprocess(args, toolName);
 }
 
-int cmdHir(const std::vector<std::string>& args, const char* toolName) {
-    return ::cmdHir(args, toolName);
+int cmdHir(const std::vector<std::string>& args, const char* toolName,
+           const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::cmdHir(args, toolName, defines);
 }
 
-int cmdRt(const std::vector<std::string>& args, const char* toolName) {
-    return ::cmdRt(args, toolName);
+int cmdRt(const std::vector<std::string>& args, const char* toolName,
+          const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::cmdRt(args, toolName, defines);
 }
 
-MirOutcome produceMir(const std::string& file, const char* toolName, bool strict) {
-    return ::produceMir(file, toolName, strict);
+MirOutcome produceMir(
+    const std::string& file, const char* toolName, bool strict,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::produceMir(file, toolName, strict, defines);
 }
 
 MirOutcome::~MirOutcome() = default;

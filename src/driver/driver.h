@@ -84,6 +84,7 @@ struct BuildOpts {
     bool emitAsm = false;
     bool dryRun = false;
     bool verbose = false;
+    bool runtimeBackend = false;
     bool singleFile = false;
     bool native_ = false;
     bool asan = false;

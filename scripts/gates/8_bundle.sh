@@ -7,7 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 GATE_START=${GATE_START:-$(date +%s)}
 GATE_FILES=0
 
-echo "=== gate 8: bundle build (P1 - standalone binary, no toolchain) ==="
+echo "=== gate 8: build backends (AOT default, explicit runtime) ==="
 T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
 printf 'pub fn hey(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
 printf 'import greet;\nimport math;\nfn main() -> none {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
@@ -23,8 +23,8 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
         out8b=$(cd "$T8" && timeout 240 "$KIRN" build main.kn -o out2 2>&1); c8b=$?
         if [ "$c8b" = 0 ] && ! echo "$out8b" | grep -q '\[cmd\]'; then
-            report PASS "rebuild needs no toolchain" "cached runner reused"
-        else report FAIL "rebuild needs no toolchain" "rc=$c8b: $out8b"; fi
+            report PASS "AOT rebuild succeeds" "normal build remains reproducible"
+        else report FAIL "AOT rebuild succeeds" "rc=$c8b: $out8b"; fi
         # positive KIRN_VERBOSE check: a COLD runner warmup must emit [cmd],
         # proving the renamed switch is live (not a silent no-op - Homebrew
         # HOMEBREW_NO_ENV_FILTERING-shaped gate rot guard).
@@ -34,7 +34,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         cp -r "$ROOT/src" "$T8c/src"
         cp "$ROOT/tools/runner.cpp" "$T8c/tools/runner.cpp"
         printf 'fn main() -> none { print("verbose check"); }\n' > "$T8c/main.kn"
-        out8c=$(cd "$T8c/build" && KIRN_VERBOSE=1 timeout 300 ./kirn build ../main.kn -o ../out-verb 2>&1); c8c=$?
+        out8c=$(cd "$T8c/build" && KIRN_VERBOSE=1 timeout 300 ./kirn build --fbackend=runtime ../main.kn -o ../out-verb 2>&1); c8c=$?
         if [ "$c8c" = 0 ] && echo "$out8c" | grep -q '\[cmd\]'; then
             report PASS "KIRN_VERBOSE logs [cmd] on cold runner warmup" "positive probe"
         else report FAIL "KIRN_VERBOSE logs [cmd] on cold runner warmup" "rc=$c8c: $out8c"; fi

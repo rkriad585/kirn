@@ -45,7 +45,7 @@ const char* const kUsage =
     "  rt      lower through HIR to MIR, verify the CFG, print the dump\n"
     "  llvm    lower through HIR+MIR to a verified LLVM module, print the IR\n"
     "  run     run a file or kirn.toml project through the Kirn runtime\n"
-    "  build   build an executable (default verb)\n"
+    "  build   build an AOT executable (default verb)\n"
     "\n"
     "flags:\n"
     "  --emit-tokens   print the token stream (lex)\n"
@@ -57,9 +57,8 @@ const char* const kUsage =
     "  -D name[=val]   define a macro (with -E)\n"
     "  -U name         undefine a macro (with -E)\n"
     "  -o <path>       output path (build)\n"
-    "  -fbackend=<b>   backend selector: llvm | cpp (default). llvm with a\n"
-    "                  codegen verb (run/build) needs the phase-5 assembler+\n"
-    "                  linker; use `kirnc llvm` to emit IR today\n"
+    "  -fbackend=<b>   backend selector: cpp (default), runtime, or llvm\n"
+    "                  (`runtime` keeps the prebuilt interpreter runner)\n"
     "  --plain         no source/caret lines in diagnostics (check)\n"
     "  --color         force ANSI colour in diagnostics (check)\n"
     "  -h, --help      this message\n"
@@ -299,7 +298,14 @@ int main(int argc, char** argv) {
     // have to assemble and link the module before it could run or build
     // anything, so that combination points at phase 5 instead of guessing.
     std::string backend = takeBackendSelector(rest);
-    if (backend == "llvm") {
+    if (backend == "runtime") {
+        if (verb != "run" && verb != "build") {
+            std::cerr << "kirnc " << verb
+                      << ": '-fbackend=runtime' is only valid for run/build\n";
+            return 2;
+        }
+        rest.push_back("--runtime");
+    } else if (backend == "llvm") {
         if (verb == "run" || verb == "build") {
             std::cerr << "kirnc " << verb << ": '-fbackend=llvm' is recognised, "
                          "but running or building an executable from LLVM IR "

@@ -2010,3 +2010,24 @@ Verification: serial CMake build; gate 8 **23/23**; syntax **104/104**;
 stdlib test **1/1**; examples **90/90**; golden corpus **419/419**; clean
 prefix installation with exactly `bin/kirn` and `bin/kirnc`; installed-tree
 execution of a program importing `pet.math` with `KIRN_STDLIB` unset.
+
+### Update (2026-10-31) — AOT default and explicit runtime backend (shipped)
+
+The remaining Phase 6 backend contract is now closed. On a capable host,
+ordinary `kirn build`/`kirnc build` uses the checked generated launcher and the
+system C++ compile/link pipeline; the prebuilt source bundle is no longer the
+default. `-fbackend=runtime` is the explicit escape hatch for the bundled
+interpreter runner, and `-fbackend=llvm` remains reserved for the LLVM IR path
+until a complete LLVM executable backend is enabled. Macro-bearing sources are
+rejected for both artifact backends with a deterministic diagnostic because
+generated launchers do not yet carry the source preprocessor; `kirn run` is the
+correct source-expansion path.
+
+The AOT link response file now carries the runtime's transitive POSIX
+dependencies (`pthread`, OpenSSL crypto, Zlib, SQLite, and `dl`), matching the
+CMake target and making the default artifact self-contained with respect to
+the Kirn runtime contract.
+
+Verification: AOT default and explicit runtime artifacts both execute;
+`scripts/gates/8_bundle.sh` **23/23**; stop-at object/assembly and dry-run
+checks remain green; macro artifact safety remains exit 65.

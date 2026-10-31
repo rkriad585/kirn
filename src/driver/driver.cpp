@@ -3293,12 +3293,40 @@ int buildProgram(const std::string& name, const std::string& version,
         return 1;
     }
 
-    // ---- P1 bundled build: a real executable, NO C++ toolchain ------------
+    // Generated launchers and the prebuilt runtime both consume raw source.
+    // Refuse macro-bearing inputs before either backend can ship an artifact
+    // that parses differently from `kirn run`.
+    auto usesMacros = [](const std::string& src, const std::string& path) {
+        kirn::DiagEngine d;
+        auto t = kirn::Lexer(src, path, d).lexAll();
+        return !d.errorCount() && kirn::prepro::hasDirective(t);
+    };
+    {
+        bool macros = usesMacros(mainSrc, entry);
+        std::string where = entry;
+        for (const auto& [modName, src] : embedded) {
+            if (macros) break;
+            if (usesMacros(src, modName)) {
+                macros = true;
+                where = modName;
+            }
+        }
+        if (macros) {
+            std::cerr << "kirn build: '" << where
+                      << "' uses preprocessor macros, which a built "
+                         "launcher cannot run yet\n"
+                      << "  use `kirn run`; compile-time macro expansion in "
+                         "artifacts is not supported\n";
+            return 65;
+        }
+    }
+
+    // ---- P1 bundled build: an explicit runtime backend -------------------
     // Host builds with plain flags copy the prebuilt interpreter runner and
     // append the app's sources as a KIRNBUNDLE/1 payload (see tools/runner.cpp),
     // mirroring `go build`. The launcher/native pipelines below stay for
     // --sasm / -O / --native / --asan / cross (foreign) targets.
-    if (isHost && !opts.obj && !opts.native_ && !opts.asan &&
+    if (opts.runtimeBackend && isHost && !opts.obj && !opts.native_ && !opts.asan &&
         !opts.compileOnly && !opts.emitAsm && !opts.dryRun) {
         // Type-check before bundling (plan section 5.6). This branch used to
         // bundle unconditionally, so `kirn build` returned 0 and shipped an
@@ -3312,40 +3340,6 @@ int buildProgram(const std::string& name, const std::string& version,
               frontEnd(entry, mainSrc, buildDiags);
               if (buildDiags.errorCount()) {
                   printDiags(entry, buildDiags);
-                  return 65;
-              }
-          }
-          // A bundle is RAW SOURCE plus a prebuilt launcher that re-lexes it, and
-          // the launcher does not preprocess. So a program using macros passes
-          // the check above (frontEnd expands them) and then produces a binary
-          // that dies with a parse error on the {.fn.} line. Refusing here is
-          // the same lesson as section 5.6 one branch up: shipping an artefact
-          // that cannot run is worse than refusing to ship it. Lifted to
-          // kirn_interp/the generated launcher in a later increment.
-          {
-              auto usesMacros = [](const std::string& src, const std::string& path) {
-                  kirn::DiagEngine d;
-                  auto t = kirn::Lexer(src, path, d).lexAll();
-                  return !d.errorCount() && kirn::prepro::hasDirective(t);
-              };
-              bool macros = usesMacros(mainSrc, entry);
-              std::string where = entry;
-              for (const auto& [name, src] : embedded) {
-                  if (macros) break;
-                  if (usesMacros(src, name)) {
-                      macros = true;
-                      where = name;
-                  }
-              }
-              if (macros) {
-                  std::cerr << "kirn build: '" << where
-                            << "' uses preprocessor macros, which a bundled "
-                               "build cannot run yet\n"
-                            << "  the bundle embeds raw source and the prebuilt "
-                               "launcher re-lexes it without preprocessing, so "
-                               "the binary would fail at startup\n"
-                            << "  use `kirn run` while this is unsupported, or "
-                               "build with --native/-S for a real compile\n";
                   return 65;
               }
           }
@@ -3618,7 +3612,10 @@ int buildProgram(const std::string& name, const std::string& version,
             r << "-o \"" << fs::absolute(outName).generic_string() << "\" ";
             r << "\"" << fs::absolute(launcherCpp).generic_string() << "\"";
             for (const auto& s : srcs) r << " \"" << s << "\"";
-            if (ti && ti->isWindows) r << " -lws2_32";
+            if (ti && ti->isWindows)
+                r << " -lws2_32";
+            else
+                r << " -pthread -lcrypto -lz -lsqlite3 -ldl";
             writeFile(rsp, r.str());
         }
         std::cout << "compiling with " << crossCxx << " -> "
@@ -3833,6 +3830,7 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         else if (a == "--emit-asm" || a == "-emit-asm") opts.emitAsm = true;
         else if (a == "-###") opts.dryRun = true;
         else if (a == "-v" || a == "--verbose") opts.verbose = true;
+        else if (a == "--runtime") opts.runtimeBackend = true;
         else if (a == "--native" || a == "-N") opts.native_ = true;
         else if (a == "--asan") opts.asan = true;
         else if (a.rfind("--target=", 0) == 0)

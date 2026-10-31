@@ -2432,3 +2432,12 @@ available for legacy streams. `BufWriter` now also implements the complete
 
 Delivered: `stdpet/pet/json.kn`, `stdpet/pet/async_io.kn`,
 `stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — JSON reader uses the formal async byte contract (shipped)
+
+`pet.json.read_from` now consumes `AsyncRead.read_to_end()` and decodes the
+returned bytes, rather than depending on the optional text convenience method.
+This makes the adapter usable with every declared async reader, including
+network-style readers that expose bytes but not `read_to_string`.
+
+Delivered: `stdpet/pet/json.kn` and this plan update.

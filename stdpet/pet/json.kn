@@ -6,6 +6,7 @@
 #   import pet.json;
 
 import pet.codec as codec;
+import bytes as byte_ops;
 import reflect;
 
 # Writer/reader helpers use Kirn's structural file interface. Any value with
@@ -54,7 +55,8 @@ pub async fn write_to(writer: any, v: any) -> none {
 }
 
 pub async fn read_from(T: any, reader: any) -> any {
-    return from_string(T, await reader.read_to_string());
+    data = await reader.read_to_end();
+    return from_string(T, byte_ops.to_str(data));
 }
 
 # Render a decoded tree (from loads/codec.enc_tree) as JSON text.

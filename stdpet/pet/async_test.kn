@@ -76,6 +76,15 @@ async fn main() -> none {
     assert(a.duration_since(tnow, tnow + 100) == none);
     assert_eq(a.checked_add(5, 7), 12);
 
+    # Copy transfers in bounded chunks and preserves the byte-count contract.
+    copy_src = "/tmp/kirn_async_copy_src.txt";
+    copy_dst = "/tmp/kirn_async_copy_dst.txt";
+    os.write_file(copy_src, "copy-me");
+    assert_eq(await a.fs.copy(copy_src, copy_dst), 7);
+    assert_eq(os.read_file(copy_dst), "copy-me");
+    os.remove_file(copy_src);
+    os.remove_file(copy_dst);
+
     # sleep_until waits for an absolute deadline (an Instant), not a duration
     tsu = a.instant();
     await a.sleep_until(tsu + 20);

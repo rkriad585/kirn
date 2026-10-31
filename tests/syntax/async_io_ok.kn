@@ -13,6 +13,7 @@ async fn main() -> none {
     print("meta:", (await a.fs.metadata(p))["size"]);
 
     await a.fs.copy(p, dir + "/b.txt");
+    assert(await a.fs.read_to_string(dir + "/b.txt") == "data");
     await a.fs.rename(dir + "/b.txt", dir + "/c.txt");
     print("renamed:", await a.fs.exists(dir + "/c.txt"));
 

@@ -5541,13 +5541,39 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "copy_file")
             return biFn({"from", "to"}, [](std::vector<Value>& a) -> Value {
-                std::error_code ec;
-                std::filesystem::copy_file(toStr(a[0]), toStr(a[1]),
-                    std::filesystem::copy_options::overwrite_existing, ec);
-                if (ec) panicHere("copy '" + toStr(a[0]) + "' -> '" +
-                                  toStr(a[1]) + "': " + ec.message());
-                auto sz = std::filesystem::file_size(toStr(a[1]), ec);
-                return Value::integer(ec ? 0 : (int64_t)sz);
+                std::string from = toStr(a[0]);
+                std::string to = toStr(a[1]);
+                std::ifstream input(from, std::ios::binary);
+                if (!input) panicHere("copy '" + from + "': cannot open source");
+                std::ofstream output(to, std::ios::binary | std::ios::trunc);
+                if (!output) panicHere("copy '" + from + "' -> '" + to +
+                                       "': cannot open destination");
+                int64_t copied = 0;
+                char buf[64 * 1024];
+                try {
+                    while (input) {
+                        checkTaskCancellation();
+                        input.read(buf, sizeof buf);
+                        std::streamsize got = input.gcount();
+                        if (got <= 0) break;
+                        output.write(buf, got);
+                        if (!output)
+                            panicHere("copy '" + from + "' -> '" + to +
+                                      "': write failed");
+                        copied += (int64_t)got;
+                    }
+                    output.flush();
+                    if (!output)
+                        panicHere("copy '" + from + "' -> '" + to +
+                                  "': flush failed");
+                } catch (...) {
+                    input.close();
+                    output.close();
+                    std::error_code cleanup;
+                    std::filesystem::remove(to, cleanup);
+                    throw;
+                }
+                return Value::integer(copied);
             });
         if (name == "rename")
             return biFn({"from", "to"}, [](std::vector<Value>& a) -> Value {

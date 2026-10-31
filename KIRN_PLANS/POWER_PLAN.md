@@ -2087,6 +2087,17 @@ public per-pool concurrency contract is now honored.
 Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
+### Update (2026-10-31) — Cancellation-safe async filesystem copy (shipped)
+
+`os.copy_file`, used by `pet.async_fs.copy`, now transfers data in bounded
+64 KiB chunks and checks the owning task's cancellation flag between chunks.
+If cancellation or another failure interrupts the transfer, the partially
+written destination is closed and removed before the signal is propagated.
+Successful copies retain overwrite behavior and return the exact byte count.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.
+
 ### Update (2026-10-30) — Scheduler-local work stealing and configured worker identity (shipped)
 
 The async/parallel executor now follows the intended work-stealing submission

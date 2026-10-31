@@ -2369,3 +2369,13 @@ existing eager-task behavior remains compatible with callers that only await
 
 Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Buffered byte writes (shipped)
+
+`BufWriter.write` now accepts both `Str` and immutable byte buffers, converts
+bytes without corrupting their length semantics, and returns the number of
+bytes accepted. This brings the buffered adapter in line with the byte-oriented
+`AsyncWrite` surface used by direct files and network streams.
+
+Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.

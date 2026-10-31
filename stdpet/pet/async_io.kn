@@ -13,6 +13,8 @@
 # their concrete methods, while the traits make the required operation surface
 # explicit for generic-facing APIs and trait objects.
 import os;
+import bytes as byte_ops;
+import reflect;
 
 pub trait AsyncRead {
     async fn read(self, n: Int) -> any;
@@ -289,9 +291,11 @@ impl AsyncBufRead for BufReader {}
 pub struct BufWriter {
     f: File;
     b: dict;   # {chunks: list}
-    async fn write(self, data: Str) -> Int {
-        self.b["chunks"].append(data);
-        return data.len();
+    async fn write(self, data: any) -> Int {
+        s = data;
+        if reflect.kind_of(data) != "string" { s = byte_ops.to_str(data); }
+        self.b["chunks"].append(s);
+        return s.len();
     }
     fn write_line(self, data: Str) -> none {
         self.b["chunks"].append(data + "\n");

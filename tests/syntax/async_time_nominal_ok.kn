@@ -18,6 +18,14 @@ async fn main() -> none {
     assert(t0.checked_duration_since(deadline) == none);
     assert(t0.saturating_duration_since(deadline).is_zero());
 
+    slow = spawn(async fn () -> Int {
+        await a.sleep(ms: 100);
+        return 1;
+    });
+    timed = await a.timeout(5, slow);
+    assert(timed.is_err());
+    assert_eq(timed.unwrap_err().as_duration().from_millis(), 5);
+
     await a.sleep_until_instant(t0.add(a.duration_ms(2)));
     print("async nominal time ok");
 }

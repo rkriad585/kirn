@@ -81,11 +81,13 @@ async fn main() -> none {
     await a.sleep_until(tsu + 20);
     assert(a.elapsed(tsu) >= 20);
 
-    # timeout: finishes in time -> ok(value); too slow -> err("elapsed")
+    # timeout: finishes in time -> ok(value); too slow -> typed err(Elapsed)
     fast = spawn(async fn () -> Int { await a.sleep(ms: 5); return 42; });
     assert_eq(Str(await a.timeout(1000, fast)), "ok(42)");
     slowt = spawn(async fn () -> Int { await a.sleep(ms: 300); return 1; });
-    assert_eq(Str(await a.timeout(15, slowt)), "err('elapsed')");
+    slowResult = await a.timeout(15, slowt);
+    assert(slowResult.is_err());
+    assert_eq(slowResult.unwrap_err().as_millis(), 15);
     assert(slowt.is_aborted());
     fast2 = spawn(async fn () -> Int { await a.sleep(ms: 5); return 9; });
     assert_eq(Str(await a.timeout_at(a.instant() + 1000, fast2)), "ok(9)");

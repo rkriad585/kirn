@@ -2,7 +2,7 @@
 #
 # The async time API mirrors tokio: `instant`/`elapsed`/`duration_since` treat
 # time as integer milliseconds, `sleep_until` waits for an absolute deadline,
-# `timeout` gives up on a task after a budget, and `interval` yields a steady
+# `timeout` gives up on a task after a budget with typed `Elapsed`, and `interval` yields a steady
 # tick sequence without drifting when the work between ticks takes time.
 import pet.async as a;
 
@@ -23,7 +23,7 @@ async fn main() -> none {
     await a.sleep_until(a.instant() + 20);
     print("slept until deadline");
 
-    # timeout: ok(value) when the task finishes in time, err("elapsed") when not
+    # timeout: ok(value) when the task finishes in time, err(Elapsed) when not
     print("timeout fast:", await a.timeout(1000, fetch(3, 10)));
     print("timeout slow:", await a.timeout(20, fetch(4, 300)));
 

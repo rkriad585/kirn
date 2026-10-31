@@ -1467,6 +1467,18 @@ interpreter shutdown.
 Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`,
 `tests/syntax/async_scheduler_ok.kn`.
 
+### Update (2026-10-31) — Typed timeout expiration values (shipped)
+
+The nominal `Elapsed` value is now the timeout error payload: `pet.async.timeout`
+returns `err(Elapsed(millis: budget))` when its task exceeds the budget, and
+`timeout_at` inherits the same typed contract. Callers can inspect the elapsed
+budget with `as_millis()` or `as_duration()` instead of parsing a string marker;
+task-originated errors still propagate unchanged when the task completes first.
+
+Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_time_nominal_ok.kn`, `examples/78_async_time.kn`, and this
+plan update.
+
 Verification: full rebuild, existing async time/task regressions, and the
 96-task fan-out/ordered-join stress test pass under both VM and tree-walker
 execution. Timer and timeout waits also yield queued work where the scheduler

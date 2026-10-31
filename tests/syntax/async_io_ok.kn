@@ -59,6 +59,10 @@ async fn main() -> none {
     out = await a.process.output(c);
     print("proc:", out["code"], out["stdout"]);
     print("status:", await a.process.status(a.process.command("true")));
+    piped = a.process.command("cat");
+    a.process.input(piped, "piped input\n");
+    piped_out = await a.process.output(piped);
+    assert(piped_out["stdout"] == "piped input\n");
 
     # output/status use cooperative polling and clean up cancelled children.
     slowcmd = a.process.command("sleep");

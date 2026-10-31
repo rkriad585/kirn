@@ -2400,3 +2400,14 @@ ordinary async code.
 
 Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_time_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Async process stdin piping (shipped)
+
+The POSIX process launcher now accepts an optional text/byte stdin payload,
+writes it before `fork`, and connects the resulting file to the child's stdin.
+`pet.async_process.input(command, data)` exposes the capability for
+`output`, `status`, and `spawn` while retaining empty-stdin behavior when no
+payload is supplied.
+
+Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
+`stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.

@@ -16,7 +16,7 @@ import time;
 
 # Start building a command for `prog`; add arguments with `arg`/`args`.
 pub fn command(prog: Str) -> dict {
-    return {"argv": [prog]};
+    return {"argv": [prog], "stdin": none};
 }
 
 pub fn arg(cmd: dict, value: Str) -> none {
@@ -27,6 +27,11 @@ pub fn args(cmd: dict, values: list) -> none {
     for v in values {
         cmd["argv"].append(v);
     }
+}
+
+# Provide stdin for the next process invocation. Accepts text or bytes.
+pub fn input(cmd: dict, data: any) -> none {
+    cmd["stdin"] = data;
 }
 
 # Cancel-safe cleanup for child handles owned by an async operation. A normal
@@ -41,9 +46,10 @@ fn cleanup_child(child: dict) -> none {
     os.remove_file(child["in_path"]);
 }
 
-# Run to completion; returns {code, stdout, stderr}. stdin is empty.
+# Run to completion; returns {code, stdout, stderr}. Use `input` to provide
+# text or bytes on stdin; otherwise the child receives EOF from an empty file.
 pub async fn output(cmd: dict) -> dict {
-    child = os.spawn(cmd["argv"]);
+    child = os.spawn(cmd["argv"], input: cmd["stdin"]);
     child["done"] = false;
     defer cleanup_child(child);
     var code: any = none;
@@ -63,7 +69,7 @@ pub async fn output(cmd: dict) -> dict {
 
 # Run to completion; returns only the exit status.
 pub async fn status(cmd: dict) -> Int {
-    child = os.spawn(cmd["argv"]);
+    child = os.spawn(cmd["argv"], input: cmd["stdin"]);
     child["done"] = false;
     defer cleanup_child(child);
     var code: any = none;
@@ -81,7 +87,7 @@ pub async fn status(cmd: dict) -> Int {
 # Start the command without waiting; returns a child handle
 # {pid, out_path, err_path, in_path}.
 pub async fn spawn(cmd: dict) -> dict {
-    child = os.spawn(cmd["argv"]);
+    child = os.spawn(cmd["argv"], input: cmd["stdin"]);
     child["done"] = false;
     return child;
 }

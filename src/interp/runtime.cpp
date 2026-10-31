@@ -4060,7 +4060,8 @@ static void kirnCtrlCHandler(int) { g_ctrlC = 1; }
 #endif
 
 static bool launchProcess(const std::vector<std::string>& argv,
-                          SpawnedProc& sp, std::string& err) {
+                          SpawnedProc& sp, std::string& err,
+                          const std::string* input = nullptr) {
 #ifndef _WIN32
     if (argv.empty() || argv[0].empty()) {
         err = "empty command";
@@ -4076,6 +4077,12 @@ static bool launchProcess(const std::vector<std::string>& argv,
     for (const auto& p : {sp.outPath, sp.errPath, sp.inPath}) {
         std::ofstream touch(p, std::ios::binary | std::ios::trunc);
         if (!touch) { err = "cannot create temp file '" + p + "'"; return false; }
+    }
+    if (input) {
+        std::ofstream in(sp.inPath, std::ios::binary | std::ios::trunc);
+        if (!in) { err = "cannot write process stdin '" + sp.inPath + "'"; return false; }
+        in.write(input->data(), (std::streamsize)input->size());
+        if (!in) { err = "cannot write process stdin '" + sp.inPath + "'"; return false; }
     }
     // Build argv before fork: the child of a multithreaded process may only call
     // async-signal-safe functions, and allocating there could deadlock.
@@ -5668,15 +5675,21 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return runProcess(argv);
             });
         if (name == "spawn")
-            return biFn({"argv"}, [](std::vector<Value>& a) -> Value {
+            return biFn({"argv", "input"}, [](std::vector<Value>& a) -> Value {
                 std::vector<std::string> argv;
                 if (!a.empty() && a[0].k == VK::List && a[0].vec)
                     for (auto& e : *a[0].vec) argv.push_back(toStr(e));
                 else if (!a.empty())
                     argv.push_back(toStr(a[0]));
+                std::string input;
+                const std::string* inputPtr = nullptr;
+                if (a.size() > 1 && a[1].k != VK::None) {
+                    input = a[1].k == VK::Str ? a[1].s : bytesData(a[1]);
+                    inputPtr = &input;
+                }
                 SpawnedProc sp;
                 std::string err;
-                if (!launchProcess(argv, sp, err)) panicHere(err);
+                if (!launchProcess(argv, sp, err, inputPtr)) panicHere(err);
                 Value d = Value::dict();
                 dictPutInPlace(d, Value::str("pid"), Value::integer(sp.pid));
                 dictPutInPlace(d, Value::str("out_path"), Value::str(sp.outPath));

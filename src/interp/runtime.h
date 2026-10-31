@@ -269,6 +269,7 @@ private:
     Value moduleMember(const std::string& mod, const std::string& name);
     // real stdlib: load <dir>/<dotted/path>.kn as an isolated module namespace
     std::vector<std::string> stdlibDirs_;
+    std::vector<std::pair<char, std::string>> preprocessorDefines_;
     std::map<std::string, std::string> embeddedSources_;  // baked-in modules
     std::map<std::string, Env> loadedModules_;
     std::map<std::string, std::vector<ast::StmtP>> moduleAstCache_;
@@ -343,6 +344,9 @@ public:
     Value awaitTask(const Value& task);
     // directories searched for stdlib modules (dotted imports -> files)
     void addStdlibDir(const std::string& dir) { stdlibDirs_.push_back(dir); }
+    void addPreprocessorDefine(char kind, const std::string& spec) {
+        preprocessorDefines_.emplace_back(kind, spec);
+    }
     // sources embedded at build time; win over every disk search path
     void addEmbeddedSource(const std::string& name, const std::string& src) {
         std::string key;

@@ -48,6 +48,15 @@ WHITESPACE       = " " | "\t" | LINE_ENDING ;     (* never significant *)
 
 COMMENT          = "#" , { any_character_except_newline } ;
 
+(* Preprocessor directives are token-level constructs. They are delimited by
+   the same brace/dot punctuation as Nim pragmas and are consumed before the
+   syntactic grammar is applied. Command-line -D/-U definitions seed the
+   directive environment before this stream is scanned. *)
+DIRECTIVE        = "{." , directive_name , { directive_token } , ".}" ;
+directive_name   = "fn" | "undef" | "ifdef" | "ifndef" | "if"
+                 | "elif" | "else" | "endif" ;
+directive_token  = IDENTIFIER | INT_LITERAL | STRING_LITERAL | PUNCTUATION ;
+
 (* Line joining inside (), [], {} brackets is automatic because newlines are
    whitespace everywhere. A trailing "\" also joins lines.                    *)
 

@@ -42,11 +42,14 @@
 #include <cstdint>
 #include <deque>
 #include <map>
+#include <utility>
 #include <string>
 #include <vector>
 
 namespace kirn {
 namespace prepro {
+
+using CommandLineDefine = std::pair<char, std::string>; // 'D' or 'U'
 
 // A macro definition. The body is stored as TOKENS, captured before parsing,
 // which is what lets a macro expand to arbitrary syntax rather than to an
@@ -159,6 +162,10 @@ private:
     std::map<std::string, Macro> macros_;
     uint32_t nextMacroId_ = 1;
 };
+
+// Apply -D/-U options in command-line order to a fresh preprocessor.
+void applyCommandLineDefines(Preprocessor& pp,
+                             const std::vector<CommandLineDefine>& defs);
 
 }  // namespace prepro
 }  // namespace kirn

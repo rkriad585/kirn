@@ -514,13 +514,30 @@ std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags,
                                        std::unique_ptr<kirn::sema::Checker>& chkOut);
+std::vector<kirn::ast::StmtP> frontEnd(
+    const std::string& path, const std::string& src, kirn::DiagEngine& diags,
+    std::unique_ptr<kirn::sema::Checker>& chkOut,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines);
 
 // check one source; returns program or empty vector on error (diags printed)
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags) {
     std::unique_ptr<kirn::sema::Checker> chk;
-    return frontEnd(path, src, diags, chk);
+    return frontEnd(path, src, diags, chk, {});
+}
+
+std::vector<kirn::ast::StmtP> frontEnd(
+    const std::string& path, const std::string& src, kirn::DiagEngine& diags,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    std::unique_ptr<kirn::sema::Checker> chk;
+    return frontEnd(path, src, diags, chk, defines);
+}
+
+std::vector<kirn::ast::StmtP> frontEnd(
+    const std::string& path, const std::string& src, kirn::DiagEngine& diags,
+    std::unique_ptr<kirn::sema::Checker>& chkOut) {
+    return frontEnd(path, src, diags, chkOut, {});
 }
 
 // Same pipeline, but hands back the Checker.
@@ -533,14 +550,18 @@ std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags,
-                                       std::unique_ptr<kirn::sema::Checker>& chkOut) {
+                                       std::unique_ptr<kirn::sema::Checker>& chkOut,
+                                       const std::vector<kirn::prepro::CommandLineDefine>&
+                                           defines) {
     auto toks = kirn::Lexer(src, path, diags).lexAll();
     if (diags.errorCount()) return {};
     // Preprocess between lex and parse (phase 2). Placed here rather than in the
     // callers so that `kirn run`, `kirn test` and `kirn build` all see the same
     // expansion, and so that a file with no directives is provably unaffected:
     // scanDirectives finds nothing and expand() copies the stream through.
-    toks = kirn::prepro::Preprocessor(path, diags).run(std::move(toks));
+    kirn::prepro::Preprocessor pp(path, diags);
+    kirn::prepro::applyCommandLineDefines(pp, defines);
+    toks = pp.run(std::move(toks));
     if (diags.errorCount()) return {};
     auto body = kirn::Parser(toks, diags).parseProgram();
     if (diags.errorCount()) return {};
@@ -565,9 +586,10 @@ int runProgramSrc(const std::string& label, const std::string& src,
                   const std::map<std::string, std::string>& embedded,
                   const std::vector<std::string>& progArgs,
                   bool gc,
-                  bool testMode) {
+                  bool testMode,
+                  const std::vector<kirn::prepro::CommandLineDefine>& defines) {
     kirn::DiagEngine diags;
-    auto body = frontEnd(label, src, diags);
+    auto body = frontEnd(label, src, diags, defines);
     if (diags.errorCount()) {
         printDiags(label, diags);
         return 65;
@@ -582,6 +604,8 @@ int runProgramSrc(const std::string& label, const std::string& src,
         for (const auto& d : dirs) interp.addStdlibDir(d);
         for (const auto& [name, esrc] : embedded)
             interp.addEmbeddedSource(name, esrc);
+        for (const auto& [kind, spec] : defines)
+            interp.addPreprocessorDefine(kind, spec);
         interp.setProgramArgs(progArgs);
         interp.enableVm();   // bytecode VM is the default runner
         kirn::interp::Value r = interp.run(testMode);
@@ -627,6 +651,37 @@ bool readSourceVerbatim(const std::string& path, std::string& out) {
     std::ostringstream ss;
     ss << in.rdbuf();
     out = ss.str();
+    return true;
+}
+
+bool splitCommandLineDefines(
+    const std::vector<std::string>& args,
+    std::vector<std::string>& rest,
+    std::vector<kirn::prepro::CommandLineDefine>& defines,
+    std::string& error) {
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if (a != "-D" && a != "-U" && a.rfind("-D", 0) != 0 &&
+            a.rfind("-U", 0) != 0) {
+            rest.push_back(a);
+            continue;
+        }
+        const char kind = a[1];
+        std::string spec = a.size() > 2 ? a.substr(2) : "";
+        if (spec.empty()) {
+            if (i + 1 >= args.size() || args[i + 1].empty() ||
+                args[i + 1][0] == '-') {
+                error = a + " requires an argument";
+                return false;
+            }
+            spec = args[++i];
+        }
+        if (kind == 'U' && spec.find('=') != std::string::npos) {
+            error = a + " does not accept a value";
+            return false;
+        }
+        defines.emplace_back(kind, std::move(spec));
+    }
     return true;
 }
 
@@ -700,7 +755,14 @@ int cmdLex(const std::vector<std::string>& args, const char* toolName) {
 int cmdParse(const std::vector<std::string>& args, const char* toolName) {
     bool wantAst = false;
     std::string file;
-    for (const auto& a : args) {
+    std::vector<std::string> cleanArgs;
+    std::vector<kirn::prepro::CommandLineDefine> defines;
+    std::string defineError;
+    if (!splitCommandLineDefines(args, cleanArgs, defines, defineError)) {
+        std::cerr << toolName << ": " << defineError << "\n";
+        return 2;
+    }
+    for (const auto& a : cleanArgs) {
         if (a == "--ast") wantAst = true;
         else if (a == "-h" || a == "--help") {
             std::cout << "usage: " << toolName << " [--ast] <file.kn>\n";
@@ -727,7 +789,9 @@ int cmdParse(const std::vector<std::string>& args, const char* toolName) {
         // Preprocess before parsing, exactly as frontEnd does. Without this the
         // directive tokens reached the parser and it reported
         // "expected expression, found '.'" on the {.fn.} line.
-        toks = kirn::prepro::Preprocessor(file, diags).run(std::move(toks));
+        kirn::prepro::Preprocessor pp(file, diags);
+        kirn::prepro::applyCommandLineDefines(pp, defines);
+        toks = pp.run(std::move(toks));
         lexErrors = diags.count();
     }
     if (lexErrors == 0) {
@@ -757,7 +821,14 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
     bool color = false;
     bool plain = false;
     bool strict = false;
-    for (const auto& a : args) {
+    std::vector<std::string> cleanArgs;
+    std::vector<kirn::prepro::CommandLineDefine> defines;
+    std::string defineError;
+    if (!splitCommandLineDefines(args, cleanArgs, defines, defineError)) {
+        std::cerr << toolName << ": " << defineError << "\n";
+        return 2;
+    }
+    for (const auto& a : cleanArgs) {
         if (a == "-h" || a == "--help") {
             std::cout << "usage: " << toolName
                       << " [--color|--no-color|--plain] [--strict] <file.kn>\n";
@@ -790,7 +861,9 @@ int cmdCheck(const std::vector<std::string>& args, const char* toolName) {
         // Same seam as frontEnd: preprocess, then parse. A macro must be
         // invisible to `kirnc check` exactly as it is to `kirn run`; if the two
         // disagree, a program that runs is a program `check` rejects.
-        toks = kirn::prepro::Preprocessor(file, diags).run(std::move(toks));
+        kirn::prepro::Preprocessor pp(file, diags);
+        kirn::prepro::applyCommandLineDefines(pp, defines);
+        toks = pp.run(std::move(toks));
         front = diags.count();
     }
     if (front == 0) {
@@ -1154,14 +1227,15 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
                    const std::map<std::string, std::string>& embedded = {},
                    const std::vector<std::string>& progArgs = {},
                    bool gc = false,
-                   bool testMode = false) {
+                   bool testMode = false,
+                   const std::vector<kirn::prepro::CommandLineDefine>& defines = {}) {
       std::string src;
     if (!readFile(entryPath, src)) {
         std::cerr << "kirn: cannot read '" << entryPath << "'\n";
         return 66;
     }
     return runProgramSrc(entryPath, src, dirs, embedded, progArgs, gc,
-                         testMode);
+                         testMode, defines);
 }
 
 // ---------------------------------------------------------------------------
@@ -4115,8 +4189,9 @@ std::string resourceRoot() {
 }
 
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
-    const std::string& src, kirn::DiagEngine& diags) {
-    return ::frontEnd(path, src, diags);
+    const std::string& src, kirn::DiagEngine& diags,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::frontEnd(path, src, diags, defines);
 }
 
 void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
@@ -4126,30 +4201,42 @@ void printDiags(const std::string& path, const kirn::DiagEngine& diags) {
 int runProgramSrc(const std::string& label, const std::string& src,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs, bool gc, bool testMode) {
-    return ::runProgramSrc(label, src, dirs, embedded, progArgs, gc, testMode);
+    const std::vector<std::string>& progArgs, bool gc, bool testMode,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::runProgramSrc(label, src, dirs, embedded, progArgs, gc, testMode,
+                           defines);
 }
 
 int runProgram(const std::string& entryPath,
     const std::vector<std::string>& dirs,
     const std::map<std::string, std::string>& embedded,
-    const std::vector<std::string>& progArgs, bool gc, bool testMode) {
-    return ::runProgram(entryPath, dirs, embedded, progArgs, gc, testMode);
+    const std::vector<std::string>& progArgs, bool gc, bool testMode,
+    const std::vector<kirn::prepro::CommandLineDefine>& defines) {
+    return ::runProgram(entryPath, dirs, embedded, progArgs, gc, testMode,
+                        defines);
 }
 
 int cmdRun(const std::vector<std::string>& args, const char* toolName) {
+    std::vector<std::string> cleanArgs;
+    std::vector<kirn::prepro::CommandLineDefine> defines;
+    std::string defineError;
+    if (!splitCommandLineDefines(args, cleanArgs, defines, defineError)) {
+        std::cerr << toolName << " run: " << defineError << "\n";
+        return 2;
+    }
     bool gc = false;
     size_t targetIndex = 0;
-    while (targetIndex < args.size() && args[targetIndex] == "--gc") {
+    while (targetIndex < cleanArgs.size() && cleanArgs[targetIndex] == "--gc") {
         gc = true;
         ++targetIndex;
     }
-    if (targetIndex < args.size() && args[targetIndex] == "--") ++targetIndex;
+    if (targetIndex < cleanArgs.size() && cleanArgs[targetIndex] == "--") ++targetIndex;
 
-    const bool hasTarget = targetIndex < args.size();
-    const std::string target = hasTarget ? args[targetIndex] : ".";
+    const bool hasTarget = targetIndex < cleanArgs.size();
+    const std::string target = hasTarget ? cleanArgs[targetIndex] : ".";
     const size_t firstProgramArg = hasTarget ? targetIndex + 1 : targetIndex;
-    std::vector<std::string> progArgs(args.begin() + firstProgramArg, args.end());
+    std::vector<std::string> progArgs(cleanArgs.begin() + firstProgramArg,
+                                      cleanArgs.end());
 
     fs::path file(target);
     if (fs::is_directory(file)) {
@@ -4179,7 +4266,7 @@ int cmdRun(const std::vector<std::string>& args, const char* toolName) {
     const std::string parent = file.parent_path().string();
     if (!parent.empty() && parent != "." && parent != scriptDir)
         dirs.insert(dirs.begin(), parent);
-    return ::runProgram(file.string(), dirs, {}, progArgs, gc);
+    return ::runProgram(file.string(), dirs, {}, progArgs, gc, false, defines);
 }
 
 int cmdLex(const std::vector<std::string>& args, const char* toolName) {

@@ -56,8 +56,8 @@ const char* const kUsage =
     "  --emit-mir      lower through HIR to a verified MIR CFG and print it (rt)\n"
     "  -emit-llvm      lower through HIR+MIR to LLVM IR (same as the `llvm` verb)\n"
     "  -E              preprocess only; print the expanded token stream\n"
-    "  -D name[=val]   define a macro (with -E)\n"
-    "  -U name         undefine a macro (with -E)\n"
+    "  -D name[=val]   define a macro (all front-end stages)\n"
+    "  -U name         undefine a macro (all front-end stages)\n"
     "  -o <path>       output path (build)\n"
     "  -fbackend=<b>   backend selector: cpp (default), runtime, or llvm\n"
     "                  (`runtime` keeps the prebuilt interpreter runner)\n"
@@ -488,16 +488,6 @@ int main(int argc, char** argv) {
     // alternative, which is that `kirnc check -DFOO=1 f.kn` today silently
     // accepts the flag and `kirnc lex -DFOO=1 f.kn` treats it as a FILENAME and
     // reports "cannot read file". An unrecognised flag must never be a path.
-    for (const auto& a : rest) {
-        if (a.rfind("-D", 0) != 0 && a.rfind("-U", 0) != 0) continue;
-        std::cerr << "kirnc " << verb << ": '" << a
-                  << "' is only accepted together with -E\n"
-                  << "  macro definitions reach the other verbs once -D/-U are "
-                     "threaded into the front end; use 'kirnc -E " << a
-                  << " ...' to see the expansion\n";
-        return 2;
-    }
-
     if (verb == "lex") {
         std::vector<std::string> a = stripFor(rest, false);
         if (hasFlag("--emit-tokens")) a.push_back("--dump");

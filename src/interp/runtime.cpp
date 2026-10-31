@@ -10,6 +10,7 @@
 #include "lex/lexer.h"
 #include "parser/parser.h"
 #include "sema/checker.h"
+#include "prepro/prepro.h"
 #include "util/tomlmini.h"
 
 #include <numeric>
@@ -3850,6 +3851,11 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
 
     DiagEngine diags;
     auto toks = Lexer(src, found, diags).lexAll();
+    if (diags.errorCount() == 0) {
+        prepro::Preprocessor pp(found, diags);
+        prepro::applyCommandLineDefines(pp, preprocessorDefines_);
+        toks = pp.run(std::move(toks));
+    }
     std::vector<ast::StmtP> body;
     if (diags.errorCount() == 0) body = Parser(toks, diags).parseProgram();
     if (diags.errorCount() == 0) {

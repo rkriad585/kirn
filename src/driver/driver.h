@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "prepro/prepro.h"
+
 namespace kirn {
 namespace ast {
 struct Stmt;
@@ -130,27 +132,33 @@ std::string resourceRoot();
 // --- front end and run -----------------------------------------------------
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
-                                       kirn::DiagEngine& diags);
+                                       kirn::DiagEngine& diags,
+                                       const std::vector<kirn::prepro::CommandLineDefine>&
+                                           defines = {});
 // Same pipeline, but returns the Checker that produced the types. The Checker
 // used to be a local that died with frontEnd, so every consumer that needed
 // resolved types had to re-lex and re-parse to obtain one.
 std::vector<kirn::ast::StmtP> frontEnd(const std::string& path,
                                        const std::string& src,
                                        kirn::DiagEngine& diags,
-                                       std::unique_ptr<kirn::sema::Checker>& chkOut);
+                                       std::unique_ptr<kirn::sema::Checker>& chkOut,
+                                       const std::vector<kirn::prepro::CommandLineDefine>&
+                                           defines = {});
 void printDiags(const std::string& path, const kirn::DiagEngine& diags);
 int runProgramSrc(const std::string& label, const std::string& src,
                   const std::vector<std::string>& dirs,
                   const std::map<std::string, std::string>& embedded,
                   const std::vector<std::string>& progArgs = {},
                   bool gc = false,
-                  bool testMode = false);
+                  bool testMode = false,
+                  const std::vector<kirn::prepro::CommandLineDefine>& defines = {});
 int runProgram(const std::string& entryPath,
                const std::vector<std::string>& dirs,
                const std::map<std::string, std::string>& embedded = {},
                const std::vector<std::string>& progArgs = {},
                bool gc = false,
-               bool testMode = false);
+               bool testMode = false,
+               const std::vector<kirn::prepro::CommandLineDefine>& defines = {});
 // Run a single file or a kirn.toml project using the same entry discovery and
 // module search rules as `kirn run`.
 int cmdRun(const std::vector<std::string>& args, const char* toolName);

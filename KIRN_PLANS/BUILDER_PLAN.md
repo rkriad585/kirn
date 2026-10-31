@@ -2088,6 +2088,25 @@ LLD implementation. LLD remains the next portability/linker increment.
 
 Delivered: `tools/kirnc.cpp`.
 
+### Update (2026-10-31) — Preprocessor command-line integration (shipped)
+
+The remaining Phase 2 command-line work is complete. `-D name[=value]` and
+`-U name` are now parsed in order and reach the shared preprocessor for
+`kirnc check`, `kirnc parse`, and `kirnc run` (joined and separated spellings).
+The same definitions are installed on the interpreter, so imported modules
+observe the exact command-line macro environment as the entry module. Invalid
+forms are rejected as driver errors instead of becoming filenames.
+
+The normative grammar now records the token-level `{.fn.}`, `{.undef.}` and
+conditional directive forms and their placement before parsing.
+
+Delivered: `src/prepro/prepro.{h,cpp}`, `src/driver/driver.{h,cpp}`,
+`src/interp/runtime.{h,cpp}`, `tools/kirnc.cpp`, `grammar/kirn.ebnf`, and
+`scripts/gates/12_prepro.sh`.
+
+Verification: preprocessor gate **2/2**; syntax **104/104**; golden corpus
+**419/419**; cross-check **999/999**; clean CMake build.
+
 ### Update (2026-10-31) — LLVM cross-target artifact selection (shipped)
 
 LLVM stop-at-stage output now accepts `--target=<triple>` (and the Kirn target

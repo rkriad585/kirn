@@ -687,5 +687,20 @@ bool Preprocessor::evalCondition(const std::vector<Token>& expr, uint32_t line,
     return true;
 }
 
+void applyCommandLineDefines(
+    Preprocessor& pp, const std::vector<CommandLineDefine>& defs) {
+    for (const auto& [kind, spec] : defs) {
+        const size_t eq = spec.find('=');
+        const std::string name = eq == std::string::npos
+                                     ? spec
+                                     : spec.substr(0, eq);
+        const std::string value = eq == std::string::npos
+                                      ? ""
+                                      : spec.substr(eq + 1);
+        if (kind == 'D') pp.define(name, value);
+        else if (kind == 'U') pp.undefine(name);
+    }
+}
+
 }  // namespace prepro
 }  // namespace kirn

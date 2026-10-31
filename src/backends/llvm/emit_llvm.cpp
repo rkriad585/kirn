@@ -22,8 +22,15 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/AsmParser/Parser.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/Transforms/Utils/Mem2Reg.h>
 
 #include <cstdint>
@@ -958,6 +965,69 @@ bool emitModule(const mir::Program& prog, const EmitOptions& opts,
     bool ok = emitter.run(diags, outLl, bc);
     if (ok && opts.emitBitcode && outBc) *outBc = std::move(bc);
     return ok;
+}
+
+bool emitTargetFile(const mir::Program& prog, const EmitOptions& opts,
+                    const std::string& triple, const std::string& path,
+                    bool assembly, std::vector<EmitDiag>& diags) {
+    std::string ll;
+    EmitOptions irOpts = opts;
+    irOpts.emitBitcode = false;
+    if (!emitModule(prog, irOpts, diags, ll, nullptr)) return false;
+
+    ::llvm::InitializeAllTargetInfos();
+    ::llvm::InitializeAllTargets();
+    ::llvm::InitializeAllTargetMCs();
+    ::llvm::InitializeAllAsmParsers();
+    ::llvm::InitializeAllAsmPrinters();
+
+    ::llvm::LLVMContext context;
+    ::llvm::SMDiagnostic parseDiag;
+    std::unique_ptr<::llvm::Module> module =
+        ::llvm::parseAssemblyString(ll, parseDiag, context);
+    if (!module) {
+        diags.push_back({0, 0, "LLVM IR parse failed while emitting target file"});
+        return false;
+    }
+    const ::llvm::Triple targetTriple(triple);
+    module->setTargetTriple(targetTriple);
+
+    std::string targetError;
+    const ::llvm::Target* target =
+        ::llvm::TargetRegistry::lookupTarget(targetTriple, targetError);
+    if (!target) {
+        diags.push_back({0, 0, "LLVM target lookup failed for '" + triple +
+                                  "': " + targetError});
+        return false;
+    }
+    ::llvm::TargetOptions targetOptions;
+    std::unique_ptr<::llvm::TargetMachine> machine(
+        target->createTargetMachine(targetTriple, "generic", "", targetOptions,
+                                    std::nullopt));
+    if (!machine) {
+        diags.push_back({0, 0, "LLVM could not create a TargetMachine for '" +
+                                  triple + "'"});
+        return false;
+    }
+    module->setDataLayout(machine->createDataLayout());
+
+    std::error_code ec;
+    ::llvm::raw_fd_ostream output(path, ec, ::llvm::sys::fs::OF_None);
+    if (ec) {
+        diags.push_back({0, 0, "cannot open LLVM output '" + path + "': " +
+                                  ec.message()});
+        return false;
+    }
+    ::llvm::legacy::PassManager passes;
+    const auto type = assembly ? ::llvm::CodeGenFileType::AssemblyFile
+                               : ::llvm::CodeGenFileType::ObjectFile;
+    if (machine->addPassesToEmitFile(passes, output, nullptr, type)) {
+        diags.push_back({0, 0, "LLVM TargetMachine cannot emit this file type"});
+        return false;
+    }
+    passes.run(*module);
+    output.flush();
+    return true;
 }
 
 }  // namespace llvm

@@ -46,6 +46,13 @@ bool emitModule(const mir::Program& prog, const EmitOptions& opts,
                 std::vector<EmitDiag>& diags, std::string& outLl,
                 std::string* outBc = nullptr);
 
+// Lower and emit a native target artifact through LLVM's in-process
+// TargetMachine. `assembly=true` writes target assembly; otherwise it writes a
+// relocatable object. No `llc`/`opt` process is spawned.
+bool emitTargetFile(const mir::Program& prog, const EmitOptions& opts,
+                    const std::string& triple, const std::string& path,
+                    bool assembly, std::vector<EmitDiag>& diags);
+
 }  // namespace llvm
 }  // namespace backends
 }  // namespace kirn

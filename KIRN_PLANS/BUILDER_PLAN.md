@@ -2049,3 +2049,23 @@ rebuild and execution pass after switching both sides to the shared contract.
 Verification: serial CMake build, clean installed-tree import with
 `KIRN_STDLIB` unset, `KIRN_ROOT` doctor override, and a cold explicit-runtime
 bundle execution with the shared payload implementation.
+
+### Update (2026-10-31) — In-process LLVM target emission (shipped)
+
+The LLVM backend now has a native TargetMachine emission path. With
+`-DKIRN_WITH_LLVM=ON`, `kirnc -fbackend=llvm -c file.kn -o file.o` emits a
+host relocatable object and `kirnc -fbackend=llvm -S file.kn -o file.s` emits
+host assembly without spawning `llc`, `opt`, or an external assembler. The
+existing `kirnc llvm` IR verb remains available, and all three paths share the
+same front-end, HIR/MIR verification, and LLVM lowering.
+
+This phase deliberately does not claim in-process LLD linking: the installed
+environment provides LLVM 22 but no LLD development library, so executable
+linking remains on the established C++ backend until the optional LLD
+integration can be built and tested against an available LLD API.
+
+Delivered: `src/backends/llvm/emit_llvm.h`, `src/backends/llvm/emit_llvm.cpp`,
+and `tools/kirnc.cpp`.
+
+Verification: LLVM-enabled CMake build; LLVM IR output; ELF relocatable object
+output; and target assembly output checks. `git diff --check` passes.

@@ -175,6 +175,72 @@ int cmdLlvm(const std::vector<std::string>& args, const char* toolName) {
 #endif
 }
 
+int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
+                  bool assembly) {
+#ifdef KIRN_HAS_LLVM
+    const auto llvmHostTriple = []() {
+#if defined(_WIN32)
+        return std::string("x86_64-pc-windows-gnu");
+#elif defined(__APPLE__)
+        return std::string("x86_64-apple-darwin");
+#elif defined(__aarch64__)
+        return std::string("aarch64-linux-gnu");
+#else
+        return std::string("x86_64-pc-linux-gnu");
+#endif
+    };
+    std::vector<std::string> files;
+    std::string out;
+    for (size_t i = 0; i < args.size(); ++i) {
+        const std::string& a = args[i];
+        if ((a == "-o" || a == "--output") && i + 1 < args.size()) {
+            out = args[++i];
+            continue;
+        }
+        if (a == "-S" || a == "-s" || a == "--asm") {
+            assembly = true;
+            continue;
+        }
+        if (a == "-c") {
+            assembly = false;
+            continue;
+        }
+        if (!a.empty() && a[0] == '-') continue;
+        files.push_back(a);
+    }
+    if (files.size() != 1) {
+        std::cerr << "usage: " << toolName
+                  << " -fbackend=llvm " << (assembly ? "-S" : "-c")
+                  << " <file.kn> -o <output>\n";
+        return 2;
+    }
+    if (out.empty()) {
+        const std::string stem = files[0].substr(0, files[0].find_last_of('.'));
+        out = stem + (assembly ? ".s" : ".o");
+    }
+    kirn::driver::MirOutcome m = kirn::driver::produceMir(files[0], toolName);
+    if (m.rc == 66) { std::cerr << m.err; return m.rc; }
+    if (m.rc != 0) { std::cout << m.err; return m.rc; }
+
+    kirn::backends::llvm::EmitOptions opts;
+    std::vector<kirn::backends::llvm::EmitDiag> diags;
+    if (!kirn::backends::llvm::emitTargetFile(
+            *m.prog, opts, llvmHostTriple(), out, assembly, diags)) {
+        for (const auto& d : diags)
+            std::cerr << files[0] << ":" << d.line << ":" << d.col
+                      << ": error: " << d.message << "\n";
+        return 65;
+    }
+    return 0;
+#else
+    (void)args;
+    (void)toolName;
+    (void)assembly;
+    std::cerr << "kirnc: '-fbackend=llvm' requires a build with LLVM enabled\n";
+    return 2;
+#endif
+}
+
 // Remove the flags a stage verb does not understand, so they are never mistaken
 // for an input path (the old tools treated ANY unrecognised argument as a
 // filename, which is how "kirnlex --dump=1 x.kn" silently lexed a file called
@@ -219,6 +285,8 @@ int main(int argc, char** argv) {
     bool verbIsVerb = (verb0 == "check" || verb0 == "lex" || verb0 == "parse" ||
                        verb0 == "run" || verb0 == "hir" || verb0 == "rt" ||
                        verb0 == "build" || verb0 == "llvm" || verb0 == "-E" ||
+                       verb0.rfind("-fbackend=", 0) == 0 ||
+                       verb0.rfind("--fbackend=", 0) == 0 ||
                        verb0 == "-S" || verb0 == "-s" || verb0 == "--asm" ||
                        verb0 == "-c" || verb0 == "-###" || verb0 == "-v" ||
                        verb0 == "--verbose");
@@ -248,6 +316,13 @@ int main(int argc, char** argv) {
     } else if (verb == "-E") {
         // `-E` is handled by the preprocessor dispatch below; it is a valid
         // stage flag, not an unknown option.
+    } else if (verb.rfind("-fbackend=", 0) == 0 ||
+               verb.rfind("--fbackend=", 0) == 0) {
+        rest.insert(rest.begin(), verb);
+        verb = "check";
+        for (const auto& a : rest)
+            if (a == "-c" || a == "-S" || a == "-s" || a == "--asm")
+                verb = "build";
     } else if (isFlag(verb)) {
         // unknown flag as verb
         std::cerr << "kirnc: unknown option '" << verb << "'\n";
@@ -294,9 +369,9 @@ int main(int argc, char** argv) {
 
     // -E handled earlier; -D/-U only with -E handled.
 
-    // `-fbackend=llvm` is now a real selector (phase 4). A codegen verb would
-    // have to assemble and link the module before it could run or build
-    // anything, so that combination points at phase 5 instead of guessing.
+    // `-fbackend=llvm` is a real selector. Object and assembly emission use
+    // LLVM's in-process TargetMachine; executable linking remains the normal
+    // host backend until the LLD integration phase.
     std::string backend = takeBackendSelector(rest);
     if (backend == "runtime") {
         if (verb != "run" && verb != "build") {
@@ -307,6 +382,17 @@ int main(int argc, char** argv) {
         rest.push_back("--runtime");
     } else if (backend == "llvm") {
         if (verb == "run" || verb == "build") {
+            bool targetFile = false;
+            bool assembly = false;
+            for (const auto& a : rest) {
+                if (a == "-c") targetFile = true;
+                if (a == "-S" || a == "-s" || a == "--asm") {
+                    targetFile = true;
+                    assembly = true;
+                }
+            }
+            if (verb == "build" && targetFile)
+                return cmdLlvmTarget(rest, "kirnc", assembly);
             std::cerr << "kirnc " << verb << ": '-fbackend=llvm' is recognised, "
                          "but running or building an executable from LLVM IR "
                          "lands in phase 5\n"

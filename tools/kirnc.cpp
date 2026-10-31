@@ -193,11 +193,20 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
     };
     std::vector<std::string> files;
     std::string out;
+    std::string targetTriple = llvmHostTriple();
     bool dryRun = false;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
         if ((a == "-o" || a == "--output") && i + 1 < args.size()) {
             out = args[++i];
+            continue;
+        }
+        if (a == "--target" && i + 1 < args.size()) {
+            targetTriple = args[++i];
+            continue;
+        }
+        if (a.rfind("--target=", 0) == 0) {
+            targetTriple = a.substr(9);
             continue;
         }
         if (a == "-S" || a == "-s" || a == "--asm") {
@@ -219,6 +228,18 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
         std::cerr << "usage: " << toolName
                   << " -fbackend=llvm " << (assembly ? "-S" : "-c")
                   << " <file.kn> -o <output>\n";
+        return 2;
+    }
+    if (targetTriple == "linux-amd64") targetTriple = "x86_64-pc-linux-gnu";
+    else if (targetTriple == "linux-arm64") targetTriple = "aarch64-linux-gnu";
+    else if (targetTriple == "windows-amd64") targetTriple = "x86_64-pc-windows-gnu";
+    else if (targetTriple == "windows-arm64") targetTriple = "aarch64-w64-windows-gnu";
+    else if (targetTriple == "darwin-amd64") targetTriple = "x86_64-apple-darwin";
+    else if (targetTriple == "darwin-arm64") targetTriple = "aarch64-apple-darwin";
+    if (executable && targetTriple != llvmHostTriple()) {
+        std::cerr << toolName << ": LLVM executable linking for target '"
+                  << targetTriple << "' requires a matching C runtime/linker; "
+                     "use -c or -S for cross-target output\n";
         return 2;
     }
     if (out.empty()) {
@@ -246,7 +267,7 @@ int cmdLlvmTarget(const std::vector<std::string>& args, const char* toolName,
         return 0;
     }
     if (!kirn::backends::llvm::emitTargetFile(
-            *m.prog, opts, llvmHostTriple(), objectPath, assembly, diags)) {
+            *m.prog, opts, targetTriple, objectPath, assembly, diags)) {
         for (const auto& d : diags)
             std::cerr << files[0] << ":" << d.line << ":" << d.col
                       << ": error: " << d.message << "\n";

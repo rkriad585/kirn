@@ -2087,3 +2087,18 @@ explicitly configurable host linker rather than a falsely claimed in-process
 LLD implementation. LLD remains the next portability/linker increment.
 
 Delivered: `tools/kirnc.cpp`.
+
+### Update (2026-10-31) — LLVM cross-target artifact selection (shipped)
+
+LLVM stop-at-stage output now accepts `--target=<triple>` (and the Kirn target
+names used by the release matrix) for `-fbackend=llvm -c` and `-S`. The target
+triple is passed directly to LLVM's TargetMachine, so there is one emission
+path rather than per-platform codegen branches. Executable linking rejects a
+non-host target with an actionable message instead of attempting to link with
+the host C runtime.
+
+Machine-header verification passed for all six release targets: ELF x86-64,
+ELF AArch64, COFF x86-64, COFF ARM64, Mach-O x86-64, and Mach-O arm64. This
+closes the cross-target object/assembly part of Phase 5; cross executable
+linking still requires matching target runtimes/toolchains, and true in-process
+LLD remains pending the unavailable LLD development package.

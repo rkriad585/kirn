@@ -2150,3 +2150,20 @@ linking still requires matching target runtimes/toolchains. Host ELF executable
 linking is complete through the optional in-process LLD route, with the
 external-linker fallback retained for installations without matching LLD
 development archives.
+
+### Update (2026-10-31) — Builder benchmark harness (shipped)
+
+The §7 performance requirement now has a reproducible Linux harness at
+`scripts/bench_linux.sh`. It generates equivalent recursive-Fibonacci programs
+for Kirn, Rust, and Go; measures build and run phases independently for a
+configurable number of samples; validates the output before recording timings;
+and optionally writes JSONL for CI or agent analysis. The harness fails clearly
+when a required compiler is unavailable and makes no unsupported “faster than”
+claim from a shared or unpinned machine.
+
+Verification: shell syntax check, help/argument validation, and a full
+three-language run completed on the current host (`--runs 1`): Kirn build/run
+198.666173s/6.058425s, Rust 0.276506s/0.007113s, and Go
+8.157852s/0.010964s. These numbers are baseline evidence, not a claim that
+Kirn currently meets the plan's performance target; the large gap identifies
+runtime compilation and launch overhead as the next optimization work.

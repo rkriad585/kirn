@@ -2167,3 +2167,19 @@ three-language run completed on the current host (`--runs 1`): Kirn build/run
 8.157852s/0.010964s. These numbers are baseline evidence, not a claim that
 Kirn currently meets the plan's performance target; the large gap identifies
 runtime compilation and launch overhead as the next optimization work.
+
+### Update (2026-10-31) — Cached runtime libraries and release native lowering (shipped)
+
+Normal host builds now reuse the runtime archives produced by the CMake build
+(`libkirn_interp.a`, `libkirn_vm.a`, and their front-end dependencies) instead
+of recompiling every runtime translation unit for each application. Installed
+and cross-toolchain trees retain the self-contained full-source fallback. The
+existing safe native subset is also enabled for `--release` builds, while debug
+and explicit runtime builds preserve their previous behavior.
+
+Verification: default build, release build/run, and gate 8 **25/25**. The
+benchmark harness was corrected to measure release AOT and to use a private Go
+build cache; the current host measured Kirn at 5.881857s build and 0.017286s
+run, Rust at 1.332191s and 0.007006s, and Go at 8.293448s and 0.011625s.
+Kirn now beats Go on build time, but the full “faster than Rust and Go” target
+remains open because runtime startup is still slower than both references.

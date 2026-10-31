@@ -130,7 +130,7 @@ run_one() {
 }
 
 echo 'language phase median_seconds samples'
-build_one kirn "$KIRN" build "$TMP/src/fib.kn" -o "$TMP/bin/kirn"
+build_one kirn "$KIRN" build --release "$TMP/src/fib.kn" -o "$TMP/bin/kirn"
 build_one rust "$RUSTC" -O "$TMP/src/fib.rs" -o "$TMP/bin/rust"
 build_one go env GO111MODULE=off GOTOOLCHAIN=local GOCACHE="$TMP/go-cache" "$GOCMD" build \
     -trimpath -o "$TMP/bin/go" "$TMP/src/fib.go"

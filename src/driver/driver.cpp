@@ -3452,11 +3452,15 @@ int buildProgram(const std::string& name, const std::string& version,
         return 0;
     }
 
-    // --native: parse+check once at build time, lower scalar user fns to C++
+    // Release AOT builds opportunistically use the existing native lowering.
+    // It is a safe subset: unsupported functions remain on the interpreter
+    // path, while scalar entry points avoid paying VM dispatch overhead.
+    // `--native` keeps the same behavior for debug builds.
+    const bool lowerNative = opts.native_ || opts.release;
     std::unique_ptr<kirn::sema::Checker> natChk;
     kirn::DiagEngine natDiags;
     std::vector<kirn::ast::StmtP> natBody;
-    if (opts.native_) {
+    if (lowerNative) {
         auto toks = kirn::Lexer(mainSrc, entry, natDiags).lexAll();
         natBody = kirn::Parser(toks, natDiags).parseProgram();
         if (!natDiags.errorCount()) {
@@ -3498,8 +3502,8 @@ int buildProgram(const std::string& name, const std::string& version,
         for (const auto& [key, src] : embedded)
             o << "    {\"" << key << "\", kMod_" << cIdent(key) << "},\n";
     o << "};\n\n";
-    // --native: emit lowered C++ scalar function bodies + registration helper
-    if (opts.native_ && natChk && !natDiags.errorCount()) {
+    // Emit lowered C++ scalar function bodies + registration helper.
+    if (lowerNative && natChk && !natDiags.errorCount()) {
         std::ostringstream nativeOut;
         auto prog = kirn::backend::emitNative(nativeOut, natBody, *natChk);
         if (prog.any) {
@@ -3608,9 +3612,70 @@ int buildProgram(const std::string& name, const std::string& version,
     // pipeline (GNU) rather than the fast launcher-only MSVC path (mixing an
     // instrumented launcher with uninstrumented prebuilt libs is not linkable).
     const bool useGnuCross = !isHost || !hostHasMsvc || opts.asan;
+    const std::string srcRoot =
+        (fs::path(resourceRoot()) / "src").generic_string();
+    // A normal CMake build already produced the exact runtime archives that
+    // this generated launcher needs. Reusing them is the Go/Rust/Zig-shaped
+    // fast path: compiling an application must not rebuild every interpreter
+    // translation unit. Installed trees intentionally fall through to the
+    // self-contained source path because only `kirn`/`kirnc` and source data
+    // are installed there.
+    const std::vector<std::string> prebuiltRuntimeLibs = {
+        "libkirn_interp.a", "libkirn_vm.a",     "libkirn_sema.a",
+        "libkirn_parser.a", "libkirn_ast.a",    "libkirn_lex.a",
+        "libkirn_prepro.a"};
+    bool havePrebuiltRuntime = isHost && !opts.asan && !crossCxx.empty();
+    for (const auto& lib : prebuiltRuntimeLibs)
+        havePrebuiltRuntime =
+            havePrebuiltRuntime && fs::is_regular_file(fs::path(binRoot) / lib);
+    if (havePrebuiltRuntime) {
+        const std::string outName =
+            !opts.outPath.empty()
+                ? opts.outPath
+                : !opts.defaultOut.empty()
+                    ? opts.defaultOut + hostExeSuffix()
+                    : (outDir / (name + (ti ? ti->exeExt : ""))).generic_string();
+        const std::string launcherCpp =
+            (outDir / (name + ".cpp")).generic_string();
+        fs::path outPath(outName);
+        if (outPath.has_parent_path()) fs::create_directories(outPath.parent_path());
+
+        std::ostringstream fast;
+        fast << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS "
+             << (opts.release ? "-O2 -s -w " : "-O1 -g ")
+             << "-I\"" << srcRoot << "\" ";
+        if (opts.compileOnly || opts.emitAsm) {
+            fast << (opts.emitAsm ? "-S " : "-c ") << "-o \""
+                 << fs::absolute(outPath).generic_string() << "\" \""
+                 << fs::absolute(launcherCpp).generic_string() << "\"";
+        } else {
+            fast << "-o \"" << fs::absolute(outPath).generic_string()
+                 << "\" \"" << fs::absolute(launcherCpp).generic_string()
+                 << "\" -L\"" << fs::absolute(binRoot).generic_string() << "\""
+                 << " -lkirn_interp -lkirn_vm -lkirn_sema -lkirn_parser"
+                 << " -lkirn_ast -lkirn_lex -lkirn_prepro"
+                 << " -pthread -lcrypto -lz -lsqlite3 -ldl";
+        }
+        const std::string command = "cd . && \"" + crossCxx + "\" " + fast.str();
+        if (opts.dryRun) {
+            std::cout << command << "\n";
+            return 0;
+        }
+        if (opts.verbose || std::getenv("KIRN_VERBOSE"))
+            std::cerr << "[cmd] " << command << "\n";
+        std::cout << "compiling with cached runtime libraries " << crossCxx
+                  << " -> " << outName << "\n";
+        const int fastRc = std::system(command.c_str());
+        if (fastRc != 0) {
+            std::cerr << "kirn build: cached-runtime compilation failed ("
+                      << fastRc << ")\n";
+            return fastRc == 0 ? 1 : fastRc;
+        }
+        std::cout << ((opts.compileOnly || opts.emitAsm) ? "wrote " : "built ")
+                  << outName << "\n";
+        return 0;
+    }
     if (useGnuCross && !crossCxx.empty()) {
-        const std::string srcRoot =
-            (fs::path(resourceRoot()) / "src").generic_string();
         auto srcs = collectRuntimeSources(srcRoot);
         if (srcs.empty()) {
             std::cerr << "kirn build: runtime sources not found at "

@@ -2379,3 +2379,13 @@ bytes accepted. This brings the buffered adapter in line with the byte-oriented
 
 Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Structured timeout cancellation (shipped)
+
+`pet.async.timeout` now aborts and drains a timed-out task before returning
+`Elapsed`. This prevents timeout from leaving an eager OS task detached while
+retaining cooperative cancellation semantics; tasks that do not reach a
+cancellation checkpoint still retain the runtime's documented blocking limits.
+
+Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_time_ok.kn`, and this plan update.

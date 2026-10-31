@@ -21,6 +21,8 @@ async fn main() -> none {
     slow = work(3, 250);
     print("timeout slow:", await a.timeout(10, slow));
     assert(slow.is_aborted());
+    slow.wait();
+    assert(slow.is_finished());
 
     # Aborting a task while it sleeps must prevent its post-timer side effect.
     var pulse = chan[Int]();

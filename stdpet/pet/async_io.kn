@@ -274,6 +274,7 @@ pub struct BufReader {
     async fn lines(self) -> list { return await self.f.lines(); }
     fn position(self) -> Int { return self.f.position(); }
     async fn seek(self, pos: Int) -> Int { return await self.f.seek(pos); }
+    fn close(self) -> none { self.f.close(); }
 }
 
 pub fn buffered_reader(f: File) -> BufReader {
@@ -303,6 +304,10 @@ pub struct BufWriter {
         }
     }
     fn position(self) -> Int { return self.f.position(); }
+    async fn close(self) -> none {
+        await self.flush();
+        self.f.close();
+    }
 }
 
 pub fn buffered_writer(f: File) -> BufWriter {

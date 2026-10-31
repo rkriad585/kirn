@@ -34,6 +34,18 @@ async fn main() -> none {
     try { await closed_file.read(1); }
     catch _e { closed_error = true; }
     assert(closed_error);
+    buffered_path = dir + "/buffered.txt";
+    buffered_writer = a.io.buffered_writer(a.io.create(buffered_path));
+    buffered_writer.write("buffered");
+    await buffered_writer.close();
+    buffered_reader = a.io.buffered_reader(a.io.open(buffered_path));
+    assert((await buffered_reader.read_to_string()) == "buffered");
+    buffered_reader.close();
+    var buffered_error = false;
+    try { await buffered_reader.read(1); }
+    catch _e2 { buffered_error = true; }
+    assert(buffered_error);
+    await a.fs.remove_file(buffered_path);
     halves = a.io.open(large).into_split();
     ownedReader = halves[0];
     ownedWriter = halves[1];

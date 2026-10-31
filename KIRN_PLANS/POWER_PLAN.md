@@ -2348,3 +2348,13 @@ the path-cursor implementation and its cancellation-safe chunked I/O.
 
 Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Buffered async I/O lifecycle (shipped)
+
+`BufReader.close()` now closes its delegated file, while `BufWriter.close()`
+flushes pending chunks before closing the delegated file. Buffered adapters
+therefore participate in the same deterministic close and use-after-close
+contract as direct files.
+
+Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.

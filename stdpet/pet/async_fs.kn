@@ -11,6 +11,13 @@
 # Errors (missing file, permission denied) raise, matching the rest of the
 # stdlib; wrap the `await` in `try/catch` to handle them.
 import os;
+import pet.async_io as io;
+
+# Cursor-based file access for callers that need AsyncRead/AsyncWrite/AsyncSeek
+# instead of whole-file helpers.
+pub fn open(path: Str) -> any { return io.open(path); }
+pub fn append(path: Str) -> any { return io.append(path); }
+pub fn create(path: Str) -> any { return io.create(path); }
 
 # Entire file as `bytes`.
 pub async fn read(path: Str) -> any {

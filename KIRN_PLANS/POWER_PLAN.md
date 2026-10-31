@@ -2411,3 +2411,13 @@ payload is supplied.
 
 Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
 `stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Filesystem streaming handles (shipped)
+
+`pet.async_fs` now re-exports cursor-based `open`, `append`, and `create`
+constructors backed by `pet.async_io.File`. Callers can use `a.fs` directly
+for `AsyncRead`/`AsyncWrite`/`AsyncSeek` operations while the existing whole-
+file filesystem helpers remain unchanged.
+
+Delivered: `stdpet/pet/async_fs.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.

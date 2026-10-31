@@ -176,6 +176,9 @@ async fn main() -> none {
     var ioc = a.io.create("/tmp/kirn_async_test_io2.txt");
     assert_eq(await a.io.copy(a.io.open(iod), ioc), 8);
     assert_eq((await a.io.open(iod).read_to_string()), "one\ntwo\n");
+    fs_file = a.fs.open(iod);
+    assert_eq((await fs_file.read(3)).decode("utf-8"), "one");
+    fs_file.close();
     closed_io = a.io.open(iod);
     closed_io.close();
     var closed_error = false;

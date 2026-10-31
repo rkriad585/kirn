@@ -29,6 +29,9 @@ async fn main() -> none {
     tail = await lf.read_to_end();
     assert(head.len() == 70000);
     assert(head.len() + tail.len() == payload.len());
+    fs_file = a.fs.open(large);
+    assert((await fs_file.read(4)).decode("utf-8") == "0123");
+    fs_file.close();
     closed_file = a.io.open(large);
     closed_file.close();
     var closed_error = false;

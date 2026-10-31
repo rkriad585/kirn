@@ -173,7 +173,7 @@ async fn main() -> none {
     assert(closed_error);
     buffered_path = "/tmp/kirn_async_buffered.txt";
     buffered_writer = a.io.buffered_writer(a.io.create(buffered_path));
-    buffered_writer.write("buffered");
+    assert_eq(await buffered_writer.write("buffered"), 8);
     await buffered_writer.close();
     buffered_reader = a.io.buffered_reader(a.io.open(buffered_path));
     assert_eq(await buffered_reader.read_to_string(), "buffered");

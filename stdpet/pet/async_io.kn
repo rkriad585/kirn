@@ -97,7 +97,7 @@ pub struct File {
     }
 
     # Write `data` (Str or bytes) at the cursor; advances by bytes written.
-    fn write(self, data: any) -> Int {
+    async fn write(self, data: any) -> Int {
         self.ensure_open();
         path = self.h["path"];
         off = self.h["pos"];
@@ -195,8 +195,8 @@ pub struct FileWriteHalf {
         self.h["pos"] = self.h["pos"] + n;
         return n;
     }
-    fn write_all(self, data: any) -> none { self.write(data); }
-    fn flush(self) -> none { return none; }
+    async fn write_all(self, data: any) -> none { await self.write(data); }
+    async fn flush(self) -> none { return none; }
     fn close(self) -> none { self.h["closed"] = true; }
 }
 
@@ -289,8 +289,9 @@ impl AsyncBufRead for BufReader {}
 pub struct BufWriter {
     f: File;
     b: dict;   # {chunks: list}
-    fn write(self, data: Str) -> none {
+    async fn write(self, data: Str) -> Int {
         self.b["chunks"].append(data);
+        return data.len();
     }
     fn write_line(self, data: Str) -> none {
         self.b["chunks"].append(data + "\n");

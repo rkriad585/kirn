@@ -2358,3 +2358,14 @@ contract as direct files.
 
 Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — AsyncWrite method conformance (shipped)
+
+File and borrowed split writers now expose asynchronous `write`, `write_all`,
+and `flush` methods matching the declared `AsyncWrite` contract. `BufWriter`
+also returns the accepted byte count from its asynchronous `write` method;
+existing eager-task behavior remains compatible with callers that only await
+`write_all` or `flush`.
+
+Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.

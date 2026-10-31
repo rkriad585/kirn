@@ -2389,3 +2389,14 @@ cancellation checkpoint still retain the runtime's documented blocking limits.
 
 Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
 `tests/syntax/async_time_ok.kn`, and this plan update.
+
+### Update (2026-10-31) — Nominal time values at async boundaries (shipped)
+
+The primary `sleep`, `sleep_until`, `timeout`, and `timeout_at` APIs now accept
+the nominal `Duration` and `Instant` values as well as legacy integer
+milliseconds. Conversion is centralized at the runtime boundary, preserving
+backward compatibility while making the planned typed time surface usable in
+ordinary async code.
+
+Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_time_ok.kn`, and this plan update.

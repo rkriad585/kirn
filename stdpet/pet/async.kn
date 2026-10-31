@@ -23,6 +23,7 @@ import pet.async_signal as signal;
 # semaphore/notify/barrier state machines.
 import sync as sysnc;
 import pet.sync as psync;
+import reflect;
 
 # ---- §2.1 explicit runtime builders ----------------------------------------
 #
@@ -129,10 +130,24 @@ pub fn current_thread() -> Runtime {
     return Runtime(workers: 1, flavor: "current_thread", state: [false, []]);
 }
 
-# Sleep for `ms` milliseconds. Returns an awaitable timer, so `await sleep(..)`
+# Sleep for a millisecond count or `Duration`. Returns an awaitable timer, so `await sleep(..)`
 # cooperates with other tasks instead of blocking a worker thread.
-pub fn sleep(ms: Int) -> any {
-    return time.after(ms);
+fn duration_millis(value: any) -> Int {
+    if reflect.kind_of(value) == "struct" and reflect.type(value) == "Duration" {
+        return value.millis;
+    }
+    return value;
+}
+
+fn instant_millis(value: any) -> Int {
+    if reflect.kind_of(value) == "struct" and reflect.type(value) == "Instant" {
+        return value.epoch_ms;
+    }
+    return value;
+}
+
+pub fn sleep(ms: any) -> any {
+    return time.after(duration_millis(ms));
 }
 
 # Cooperatively yield the current task. A zero-length timer is awaitable.
@@ -237,8 +252,8 @@ pub fn checked_add(base: Int, d: Int) -> Int {
 }
 
 # Await a timer that fires at the absolute deadline `deadline_ms` (an Instant).
-pub fn sleep_until(deadline_ms: Int) -> any {
-    return time.after_at(deadline_ms);
+pub fn sleep_until(deadline_ms: any) -> any {
+    return time.after_at(instant_millis(deadline_ms));
 }
 
 # Await `fut` but give up after `ms` milliseconds: `ok(v)` if it finished in
@@ -247,19 +262,20 @@ pub fn sleep_until(deadline_ms: Int) -> any {
 # drained before the timeout result is returned.
 # This is the futures surface that `timeout_at`/`select` are built on
 # (POWER_PLAN §2.8).
-pub async fn timeout(ms: Int, fut: any) -> any {
-    waited = time.wait(fut, ms);
+pub async fn timeout(ms: any, fut: any) -> any {
+    limit = duration_millis(ms);
+    waited = time.wait(fut, limit);
     if not waited {
         fut.abort();
         fut.wait();
-        return err(Elapsed(millis: ms));
+        return err(Elapsed(millis: limit));
     }
     return ok(await fut);
 }
 
 # `timeout` against an absolute deadline (an Instant) instead of a duration.
-pub async fn timeout_at(deadline_ms: Int, fut: any) -> any {
-    d = deadline_ms - time.now();
+pub async fn timeout_at(deadline_ms: any, fut: any) -> any {
+    d = instant_millis(deadline_ms) - time.now();
     if d < 0 { d = 0; }
     return await timeout(d, fut);
 }

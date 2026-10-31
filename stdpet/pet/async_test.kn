@@ -90,10 +90,14 @@ async fn main() -> none {
     tsu = a.instant();
     await a.sleep_until(tsu + 20);
     assert(a.elapsed(tsu) >= 20);
+    await a.sleep(a.duration_ms(1));
+    await a.sleep_until(a.now_instant().add(a.duration_ms(1)));
 
     # timeout: finishes in time -> ok(value); too slow -> typed err(Elapsed)
     fast = spawn(async fn () -> Int { await a.sleep(ms: 5); return 42; });
     assert_eq(Str(await a.timeout(1000, fast)), "ok(42)");
+    fast_nominal = spawn(async fn () -> Int { await a.sleep(ms: 5); return 43; });
+    assert_eq(Str(await a.timeout(a.duration_ms(1000), fast_nominal)), "ok(43)");
     slowt = spawn(async fn () -> Int { await a.sleep(ms: 300); return 1; });
     slowResult = await a.timeout(15, slowt);
     assert(slowResult.is_err());

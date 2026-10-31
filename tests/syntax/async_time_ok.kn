@@ -16,8 +16,11 @@ async fn main() -> none {
 
     await a.sleep_until(a.instant() + 10);
     print("until ok");
+    await a.sleep(a.duration_ms(1));
+    await a.sleep_until(a.now_instant().add(a.duration_ms(1)));
 
     print("timeout:", await a.timeout(1000, work(2, 5)));
+    assert((await a.timeout(a.duration_ms(1000), work(4, 5))).is_ok());
     slow = work(3, 250);
     print("timeout slow:", await a.timeout(10, slow));
     assert(slow.is_aborted());

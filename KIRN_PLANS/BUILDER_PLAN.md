@@ -2183,3 +2183,15 @@ build cache; the current host measured Kirn at 5.881857s build and 0.017286s
 run, Rust at 1.332191s and 0.007006s, and Go at 8.293448s and 0.011625s.
 Kirn now beats Go on build time, but the full “faster than Rust and Go” target
 remains open because runtime startup is still slower than both references.
+
+### Update (2026-10-31) — Release scalar print lowering (increment shipped)
+
+The native release subset now lowers integer `print(...)` calls to a direct
+`printf` expression, allowing scalar `main` functions that only perform integer
+output to bypass interpreter startup entirely. Strings, floats, booleans, and
+dynamic output remain on the existing checked runtime path until their exact
+formatting contracts are lowered.
+
+Verification: gate 11a **56/56**, release Fibonacci output `2178308`, and a
+successful release build/run. This improves the native path but does not yet
+prove the plan-wide Rust/Go performance mandate.

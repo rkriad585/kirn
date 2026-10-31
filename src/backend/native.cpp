@@ -448,6 +448,16 @@ private:
 
     bool callLowerable(const ast::Expr& e, const CurFn& cur) const {
         if (!e.lhs) return false;
+        // Keep the common scalar output operation in the native subset. This
+        // lets a release `main` stay entirely native without changing the
+        // interpreter's behavior for strings, floats, or dynamic values.
+        if (e.lhs->kind == ExKind::Ident && e.lhs->text == "print") {
+            return e.args.size() == 1 && e.args[0].name.empty() &&
+                   e.args[0].value &&
+                   exprLowerable(*e.args[0].value, cur) &&
+                   typeOf(*e.args[0].value) &&
+                   typeOf(*e.args[0].value)->k == TyK::Int;
+        }
         if (e.lhs->kind == ExKind::Member && e.lhs->lhs) {
             TyP recv = typeOf(*e.lhs->lhs);
             bool optional = recv && recv->k == TyK::Opt;
@@ -1634,6 +1644,10 @@ private:
                        retCpp + ">{ }; return std::optional<" + retCpp + ">{ " + call + " }; }()";
             }
             case ExKind::Call: {
+                if (e.lhs->kind == ExKind::Ident && e.lhs->text == "print" &&
+                    e.args.size() == 1 && e.args[0].value)
+                    return "(std::printf(\"%lld\\n\", (long long)(" +
+                           emitExpr(*e.args[0].value) + ")), 0)";
                 if (e.lhs->kind == ExKind::Member && e.lhs->lhs) {
                     TyP recv = typeOf(*e.lhs->lhs);
                     bool optional = recv && recv->k == TyK::Opt;

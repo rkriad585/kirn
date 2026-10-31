@@ -183,6 +183,17 @@ else
     report FAIL "bundled build still works without macros" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
 fi
 
+# `kirnc run` is the compiler-driver spelling of the documented `kirn run`
+# runtime path. It must execute the same source without producing a bundle and
+# preserve the program's stdout and exit status.
+out=$($KN run "$ROOT/examples/01_hello.kn" 2>&1); code=$?
+if [ "$code" = 0 ] && printf '%s' "$out" | grep -q 'Hello, World!' &&
+   printf '%s' "$out" | grep -q 'Kirn says hi'; then
+    report PASS "kirnc run uses the runtime path" "single-file execution matches kirn run"
+else
+    report FAIL "kirnc run uses the runtime path" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
+
 # ---- HIR (phase 3) ---------------------------------------------------------
 # `kirnc hir` lowers to HIR, runs the structural verifier, and prints the dump.
 # Two properties, and the second is the one that matters:

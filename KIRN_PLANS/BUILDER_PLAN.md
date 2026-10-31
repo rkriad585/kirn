@@ -1959,3 +1959,18 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    clang/lld).
 5. **Version of the AOT promise.** v0.1.0 = LLVM for scalar subset; dynamic
    features stay on runtime until further notice — acceptable?
+
+### Update (2026-10-31) — `kirnc run` runtime contract (shipped)
+
+The `kirnc run` verb now executes a single `.kn` file or a `kirn.toml`
+project through the same checked runtime path as `kirn run`. It supports the
+same entry discovery order, sibling/project module search paths, program
+arguments, `--gc`, and `--` argument separation. The existing `kirnc rt`
+meaning is fixed as the verified HIR-to-MIR dump; `--emit-mir` remains its
+alias, so the earlier `rt` ambiguity no longer affects the stage pipeline.
+
+Delivered: `src/driver/driver.h`, `src/driver/driver.cpp`,
+`tools/kirnc.cpp`, `scripts/gates/8_bundle.sh`.
+
+Verification: serial CMake build, `kirnc run examples/01_hello.kn`, and the
+bundle gate's runtime-driver regression pass.

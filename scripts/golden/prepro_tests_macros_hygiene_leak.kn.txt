@@ -10,7 +10,7 @@ verbs:
   hir     lower to HIR, verify structurally, print the dump
   rt      lower through HIR to MIR, verify the CFG, print the dump
   llvm    lower through HIR+MIR to a verified LLVM module, print the IR
-  run     not implemented yet (see the note below)
+  run     run a file or kirn.toml project through the Kirn runtime
   build   build an executable (default verb)
 
 flags:

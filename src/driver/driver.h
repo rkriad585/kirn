@@ -143,6 +143,9 @@ int runProgram(const std::string& entryPath,
                const std::vector<std::string>& progArgs = {},
                bool gc = false,
                bool testMode = false);
+// Run a single file or a kirn.toml project using the same entry discovery and
+// module search rules as `kirn run`.
+int cmdRun(const std::vector<std::string>& args, const char* toolName);
 
 // --- stage-oracle verbs (phase 1) -------------------------------------------
 // Extracted from the kirnlex / kirnparse / kirncheck main()s so `kirnc

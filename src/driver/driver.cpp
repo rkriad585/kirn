@@ -4057,6 +4057,51 @@ int runProgram(const std::string& entryPath,
     return ::runProgram(entryPath, dirs, embedded, progArgs, gc, testMode);
 }
 
+int cmdRun(const std::vector<std::string>& args, const char* toolName) {
+    bool gc = false;
+    size_t targetIndex = 0;
+    while (targetIndex < args.size() && args[targetIndex] == "--gc") {
+        gc = true;
+        ++targetIndex;
+    }
+    if (targetIndex < args.size() && args[targetIndex] == "--") ++targetIndex;
+
+    const bool hasTarget = targetIndex < args.size();
+    const std::string target = hasTarget ? args[targetIndex] : ".";
+    const size_t firstProgramArg = hasTarget ? targetIndex + 1 : targetIndex;
+    std::vector<std::string> progArgs(args.begin() + firstProgramArg, args.end());
+
+    fs::path file(target);
+    if (fs::is_directory(file)) {
+        Manifest m = ::readManifest(file);
+        std::string entry = ::resolveEntry(m, file);
+        if (entry.empty()) {
+            std::cerr << toolName << " run: no entry point found in '" << target
+                      << "'\n"
+                      << "  looked for (in order): kirn.toml [package] main, "
+                         "code/main.kn, main.kn, code/pin.kn, pin.kn\n"
+                      << "  fix-it: create code/main.kn, or run `kirn new "
+                         "<name>` to scaffold a project\n";
+            return 66;
+        }
+        file /= entry;
+    }
+
+    if (!fs::is_regular_file(file)) {
+        std::cerr << toolName << " run: file not found: " << target << "\n";
+        return 66;
+    }
+
+    const std::string scriptDir = fs::is_directory(target)
+                                      ? target
+                                      : file.parent_path().string();
+    auto dirs = ::libDirsFor(scriptDir);
+    const std::string parent = file.parent_path().string();
+    if (!parent.empty() && parent != "." && parent != scriptDir)
+        dirs.insert(dirs.begin(), parent);
+    return ::runProgram(file.string(), dirs, {}, progArgs, gc);
+}
+
 int cmdLex(const std::vector<std::string>& args, const char* toolName) {
     return ::cmdLex(args, toolName);
 }

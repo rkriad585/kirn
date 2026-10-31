@@ -44,7 +44,7 @@ const char* const kUsage =
     "  hir     lower to HIR, verify structurally, print the dump\n"
     "  rt      lower through HIR to MIR, verify the CFG, print the dump\n"
     "  llvm    lower through HIR+MIR to a verified LLVM module, print the IR\n"
-    "  run     not implemented yet (see the note below)\n"
+    "  run     run a file or kirn.toml project through the Kirn runtime\n"
     "  build   build an executable (default verb)\n"
     "\n"
     "flags:\n"
@@ -400,23 +400,7 @@ int main(int argc, char** argv) {
     }
 
     if (verb == "run") {
-        // Deliberately not implemented yet, and this is a real design decision
-        // rather than an omission. `run` has THREE incompatible existing
-        // behaviours and the plan does not say which one kirnc must match:
-        //   kirnrun   -> type errors on STDOUT, exit 1, "N error(s)" summary,
-        //                panic stack frames printed
-        //   kirn run  -> type errors on STDERR, exit 65, no summary, no frames
-        //   bundled   -> exit 65 with no diagnostic printed at all
-        // Picking one silently would bake a guess into the driver, and the
-        // verify criterion ("kirnc X == old tool output") is unanswerable until
-        // it is chosen. BUILDER-PLAN.md open question #1 is the same question.
-        std::cerr << "kirnc run: not implemented yet\n"
-                  << "  the plan gives `run` three incompatible existing "
-                     "behaviours (kirnrun, kirn run, bundled) and does not say "
-                     "which one kirnc must match\n"
-                  << "  see BUILDER-PLAN.md open question #1; use `kirn run` "
-                     "meanwhile\n";
-        return 2;
+        return kirn::driver::cmdRun(rest, "kirnc");
     }
 
     if (verb == "build" || verb == "run") {

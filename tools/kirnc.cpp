@@ -64,7 +64,7 @@ const char* const kUsage =
     "  --color         force ANSI colour in diagnostics (check)\n"
     "  -h, --help      this message\n"
     "\n"
-    "stop-at-stage (-S, -c, -###, -v) lands in phase 5.\n";
+    "stop-at-stage flags use the system C++ toolchain; -### prints without executing.\n";
 
 bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 
@@ -219,7 +219,10 @@ int main(int argc, char** argv) {
     auto isFlag = [](const std::string& a) { return !a.empty() && a[0] == '-'; };
     bool verbIsVerb = (verb0 == "check" || verb0 == "lex" || verb0 == "parse" ||
                        verb0 == "run" || verb0 == "hir" || verb0 == "rt" ||
-                       verb0 == "build" || verb0 == "llvm" || verb0 == "-E");
+                       verb0 == "build" || verb0 == "llvm" || verb0 == "-E" ||
+                       verb0 == "-S" || verb0 == "-s" || verb0 == "--asm" ||
+                       verb0 == "-c" || verb0 == "-###" || verb0 == "-v" ||
+                       verb0 == "--verbose");
     std::string verb = verbIsVerb ? verb0 : "check";
     std::vector<std::string> rest = verbIsVerb
                                         ? std::vector<std::string>(args.begin() + 1, args.end())
@@ -228,24 +231,24 @@ int main(int argc, char** argv) {
     // if -S/-c appear as verb position after default? handled
 
     // also handle -S as first flag when no verb given? already handled above
-    if (verb == "-S" || verb == "-s") {
+    if (verb == "-S" || verb == "-s" || verb == "--asm") {
         verb = "build";
         rest.insert(rest.begin(), "-S");
     } else if (verb == "--asm") {
         verb = "build";
         rest.insert(rest.begin(), "-S");
     } else if (verb == "-c") {
-        std::cerr << "kirnc: '-c' is not implemented yet\n"
-                  << "  -c lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
-        return 2;
+        verb = "build";
+        rest.insert(rest.begin(), "-c");
     } else if (verb == "-###") {
-        std::cerr << "kirnc: '-###' is not implemented yet\n"
-                  << "  -### lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
-        return 2;
+        verb = "build";
+        rest.insert(rest.begin(), "-###");
     } else if (verb == "-v" || verb == "--verbose") {
-        std::cerr << "kirnc: '-v' is not implemented yet\n"
-                  << "  -v lands with the assembler+linker phase; see BUILDER-PLAN.md\n";
-        return 2;
+        verb = "build";
+        rest.insert(rest.begin(), "-v");
+    } else if (verb == "-E") {
+        // `-E` is handled by the preprocessor dispatch below; it is a valid
+        // stage flag, not an unknown option.
     } else if (isFlag(verb)) {
         // unknown flag as verb
         std::cerr << "kirnc: unknown option '" << verb << "'\n";
@@ -281,7 +284,8 @@ int main(int argc, char** argv) {
                 // allow -S through to build for check? no, handle below
             }
         }
-        if (a == "-c" || a == "-###" || a == "-v" || a == "--verbose") {
+        if (verb != "build" &&
+            (a == "-c" || a == "-###" || a == "-v" || a == "--verbose")) {
             std::cerr << "kirnc " << verb << ": '" << a
                       << "' is not implemented yet\n"
                       << "  -c/-###/-v land with the assembler+linker phase; see BUILDER-PLAN.md\n";
@@ -408,9 +412,16 @@ int main(int argc, char** argv) {
         std::vector<std::string> forwarded;
         forwarded.push_back(verb == "run" ? std::string("build") : verb);
         for (const auto& a : rest) {
+            if (a == "-S" || a == "-s" || a == "--asm") {
+                forwarded.push_back("--emit-asm");
+                continue;
+            }
             if (a == "--emit-sasm") { forwarded.push_back("-S"); continue; }
             if (a == "-emit-sasm") { forwarded.push_back("-S"); continue; }
-            if (a == "--verbose" || a == "-v") continue; // no-op for now
+            if (a == "--verbose" || a == "-v") {
+                forwarded.push_back("-v");
+                continue;
+            }
             forwarded.push_back(a);
         }
         return kirn::driver::cmdBuild(forwarded, 1);

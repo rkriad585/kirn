@@ -80,6 +80,10 @@ struct BuildOpts {
     bool wantPet = false;
     bool sasm = false;
     bool obj = false;
+    bool compileOnly = false;
+    bool emitAsm = false;
+    bool dryRun = false;
+    bool verbose = false;
     bool singleFile = false;
     bool native_ = false;
     bool asan = false;

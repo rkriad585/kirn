@@ -194,6 +194,31 @@ else
     report FAIL "kirnc run uses the runtime path" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
 fi
 
+# Phase 5 stop-at-stage checks: the compiler driver must emit real target
+# artifacts, and -### must not execute the linker/compiler command.
+obj="$TMP/kirnc-stage.o"
+out=$($KN -c "$ROOT/examples/01_hello.kn" -o "$obj" 2>&1); code=$?
+magic=$(head -c4 "$obj" 2>/dev/null || true)
+if [ "$code" = 0 ] && [ "$magic" = "$(printf '\177ELF')" ]; then
+    report PASS "kirnc -c emits an object" "$obj"
+else
+    report FAIL "kirnc -c emits an object" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
+asm="$TMP/kirnc-stage.s"
+out=$($KN -S "$ROOT/examples/01_hello.kn" -o "$asm" 2>&1); code=$?
+if [ "$code" = 0 ] && [ -s "$asm" ] && grep -q '\.text' "$asm"; then
+    report PASS "kirnc -S emits target assembly" "$asm"
+else
+    report FAIL "kirnc -S emits target assembly" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
+out=$($KN -### "$ROOT/examples/01_hello.kn" 2>&1); code=$?
+if [ "$code" = 0 ] && printf '%s' "$out" | grep -q -- '-std=c++20' &&
+   ! printf '%s' "$out" | grep -q 'built '; then
+    report PASS "kirnc -### prints without executing" "command line emitted"
+else
+    report FAIL "kirnc -### prints without executing" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
+
 # ---- HIR (phase 3) ---------------------------------------------------------
 # `kirnc hir` lowers to HIR, runs the structural verifier, and prints the dump.
 # Two properties, and the second is the one that matters:

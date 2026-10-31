@@ -3284,7 +3284,8 @@ int buildProgram(const std::string& name, const std::string& version,
     // append the app's sources as a KIRNBUNDLE/1 payload (see tools/runner.cpp),
     // mirroring `go build`. The launcher/native pipelines below stay for
     // --sasm / -O / --native / --asan / cross (foreign) targets.
-    if (isHost && !opts.obj && !opts.native_ && !opts.asan) {
+    if (isHost && !opts.obj && !opts.native_ && !opts.asan &&
+        !opts.compileOnly && !opts.emitAsm && !opts.dryRun) {
         // Type-check before bundling (plan section 5.6). This branch used to
         // bundle unconditionally, so `kirn build` returned 0 and shipped an
         // executable for a program that `kirn run` rejects with 65 -- the
@@ -3545,6 +3546,49 @@ int buildProgram(const std::string& name, const std::string& version,
             if (op.has_parent_path()) fs::create_directories(op.parent_path());
         }
 
+        // Phase 5 stop-at stages use the same generated, checked launcher as
+        // the executable path but stop before linking. This keeps the source
+        // graph, diagnostics, and target toolchain identical across `-c`,
+        // `-S`, and a normal build.
+        if (opts.compileOnly || opts.emitAsm) {
+            const std::string suffix = opts.emitAsm ? ".s" : ".o";
+            const std::string stageOut =
+                !opts.outPath.empty()
+                    ? opts.outPath
+                    : !opts.defaultOut.empty()
+                        ? opts.defaultOut + suffix
+                        : (outDir / (name + suffix)).generic_string();
+            fs::path stagePath(stageOut);
+            if (stagePath.has_parent_path())
+                fs::create_directories(stagePath.parent_path());
+            const std::string launcherCpp =
+                (outDir / (name + ".cpp")).generic_string();
+            std::ostringstream stage;
+            stage << "-std=c++20 " << (opts.release ? "-O2 -s -w " : "-O1 -g ");
+            stage << "-I\"" << srcRoot << "\" ";
+            stage << (opts.emitAsm ? "-S " : "-c ");
+            stage << "-o \"" << fs::absolute(stagePath).generic_string()
+                  << "\" \"" << fs::absolute(launcherCpp).generic_string()
+                  << "\"";
+            const std::string stageCmd = "\"" + crossCxx + "\" " + stage.str();
+            if (opts.dryRun) {
+                std::cout << stageCmd << "\n";
+                return 0;
+            }
+            if (opts.verbose || std::getenv("KIRN_VERBOSE"))
+                std::cerr << "[cmd] " << stageCmd << "\n";
+            int stageRc = std::system(stageCmd.c_str());
+            if (stageRc != 0) {
+                std::cerr << "kirn build: "
+                          << (opts.emitAsm ? "assembly" : "object")
+                          << " emission failed (" << stageRc << ")\n";
+                return stageRc == 0 ? 1 : stageRc;
+            }
+            std::cout << "wrote " << (opts.emitAsm ? "assembly " : "object ")
+                      << stageOut << "\n";
+            return 0;
+        }
+
         // response file keeps the command line short
         const std::string rsp = (outDir / "cross.rsp").generic_string();
         const std::string launcherCpp =
@@ -3569,7 +3613,12 @@ int buildProgram(const std::string& name, const std::string& version,
         std::string cmd =
             "cd . && \"" + crossCxx + "\" @\"" +
             fs::absolute(rsp).generic_string() + "\"";
-        if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << cmd << "\n";
+        if (opts.dryRun) {
+            std::cout << cmd << "\n";
+            return 0;
+        }
+        if (opts.verbose || std::getenv("KIRN_VERBOSE"))
+            std::cerr << "[cmd] " << cmd << "\n";
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
             std::cerr << "kirn build: cross-compilation failed (" << rc
@@ -3760,6 +3809,10 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
         else if (a == "--debug") opts.release = false;
         else if (a == "-S" || a == "-s" || a == "--asm") opts.sasm = true;
         else if (a == "-O" || a == "--obj") opts.obj = true;
+        else if (a == "-c") opts.compileOnly = true;
+        else if (a == "--emit-asm" || a == "-emit-asm") opts.emitAsm = true;
+        else if (a == "-###") opts.dryRun = true;
+        else if (a == "-v" || a == "--verbose") opts.verbose = true;
         else if (a == "--native" || a == "-N") opts.native_ = true;
         else if (a == "--asan") opts.asan = true;
         else if (a.rfind("--target=", 0) == 0)

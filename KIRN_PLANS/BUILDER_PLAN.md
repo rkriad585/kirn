@@ -1974,3 +1974,17 @@ Delivered: `src/driver/driver.h`, `src/driver/driver.cpp`,
 
 Verification: serial CMake build, `kirnc run examples/01_hello.kn`, and the
 bundle gate's runtime-driver regression pass.
+
+### Update (2026-10-31) — Compiler stop-at stages (shipped)
+
+Builder Phase 5 now exposes real system-toolchain stop-at stages through
+`kirnc`: `-c` emits an ELF relocatable object, `-S` emits target assembly, and
+`-###` prints the exact compile/link command without executing it. `-v` keeps
+the normal build but prints the command, and all stages share the checked
+generated launcher and target selection used by the executable path.
+
+Delivered: `src/driver/driver.h`, `src/driver/driver.cpp`, `tools/kirnc.cpp`,
+`scripts/gates/8_bundle.sh`, and updated `scripts/golden/` help snapshots.
+
+Verification: serial CMake build, ELF/object and assembly artifact checks,
+dry-run command check, and the full golden corpus pass.

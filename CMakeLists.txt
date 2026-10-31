@@ -185,6 +185,18 @@ else()
     target_link_libraries(kirn PRIVATE kirn_driver)
 endif()
 
+# Installed distributions intentionally expose only the two user-facing tools.
+# The legacy stage binaries remain build-tree compatibility fixtures for the
+# corpus, but are not part of the shipped toolchain.
+install(TARGETS kirn kirnc
+    RUNTIME DESTINATION bin
+    BUNDLE DESTINATION bin
+)
+install(DIRECTORY stdpet DESTINATION .)
+install(DIRECTORY src DESTINATION .)
+install(FILES tools/runner.cpp DESTINATION tools)
+install(FILES README.md DESTINATION .)
+
 # kirn_driver is in the list so the refactored code keeps the same warning
 # budget as the libraries around it; leaving it out would have exempted exactly
 # the code being moved from -Wall -Wextra -Wpedantic.

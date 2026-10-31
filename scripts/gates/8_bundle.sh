@@ -21,7 +21,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pets, bundle!" && echo "$out8r" | grep -q "3.0"; then
             report PASS "bundle runs (imports+stdlib)" "$out8r"
         else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
-        out8b=$(cd "$T8" && KIRN_VERBOSE=1 timeout 240 "$KIRN" build main.kn -o out2 2>&1); c8b=$?
+        out8b=$(cd "$T8" && timeout 240 "$KIRN" build main.kn -o out2 2>&1); c8b=$?
         if [ "$c8b" = 0 ] && ! echo "$out8b" | grep -q '\[cmd\]'; then
             report PASS "rebuild needs no toolchain" "cached runner reused"
         else report FAIL "rebuild needs no toolchain" "rc=$c8b: $out8b"; fi
@@ -30,6 +30,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
         # HOMEBREW_NO_ENV_FILTERING-shaped gate rot guard).
         T8c="$TMP/pv"; rm -rf "$T8c"; mkdir -p "$T8c/build" "$T8c/tools"
         cp "$KIRN" "$T8c/build/kirn"
+        cp "$KN" "$T8c/build/kirnc"
         cp -r "$ROOT/src" "$T8c/src"
         cp "$ROOT/tools/runner.cpp" "$T8c/tools/runner.cpp"
         printf 'fn main() -> none { print("verbose check"); }\n' > "$T8c/main.kn"
@@ -217,6 +218,35 @@ if [ "$code" = 0 ] && printf '%s' "$out" | grep -q -- '-std=c++20' &&
     report PASS "kirnc -### prints without executing" "command line emitted"
 else
     report FAIL "kirnc -### prints without executing" "exit $code; out: $(printf '%s' "$out" | tr '\n' ' ')"
+fi
+
+# Phase 6: verify the two-tool installed contract and the orchestrator's
+# delegation from a clean prefix, where checkout-relative paths cannot help.
+if "$KIRN" --version | grep -q '^kirn '; then
+    report PASS "kirn version" "version is available from the orchestrator"
+else
+    report FAIL "kirn version" "version command failed"
+fi
+if "$KIRN" doctor 2>&1 | grep -q '^doctor: ok$'; then
+    report PASS "kirn doctor" "compiler and stdlib roots are discoverable"
+else
+    report FAIL "kirn doctor" "doctor did not report a healthy checkout"
+fi
+installRoot="$TMP/kirn-install"
+if cmake --install "$ROOT/build" --prefix "$installRoot" >/dev/null 2>&1 &&
+   [ "$(find "$installRoot/bin" -maxdepth 1 -type f | wc -l)" -eq 2 ] &&
+   [ -x "$installRoot/bin/kirn" ] && [ -x "$installRoot/bin/kirnc" ]; then
+    report PASS "installed tree ships kirn + kirnc only" "$installRoot/bin"
+else
+    report FAIL "installed tree ships kirn + kirnc only" "installation layout is incomplete"
+fi
+mkdir -p "$TMP/installed-project"
+printf 'import pet.math;\nfn main() -> none { print(math.floor(3.7)); }\n' > "$TMP/installed-project/main.kn"
+out=$(env -u KIRN_STDLIB -u KIRN_PETS "$installRoot/bin/kirn" run "$TMP/installed-project/main.kn" 2>&1); code=$?
+if [ "$code" = 0 ] && printf '%s' "$out" | grep -q '^3.0$'; then
+    report PASS "installed tree resolves stdpet" "exe-relative stdlib discovery"
+else
+    report FAIL "installed tree resolves stdpet" "exit $code; out: $out"
 fi
 
 # ---- HIR (phase 3) ---------------------------------------------------------

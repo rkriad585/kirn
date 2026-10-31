@@ -411,8 +411,17 @@ std::string globalAppsBinDir() {
     return home ? std::string(home) + "/.kirn/apps/bin" : "";
 }
 
+// Defined with the other executable/root helpers below; the shared resolver
+// needs it here so installed binaries can discover <prefix>/stdpet.
+std::string selfExeDir();
+
 std::vector<std::string> libDirsFor(const std::string& script) {
     std::vector<std::string> dirs;
+    // An explicit standard-library override is the highest-precedence root.
+    // This is the installed-tree equivalent of rustup's sysroot override: a
+    // project must not accidentally select a checkout-local stdpet when the
+    // user explicitly selected another one.
+    if (const char* env = std::getenv("KIRN_STDLIB")) dirs.push_back(env);
     if (const char* env = std::getenv("KIRN_PETS")) dirs.push_back(env);
     // The `script` is either a directory (project root) or a file path whose
     // parent is the project root. Resolve robustly regardless of trailing
@@ -442,7 +451,13 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     }
     dirs.push_back(dir + "/../stdpet");
     dirs.push_back(dir + "/../../stdpet");
-    if (const char* env = std::getenv("KIRN_STDLIB")) dirs.push_back(env);
+    // Installed releases place both executables in <prefix>/bin and stdpet at
+    // <prefix>/stdpet.  Source-tree builds have the same shape at
+    // <checkout>/build and <checkout>/stdpet.  Resolve both without requiring
+    // KIRN_STDLIB, while retaining the explicit override above as first choice.
+    const std::string exeDir = selfExeDir();
+    dirs.push_back((fs::path(exeDir) / ".." / "stdpet").generic_string());
+    dirs.push_back((fs::path(exeDir) / "stdpet").generic_string());
     dirs.push_back(dir);   // a project/package can import itself
     return dirs;
 }
@@ -2598,18 +2613,13 @@ std::string resolveCrossCxx(const TargetInfo* ti) {
     return "";
 }
 
-// Phase 8: the KIRN_* environment variables are renamed to KIRN_* and are a
-// hard cut - the old names are never read. If a user/script still exports one,
-// say so once (aggregated) rather than silently discarding it: a stale var
-// losing effect quietly is exactly how module paths and toolchains silently
-// stop applying (the IOWarp "unset variable is not an error" failure mode).
+// Phase 8: KIRN_LIBS was renamed to KIRN_PETS and is a hard cut. Do not list
+// variables whose spelling did not change: warning about KIRN_VERBOSE while it
+// is actively being used makes a valid verbose build look like a stale-env
+// failure and breaks the positive/negative logging contract.
 void warnLegacyEnv() {
-    const char* const legacy[] = {"KIRN_LIBS", "KIRN_STDLIB", "KIRN_CXX",
-                                  "KIRN_CL", "KIRN_VERBOSE", "KIRN_TARGET",
-                                  "KIRN_LIB_TOOL"};
-    const char* const now[] = {"KIRN_PETS", "KIRN_STDLIB", "KIRN_CXX",
-                               "KIRN_CL", "KIRN_VERBOSE", "KIRN_TARGET",
-                               "KIRN_LIB_TOOL"};
+    const char* const legacy[] = {"KIRN_LIBS"};
+    const char* const now[] = {"KIRN_PETS"};
     std::string found;
     for (size_t i = 0; i < sizeof(legacy) / sizeof(legacy[0]); ++i)
         if (std::getenv(legacy[i])) {
@@ -2793,6 +2803,10 @@ std::string ensureRunner() {
     r << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS -O1 -w -I\"" << srcRoot
       << "\" -o \"" << cached << "\" \"" << runnerCpp << "\"";
     for (const auto& s : srcs) r << " \"" << s << "\"";
+    // The runtime library is also used by the cold runner.  CMake carries
+    // these imported targets for kirn_interp, but the lazy standalone build
+    // has its own command line and must carry the same transitive contract.
+    r << " -lcrypto -lz -lsqlite3 -ldl";
     writeFile((fs::path(binDir) / "kirnrt.rsp").generic_string(), r.str());
     cmd = "cd . && \"" + cxx + "\" @\"" +
           (fs::path(binDir) / "kirnrt.rsp").generic_string() + "\"";
@@ -3614,7 +3628,13 @@ int buildProgram(const std::string& name, const std::string& version,
             "cd . && \"" + crossCxx + "\" @\"" +
             fs::absolute(rsp).generic_string() + "\"";
         if (opts.dryRun) {
-            std::cout << cmd << "\n";
+            // `-###` is a command oracle, not merely a response-file path.
+            // Include the response-file contents so callers can inspect the
+            // actual compile/link stages without executing them.
+            std::ifstream response(rsp);
+            std::string flags((std::istreambuf_iterator<char>(response)),
+                              std::istreambuf_iterator<char>());
+            std::cout << cmd << "\n" << flags << "\n";
             return 0;
         }
         if (opts.verbose || std::getenv("KIRN_VERBOSE"))

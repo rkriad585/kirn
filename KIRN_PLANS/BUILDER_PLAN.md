@@ -1988,3 +1988,25 @@ Delivered: `src/driver/driver.h`, `src/driver/driver.cpp`, `tools/kirnc.cpp`,
 
 Verification: serial CMake build, ELF/object and assembly artifact checks,
 dry-run command check, and the full golden corpus pass.
+
+### Update (2026-10-31) — `kirn` integration and installed-tree shipping (shipped)
+
+Builder Phase 6 now makes `kirn` the orchestrator and `kirnc` the compiler:
+ordinary `kirn check`, `kirn run`, and `kirn build` delegate to the sibling
+`kirnc`, while package builds (`build pet`) remain on the package path. The
+driver exposes `kirn version`/`--version` and `kirn doctor`, and global
+`--verbose` reaches the compiler command without changing source arguments.
+
+Installed binaries discover `stdpet` relative to their own prefix, with
+`KIRN_STDLIB` remaining an explicit override. CMake installs exactly `kirn`
+and `kirnc` as user-facing executables plus the runtime data required for a
+clean installed tree. The lazy runner's standalone link now carries the same
+OpenSSL, Zlib, SQLite, and `dl` dependencies as the CMake runtime target.
+
+Delivered: `tools/kirn.cpp`, `src/driver/driver.cpp`, `CMakeLists.txt`,
+`install/install.sh`, and `scripts/gates/8_bundle.sh`.
+
+Verification: serial CMake build; gate 8 **23/23**; syntax **104/104**;
+stdlib test **1/1**; examples **90/90**; golden corpus **419/419**; clean
+prefix installation with exactly `bin/kirn` and `bin/kirnc`; installed-tree
+execution of a program importing `pet.math` with `KIRN_STDLIB` unset.

@@ -201,8 +201,8 @@ Kirn installed to $PREFIX
 
   export PATH="\$PATH:$bindir"
 
-Note: the standard library is resolved relative to the script you run, or via
-KIRN_STDLIB. Add this to your profile so imports work from any directory:
+The standard library is bundled in the installation and discovered relative
+to the installed executables. To override it for testing or a private mirror:
 
   export KIRN_STDLIB="$PREFIX/stdpet"
 

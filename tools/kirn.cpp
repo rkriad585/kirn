@@ -62,6 +62,7 @@
 #include <unistd.h>
 #include <strings.h>
 #include <cstring>
+#include <sys/wait.h>
 
 #ifndef MAX_PATH
 #define MAX_PATH 4096
@@ -123,6 +124,90 @@ using kirn::driver::writeManifest;
 namespace {
 
 using kirn::tomlmini::Doc;
+
+constexpr const char* kKirnVersion = "0.0.1-beta";
+
+std::string shellQuote(const std::string& value) {
+#ifdef _WIN32
+    std::string out = "\"";
+    for (char c : value) {
+        if (c == '"') out += "\\\"";
+        else out += c;
+    }
+    out += "\"";
+    return out;
+#else
+    std::string out = "'";
+    for (char c : value) {
+        if (c == '\'') out += "'\\''";
+        else out += c;
+    }
+    out += "'";
+    return out;
+#endif
+}
+
+// `kirn` is the user-facing orchestrator; compilation is owned by the
+// sibling `kirnc`, just as cargo delegates compilation to rustc. Resolve the
+// sibling first so an installed tree and a source checkout behave identically,
+// then allow PATH as a useful development fallback.
+int delegateToKirnc(const std::vector<std::string>& tail) {
+    fs::path sibling = fs::path(selfExeDir()) / "kirnc";
+#ifdef _WIN32
+    if (!fs::is_regular_file(sibling)) sibling += ".exe";
+#endif
+    std::string compiler = fs::is_regular_file(sibling)
+                               ? sibling.string()
+                               : std::string("kirnc");
+    std::string command = shellQuote(compiler);
+    for (const auto& arg : tail) command += " " + shellQuote(arg);
+    if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << command << "\n";
+    int status = std::system(command.c_str());
+    if (status == -1) {
+        std::cerr << "kirn: cannot start kirnc\n";
+        return 127;
+    }
+#ifndef _WIN32
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+#endif
+    return status;
+}
+
+int cmdDoctor() {
+    const fs::path bin = selfExeDir();
+    const fs::path compiler = bin / "kirnc";
+    const fs::path prefixStdlib = bin / ".." / "stdpet";
+    const char* overrideStdlib = std::getenv("KIRN_STDLIB");
+    const fs::path stdlib = overrideStdlib && *overrideStdlib
+                                ? fs::path(overrideStdlib)
+                                : prefixStdlib;
+    bool ok = true;
+    std::cout << "kirn " << kKirnVersion << "\n";
+    std::cout << "  driver: " << (bin / (std::string("kirn") +
+#ifdef _WIN32
+                                             ".exe"
+#else
+                                             ""
+#endif
+                                             )).string() << "\n";
+    if (fs::is_regular_file(compiler))
+        std::cout << "  compiler: " << compiler.string() << "\n";
+    else {
+        std::cout << "  compiler: missing (expected " << compiler.string() << ")\n";
+        ok = false;
+    }
+    if (fs::is_directory(stdlib))
+        std::cout << "  stdlib: " << fs::weakly_canonical(stdlib).string() << "\n";
+    else {
+        std::cout << "  stdlib: missing (set KIRN_STDLIB or install stdpet)\n";
+        ok = false;
+    }
+    const char* cxx = std::getenv("KIRN_CXX");
+    std::cout << "  cxx: " << (cxx && *cxx ? cxx : "PATH probe") << "\n";
+    std::cout << (ok ? "doctor: ok\n" : "doctor: problems found\n");
+    return ok ? 0 : 1;
+}
 
 // A tiny dependency-free SHA-256 writer for published artifacts. Keeping the
 // digest in the driver makes the sidecar format identical on POSIX and
@@ -2130,10 +2215,50 @@ int main(int argc, char** argv) {
         usage();
         return 64;
     }
+    if (args.size() == 1 &&
+        (args[0] == "-v" || args[0] == "--version" || args[0] == "version")) {
+        std::cout << "kirn " << kKirnVersion << "\n";
+        return 0;
+    }
+    if (!args.empty() && (args[0] == "-v" || args[0] == "--verbose")) {
+        // Global verbosity follows the Go/Zig convention: it is an option on
+        // the driver, not a language argument. Leave the command-specific
+        // `-v` in place when it appears after build/run.
+        if (args.size() == 1) {
+            std::cerr << "kirn: --verbose needs a command\n";
+            return 64;
+        }
+#ifdef _WIN32
+        _putenv_s("KIRN_VERBOSE", "1");
+#else
+        ::setenv("KIRN_VERBOSE", "1", 1);
+#endif
+        args.erase(args.begin());
+    }
     const std::string& cmd = args[0];
     auto rest = [&](size_t i) {
         return i < args.size() ? args[i] : std::string();
     };
+
+    if (cmd == "doctor") {
+        if (args.size() != 1) {
+            std::cerr << "usage: kirn doctor\n";
+            return 64;
+        }
+        return cmdDoctor();
+    }
+
+    // The orchestrator keeps package/scaffold/test/doc operations, while the
+    // compiler driver owns the shared check/run/build stage grammar. Keep
+    // `build pet` on the package path; ordinary build is delegated verbatim.
+    if (cmd == "check" || cmd == "run" || cmd == "r" ||
+        (cmd == "build" && (args.size() < 2 || args[1] != "pet"))) {
+        std::vector<std::string> compilerArgs;
+        if (cmd == "r") compilerArgs.push_back("run");
+        else compilerArgs.push_back(cmd);
+        compilerArgs.insert(compilerArgs.end(), args.begin() + 1, args.end());
+        return delegateToKirnc(compilerArgs);
+    }
 
     if ((cmd == "run" || cmd == "r") && !args.empty()) {
         // bare `kirn run` targets the current directory (the scaffold hint

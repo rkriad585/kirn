@@ -165,6 +165,12 @@ async fn main() -> none {
     var ioc = a.io.create("/tmp/kirn_async_test_io2.txt");
     assert_eq(await a.io.copy(a.io.open(iod), ioc), 8);
     assert_eq((await a.io.open(iod).read_to_string()), "one\ntwo\n");
+    closed_io = a.io.open(iod);
+    closed_io.close();
+    var closed_error = false;
+    try { await closed_io.read(1); }
+    catch _e { closed_error = true; }
+    assert(closed_error);
     await a.fs.remove_file(iod);
     await a.fs.remove_file("/tmp/kirn_async_test_io2.txt");
 

@@ -28,6 +28,12 @@ async fn main() -> none {
     tail = await lf.read_to_end();
     assert(head.len() == 70000);
     assert(head.len() + tail.len() == payload.len());
+    closed_file = a.io.open(large);
+    closed_file.close();
+    var closed_error = false;
+    try { await closed_file.read(1); }
+    catch _e { closed_error = true; }
+    assert(closed_error);
     halves = a.io.open(large).into_split();
     ownedReader = halves[0];
     ownedWriter = halves[1];

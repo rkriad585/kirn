@@ -2337,3 +2337,14 @@ results deterministic.
 
 Delivered: `stdpet/pet/parallel.kn`, `stdpet/pet/parallel_test.kn`, and this
 plan update.
+
+### Update (2026-10-31) — Async file close state (shipped)
+
+`pet.async_io.File.close()` and all file split halves now publish a shared
+closed state. Reads, writes, seeks, position/size queries, and further splits
+reject use-after-close with a clear error; owned halves retain independent
+close state. This makes the existing close API enforceable while preserving
+the path-cursor implementation and its cancellation-safe chunked I/O.
+
+Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+`tests/syntax/async_io_ok.kn`, and this plan update.

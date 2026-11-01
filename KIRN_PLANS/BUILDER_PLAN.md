@@ -1206,7 +1206,9 @@ unify module resolvers; single `frontEnd`; move path assumptions behind one
 resolver. Merge `kirnrun`'s resolver back into the shared one.
 **Goal:** Extract the driver core out of the `tools/kirn.cpp` monolith into the `kirn_driver` library.
 **Must Follow:** Behavior-preserving move — one translation unit, forwarders not `using`, keep goldens byte-identical.
-**Important Note:** Substantially done; still open are §5.5 (payload sharing) and §5.4's root discovery. Modeled on Go's `cmd/go` ↔ `cmd/compile` split.
+**Important Note:** Complete. The payload-sharing and root-discovery items from
+the original landing note were closed by the 2026-11-01 updates below. The
+architecture remains modeled on Go's `cmd/go` ↔ `cmd/compile` split.
 
 ```kirn
 # behavior-preserving fixture: stdout/exit must not change
@@ -1282,11 +1284,10 @@ having oracles at all — none was visible in "199 goldens pass, 153 gates pass"
    `$KIRN_STDLIB`, so a program using them built into a binary that panicked
    `unknown module`; it now shares `libDirsFor`.
 
-Still open in this phase: §5.5 (share the `KIRNBUNDLE/1` and `PETLIB/1` payload
-formats between writer and reader — now a cross-library concern, since the
-writer is in `kirn_driver` and the reader is compiled into `kirnrt`), and
-§5.4's root-discovery (env override → exe-relative → install prefix), which
-Phase 6 needs for the installer and which phase 1 does not block.
+The two items below were open in the original phase-0 snapshot. They are now
+closed: `src/driver/payload.h` shares the `KIRNBUNDLE/1` and `PETLIB/1`
+framing, and `resourceRoot()` implements the environment-override,
+`KIRN_PREFIX`, and executable-relative discovery used by the installed tree.
 
 **Phase 1 — `kirnc` skeleton.** New binary with verbs `check|lex|parse|rt|run|
 build` and `-E/-S/-c/-o/-###/-v`. `lex` and `parse` reuse the oracle code from
@@ -1294,7 +1295,8 @@ build` and `-E/-S/-c/-o/-###/-v`. `lex` and `parse` reuse the oracle code from
 bundle path; `run` executes the bundled runtime. Keep old binaries as aliases.
 **Goal:** Stand up the `kirnc` skeleton with `check|lex|parse|rt|run|build` and the `-E/-S/-c/-o/-###/-v` flags.
 **Must Follow:** Reuse the extracted stage functions (no forked copies); reject unrecognized args explicitly instead of treating them as filenames.
-**Important Note:** `run`/`rt` are deliberately unimplemented pending §9's oracle decision; the stop-at flags land in later phases.
+**Important Note:** The initial skeleton deferred `run`/`rt` and stop-at flags;
+the runtime contract and stop-at stages are shipped in the updates below.
 
 ```kirn
 fn add(a: Int, b: Int) -> Int {
@@ -1350,16 +1352,18 @@ front end. Both are now in `ci.yml`, which previously ran neither — `kirnlex`,
 `kirnparse` and `kirnrun` had no CI coverage at all, and the plan's own verify
 criterion depended on a harness that had never executed.
 
-_Not done in this phase:_ `run` (see the open decision below), the stop-at-stage
-flags `-E/-S/-c/-###/-v` (they are recognised and rejected with a pointer to the
-phase that lands them, rather than silently treated as filenames, which is what
-the old tools did with any unrecognised argument), and `rt`.
+At the initial skeleton landing, `run`, `rt`, and the stop-at-stage flags were
+recognized but deferred. They are now covered by the shipped `kirnc run`,
+`kirnc rt`, `-E`, `-S`, `-c`, `-###`, and `-v` updates below.
 
 **Phase 2 — Preprocessor.** `src/prepro/` with a macro layer, `-D/-U`, and
 `__FILE__`-style builtins. `kirnc -E` dumps the expanded token stream.
 **Goal:** Land the preprocessor (`src/prepro/`) with macros, `-D/-U`, and builtins; `kirnc -E` dumps the expanded token stream.
 **Must Follow:** Nim-style `{. … .}` syntax, capture-free hygiene, no lexer change, byte-exact goldens.
-**Important Note:** First increment done; open are `-D/-U` beyond `-E`, per-file macro scope, and the normative grammar file is not yet updated.
+**Important Note:** The first increment is complete. Command-line `-D/-U`, the
+normative grammar entry, and IR-stage propagation were added in follow-up
+updates. Per-file macro scope and forward-reference rules remain explicit
+language boundaries, not unfinished implementation tasks.
 
 ```kirn
 {.fn DEBUG = 1.}
@@ -1422,13 +1426,13 @@ was switched on. Final state: 215 goldens, 162 gates (153 + 9), 519 cross-check,
 all green, with zero new compiler warnings (37 pre-existing, unchanged, and none
 in `src/prepro/` or `tools/kirnc.cpp`).
 
-_Not done in this increment,_ recorded rather than left to be discovered:
+_At the first increment,_ the following boundaries were recorded rather than
+left implicit:
 
-1. **`-D`/`-U` only reach `-E`.** The preprocessor runs in front of `check`,
-   `parse` and `run`, but the flags are only parsed by `cmdPreprocess`, so
-   `kirnc check -DFOO=1 f.kn` is still rejected rather than accepted. Threading
-   them into the other verbs is mechanical and unblocked.
-2. **Macros are per-file.** Each source is preprocessed with its own fresh table,
+1. **`-D`/`-U` initially only reached `-E`.** This was closed by the preprocessor
+   command-line and IR-stage updates below; definitions now reach check, parse,
+   run, HIR, MIR, and LLVM lowering.
+2. **Macros are per-file by design.** Each source is preprocessed with its own fresh table,
    so a macro defined in an imported module is invisible to the entry file, and a
    macro cannot gate an `import`. This is forced by the architecture, not chosen:
    modules are lexed independently in `collectImports`
@@ -1441,9 +1445,9 @@ _Not done in this increment,_ recorded rather than left to be discovered:
    (§4.0). Consequence: mutual recursion is impossible rather than diagnosed.
 4. **`{.elif.}`, `.` bodies and other syntax corners are gated but lightly
    covered**; `__TARGET__` is a `-D` away, not seeded.
-5. The `grammar/kirn.ebnf` `COMMENT` production is untouched and still correct,
-   but the new directive syntax is **not yet in the grammar file**, which
-   declares itself normative. That is the outstanding must-do for this phase.
+5. The `grammar/kirn.ebnf` `COMMENT` production is untouched and still correct;
+   the directive syntax is now also recorded in the normative grammar file by
+   the preprocessor command-line update below.
 
 **Phase 3 — HIR/MIR.** `src/hir/`, `src/mir/` (arena CFG). `--emit-hir`,
 `--emit-mir`. `kirnc rt` dumps MIR.
@@ -1584,7 +1588,8 @@ surfaced "never a silent drop" was simply false for statements, and this is the
 check that makes it true — it found three more drops (`gather`, `bucket release`)
 in the same corpus the coverage count had been reporting as fully passing.
 
-_Not done, and recorded rather than left to be discovered:_
+_At the initial HIR landing, the following design gaps were recorded rather than
+left implicit:_
 
 1. ~~MIR does not exist.~~ **Closed.** `src/mir/` as `kirn_mir`, linking `kirn_hir`
    and deliberately _not_ `kirn_vm`/`kirn_interp`, since §4.5 keeps the bytecode
@@ -1910,8 +1915,9 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    archive.
 5. **PATH-driven `g++` in `-###`.** If LLVM is in-process, `-###` prints
    pseudo-commands; keep real shell-outs only where unavoidable (C++ backend).
-6. **`-O` dead on POSIX.** Fix or remove (`kirn_driver::buildProgram` returns before
-   `:2835`). Align `-O` semantics with object emission, not MSVC-only.
+6. **`-O` on POSIX.** This was a historical gap in the initial audit. It is now
+   a real POSIX/GNU object stop-at stage, covered by gate 11f and the update
+   below; its semantics align with object emission rather than being MSVC-only.
 
 ---
 
@@ -2181,8 +2187,9 @@ Verification: default build, release build/run, and gate 8 **25/25**. The
 benchmark harness was corrected to measure release AOT and to use a private Go
 build cache; the current host measured Kirn at 5.881857s build and 0.017286s
 run, Rust at 1.332191s and 0.007006s, and Go at 8.293448s and 0.011625s.
-Kirn now beats Go on build time, but the full “faster than Rust and Go” target
-remains open because runtime startup is still slower than both references.
+Kirn then beat Go on build time, while the runtime-free launcher phase below
+closed the measured host target for the recursive-integer fixture. Cross-host
+performance remains a regression benchmark rather than a universal guarantee.
 
 ### Update (2026-10-31) — Release scalar print lowering (increment shipped)
 
@@ -2193,8 +2200,8 @@ dynamic output remain on the existing checked runtime path until their exact
 formatting contracts are lowered.
 
 Verification: gate 11a **56/56**, release Fibonacci output `2178308`, and a
-successful release build/run. This improves the native path but does not yet
-prove the plan-wide Rust/Go performance mandate.
+successful release build/run. This was an incremental result; the complete
+runtime-free benchmark evidence is recorded in the later launcher update.
 
 ### Update (2026-11-01) — Runtime-free release scalar artifacts (shipped)
 

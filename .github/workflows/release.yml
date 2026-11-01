@@ -204,7 +204,9 @@ jobs:
               ;;
             *) echo "::error::unknown mode $MODE"; exit 1 ;;
           esac
-          cmake --build build --config Release
+          # Release archives intentionally contain only the public compiler and
+          # checker executables; auxiliary developer tools are not release API.
+          cmake --build build --config Release --target kirn kirnc
 
       # For a native target the host MUST match, otherwise the archive would be
       # mislabelled (macos-latest has already moved between Intel and Apple

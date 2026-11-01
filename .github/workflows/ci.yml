@@ -81,8 +81,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Windows libraries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
+
       - name: Configure
-        run: cmake -S . -B build
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
         run: cmake --build build --config Debug

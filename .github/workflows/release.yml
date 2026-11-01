@@ -37,6 +37,12 @@ jobs:
       publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU for Linux ARM64
+        if: matrix.target == 'linux-arm64'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
       - id: v
         env:
           REF: ${{ github.ref }}
@@ -169,6 +175,13 @@ jobs:
             echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3):$(brew --prefix zlib):$(brew --prefix sqlite3)"
           } >> "$GITHUB_ENV"
 
+      - name: Install macOS amd64 libraries
+        if: matrix.target == 'darwin-amd64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          vcpkg install openssl:x64-osx zlib:x64-osx sqlite3:x64-osx --clean-after-build
+
       - name: Install cross Windows libraries
         if: matrix.target == 'windows-arm64'
         shell: pwsh
@@ -185,6 +198,18 @@ jobs:
           SYSROOT: ${{ matrix.sysroot }}
         run: |
           set -euo pipefail
+          if [ "$TARGET" = linux-arm64 ]; then
+            docker run --rm --platform linux/arm64 \
+              -v "$GITHUB_WORKSPACE:/work" ubuntu:24.04 bash -lc '
+                set -eu
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y cmake ninja-build g++ libssl-dev zlib1g-dev libsqlite3-dev
+                cmake -S /work -B /work/build -DCMAKE_BUILD_TYPE=Release
+                cmake --build /work/build --target kirn kirnc -j "$(nproc)"
+              '
+            exit 0
+          fi
           case "$MODE" in
             native)
               if [ "$TARGET" = windows-amd64 ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
@@ -211,10 +236,18 @@ jobs:
               esac
               if [ "$os" = "darwin" ]; then
                 # Apple clang cross-builds to the sibling arch off one SDK.
-                cmake -S . -B build \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_OSX_ARCHITECTURES="$proc" \
-                  ${CMAKE_PREFIX_PATH:+-DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"}
+                if [ "$TARGET" = darwin-amd64 ]; then
+                  cmake -S . -B build \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+                    -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+                    -DVCPKG_TARGET_TRIPLET=x64-osx
+                else
+                  cmake -S . -B build \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_OSX_ARCHITECTURES="$proc" \
+                    -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+                fi
               else
                 case "$os" in
                   linux) sysname=Linux ;;
@@ -379,6 +412,7 @@ jobs:
             exit 1
           fi
           echo "smoke testing $exe"
+          export PATH="$PWD/$bindir:$PATH"
 
           out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"
@@ -460,18 +494,27 @@ jobs:
         include:
           - target: aarch64
             image: aarch64
+            platform: linux/arm64
           - target: armv7l
             image: arm
+            platform: linux/arm/v7
           - target: i686
             image: i686
+            platform: linux/386
           - target: x86_64
             image: x86_64
+            platform: linux/amd64
     steps:
       - uses: actions/checkout@v4
+      - name: Set up QEMU for Termux architectures
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64,arm,386
       - name: Build Kirn and kirnc in Termux Docker
         shell: bash
         env:
           IMAGE: termux/termux-docker:${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
@@ -479,11 +522,13 @@ jobs:
           docker run --rm \
             -e TARGET="$TARGET" \
             -v "$GITHUB_WORKSPACE:/work" \
-            "$IMAGE" sh -lc '
+            --platform "$PLATFORM" "$IMAGE" sh -lc '
               set -eu
               pkg update -y
               pkg install -y clang cmake make openssl zlib sqlite
-              cmake -S /work -B /tmp/kirn-build -DCMAKE_BUILD_TYPE=Release
+              rm -rf /tmp/kirn-src /tmp/kirn-build
+              cp -R /work /tmp/kirn-src
+              cmake -S /tmp/kirn-src -B /tmp/kirn-build -DCMAKE_BUILD_TYPE=Release
               cmake --build /tmp/kirn-build --target kirn kirnc -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
               stage="/work/dist/kirn-termux-$TARGET"
               mkdir -p "$stage/bin"

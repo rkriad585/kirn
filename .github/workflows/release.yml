@@ -509,11 +509,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          printf '%s' "$TARGET" > dist/.kirn-target
           docker run --rm \
-            -e TARGET="$TARGET" \
             -v "$GITHUB_WORKSPACE:/work" \
             --platform "$PLATFORM" "$IMAGE" sh -lc '
               set -eu
+              target="$(cat /work/dist/.kirn-target)"
               pkg update -y
               pkg install -y clang cmake make openssl zlib sqlite libsqlite
               workroot="${TMPDIR:-$PREFIX/tmp}/kirn-build"
@@ -524,13 +525,13 @@ jobs:
                 -DSQLite3_INCLUDE_DIR="$PREFIX/include" \
                 -DSQLite3_LIBRARY="$PREFIX/lib/libsqlite3.so"
               cmake --build "$workroot/build" --target kirn kirnc -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
-              stage="/work/dist/kirn-termux-$TARGET"
+              stage="/work/dist/kirn-termux-$target"
               mkdir -p "$stage/bin"
               cp "$workroot/build/kirn" "$workroot/build/kirnc" "$stage/bin/"
               cp -R /work/stdpet /work/src "$stage/"
-              tar -czf "/work/dist/kirn-termux-$TARGET.tar.gz" -C /work/dist "kirn-termux-$TARGET"
-              cp "$workroot/build/kirn" "/work/dist/kirn-termux-$TARGET"
-              cp "$workroot/build/kirnc" "/work/dist/kirnc-termux-$TARGET"
+              tar -czf "/work/dist/kirn-termux-$target.tar.gz" -C /work/dist "kirn-termux-$target"
+              cp "$workroot/build/kirn" "/work/dist/kirn-termux-$target"
+              cp "$workroot/build/kirnc" "/work/dist/kirnc-termux-$target"
             '
       - name: Upload Termux artifacts
         uses: actions/upload-artifact@v4

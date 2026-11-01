@@ -106,6 +106,17 @@ else
     report PASS "arms needing a decision tree are named" "none needed one for this fixture"
 fi
 
+# Bucket park/release has a separate source-level store. It must remain visible
+# in MIR rather than being flattened into a self-assignment, which would lose
+# the lifetime/namespace boundary needed by later lowering passes.
+bucket_mir="$($KN rt "$ROOT/examples/40_keywords.kn" 2>&1)"
+if echo "$bucket_mir" | grep -q 'bucketpark' &&
+   echo "$bucket_mir" | grep -q 'bucketrelease'; then
+    report PASS "bucket park/release remain explicit MIR operations" "bucketpark + bucketrelease"
+else
+    report FAIL "bucket park/release remain explicit MIR operations" "missing bucket operation in MIR dump"
+fi
+
 # `rt` must agree with itself across runs, and must be a dump rather than an
 # execution: the plan gives `rt` two meanings and resolves it as the dumper.
 "$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m1" 2>&1

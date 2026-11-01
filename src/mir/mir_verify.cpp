@@ -51,6 +51,8 @@ const char* opName(Op o) {
         case Op::Load: return "load";
         case Op::Store: return "store";
         case Op::Move: return "move";
+        case Op::BucketPark: return "bucketpark";
+        case Op::BucketRelease: return "bucketrelease";
         case Op::Const: return "const";
         case Op::Unary: return "unary";
         case Op::Binary: return "binary";

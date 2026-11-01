@@ -997,6 +997,7 @@ struct Lowerer {
             }
             case ast::StKind::BucketDecl: {
                 payload::VarDecl v;
+                v.isBucket = true;
                 // `bucket release name` moves a parked value back to a normal
                 // variable; it introduces no new binding.
                 // `bucket release name` brings a parked value back into normal
@@ -1006,16 +1007,10 @@ struct Lowerer {
                 // exactly right given there is no second store to move out of.
                 // The alternative, a Nop, would be a silent no-op.
                 if (s.bucketRelease) {
-                    payload::Assign a;
-                    payload::Name n;
-                    n.spelling = s.tempVarName;
-                    n.decl = resolve(s.tempVarName);
-                    a.target = mk(ExprKind::Name, sp, nullptr, std::move(n));
-                    payload::Name n2;
-                    n2.spelling = s.tempVarName;
-                    n2.decl = resolve(s.tempVarName);
-                    a.value = mk(ExprKind::Name, sp, nullptr, std::move(n2));
-                    return mk(StmtKind::Assign, sp, std::move(a));
+                    payload::BucketRelease r;
+                    r.name = s.tempVarName;
+                    r.decl = resolve(s.tempVarName);
+                    return mk(StmtKind::BucketRelease, sp, std::move(r));
                 }
                 if (s.value) v.init = lower(*s.value);
                 // The bucket's name lives in `tempVarName`, NOT `name`: the

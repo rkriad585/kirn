@@ -112,6 +112,7 @@ struct Verifier {
             case StmtKind::Spawn: return "spawn";    case StmtKind::DoWhile: return "dowhile";
             case StmtKind::Goto: return "goto";      case StmtKind::Label: return "label";
             case StmtKind::Yield: return "yield";    case StmtKind::Del: return "del";
+            case StmtKind::BucketRelease: return "bucket-release";
             case StmtKind::GatherItem: return "gather-item";
             case StmtKind::GatherLoop: return "gather-loop";
         }
@@ -326,6 +327,10 @@ struct Verifier {
             if (p.decl == NO_DECL) bad(s.span, "declaration has no decl");
             else declOk(p.decl, s.span, "declaration");
             if (p.init) expr(*p.init);
+        } else if constexpr (std::is_same_v<T, payload::BucketRelease>) {
+            wantKind(s.span, s.kind, StmtKind::BucketRelease, "BucketRelease");
+            if (p.decl == NO_DECL) bad(s.span, "bucket release has no declaration");
+            else declOk(p.decl, s.span, "bucket release");
         } else if constexpr (std::is_same_v<T, payload::ExprStmt>) {
             wantKind(s.span, s.kind, StmtKind::ExprStmt, "ExprStmt");
             if (p.value) expr(*p.value);
@@ -613,6 +618,7 @@ struct Dumper {
             case StmtKind::Spawn: return "spawn";  case StmtKind::DoWhile: return "dowhile";
             case StmtKind::Goto: return "goto";    case StmtKind::Label: return "label";
             case StmtKind::Yield: return "yield";  case StmtKind::Del: return "del";
+            case StmtKind::BucketRelease: return "bucket-release";
                 case StmtKind::GatherItem: return "gather-item";
             case StmtKind::GatherLoop: return "gather-loop";
     }
@@ -775,7 +781,11 @@ struct Dumper {
         std::visit([&](auto& p) {
             using T = std::decay_t<decltype(p)>;
             if constexpr (std::is_same_v<T, payload::VarDecl>) {
-                o << " #" << p.decl << (p.isConst ? " const" : "") << (p.isLocal ? " local" : "");
+                o << " #" << p.decl << (p.isConst ? " const" : "")
+                  << (p.isLocal ? " local" : "")
+                  << (p.isBucket ? " bucket" : "");
+            } else if constexpr (std::is_same_v<T, payload::BucketRelease>) {
+                o << " " << p.name << " #" << p.decl;
             } else if constexpr (std::is_same_v<T, payload::If>) {
                 o << " elifs=" << p.elifs.size() << " else=" << (p.hasElse ? 1 : 0);
             } else if constexpr (std::is_same_v<T, payload::AugAssign>) {

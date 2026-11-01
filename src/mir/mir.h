@@ -119,6 +119,8 @@ enum class Op : uint8_t {
     Load,
     Store,
     Move,       // consume a local binding (used by strict move-liveness)
+    BucketPark, // move a value into the bucket namespace
+    BucketRelease, // restore a parked value into its local binding
 
     // Values.
     Const,      // an integer/float/char/str constant

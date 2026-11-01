@@ -2239,3 +2239,22 @@ closure fixture shows `captures #232` in HIR and `makeclosure ...
 lambda:captures=1` in MIR. Runtime closure execution remains owned by the
 interpreter/VM path; this phase closes the structural HIR/MIR requirement without
 claiming scalar LLVM support for dynamic closures.
+
+### Update (2026-11-01) — Explicit MIR bucket lifetime operations (shipped)
+
+The Phase 3 bucket fidelity gap is closed. HIR now carries `bucket release name`
+as a dedicated `BucketRelease` payload and preserves `bucket name = value` as a
+bucket-marked declaration. MIR emits explicit `bucketpark` and `bucketrelease`
+operations, with the release result restored into the local alloca. This keeps
+the namespace/lifetime boundary visible for later ownership, drop, and backend
+passes instead of disguising release as a self-assignment. LLVM names both
+operations and rejects them through the normal unsupported-subset diagnostic
+until a bucket runtime representation is added.
+
+Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`, `src/mir/mir.{h,cpp}`,
+`src/mir/mir_verify.cpp`, `src/backends/llvm/emit_llvm.cpp`, and
+`scripts/gates/9_MIR.sh`.
+
+Verification: clean CMake build; `examples/40_keywords.kn` retains its exact
+interpreter output; MIR gate **11/11**, including a direct assertion that both
+bucket operations are present in the dump.

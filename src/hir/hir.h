@@ -313,7 +313,13 @@ struct Block {
     std::vector<StmtP> stmts;
     ScopeId scope = NO_SCOPE;     // explicit: this is the frame these bind in
 };
-struct VarDecl { DeclId decl = NO_DECL; ExprP init; bool isConst = false; bool isLocal = false; };
+struct VarDecl {
+    DeclId decl = NO_DECL;
+    ExprP init;
+    bool isConst = false;
+    bool isLocal = false;
+    bool isBucket = false;
+};
 struct Assign { ExprP target; ExprP value; };
 struct AugAssign { ExprP target; std::string op; ExprP value; };
 struct ExprStmt { ExprP value; };
@@ -364,6 +370,7 @@ struct Goto { std::string label; };
 struct Label { std::string name; Block body; };
 struct Yield { ExprP value; bool hasValue = false; };
 struct Del { std::vector<ExprP> targets; };
+struct BucketRelease { DeclId decl = NO_DECL; std::string name; };
 // `gather <expr>,` -- enqueue one more work item. The worklist loop itself is
 // the enclosing `gather` block; this is how a body iteration re-queues.
 struct GatherItem { ExprP item; };
@@ -398,12 +405,13 @@ using StmtPayload = std::variant<
     payload::Break, payload::Continue, payload::Raise, payload::Defer,
     payload::MatchStmt, payload::Select, payload::TryStmt,
     payload::UnsafeBlock, payload::Spawn, payload::Goto, payload::Label,
-    payload::Yield, payload::Del, payload::GatherItem, payload::GatherLoop>;
+    payload::Yield, payload::Del, payload::BucketRelease, payload::GatherItem,
+    payload::GatherLoop>;
 
 enum class StmtKind : uint8_t {
     Nop, Block, VarDecl, ExprStmt, Assign, AugAssign, Return, Raise, Break,
     Continue, Defer, If, While, For, Match, Select, Try, Unsafe, Spawn,
-    DoWhile, Goto, Label, Yield, Del, GatherItem, GatherLoop
+    DoWhile, Goto, Label, Yield, Del, BucketRelease, GatherItem, GatherLoop
 };
 
 struct Stmt {

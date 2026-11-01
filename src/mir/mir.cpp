@@ -925,8 +925,28 @@ struct Builder {
             b.local = allocLocal(b.name, t, s.span);
             binds[p.decl] = b;
             if (p.init) {
-                if (Value v = lower(*p.init); v != NO_VALUE) write(p.decl, v, s.span);
+                if (Value v = lower(*p.init); v != NO_VALUE) {
+                    if (p.isBucket) {
+                        Inst in;
+                        in.op = Op::BucketPark;
+                        in.type = fn->valueTypes[v];
+                        in.args = {v};
+                        in.argTypes = {fn->valueTypes[v]};
+                        in.opName = std::to_string(b.local);
+                        in.span = sp(s.span);
+                        emit(std::move(in));
+                    } else {
+                        write(p.decl, v, s.span);
+                    }
+                }
             }
+        } else if constexpr (std::is_same_v<T, hir::payload::BucketRelease>) {
+            Binding* b = bind(p.decl);
+            if (!b) return;
+            Type t = fn->localTypes[b->local];
+            Value v = emitValue(Op::BucketRelease, {}, t, s.span,
+                                std::to_string(b->local).c_str());
+            write(p.decl, v, s.span);
         } else if constexpr (std::is_same_v<T, hir::payload::ExprStmt>) {
             if (p.value) lower(*p.value);
         } else if constexpr (std::is_same_v<T, hir::payload::Assign> ||

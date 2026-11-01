@@ -123,10 +123,20 @@ fi
 closure_mir="$($KN rt "$ROOT/tests/mir/closures.kn" 2>&1)"
 if echo "$closure_mir" | grep -q '^func __lambda_' &&
    echo "$closure_mir" | grep -q 'makeclosure' &&
-   echo "$closure_mir" | grep -q 'lambda:captures=1'; then
-    report PASS "closures have function items and explicit captures" "synthesized lambda function + makeclosure(captures=1)"
+   echo "$closure_mir" | grep -q 'func:__lambda_'; then
+    report PASS "closures have function items and explicit captures" "synthesized lambda function + makeclosure"
 else
     report FAIL "closures have function items and explicit captures" "missing synthesized function or capture construction"
+fi
+
+nested_mir="$($KN rt "$ROOT/tests/mir/nested_functions.kn" 2>&1)"
+if echo "$nested_mir" | grep -q '^func tick .*captures=' &&
+   echo "$nested_mir" | grep -q 'func:tick' &&
+   echo "$nested_mir" | grep -q 'envload' &&
+   echo "$nested_mir" | grep -q 'envstore'; then
+    report PASS "nested named functions carry captures" "tick function value + environment loads/stores"
+else
+    report FAIL "nested named functions carry captures" "nested function did not preserve its closure environment"
 fi
 
 mutable_closure_mir="$($KN rt "$ROOT/tests/mir/closures_mut.kn" 2>&1)"

@@ -1003,6 +1003,7 @@ struct Lowerer {
                 f->decl = declare(s.name, Decl::Kind::Func, sp, nullptr, false, nullptr);
                 if (Decl* d = const_cast<Decl*>(ctx.get(f->decl))) d->sig = f->sig;
                 fnStack.push_back(f->decl);
+                lambdaStack.emplace_back();
                 f->bodyScope = pushScope(true);
                 for (size_t i = 0; i < s.params.size(); ++i) {
                     const auto& pn = s.params[i];
@@ -1015,6 +1016,9 @@ struct Lowerer {
                 for (const auto& b : s.body)
                     if (b) f->body.push_back(lower(*b));
                 popScope();
+                f->captures.assign(lambdaStack.back().captures.begin(),
+                                   lambdaStack.back().captures.end());
+                lambdaStack.pop_back();
                 fnStack.pop_back();
                 nestedFuncs.push_back(std::move(f));
                 return mk(StmtKind::Nop, sp, payload::Nop{});

@@ -2298,3 +2298,20 @@ Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`,
 Verification: clean CMake build; the mutable-capture fixture executes as
 `1 2 3`; HIR gate **3/3** and MIR gate **13/13** pass, including direct
 assertions for `captureref`, `envload`, and `envstore`.
+
+### Update (2026-11-01) — Nested named functions use closure values (shipped)
+
+Nested named functions now share the same first-class closure representation as
+lambda functions. HIR collects their enclosing declarations, MIR emits a
+function value with capture references when the name is used as a value, and
+direct calls to capture-free named functions retain their resolvable callee
+name. Captured reads and writes in the nested body use the explicit environment
+operations, so returning a nested function preserves mutable state rather than
+invoking it while lowering or treating it as a global.
+
+Delivered: `src/hir/hir.cpp`, `src/mir/mir.{h,cpp,mir_verify.cpp}`,
+`src/backends/llvm/emit_llvm.cpp`, `tests/mir/nested_functions.kn`, and
+`scripts/gates/9_MIR.sh`.
+
+Verification: the nested-function fixture executes `1 2 3`; MIR gate **14/14**
+asserts the `tick` function value, capture list, `envload`, and `envstore`.

@@ -1,0 +1,13 @@
+fn make_counter() -> fn() -> Int {
+    state = 0;
+    fn tick() -> Int {
+        state += 1;
+        return state;
+    }
+    return tick;
+}
+
+fn main() -> none {
+    next = make_counter();
+    print(next(), next(), next());
+}

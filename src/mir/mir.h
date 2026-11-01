@@ -119,6 +119,7 @@ enum class Op : uint8_t {
     Load,
     Store,
     CaptureRef, // reference to an enclosing local captured by a closure
+    EnvRef,     // forward an enclosing environment reference to a child closure
     EnvLoad,    // load a captured binding through the closure environment
     EnvStore,   // store a captured binding through the closure environment
     Move,       // consume a local binding (used by strict move-liveness)

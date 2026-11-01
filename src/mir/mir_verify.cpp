@@ -51,6 +51,7 @@ const char* opName(Op o) {
         case Op::Load: return "load";
         case Op::Store: return "store";
         case Op::CaptureRef: return "captureref";
+        case Op::EnvRef: return "envref";
         case Op::EnvLoad: return "envload";
         case Op::EnvStore: return "envstore";
         case Op::Move: return "move";
@@ -227,11 +228,13 @@ struct Verifier {
 
                 // Alloca/Load/Store/Phi carry a local index as an immediate.
                 if ((in.op == Op::Alloca || in.op == Op::Load || in.op == Op::Store ||
-                     in.op == Op::CaptureRef || in.op == Op::EnvLoad ||
+                     in.op == Op::CaptureRef || in.op == Op::EnvRef ||
+                     in.op == Op::EnvLoad ||
                      in.op == Op::EnvStore || in.op == Op::Phi) &&
                     !in.opName.empty()) {
                     long idx = std::strtol(in.opName.c_str(), nullptr, 10);
-                    const size_t bound = (in.op == Op::EnvLoad || in.op == Op::EnvStore)
+                    const size_t bound = (in.op == Op::EnvRef ||
+                                          in.op == Op::EnvLoad || in.op == Op::EnvStore)
                         ? f.captureTypes.size() : f.localTypes.size();
                     if (idx < 0 || (size_t)idx >= bound) {
                         bad(in.span, where + ": '" + opName(in.op) + "' names local " +

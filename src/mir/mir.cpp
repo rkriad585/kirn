@@ -349,6 +349,38 @@ struct Builder {
         return it == binds.end() ? nullptr : &it->second;
     }
 
+    const hir::Func* functionFor(hir::DeclId d) const {
+        for (const hir::Func* f : hm.funcs)
+            if (f && f->decl == d) return f;
+        return nullptr;
+    }
+
+    Value makeFunctionValue(const hir::Func& target, Type t, ast::Span s) {
+        std::vector<Value> refs;
+        for (hir::DeclId capture : target.captures) {
+            Binding* b = bind(capture);
+            if (!b) continue;
+            Type valueType = b->isCapture ? b->captureType
+                                          : (b->local < fn->localTypes.size()
+                                                 ? fn->localTypes[b->local] : NO_VALUE);
+            if (valueType == NO_VALUE) continue;
+            Type refTy = fn->internType(TypeEntry{Ty::Ref, "ref", {}, valueType});
+            std::string slot;
+            Op refOp;
+            if (b->isCapture) {
+                refOp = Op::EnvRef;
+                slot = std::to_string(b->captureIndex);
+            } else {
+                refOp = Op::CaptureRef;
+                slot = std::to_string(b->local);
+            }
+            Value ref = emitValue(refOp, {}, refTy, s, slot.c_str());
+            refs.push_back(ref);
+        }
+        return emitValue(Op::MakeClosure, std::move(refs), t, s,
+                         ("func:" + target.name).c_str());
+    }
+
     // A write. Recorded per-block so a join can build a phi.
     void write(hir::DeclId d, Value v, ast::Span s) {
         Binding* b = bind(d);
@@ -469,6 +501,8 @@ struct Builder {
             // A name is a load from its slot. Unresolved names (module roots,
             // builtins) have no slot and lower to a Call by name instead.
             if (p.decl != hir::NO_DECL) {
+                if (const hir::Func* target = functionFor(p.decl))
+                    return makeFunctionValue(*target, t, s);
                 if (Value v = read(p.decl, s); v != NO_VALUE) return v;
             }
             return emitValue(Op::CallIndirect, {}, t, s, p.spelling.c_str());
@@ -492,7 +526,16 @@ struct Builder {
         } else if constexpr (std::is_same_v<T, hir::payload::Call>) {
             std::vector<Value> args;
             if (p.callee) {
-                Value c = lower(*p.callee);
+                Value c = NO_VALUE;
+                if (p.callee->kind == hir::ExprKind::Name) {
+                    const auto& name = std::get<hir::payload::Name>(p.callee->p);
+                    if (const hir::Func* target = functionFor(name.decl);
+                        target && target->captures.empty()) {
+                        c = emitValue(Op::CallIndirect, {}, tyOf(p.callee->type), s,
+                                      target->name.c_str());
+                    }
+                }
+                if (c == NO_VALUE) c = lower(*p.callee);
                 if (c != NO_VALUE) args.push_back(c);
             }
             for (const auto& a : p.args) {
@@ -694,16 +737,9 @@ struct Builder {
             emit(std::move(in));
             return phi;
         } else if constexpr (std::is_same_v<T, hir::payload::Lambda>) {
-            std::vector<Value> a;
-            for (hir::DeclId capture : p.captures) {
-                Binding* b = bind(capture);
-                if (!b || b->isCapture || b->local >= fn->localTypes.size()) continue;
-                Type refTy = fn->internType(TypeEntry{Ty::Ref, "ref", {}, fn->localTypes[b->local]});
-                Value ref = emitValue(Op::CaptureRef, {}, refTy, s,
-                                      std::to_string(b->local).c_str());
-                a.push_back(ref);
-            }
-            return emitValue(Op::MakeClosure, a, t, s,
+            if (const hir::Func* target = functionFor(p.function))
+                return makeFunctionValue(*target, t, s);
+            return emitValue(Op::MakeClosure, {}, t, s,
                              ("lambda:captures=" +
                               std::to_string(p.captures.size())).c_str());
         } else if constexpr (std::is_same_v<T, hir::payload::NewExpr>) {

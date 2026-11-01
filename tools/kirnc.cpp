@@ -10,11 +10,9 @@
 //
 // `kirnc` is the rustc/gcc-style half of the split: `kirn` stays the
 // user-facing orchestrator (packages, `new`, `test`, `doc`), and `kirnc` owns
-// the compilation verbs and the stage grammar. This phase is deliberately a
-// skeleton: the stage verbs are the real thing (they share one implementation
-// with kirnlex/kirnparse/kirncheck), while the stop-at-stage flags are declared
-// and rejected with a pointer to the phase that lands them, rather than
-// half-implemented.
+// the compilation verbs and the stage grammar. The stage verbs share one
+// implementation with the compatibility oracle tools, and the shipped
+// stop-at-stage flags are handled by the common driver pipeline.
 //
 // Exit codes follow the plan: 1 = "check found errors" (what gcc, clang, rustc
 // and nim all use; note cargo check is 101), 2 = bad usage. The library's own
@@ -75,9 +73,9 @@ const char* const kUsage =
 
 bool isHelp(const std::string& a) { return a == "-h" || a == "--help"; }
 
-// Stage flags the plan schedules for later phases. Rejecting them loudly beats
-// silently treating "-c" as an input filename, which is what the old tools did
-// with any unrecognised argument.
+// Stage flags are driver-level options. Rejecting an unsupported combination
+// loudly beats silently treating an option as an input filename, which is what
+// the old tools did with unrecognised arguments.
 //
 // -E is NOT here any more: it landed with the preprocessor in phase 2, and
 // kirnc dispatches it below.
@@ -500,11 +498,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    // -E handled earlier; -D/-U only with -E handled.
-
     // `-fbackend=llvm` is a real selector. Object and assembly emission use
-    // LLVM's in-process TargetMachine; executable linking remains the normal
-    // host backend until the LLD integration phase.
+    // LLVM's in-process TargetMachine; executable linking uses the configured
+    // host linker, with optional in-process LLD when matching libraries exist.
     std::string backend = takeBackendSelector(rest);
     if (backend == "runtime") {
         if (verb != "run" && verb != "build") {
@@ -581,12 +577,9 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    // -D/-U only have an effect on -E for now. The preprocessor does run in
-    // front of `check` (see frontEnd), so threading the flags into every verb is
-    // real remaining work -- but rejecting them is strictly better than the
-    // alternative, which is that `kirnc check -DFOO=1 f.kn` today silently
-    // accepts the flag and `kirnc lex -DFOO=1 f.kn` treats it as a FILENAME and
-    // reports "cannot read file". An unrecognised flag must never be a path.
+    // Macro selectors are removed once here. Each stage below either forwards
+    // the ordered definitions to the shared front end or rejects an invalid
+    // combination; an unrecognised flag must never become a path.
     if (verb == "lex") {
         std::vector<std::string> a = stripFor(rest, false);
         if (hasFlag("--emit-tokens")) a.push_back("--dump");
@@ -607,10 +600,7 @@ int main(int argc, char** argv) {
         return kirn::driver::cmdHir(a, "kirnc", stageDefines);
     }
     if (verb == "rt" || hasFlag("--emit-mir")) {
-        // `rt` is the MIR dumper for this phase. BUILDER-PLAN section 6 gives it
-        // two meanings -- "run through the runtime" and "dump MIR" -- and the
-        // phase-3 text resolves it as the dumper; the runner meaning is deferred
-        // to the phase that retires the bundle.
+        // `rt` is the verified MIR dumper; `run` is the runtime execution verb.
         std::vector<std::string> a;
         for (const auto& s : stageRest)
             if (s != "--emit-mir" && s != "-emit-mir") a.push_back(s);

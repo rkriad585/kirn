@@ -22,6 +22,23 @@ pipeline described by `prepro -> compile -> assemb -> executable`, exposed as
 **two binaries** (`kirn` = user-facing operations, `kirnc` = the compiler
 driver that also drives C/C++).
 
+## Current completion ledger (2026-11-01)
+
+Builder phases **0–6 are complete in the current tree**. The evidence is the
+shipped update history below plus the current gates: shared driver/payload and
+installed-tree checks, preprocessor **3/3**, HIR **3/3**, MIR **15/15**, native
+syntax **57/57**, native differentials **3/3 + 2/2**, object/assembly/runtime-free
+**4/4**, cache **2/2**, and the clean-prefix Phase 6 gate **23/23**. The benchmark
+harness currently measures the checked recursive-integer fixture against Rust
+and Go; its results are recorded with the native-launcher update.
+
+The remaining boundaries are intentional contracts, not untracked phase work:
+the native C++ backend lowers its verified scalar subset, runtime-backed
+features retain the interpreter path, macros are expanded at front-end stages,
+and the optional LLVM backend requires an LLVM-enabled build. The external
+system linker remains configurable when matching LLD development libraries are
+not installed.
+
 ---
 
 ## 1. The ask, restated
@@ -1921,15 +1938,15 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
 
 ---
 
-## 9. Open questions (need user confirmation)
+## 9. Decisions and boundaries (ratified)
 
-**Goal:** Collect the questions that need the language owner's confirmation before their phases can be finalized.
-**Must Follow:** Keep unresolved items visible (meaning of `rt`, macro scope, C/C++ driver backend, LLVM policy, AOT promise) rather than guessing.
-**Important Note:** The `rt`/`run` contradiction is the sharpest — phase 1 deliberately implements neither until it is answered.
+**Goal:** Preserve the decisions that made the shipped phases coherent.
+**Must Follow:** Keep intentional boundaries visible rather than presenting
+unsupported combinations as implemented.
 
-1. **Meaning of `rt`.** The plan reads it as "run through the runtime"
-   (bundle-and-interpret), distinct from `run` (full AOT). Alternative
-   readings: "run tests", or "register-transfer/IR dump". Please confirm.
+1. **Meaning of `rt` — ratified.** `kirnc rt` is the verified MIR dump;
+   `kirnc run` is the checked runtime execution path. `--emit-mir` is the
+   explicit alias for the dump.
 
    _The plan is self-contradictory here, and phase 1 found it the hard way._
    §3.4 and phase 1's own text say `rt` = "run through the runtime"; but §3.1
@@ -1944,27 +1961,24 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
    | `kirn run`     | stderr                     | 65   | none         | no           |
    | bundled binary | _(nothing printed at all)_ | 65   | none         | no           |
 
-   So "kirnc X output == old tool output" is currently unanswerable for
-   `run`/`rt`, and phase 1 therefore implements neither. `kirnc run` exits 2
-   with an explanation instead of silently picking a winner — baking a guess
-   into the driver would be worse than a visible gap. **Decision needed:**
-   which column is the oracle for `run`? My recommendation is the `kirn run`
-   column (stderr, 65, no summary), because `kirn run` is the documented user
-   surface and 65 is already load-bearing for `gates_linux.sh`; and `rt` should
-   mean "run through the runtime", with the MIR dump owned solely by
-   `--emit-mir` from phase 3, which removes the contradiction with lines
-   115/799/1061.
+   The original table remains useful historical evidence for why the decision
+   was necessary. The shipped contract follows the documented `kirn run`
+   behavior and keeps the MIR dump separate, removing the contradiction.
 
-2. **Macro scope.** Token-level macros (Nim-style, can synthesize syntax) vs
-   expression-level only. The plan assumes token-level `#fn`.
-3. **C/C++ driver backend.** Wrap the _system_ compiler (whatever
-   `clang`/`gcc`/`cl.exe` is found, Zig model) vs bundle its own clang. The
-   plan assumes wrap-the-system-compiler for now, LLVM-clang later.
-4. **LLVM dependency policy.** Confirm `KIRN_WITH_LLVM=ON` is acceptable for
-   release builds (larger toolchain; cross toolchains already provide
-   clang/lld).
-5. **Version of the AOT promise.** v0.1.0 = LLVM for scalar subset; dynamic
-   features stay on runtime until further notice — acceptable?
+2. **Macro scope — ratified.** Token-level macros (Nim-style, can synthesize syntax) are
+   per source file; command-line definitions are applied in order at every
+   front-end stage. Imported files do not leak definitions into their importer.
+   This keeps module loading deterministic and avoids a hidden shared mutable
+   preprocessor table.
+3. **C/C++ driver backend — ratified.** Wrap the _system_ compiler (whatever
+   `clang`/`gcc`/`cl.exe` is found, Zig model); do not bundle a second clang.
+4. **LLVM dependency policy — ratified.** `KIRN_WITH_LLVM=ON` is optional;
+   the default two-tool build remains LLVM-free, while LLVM-enabled builds
+   expose the in-process object/assembly path.
+5. **AOT promise — ratified.** The checked scalar subset is native AOT; dynamic
+   and runtime-backed features retain the interpreter bridge until their ABI is
+   implemented. Unsupported native cases are rejected or fall back explicitly,
+   never guessed.
 
 ### Update (2026-10-31) — `kirnc run` runtime contract (shipped)
 

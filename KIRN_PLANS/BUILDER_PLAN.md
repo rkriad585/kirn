@@ -2196,6 +2196,30 @@ Verification: gate 11a **56/56**, release Fibonacci output `2178308`, and a
 successful release build/run. This improves the native path but does not yet
 prove the plan-wide Rust/Go performance mandate.
 
+### Update (2026-11-01) — Runtime-free release scalar artifacts (shipped)
+
+Release builds whose zero-argument `main` is fully lowered by the checked native
+backend now emit a minimal process entry that does not link or initialize the
+interpreter, VM, sema, parser, lexer, or runtime support libraries. Native panic
+paths retain the language's exit-70 contract through a small generated stderr
+helper, and non-scalar/dynamic programs continue to use the existing checked
+runtime launcher. Explicit debug `--native` builds retain their previous runtime
+registration path.
+
+This follows the measured startup model used by Go's cached build artifacts,
+Rust's direct sysroot executable path, Zig's target-aware output setup, and the
+runtime initialization boundaries visible in CPython and Ruby. LLVM's
+optimization-level parser remains the reference for treating release lowering as
+an explicit optimization policy rather than changing debug semantics.
+
+Verification: clean CMake build; native gates 11a **56/56**, 11b **3/3**, and
+11c **2/2**; bundle gate **25/25**. The reproducible benchmark (`--runs 1` on
+this host) measured Kirn release build/run **2.534164s/0.010100s**, Rust
+**0.098767s/0.007094s**, and Go **6.803923s/0.013935s**. Kirn now beats Go on
+run time, but remains slower than Rust on this benchmark; the Builder plan's
+stronger "faster than Rust and Go" requirement therefore remains explicitly
+unproven rather than being claimed as complete.
+
 ### Update (2026-11-01) — Explicit MIR closure captures (shipped)
 
 HIR lambda payloads now retain the resolved local declarations they capture, with

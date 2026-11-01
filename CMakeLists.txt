@@ -12,6 +12,16 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(ZLIB REQUIRED)
 find_package(SQLite3 REQUIRED)
 
+# CMake 4's FindSQLite3 module can report SQLite3_FOUND without defining the
+# imported target on some distro packages. Keep the link interface stable for
+# both old and new CMake versions.
+if(NOT TARGET SQLite3::SQLite3)
+    add_library(SQLite3::SQLite3 UNKNOWN IMPORTED)
+    set_target_properties(SQLite3::SQLite3 PROPERTIES
+        IMPORTED_LOCATION "${SQLite3_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${SQLite3_INCLUDE_DIRS}")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()

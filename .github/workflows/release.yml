@@ -151,6 +151,13 @@ jobs:
           $env:PATH = "$bin;$env:PATH"
           aarch64-w64-mingw32-g++ --version | Select-Object -First 1
 
+      - name: Install native Windows libraries
+        if: matrix.target == 'windows-amd64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
+
       - name: Configure and build
         shell: bash
         env:
@@ -162,7 +169,12 @@ jobs:
           set -euo pipefail
           case "$MODE" in
             native)
-              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+              if [ "$TARGET" = windows-amd64 ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+              else
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+              fi
               ;;
             cross)
               # Everything below is derived from the target triple. Hardcoding the

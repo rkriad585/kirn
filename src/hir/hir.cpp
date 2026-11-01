@@ -44,6 +44,7 @@ struct Lowerer {
     // lower(). They are functions, so they belong in the function list even
     // though they were found inside a body.
     std::vector<std::unique_ptr<Func>> nestedFuncs;
+    uint32_t lambdaCounter = 0;
 
     Lowerer(sema::Checker& c, Context& x, DiagEngine& d, const LowerOptions& o)
         : chk(c), ctx(x), diags(d), opts(o) {}
@@ -421,22 +422,56 @@ struct Lowerer {
             case ast::ExKind::Lambda: {
                 payload::Lambda l;
                 l.isBlock = e.isBlockClosure;
+                auto f = std::make_unique<Func>();
+                f->span = sp;
+                f->name = "__lambda_" + std::to_string(sp.line) + "_" +
+                          std::to_string(sp.col) + "_" +
+                          std::to_string(lambdaCounter++);
+                f->decl = declare(f->name, Decl::Kind::Func, sp, nullptr, false, nullptr);
+                l.function = f->decl;
+                if (ty && ty->k == sema::TyK::Fn) {
+                    f->sig.params = ty->args;
+                    f->sig.ret = ty->inner;
+                }
+                if (Decl* d = const_cast<Decl*>(ctx.get(f->decl))) d->sig = f->sig;
+                fnStack.push_back(f->decl);
                 lambdaStack.emplace_back();
-                pushScope(true);
+                f->bodyScope = pushScope(true);
                 for (const auto& pn : e.lambdaParams) {
-                    DeclId id = declare(pn, Decl::Kind::Param, sp, nullptr, true, nullptr);
+                    DeclId id = declare(pn, Decl::Kind::Param, sp,
+                                        f->sig.params.size() > f->params.size()
+                                            ? f->sig.params[f->params.size()] : nullptr,
+                                        true, nullptr);
                     l.params.push_back(id);
+                    f->params.push_back(id);
+                    if (Decl* pd = const_cast<Decl*>(ctx.get(id))) pd->slot = nextSlot(*f, pn);
                 }
                 for (const auto& p2 : e.closureParams) {
-                    DeclId id = declare(p2.name, Decl::Kind::Param, sp, nullptr, true, nullptr);
+                    size_t index = f->params.size();
+                    DeclId id = declare(p2.name, Decl::Kind::Param, sp,
+                                        f->sig.params.size() > index ? f->sig.params[index] : nullptr,
+                                        true, nullptr);
                     l.params.push_back(id);
+                    f->params.push_back(id);
+                    if (Decl* pd = const_cast<Decl*>(ctx.get(id))) pd->slot = nextSlot(*f, p2.name);
                 }
-                for (const auto& s : e.lambdaBody) l.body.push_back(lower(*s));
-                if (e.rhs) l.arrow = lower(*e.rhs);
+                for (const auto& s : e.lambdaBody) f->body.push_back(lower(*s));
+                if (e.rhs) {
+                    auto value = lower(*e.rhs);
+                    auto ret = std::make_unique<Stmt>();
+                    ret->kind = StmtKind::Return;
+                    ret->span = sp;
+                    payload::Return r;
+                    r.values.push_back(std::move(value));
+                    ret->p = std::move(r);
+                    f->body.push_back(std::move(ret));
+                }
                 popScope();
                 l.captures.assign(lambdaStack.back().captures.begin(),
                                   lambdaStack.back().captures.end());
                 lambdaStack.pop_back();
+                fnStack.pop_back();
+                nestedFuncs.push_back(std::move(f));
                 return mk(ExprKind::Lambda, sp, ty, std::move(l));
             }
             case ast::ExKind::List: case ast::ExKind::Set: case ast::ExKind::Tuple: {

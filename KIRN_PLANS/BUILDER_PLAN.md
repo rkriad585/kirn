@@ -2258,3 +2258,22 @@ Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`, `src/mir/mir.{h,cpp}
 Verification: clean CMake build; `examples/40_keywords.kn` retains its exact
 interpreter output; MIR gate **11/11**, including a direct assertion that both
 bucket operations are present in the dump.
+
+### Update (2026-11-01) — Nested lambdas become function items (shipped)
+
+Lambda expressions now synthesize a real HIR function item with its own
+function scope, parameter declarations, dense local slots, signature, body,
+and stable internal name. The lambda expression retains the function
+declaration id and capture set, while MIR builds the synthesized body as an
+ordinary function and leaves `makeclosure` as the construction point. This
+replaces the former expression-only body representation, so nested code can be
+verified, dumped, and passed to later optimization/code-generation stages as a
+normal function item.
+
+Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`, and
+`scripts/gates/9_MIR.sh`.
+
+Verification: clean CMake build; `tests/mir/closures.kn` now lowers to three
+functions (including `__lambda_*`), preserves `lambda:captures=1`, and returns
+42 through the interpreter; MIR gate **12/12** and HIR/MIR deterministic dump
+checks pass.

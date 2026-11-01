@@ -249,6 +249,7 @@ struct FString {
     std::vector<Part> parts;
 };
 struct Lambda {
+    DeclId function = NO_DECL;    // synthesized function item for this closure
     std::vector<DeclId> params;
     // Free local declarations resolved while lowering the lambda body. Keeping
     // this explicit makes capture-by-reference a property of the IR instead of

@@ -117,6 +117,18 @@ else
     report FAIL "bucket park/release remain explicit MIR operations" "missing bucket operation in MIR dump"
 fi
 
+# A closure is a real function item as well as a closure-construction operation.
+# Checking both prevents a regression to the old model where the lambda body
+# lived only inside the expression and could not be compiled independently.
+closure_mir="$($KN rt "$ROOT/tests/mir/closures.kn" 2>&1)"
+if echo "$closure_mir" | grep -q '^func __lambda_' &&
+   echo "$closure_mir" | grep -q 'makeclosure' &&
+   echo "$closure_mir" | grep -q 'lambda:captures=1'; then
+    report PASS "closures have function items and explicit captures" "synthesized lambda function + makeclosure(captures=1)"
+else
+    report FAIL "closures have function items and explicit captures" "missing synthesized function or capture construction"
+fi
+
 # `rt` must agree with itself across runs, and must be a dump rather than an
 # execution: the plan gives `rt` two meanings and resolves it as the dumper.
 "$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m1" 2>&1

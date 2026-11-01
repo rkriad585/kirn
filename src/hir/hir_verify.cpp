@@ -258,6 +258,11 @@ struct Verifier {
             }
         } else if constexpr (std::is_same_v<T, payload::Lambda>) {
             wantKind(e.span, e.kind, ExprKind::Lambda, "Lambda");
+            if (p.function == NO_DECL) bad(e.span, "lambda has no synthesized function");
+            else if (declOk(p.function, e.span, "lambda function")) {
+                if (ctx.decls[p.function].kind != Decl::Kind::Func)
+                    bad(e.span, "lambda function is not a function declaration");
+            }
             for (DeclId id : p.params) declOk(id, e.span, "lambda parameter");
             for (DeclId id : p.captures) declOk(id, e.span, "lambda capture");
             for (const auto& s : p.body) if (s) stmt(*s);
@@ -750,6 +755,7 @@ struct Dumper {
                 if (p.subject) expr(*p.subject, n + 1);
                 for (const auto& a : p.arms) { pat(a.pat, n + 1); stmtList(a.body, n + 2); }
             } else if constexpr (std::is_same_v<T, payload::Lambda>) {
+                ind(n + 1); o << "function #" << p.function << "\n";
                 if (!p.captures.empty()) {
                     ind(n + 1); o << "captures";
                     for (DeclId id : p.captures) o << " #" << id;

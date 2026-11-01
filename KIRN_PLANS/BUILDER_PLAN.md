@@ -2401,3 +2401,17 @@ Verification: clean CMake build; pet pack/install/consume gate **3/3**; a
 `KIRN_PREFIX=$PWD kirn check examples/01_hello.kn` check passed. The earlier
 Phase 0 notes about unshared payload formats and missing root discovery are
 historical and no longer describe the implementation.
+
+### Update (2026-11-01) — POSIX `-O/--obj` stop-at stage (shipped)
+
+The parsed `-O`/`--obj` option now emits an ELF relocatable object on the
+POSIX/GNU host path, with the same generated launcher and checked front end as
+`-c`. Default output naming is `.o`; explicit `-o` remains authoritative.
+The GNU cross path accepts the same option, and `-S` continues to select
+assembly independently. The existing MSVC object path is unchanged.
+
+Delivered: `src/driver/driver.cpp` and `scripts/gates/11f_object.sh`.
+
+Verification: object/assembly gate **3/3**; `-O` and `-c` each produce a
+non-empty ELF relocatable object, and `-S` produces non-empty assembler source.
+This closes the former “`-O` dead on POSIX” plan item.

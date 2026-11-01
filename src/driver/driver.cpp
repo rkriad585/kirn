@@ -3685,12 +3685,17 @@ int buildProgram(const std::string& name, const std::string& version,
         havePrebuiltRuntime =
             havePrebuiltRuntime && fs::is_regular_file(fs::path(binRoot) / lib);
     if (havePrebuiltRuntime) {
+        const bool wantsObject = opts.compileOnly || opts.obj;
         const std::string outName =
             !opts.outPath.empty()
                 ? opts.outPath
                 : !opts.defaultOut.empty()
-                    ? opts.defaultOut + hostExeSuffix()
-                    : (outDir / (name + (ti ? ti->exeExt : ""))).generic_string();
+                    ? opts.defaultOut +
+                          (opts.emitAsm ? ".s" : wantsObject ? ".o" : hostExeSuffix())
+                    : (outDir / (name +
+                                 (opts.emitAsm ? ".s"
+                                  : wantsObject ? ".o" : (ti ? ti->exeExt : ""))))
+                          .generic_string();
         const std::string launcherCpp =
             (outDir / (name + ".cpp")).generic_string();
         fs::path outPath(outName);
@@ -3737,7 +3742,7 @@ int buildProgram(const std::string& name, const std::string& version,
         fast << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS "
              << (opts.release ? "-O3 -s -w " : "-O1 -g ")
              << "-I\"" << srcRoot << "\" ";
-        if (opts.compileOnly || opts.emitAsm) {
+        if (opts.compileOnly || opts.obj || opts.emitAsm) {
             fast << (opts.emitAsm ? "-S " : "-c ") << "-o \""
                  << fs::absolute(outPath).generic_string() << "\" \""
                  << fs::absolute(launcherCpp).generic_string() << "\"";
@@ -3815,7 +3820,7 @@ int buildProgram(const std::string& name, const std::string& version,
         // the executable path but stop before linking. This keeps the source
         // graph, diagnostics, and target toolchain identical across `-c`,
         // `-S`, and a normal build.
-        if (opts.compileOnly || opts.emitAsm) {
+        if (opts.compileOnly || opts.obj || opts.emitAsm) {
             const std::string suffix = opts.emitAsm ? ".s" : ".o";
             const std::string stageOut =
                 !opts.outPath.empty()

@@ -14,7 +14,7 @@ Drive the Kirn toolchain to a **two-executable** (`kirn` + `kirnc`), staged **AO
 
 ## Important Note
 
-Key invariants this plan already fixes and must not lose: the two-tool split modeled on Go's `cmd/go` ↔ `cmd/compile`; the phase list modeled on `gc.Main` / rustc's query spine; stage hooks modeled on rustc `Callbacks`; `--emit=` output types and `-###` dry-run; the SSA pipeline modeled on Go's `ssacompile`; the IR shape from CPython ASDL (AST→bytecode flatten-late from Ruby); the six cross-language rules in §3.4.14; and the phased plan in §6, testing strategy in §7, and open questions in §9.
+Key invariants this plan already fixes and must not lose: the two-tool split modeled on Go's `cmd/go` ↔ `cmd/compile`; the phase list modeled on `gc.Main` / rustc's query spine; stage hooks modeled on rustc `Callbacks`; `--emit=` output types and `-###` dry-run; the SSA pipeline modeled on Go's `ssacompile`; the IR shape from CPython ASDL (AST→bytecode flatten-late from Ruby); the six cross-language rules in §3.4.14; and the phased plan in §6, testing strategy in §7, and ratified decisions in §9.
 
 Date: 2026-09-30
 Scope: how the Kirn build path becomes a real ahead-of-time (AOT) compilation
@@ -1329,7 +1329,7 @@ _Verify:_ `kirnc X` output == old tool output on the corpus; new CI job runs
 the cross-check matrix.
 
 _Status 2026-09-30: skeleton landed; `check`/`lex`/`parse`/`build` are real, `run`
-is deliberately not implemented yet._ `tools/kirnc.cpp` is ~200 lines and links
+was deliberately deferred at the initial skeleton landing._ `tools/kirnc.cpp` is ~200 lines and links
 `kirn_driver` in the 2 lines phase 0 made possible. The three stage verbs are
 not reimplementations: `cmdLex`/`cmdParse`/`cmdCheck` were extracted from the
 `kirnlex`/`kirnparse`/`kirncheck` main()s into the library, and those three
@@ -2040,8 +2040,9 @@ default. `-fbackend=runtime` is the explicit escape hatch for the bundled
 interpreter runner, and `-fbackend=llvm` remains reserved for the LLVM IR path
 until a complete LLVM executable backend is enabled. Macro-bearing sources are
 rejected for both artifact backends with a deterministic diagnostic because
-generated launchers do not yet carry the source preprocessor; `kirn run` is the
-correct source-expansion path.
+generated artifact launchers intentionally require macro-free source because
+they do not carry the source preprocessor; `kirn run` is the correct
+source-expansion path.
 
 The AOT link response file now carries the runtime's transitive POSIX
 dependencies (`pthread`, OpenSSL crypto, Zlib, SQLite, and `dl`), matching the

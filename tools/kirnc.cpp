@@ -492,8 +492,8 @@ int main(int argc, char** argv) {
         if (verb != "build" &&
             (a == "-c" || a == "-###" || a == "-v" || a == "--verbose")) {
             std::cerr << "kirnc " << verb << ": '" << a
-                      << "' is not implemented yet\n"
-                      << "  -c/-###/-v land with the assembler+linker phase; see BUILDER-PLAN.md\n";
+                      << "' is not valid for this verb\n"
+                      << "  use the build verb for compiler stop-at-stage options\n";
             return 2;
         }
     }

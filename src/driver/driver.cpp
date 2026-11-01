@@ -132,7 +132,7 @@ std::string nativeArtifactKey(const std::string& launcher,
     const std::string material = launcher + "\ncompiler=" + compiler +
                                  "\ntarget=" + opts.target +
                                  "\nrelease=" + (opts.release ? "1" : "0") +
-                                 "\ncache-format=2";
+                                 "\ncache-format=3";
     std::ostringstream dependencyMaterial;
     dependencyMaterial << material;
     for (const auto& dependency : dependencies) {
@@ -3732,7 +3732,7 @@ int buildProgram(const std::string& name, const std::string& version,
 
         std::ostringstream fast;
         fast << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS "
-             << (opts.release ? "-O2 -s -w " : "-O1 -g ")
+             << (opts.release ? "-O3 -s -w " : "-O1 -g ")
              << "-I\"" << srcRoot << "\" ";
         if (opts.compileOnly || opts.emitAsm) {
             fast << (opts.emitAsm ? "-S " : "-c ") << "-o \""
@@ -3826,7 +3826,7 @@ int buildProgram(const std::string& name, const std::string& version,
             const std::string launcherCpp =
                 (outDir / (name + ".cpp")).generic_string();
             std::ostringstream stage;
-            stage << "-std=c++20 " << (opts.release ? "-O2 -s -w " : "-O1 -g ");
+            stage << "-std=c++20 " << (opts.release ? "-O3 -s -w " : "-O1 -g ");
             stage << "-I\"" << srcRoot << "\" ";
             stage << (opts.emitAsm ? "-S " : "-c ");
             stage << "-o \"" << fs::absolute(stagePath).generic_string()
@@ -3858,7 +3858,7 @@ int buildProgram(const std::string& name, const std::string& version,
         {
             std::ostringstream r;
             r << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS ";
-            r << (opts.release ? "-O2 -s -w" : "-O1 -g") << " ";
+            r << (opts.release ? "-O3 -s -w" : "-O1 -g") << " ";
             if (opts.asan) r << "-fsanitize=address -g ";
             if (ti && ti->isWindows)
                 r << "-static-libgcc -static-libstdc++ ";
@@ -3952,7 +3952,8 @@ int buildProgram(const std::string& name, const std::string& version,
 
     std::string flags = detectRuntimeFlags(binRoot);
     if (opts.release) {
-        // --release: force -O2 on the emitted C++ even if the prebuilt runtime
+        // --release: force the optimized MSVC mode on the emitted C++ even if
+        // the prebuilt runtime
         // libs are a debug build (optimized launcher, same lib set). A release
         // cache of the runtime yields the full win; see kirn build --release.
         if (flags.find("/O2") == std::string::npos &&

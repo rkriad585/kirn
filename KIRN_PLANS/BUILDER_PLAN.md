@@ -2372,3 +2372,17 @@ Verification: clean CMake build and cache gate **2/2**, covering both a
 runtime-free scalar artifact and a runtime-backed launcher. Both warm builds
 reported a native artifact hit and produced the same executable behavior as
 their cold builds.
+
+### Update (2026-11-01) — Release native optimization level (shipped)
+
+Release C++ emission now uses `-O3` for host and GNU cross paths, while debug
+builds remain `-O1 -g` and the MSVC path keeps its native `/O2` policy. The
+artifact-cache format was bumped so binaries compiled under the former `-O2`
+policy cannot be reused accidentally. A dedicated recursive-integer native
+fixture pins the runtime-free entry path used by the performance harness.
+
+Verification: clean CMake build; native gates **11a 56/56**, **11b 3/3**, and
+**11c 2/2**; cache gate **2/2**; the fixture prints `832040`. The benchmark
+(`--runs 1`) measured Kirn release build/run **5.146834s/0.006523s**, Rust
+**1.586450s/0.008064s**, and Go **11.492529s/0.012189s** on this host. Kirn
+now wins the measured run phase, while cold build time remains slower than Rust.

@@ -2336,3 +2336,26 @@ Verification: all **202** HIR/MIR corpus files still verify; MIR gate **15/15**
 asserts synthesized `__comp_*` function items and explicit comprehension
 operations, and the existing interpreter/VM comprehension parity remains
 unchanged.
+
+### Update (2026-11-01) — Release-native artifact cache and benchmark integrity (shipped)
+
+The runtime-free release-native path now has a deterministic local artifact
+cache. Its key covers the generated launcher, selected compiler, target, and
+release policy; cache storage follows `KIRN_CACHE` or `XDG_CACHE_HOME/kirn`,
+and `KIRN_NO_CACHE=1` provides an explicit bypass. Only fully lowered scalar
+release launchers use this cache, so debug, cross-target, compile-only, and
+runtime-backed builds retain their existing behavior.
+
+The benchmark harness now uses a private cache and disables it for the primary
+cold-build comparison, preventing a user's cache from changing results. Its
+median calculation now handles both odd and even sample counts and emits valid
+JSONL for every run.
+
+Delivered: `src/driver/driver.cpp`, `scripts/bench_linux.sh`, and
+`scripts/gates/11e_cache.sh`.
+
+Verification: clean CMake build; cache gate **1/1**; benchmark `--runs 2`
+produced valid JSONL and measured Kirn release build/run **3.150520s/
+0.010672s**, Rust **0.126642s/0.007790s**, and Go **4.217620s/0.013008s**
+on this host. The cache phase improves repeat builds but does not close the
+plan's stronger cold-build claim against Rust, which remains explicitly open.

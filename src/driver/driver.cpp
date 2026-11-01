@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cctype>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -116,6 +117,41 @@ bool readFile(const std::string& path, std::string& out) {
         (unsigned char)out[1] == 0xBB && (unsigned char)out[2] == 0xBF)
         out.erase(0, 3);   // drop a UTF-8 BOM
     return true;
+}
+
+// A small deterministic artifact key for the launcher-only native path. The
+// generated launcher is the complete input to this compile, so hashing its
+// bytes plus the toolchain/target policy gives a safe cache identity without
+// pulling a heavyweight hashing dependency into the driver. Two independent
+// 64-bit FNV streams provide a 128-bit printable key and are sufficient for a
+// local build cache; cache misses always fall back to the normal compiler.
+std::string nativeArtifactKey(const std::string& launcher,
+                              const std::string& compiler,
+                              const BuildOpts& opts) {
+    const std::string material = launcher + "\ncompiler=" + compiler +
+                                 "\ntarget=" + opts.target +
+                                 "\nrelease=" + (opts.release ? "1" : "0") +
+                                 "\ncache-format=1";
+    uint64_t a = 1469598103934665603ull;
+    uint64_t b = 1099511628211ull ^ 0x9e3779b97f4a7c15ull;
+    for (unsigned char c : material) {
+        a ^= c; a *= 1099511628211ull;
+        b ^= (uint64_t)c + 0x9d; b *= 14029467366897019727ull;
+        b ^= a >> 29;
+    }
+    std::ostringstream key;
+    key << std::hex << a << b;
+    return key.str();
+}
+
+fs::path nativeArtifactCachePath(const std::string& key) {
+    const char* explicitDir = std::getenv("KIRN_CACHE");
+    const char* xdg = std::getenv("XDG_CACHE_HOME");
+    fs::path root;
+    if (explicitDir && *explicitDir) root = explicitDir;
+    else if (xdg && *xdg) root = fs::path(xdg) / "kirn";
+    else return {};
+    return root / "native" / key;
 }
 
 bool writeFile(const fs::path& path, const std::string& content) {
@@ -3592,7 +3628,9 @@ int buildProgram(const std::string& name, const std::string& version,
       << "#endif\n"
       << "}\n";
 
-    writeFile((outDir / (name + ".cpp")).generic_string(), o.str());
+    const std::string launcherText = o.str();
+    const fs::path launcherPath = outDir / (name + ".cpp");
+    writeFile(launcherPath.generic_string(), launcherText);
 
     // ---- Go-style cross build: one self-contained static binary ----------
     // Compiles the generated launcher TOGETHER WITH the whole Kirn runtime
@@ -3644,6 +3682,36 @@ int buildProgram(const std::string& name, const std::string& version,
         fs::path outPath(outName);
         if (outPath.has_parent_path()) fs::create_directories(outPath.parent_path());
 
+        // Release scalar launchers are self-contained and depend only on the
+        // generated source plus the selected compiler. Cache the finished
+        // artifact by those exact inputs, following Go's action-key and Zig's
+        // manifest model. Debug/runtime-linked builds deliberately stay on the
+        // ordinary path because their external runtime archives can change.
+        fs::path cachedArtifact;
+        const bool cacheableNative = directNativeMain && !opts.compileOnly &&
+                                     !opts.emitAsm && !opts.dryRun &&
+                                     !std::getenv("KIRN_NO_CACHE");
+        if (cacheableNative)
+            cachedArtifact = nativeArtifactCachePath(
+                nativeArtifactKey(launcherText, crossCxx, opts));
+        if (!cachedArtifact.empty() && fs::is_regular_file(cachedArtifact)) {
+            std::error_code copyEc;
+            fs::copy_file(cachedArtifact, outPath,
+                          fs::copy_options::overwrite_existing, copyEc);
+            if (!copyEc) {
+#if !defined(_WIN32)
+                fs::permissions(outPath,
+                                fs::perms::owner_read | fs::perms::owner_write |
+                                    fs::perms::owner_exec,
+                                fs::perm_options::add, copyEc);
+#endif
+                if (opts.verbose || std::getenv("KIRN_VERBOSE"))
+                    std::cerr << "[cache] native artifact hit " << cachedArtifact << "\n";
+                std::cout << "built " << outName << " (cache hit)\n";
+                return 0;
+            }
+        }
+
         std::ostringstream fast;
         fast << "-std=c++20 -D_CRT_SECURE_NO_WARNINGS "
              << (opts.release ? "-O2 -s -w " : "-O1 -g ")
@@ -3679,6 +3747,24 @@ int buildProgram(const std::string& name, const std::string& version,
             std::cerr << "kirn build: cached-runtime compilation failed ("
                       << fastRc << ")\n";
             return fastRc == 0 ? 1 : fastRc;
+        }
+        if (!cachedArtifact.empty()) {
+            std::error_code cacheEc;
+            fs::create_directories(cachedArtifact.parent_path(), cacheEc);
+            if (!cacheEc) {
+                fs::copy_file(outPath, cachedArtifact,
+                              fs::copy_options::overwrite_existing, cacheEc);
+#if !defined(_WIN32)
+                if (!cacheEc)
+                    fs::permissions(cachedArtifact,
+                                    fs::perms::owner_read | fs::perms::owner_write |
+                                        fs::perms::owner_exec,
+                                    fs::perm_options::add, cacheEc);
+#endif
+            }
+            if (cacheEc && (opts.verbose || std::getenv("KIRN_VERBOSE")))
+                std::cerr << "[cache] unable to store native artifact: "
+                          << cacheEc.message() << "\n";
         }
         std::cout << ((opts.compileOnly || opts.emitAsm) ? "wrote " : "built ")
                   << outName << "\n";

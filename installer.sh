@@ -44,6 +44,7 @@ case "$machine" in
 esac
 [ "$os" = android ] && [ "$arch" != arm64 ] && die "Termux source builds currently support arm64"
 target="$os-$arch"
+[ "$target" = linux-arm64 ] && die "Linux arm64 release binaries are not published yet; build Kirn from source"
 
 # Termux uses Android's bionic libc and cannot execute the glibc Linux asset.
 # Build the same two release executables with Termux's native toolchain instead.

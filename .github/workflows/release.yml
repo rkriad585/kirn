@@ -389,7 +389,13 @@ jobs:
         run: |
           set -euo pipefail
           stage="$PWD/dist/kirn-$TARGET"
-          if [ -f "$stage/bin/kirn.exe" ]; then exe="$stage/bin/kirn.exe"; else exe="$stage/bin/kirn"; fi
+          if [ -f "$stage/bin/kirn.exe" ]; then
+            # Git Bash can execute Windows binaries reliably through a relative
+            # path; an absolute /d/... path is not understood by every runner.
+            exe="./dist/kirn-$TARGET/bin/kirn.exe"
+          else
+            exe="$stage/bin/kirn"
+          fi
           if [ ! -f "$exe" ]; then
             echo "::error::no staged executable at $exe"
             echo "::error::what the stage step produced:"
@@ -413,6 +419,11 @@ jobs:
           work="$(mktemp -d)"
           cp -R "$stage/stdpet" "$work/stdpet"
           mkdir -p "$work/proj"
+          project_exe="$exe"
+          if [[ "$TARGET" == windows-* ]]; then
+            cp "$stage/bin/kirn.exe" "$work/proj/kirn.exe"
+            project_exe="./kirn.exe"
+          fi
            cat > "$work/proj/main.kn" <<'KN'
            import pet.math;
 
@@ -420,7 +431,7 @@ jobs:
                print(math.abs(-42));
            }
            KN
-          got=$(cd "$work/proj" && env -u KIRN_PETS KIRN_STDLIB="$work/stdpet" "$exe" run main.kn)
+          got=$(cd "$work/proj" && env -u KIRN_PETS KIRN_STDLIB="$work/stdpet" "$project_exe" run main.kn)
           echo "$got"
           case "$got" in
             *42*) ;;

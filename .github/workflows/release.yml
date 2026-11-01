@@ -512,7 +512,7 @@ jobs:
           printf '%s' "$TARGET" > dist/.kirn-target
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/work" \
-            --platform "$PLATFORM" "$IMAGE" sh -lc '
+            --platform "$PLATFORM" --entrypoint /entrypoint_root.sh "$IMAGE" sh -lc '
               set -eu
               target="$(cat /work/dist/.kirn-target)"
               pkg update -y

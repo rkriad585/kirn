@@ -139,6 +139,14 @@ else
     report FAIL "nested named functions carry captures" "nested function did not preserve its closure environment"
 fi
 
+comp_mir="$($KN rt "$ROOT/tests/vm_parity/comprehensions.kn" 2>&1)"
+if echo "$comp_mir" | grep -q '^func __comp_' &&
+   echo "$comp_mir" | grep -q 'comprehension'; then
+    report PASS "comprehensions have synthesized bodies" "function items call explicit comprehension operations"
+else
+    report FAIL "comprehensions have synthesized bodies" "comprehension body remains flattened into the caller"
+fi
+
 mutable_closure_mir="$($KN rt "$ROOT/tests/mir/closures_mut.kn" 2>&1)"
 if echo "$mutable_closure_mir" | grep -q 'captureref' &&
    echo "$mutable_closure_mir" | grep -q 'envload' &&

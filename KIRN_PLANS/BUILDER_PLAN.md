@@ -2315,3 +2315,24 @@ Delivered: `src/hir/hir.cpp`, `src/mir/mir.{h,cpp,mir_verify.cpp}`,
 
 Verification: the nested-function fixture executes `1 2 3`; MIR gate **14/14**
 asserts the `tick` function value, capture list, `envload`, and `envstore`.
+
+### Update (2026-11-01) — Comprehensions become synthesized MIR bodies (shipped)
+
+Comprehensions now receive a dedicated synthesized HIR function item. The
+normalized clauses, element/value expression, and capture set remain attached
+to the comprehension payload; the enclosing expression constructs the function
+value and calls it, while the synthesized function emits one explicit
+`comprehension` MIR operation containing the ordered inputs. Pattern bindings
+are materialized in the comprehension function's local frame, so the body is
+no longer flattened into an anonymous `call_indirect` in the caller. LLVM names
+the operation and rejects it through the existing scalar-subset boundary until
+collection iteration code generation is implemented.
+
+Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`,
+`src/mir/mir.{h,cpp}`, `src/mir/mir_verify.cpp`,
+`src/backends/llvm/emit_llvm.cpp`, and `scripts/gates/9_MIR.sh`.
+
+Verification: all **202** HIR/MIR corpus files still verify; MIR gate **15/15**
+asserts synthesized `__comp_*` function items and explicit comprehension
+operations, and the existing interpreter/VM comprehension parity remains
+unchanged.

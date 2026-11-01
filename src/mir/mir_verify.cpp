@@ -70,6 +70,7 @@ const char* opName(Op o) {
         case Op::MakeStruct: return "makestruct";
         case Op::MakeEnum: return "makeenum";
         case Op::MakeClosure: return "makeclosure";
+        case Op::Comprehension: return "comprehension";
         case Op::Call: return "call";
         case Op::CallIndirect: return "call_indirect";
         case Op::Phi: return "phi";

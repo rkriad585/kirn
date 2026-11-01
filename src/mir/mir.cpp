@@ -381,6 +381,55 @@ struct Builder {
                          ("func:" + target.name).c_str());
     }
 
+    void registerComprehensionPattern(const hir::Pattern& p) {
+        auto add = [&](hir::DeclId id, const std::string& name, const sema::TyP& ty) {
+            if (id == hir::NO_DECL || binds.count(id)) return;
+            Binding b;
+            b.decl = id;
+            b.name = name;
+            b.local = allocLocal(name,
+                                 ty ? tyOf(ty)
+                                    : fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE}),
+                                 p.span);
+            binds[id] = b;
+        };
+        add(p.binding, p.name, p.type);
+        add(p.restBinding, p.restName, p.type);
+        if (p.sub) registerComprehensionPattern(*p.sub);
+        if (p.lo) registerComprehensionPattern(*p.lo);
+        if (p.hi) registerComprehensionPattern(*p.hi);
+        for (const auto& e : p.elems) if (e) registerComprehensionPattern(*e);
+        for (const auto& f : p.fields) if (f.pat) registerComprehensionPattern(*f.pat);
+    }
+
+    Value lowerComprehensionBody(const hir::Expr& e, const hir::payload::Comp& p) {
+        for (const auto& clause : p.clauses)
+            registerComprehensionPattern(clause.pat);
+        std::vector<Value> args;
+        for (const auto& clause : p.clauses) {
+            if (clause.iterable) {
+                Value v = lower(*clause.iterable);
+                if (v != NO_VALUE) args.push_back(v);
+            }
+            if (clause.cond) {
+                Value v = lower(*clause.cond);
+                if (v != NO_VALUE) args.push_back(v);
+            }
+        }
+        if (p.element) {
+            Value v = lower(*p.element);
+            if (v != NO_VALUE) args.push_back(v);
+        }
+        if (p.value) {
+            Value v = lower(*p.value);
+            if (v != NO_VALUE) args.push_back(v);
+        }
+        const char* kind = p.isGenerator ? "generator"
+                           : e.kind == hir::ExprKind::DictComp ? "dictcomp"
+                           : e.kind == hir::ExprKind::SetComp ? "setcomp" : "listcomp";
+        return emitValue(Op::Comprehension, std::move(args), tyOf(e.type), sp(e.span), kind);
+    }
+
     // A write. Recorded per-block so a join can build a phi.
     void write(hir::DeclId d, Value v, ast::Span s) {
         Binding* b = bind(d);
@@ -635,33 +684,11 @@ struct Builder {
             emit(std::move(in));
             return phi;
         } else if constexpr (std::is_same_v<T, hir::payload::Comp>) {
-            // A comprehension is a closure: it becomes its own function, and the
-            // expression here is a call to it. The body's CFG is built when that
-            // function is, not here.
-            std::vector<Value> a;
-            for (const auto& cl : p.clauses) {
-                if (cl.iterable) {
-                    Value v = lower(*cl.iterable);
-                    if (v != NO_VALUE) a.push_back(v);
-                }
-                if (cl.cond) {
-                    Value v = lower(*cl.cond);
-                    if (v != NO_VALUE) a.push_back(v);
-                }
+            if (const hir::Func* target = functionFor(p.function)) {
+                Value closure = makeFunctionValue(*target, t, s);
+                return emitValue(Op::Call, {closure}, t, s, "comprehension");
             }
-            if (p.element) {
-                Value v = lower(*p.element);
-                if (v != NO_VALUE) a.push_back(v);
-            }
-            if (p.value) {
-                Value v = lower(*p.value);
-                if (v != NO_VALUE) a.push_back(v);
-            }
-            return emitValue(Op::CallIndirect, a, t, s,
-                             p.isGenerator            ? "generator"
-                             : e.kind == hir::ExprKind::DictComp ? "dictcomp"
-                             : e.kind == hir::ExprKind::SetComp  ? "setcomp"
-                                                                 : "listcomp");
+            return emitValue(Op::Comprehension, {}, t, s, "missing-function");
         } else if constexpr (std::is_same_v<T, hir::payload::MatchExpr>) {
             // Same shape as the statement form, plus a phi for the result: every
             // arm produces a value and the join has to choose between them.
@@ -1489,7 +1516,20 @@ struct Builder {
                 write(p, v, hf.span);
             }
         }
-        lowerStmts(hf.body);
+        if (hf.compBody) {
+            Value v = lowerComprehensionBody(*hf.compBody,
+                                             std::get<hir::payload::Comp>(hf.compBody->p));
+            if (v != NO_VALUE) {
+                Inst ret;
+                ret.op = Op::Ret;
+                ret.args = {v};
+                ret.argTypes = {fn->valueTypes[v]};
+                ret.span = hf.compBody->span;
+                emit(std::move(ret));
+            }
+        } else {
+            lowerStmts(hf.body);
+        }
         // Whatever the body did not return from falls through to the end.
         if (!fn->blocks[cur].insts.empty() || cur == 0) {
             bool terminated = false;

@@ -247,6 +247,12 @@ struct Verifier {
                 bad(e.span, "dict comprehension has no value expression");
             if (!p.isGenerator && !p.element)
                 bad(e.span, "comprehension has no element expression");
+            if (p.function == NO_DECL)
+                bad(e.span, "comprehension has no synthesized function");
+            else if (declOk(p.function, e.span, "comprehension function") &&
+                     ctx.decls[p.function].kind != Decl::Kind::Func)
+                bad(e.span, "comprehension function is not a function declaration");
+            for (DeclId id : p.captures) declOk(id, e.span, "comprehension capture");
         } else if constexpr (std::is_same_v<T, payload::MatchExpr>) {
             wantKind(e.span, e.kind, ExprKind::Match, "Match");
             if (p.subject) expr(*p.subject);
@@ -750,6 +756,12 @@ struct Dumper {
                 if (p.then) expr(*p.then, n + 1);
                 if (p.otherwise) expr(*p.otherwise, n + 1);
             } else if constexpr (std::is_same_v<T, payload::Comp>) {
+                ind(n + 1); o << "function #" << p.function << "\n";
+                if (!p.captures.empty()) {
+                    ind(n + 1); o << "captures";
+                    for (DeclId id : p.captures) o << " #" << id;
+                    o << "\n";
+                }
                 for (const auto& c : p.clauses) {
                     ind(n + 1); o << c.kind << "\n";
                     pat(c.pat, n + 2);

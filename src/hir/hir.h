@@ -261,6 +261,8 @@ struct Lambda {
 };
 struct Cond { ExprP cond, then, otherwise; };
 struct Comp {
+    DeclId function = NO_DECL;      // synthesized comprehension function
+    std::vector<DeclId> captures;   // enclosing bindings used by the function
     // Comprehension clauses, normalised so the order is explicit.
     struct Clause { std::string kind; Pattern pat; ExprP iterable, cond; };
     std::vector<Clause> clauses;
@@ -436,6 +438,10 @@ struct Func {
     // Keeping them on the synthesized function lets MIR build environment
     // loads/stores in the body instead of resolving a capture as a global call.
     std::vector<DeclId> captures;
+    // The pointer targets the owning expression in the enclosing HIR body.
+    // Expr objects are heap-owned, so this remains stable while the module is
+    // assembled and lets MIR build the normalized comprehension body once.
+    const Expr* compBody = nullptr;
     ast::Span span{};
     ScopeId bodyScope = NO_SCOPE;
     std::vector<StmtP> body;

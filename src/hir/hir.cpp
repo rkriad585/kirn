@@ -507,6 +507,7 @@ struct Lowerer {
             case ast::ExKind::DictComp: {
                 payload::Comp c;
                 c.isGenerator = e.kind == ast::ExKind::Generator;
+                lambdaStack.emplace_back();
                 pushScope();
                 for (const auto& cl : e.clauses) {
                     payload::Comp::Clause out;
@@ -522,11 +523,30 @@ struct Lowerer {
                 if (!e.elems.empty()) c.element = lower(*e.elems[0]);
                 if (e.value) c.value = lower(*e.value);
                 popScope();
+                c.captures.assign(lambdaStack.back().captures.begin(),
+                                  lambdaStack.back().captures.end());
+                lambdaStack.pop_back();
                 ExprKind k = c.isGenerator          ? ExprKind::Generator
                            : e.kind == ast::ExKind::SetComp  ? ExprKind::SetComp
                            : e.kind == ast::ExKind::DictComp ? ExprKind::DictComp
                                                              : ExprKind::ListComp;
-                return mk(k, sp, ty, std::move(c));
+                auto out = mk(k, sp, ty, std::move(c));
+                auto f = std::make_unique<Func>();
+                f->span = sp;
+                f->name = "__comp_" + std::to_string(sp.line) + "_" +
+                          std::to_string(sp.col) + "_" +
+                          std::to_string(lambdaCounter++);
+                f->decl = declare(f->name, Decl::Kind::Func, sp, nullptr, false, nullptr);
+                f->sig.ret = ty;
+                auto& stored = std::get<payload::Comp>(out->p);
+                stored.function = f->decl;
+                f->captures = stored.captures;
+                f->compBody = out.get();
+                if (Decl* d = const_cast<Decl*>(ctx.get(f->decl))) d->sig = f->sig;
+                f->bodyScope = pushScope(true);
+                popScope();
+                nestedFuncs.push_back(std::move(f));
+                return out;
             }
             case ast::ExKind::New: {
                 payload::NewExpr n;

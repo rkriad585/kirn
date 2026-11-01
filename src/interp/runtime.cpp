@@ -28,6 +28,7 @@
 #include <atomic>
 #include <set>
 #include <unordered_set>
+#include <csignal>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -36,7 +37,6 @@
 #include <sqlite3.h>
 
 #ifndef _WIN32
-#include <csignal>
 #include <cerrno>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -47,6 +47,11 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <poll.h>
+#endif
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #endif
 
 #ifndef _WIN32

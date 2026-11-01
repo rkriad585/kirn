@@ -144,6 +144,16 @@ jobs:
           $ErrorActionPreference = "Stop"
           vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
 
+      - name: Install native macOS libraries
+        if: matrix.target == 'darwin-arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install openssl@3 zlib sqlite3
+          {
+            echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3):$(brew --prefix zlib):$(brew --prefix sqlite3)"
+          } >> "$GITHUB_ENV"
+
       - name: Configure and build
         shell: bash
         env:
@@ -158,6 +168,9 @@ jobs:
               if [ "$TARGET" = windows-amd64 ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
                   -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+              elif [ "$TARGET" = darwin-arm64 ] && [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                  -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
               else
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
               fi

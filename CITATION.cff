@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+title: "Kirn"
+message: "If Kirn contributes to your work, please cite this repository."
+type: software
+authors:
+  - family-names: Khan
+    given-names: "Riad"
+    alias: rkriad585
+repository-code: "https://github.com/rkriad585/kirn"
+url: "https://github.com/rkriad585/kirn"
+license: MIT
+version: "0.0.1-b3"
+date-released: 2026-11-01

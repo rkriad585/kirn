@@ -218,7 +218,7 @@ Manifest readManifest(const fs::path& dir) {
     }
     Doc d = kirn::tomlmini::parse(text);
     m.name = kirn::tomlmini::get(d, "package", "name");
-    m.version = kirn::tomlmini::get(d, "package", "version", "0.0.1-beta");
+    m.version = kirn::tomlmini::get(d, "package", "version", "0.0.1-b3");
     m.type = kirn::tomlmini::get(d, "package", "type", "app");
     m.main = kirn::tomlmini::get(d, "package", "main");
     m.docs = kirn::tomlmini::get(d, "package", "docs", "docs/index.md");
@@ -1298,7 +1298,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
 
     Manifest m;
     m.name = name;
-    m.version = "0.0.1-beta";
+    m.version = "0.0.1-b3";
     m.type = lib ? "pet" : "app";
     m.description = lib ? "A Kirn pet" : "A Kirn application";
     m.license = "MIT";
@@ -4122,7 +4122,7 @@ int buildAppShim(const Manifest& m, BuildOpts& opts) {
     std::map<std::string, std::string> embedded;
     gatherEmbedded(entry, mainSrc, embedded);
     return ::buildProgram(m.name,
-                        m.version.empty() ? "0.0.1-beta" : m.version, entry,
+                        m.version.empty() ? "0.0.1-b3" : m.version, entry,
                         mainSrc, embedded, opts);
 }
 

@@ -13,7 +13,7 @@ Punct	4:17	)
 Punct	4:18	;
 Ident	5:3	print
 Punct	5:8	(
-Str	5:9	0.0.1-beta
+Str	5:9	0.0.1-b3
 Punct	5:20	)
 Punct	5:21	;
 Ident	6:3	print

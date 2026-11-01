@@ -1,9 +1,18 @@
 {
   "name": "kirn",
-  "version": "0.0.1-beta",
-  "private": true,
-  "description": "Local repo-tooling manifest for the Kirn (formerly Kirn) compiler project. Hooks live under .husky/ and are wired by husky v9; these tools only touch repo metadata (md/yml/json), never the C++20 toolchain.",
+  "version": "0.0.1-b3",
+  "private": false,
+  "description": "Install and run the Kirn compiler from npm.",
   "type": "commonjs",
+  "bin": {
+    "kirn": "bin/kirn.js"
+  },
+  "files": [
+    "bin/kirn.js",
+    "README.npm.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
   "scripts": {
     "prepare": "husky",
     "commitlint": "commitlint",

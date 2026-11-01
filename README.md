@@ -8,7 +8,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-WIP-informational" alt="Status: work in progress">
-  <img src="https://img.shields.io/badge/version-0.0.1--beta-orange" alt="Version: 0.0.1-beta">
+  <img src="https://img.shields.io/badge/version-0.0.1--b3-orange" alt="Version: 0.0.1-b3">
   <img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue" alt="License: MIT or Apache-2.0">
   <img src="https://img.shields.io/badge/made%20by-rkriad585-111827" alt="Made by rkriad585">
 </p>

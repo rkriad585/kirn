@@ -463,7 +463,7 @@ std::vector<Token> Preprocessor::expand(const std::vector<Token>& in) {
                 continue;
             }
             if (t.text == "__VERSION__") {
-                out.push_back(synth(Tok::StrNormal, "0.0.1-beta", t));
+                out.push_back(synth(Tok::StrNormal, "0.0.1-b3", t));
                 continue;
             }
         }

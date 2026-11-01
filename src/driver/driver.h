@@ -56,7 +56,7 @@ using Deps = std::map<std::string, std::map<std::string, std::string>>;
 
 struct Manifest {
     std::string name;
-    std::string version = "0.0.1-beta";
+    std::string version = "0.0.1-b3";
     std::string type = "app";
     std::string main;
     std::string description;

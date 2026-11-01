@@ -126,7 +126,7 @@ namespace {
 
 using kirn::tomlmini::Doc;
 
-constexpr const char* kKirnVersion = "0.0.1-beta";
+constexpr const char* kKirnVersion = "0.0.1-b3";
 
 std::string shellQuote(const std::string& value) {
 #ifdef _WIN32
@@ -557,7 +557,7 @@ int cmdNew(const std::string& name, bool lib) {
 
     Manifest m;
     m.name = name;
-    m.version = "0.0.1-beta";
+    m.version = "0.0.1-b3";
     m.type = lib ? "pet" : "app";
     m.description = lib ? "A Kirn pet" : "A Kirn application";
     m.license = "MIT";

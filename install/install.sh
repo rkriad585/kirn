@@ -1,7 +1,7 @@
 #!/bin/sh
 # Kirn installer, in the style of rustup-init:
 #
-#   curl --proto '=https' --tlsv1.2 -sSf \
+#   curl -fsSL \
 #     https://github.com/rkriad585/kirn/releases/latest/download/install.sh | sh
 #
 # Detects the platform, downloads the matching release archive, verifies its

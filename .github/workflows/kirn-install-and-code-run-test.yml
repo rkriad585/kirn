@@ -1,0 +1,122 @@
+name: kirn install and code-run test
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test (for example v0.0.1-b3)
+        required: true
+        type: string
+        default: v0.0.1-b3
+
+permissions:
+  contents: read
+
+jobs:
+  select-release:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        shell: bash
+        env:
+          EVENT_TAG: ${{ github.event.workflow_run.head_branch }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-${EVENT_TAG:-}}"
+          if ! printf '%s' "$tag" | grep -Eq '^v0\.0\.1-b[0-9]+$'; then
+            echo "::error::cannot determine a v0.0.1-bN release tag (got '$tag')"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  unix:
+    needs: select-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the raw curl command
+        shell: bash
+        env:
+          TAG: ${{ needs.select-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          prefix="$RUNNER_TEMP/kirn-curl"
+          curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh |
+            sh -s -- --version "$TAG" --prefix "$prefix" --no-modify-path
+          out="$($prefix/bin/kirn run examples/01_hello.kn)"
+          printf '%s\n' "$out"
+          case "$out" in *"Hello, World!"*) ;; *) exit 1;; esac
+
+      - name: Install through npm and run code
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g . --ignore-scripts
+          # The package launcher downloads the matching release lazily.
+          KIRN_VERSION=0.0.1-b3 kirn run examples/01_hello.kn | grep -F 'Hello, World!'
+
+  windows:
+    needs: select-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the PowerShell command
+        shell: pwsh
+        env:
+          TAG: ${{ needs.select-release.outputs.tag }}
+        run: |
+          $prefix = Join-Path $env:RUNNER_TEMP 'kirn-powershell'
+          $script = irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1
+          & ([scriptblock]::Create($script)) -Version $env:TAG -Prefix $prefix -NoModifyPath
+          $out = & (Join-Path $prefix 'bin\kirn.exe') run examples/01_hello.kn
+          $out | Write-Host
+          if ($out -notmatch 'Hello, World!') { throw 'hello-world smoke test failed' }
+
+      - name: Install through npm and run code
+        shell: pwsh
+        run: |
+          npm install -g . --ignore-scripts
+          $env:KIRN_VERSION = '0.0.1-b3'
+          kirn run examples/01_hello.kn | Select-String 'Hello, World!'
+
+  chocolatey:
+    needs: select-release
+    runs-on: windows-latest
+    steps:
+      - name: Install through Chocolatey and run code
+        shell: pwsh
+        env:
+          TAG: ${{ needs.select-release.outputs.tag }}
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          choco install kirn --version $version --yes --no-progress
+          kirn run https://raw.githubusercontent.com/rkriad585/kirn/main/examples/01_hello.kn |
+            Select-String 'Hello, World!'
+
+  termux-contract:
+    # GitHub-hosted Actions has no Android/Termux runner. Keep a CI assertion
+    # for the native Termux path so it cannot silently regress; the full native
+    # build is exercised on an actual Termux device by the same raw command.
+    needs: select-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Termux source-build path
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n installer.sh
+          grep -F 'TERMUX_VERSION' installer.sh
+          grep -F 'pkg install -y clang cmake make openssl zlib sqlite' installer.sh
+          grep -F 'cmake --build' installer.sh

@@ -3,6 +3,7 @@
 set -eu
 
 REPO="rkriad585/kirn"
+TERMUX_PREFIX="${PREFIX:-}"
 PREFIX="${KIRN_PREFIX:-$HOME/.kirn}"
 VERSION=""
 MODIFY_PATH=1
@@ -35,14 +36,33 @@ machine=$(uname -m)
 case "$os_name" in
   Darwin) os=darwin;;
   Linux)
-    if [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ] || [ "$(uname -o 2>/dev/null || true)" = Android ]; then os=android; else os=linux; fi;;
+    if [ -n "${TERMUX_VERSION:-}" ] || [ "$TERMUX_PREFIX" = "/data/data/com.termux/files/usr" ] || [ "$(uname -o 2>/dev/null || true)" = Android ]; then os=android; else os=linux; fi;;
   *) die "unsupported OS: $os_name (use installer.ps1 on Windows)";;
 esac
 case "$machine" in
   x86_64|amd64) arch=amd64;; arm64|aarch64) arch=arm64;; *) die "unsupported CPU: $machine";;
 esac
-[ "$os" = android ] && [ "$arch" != arm64 ] && die "Termux releases currently support arm64"
+[ "$os" = android ] && [ "$arch" != arm64 ] && die "Termux source builds currently support arm64"
 target="$os-$arch"
+
+# Termux uses Android's bionic libc and cannot execute the glibc Linux asset.
+# Build the same two release executables with Termux's native toolchain instead.
+if [ "$os" = android ]; then
+  command -v pkg >/dev/null 2>&1 || die "Termux pkg command is required"
+  echo "Installing Termux build dependencies"
+  pkg install -y clang cmake make openssl zlib sqlite >/dev/null
+  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT INT TERM
+  fetch() { if command -v curl >/dev/null 2>&1; then curl --proto '=https' --tlsv1.2 -sSfL "$1" -o "$2"; elif command -v wget >/dev/null 2>&1; then wget -q "$1" -O "$2"; else die "need curl or wget"; fi; }
+  fetch "https://github.com/$REPO/archive/refs/heads/main.tar.gz" "$tmp/kirn.tar.gz"
+  mkdir "$tmp/source"; tar -xzf "$tmp/kirn.tar.gz" -C "$tmp/source" --strip-components=1
+  cmake -S "$tmp/source" -B "$tmp/build" -DCMAKE_BUILD_TYPE=Release
+  cmake --build "$tmp/build" -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+  mkdir -p "$PREFIX/bin"; cp "$tmp/build/kirn" "$tmp/build/kirnc" "$PREFIX/bin/"
+  cp -R "$tmp/source/stdpet" "$tmp/source/src" "$PREFIX/"
+  echo "Kirn built and installed to $PREFIX (Termux/$arch)"
+  echo "Run: $PREFIX/bin/kirn --version"
+  exit 0
+fi
 if [ -n "${KIRN_RELEASE_BASE:-}" ]; then
   base="$KIRN_RELEASE_BASE"; tag="${KIRN_RELEASE_TAG:-$VERSION}"; [ -n "$tag" ] || tag=latest
 elif [ -n "$VERSION" ]; then tag="$VERSION"; base="https://github.com/$REPO/releases/download/$tag"

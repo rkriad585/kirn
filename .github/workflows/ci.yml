@@ -7,6 +7,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  release-contract:
+    name: release/version contract
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version and release tag contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < .version)"
+          test "$version" = "0.0.1-b3"
+          node -e 'const p=require("./package.json"); if(p.version!=="0.0.1-b3" || p.private) process.exit(1)'
+          rg -n '0\.0\.1-b3' .version package.json installer.sh installer.ps1 CITATION.cff packaging/chocolatey/kirn.nuspec
+          if rg -n '0\.0\.1-beta|0\.0\.1--beta' --glob '!KIRN_PLANS/**' --glob '!docs-site/**' .; then
+            echo 'stale release version found'; exit 1
+          fi
   # The full seven-suite matrix (runall/types/negative/vm_diff/conventions/
   # test/pets) against a from-scratch cmake build. build-test covers the same
   # suites on Windows via the PowerShell harnesses; this job is the Linux

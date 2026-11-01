@@ -1,6 +1,7 @@
 name: release
 
-# Builds the Kirn toolchain for all six supported target triples and, on a v*
+# Builds the Kirn toolchain for the supported target triples and, on a
+# v0.0.1-bN tag, publishes it to a GitHub Release together with installers.
 # tag, publishes them to a GitHub Release together with a rust-style installer.
 #
 #   Linux / macOS / Windows x amd64 / arm64
@@ -10,11 +11,11 @@ name: release
 # the whole matrix still builds and is still verified, but nothing is published.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v0.0.1-b*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release as (e.g. v0.1.0). Leave empty for a dry run."
+        description: "Tag to release as (e.g. v0.0.1-b3). Leave empty for a dry run."
         required: false
         type: string
         default: ""
@@ -51,6 +52,10 @@ jobs:
           else
             tag="nightly-$(git rev-parse --short HEAD)"
             publish=false
+          fi
+          if [ "$publish" = true ] && ! printf '%s' "$tag" | grep -Eq '^v0\.0\.1-b[0-9]+$'; then
+            echo "::error::release tag must match v0.0.1-bN; got $tag"
+            exit 1
           fi
           {
             echo "version=${tag#v}"
@@ -421,9 +426,14 @@ jobs:
       - name: Collect installers
         run: |
           set -euo pipefail
-          cp install/install.sh dist/install.sh
-          cp install/install.ps1 dist/install.ps1
+          # Root files are the stable raw.githubusercontent.com entry points.
+          # Keep the old release asset names as compatibility aliases.
+          cp installer.sh dist/installer.sh
+          cp installer.ps1 dist/installer.ps1
+          cp installer.sh dist/install.sh
+          cp installer.ps1 dist/install.ps1
           chmod +x dist/install.sh
+          chmod +x dist/installer.sh
           ls -la dist
 
       # Checksums are generated before publishing so install.sh can verify what
@@ -461,13 +471,13 @@ jobs:
             echo 'Linux and macOS:'
             echo
             echo '```sh'
-            echo "curl --proto '=https' --tlsv1.2 -sSf $release_url/install.sh | sh"
+            echo "curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh"
             echo '```'
             echo
             echo 'Windows (PowerShell):'
             echo
             echo '```powershell'
-            echo "irm $release_url/install.ps1 | iex"
+            echo "irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex"
             echo '```'
             echo
             echo 'The installer detects your platform, verifies the download against'
@@ -504,3 +514,42 @@ jobs:
             gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
               --notes-file "$notes" --title "Kirn $TAG"
           fi
+
+  publish-registries:
+    name: publish npm and Chocolatey packages
+    runs-on: windows-latest
+    needs: [meta, build, release]
+    if: needs.meta.outputs.publish == 'true' && needs.release.result == 'success'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify package versions
+        shell: pwsh
+        run: |
+          $expected = '${{ needs.meta.outputs.version }}'
+          $npm = (Get-Content package.json | ConvertFrom-Json).version
+          $choco = ([xml](Get-Content packaging/chocolatey/kirn.nuspec)).package.metadata.version
+          if ($npm -ne $expected -or $choco -ne $expected) { throw "package version mismatch: npm=$npm choco=$choco expected=$expected" }
+
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_SCERET_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:NODE_AUTH_TOKEN) { throw 'NPM_SCERET_KEY is not configured' }
+          npm config set //registry.npmjs.org/:_authToken=$env:NODE_AUTH_TOKEN
+          npm publish --access public
+
+      - name: Pack and publish Chocolatey package
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_SECRET_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:CHOCO_API_KEY) { throw 'CHOCO_SECRET_KEY is not configured' }
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          choco pack packaging/chocolatey/kirn.nuspec --outputdirectory dist
+          $pkg = Get-ChildItem dist -Filter 'kirn.*.nupkg' | Select-Object -First 1
+          if (-not $pkg) { throw 'Chocolatey package was not created' }
+          choco push $pkg.FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY

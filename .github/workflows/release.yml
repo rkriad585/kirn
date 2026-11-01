@@ -2,7 +2,6 @@ name: release
 
 # Builds the Kirn toolchain for the supported target triples and, on a
 # v0.0.1-bN tag, publishes it to a GitHub Release together with installers.
-# tag, publishes them to a GitHub Release together with a rust-style installer.
 #
 #   Linux amd64 + arm64 / macOS amd64 + arm64 / Windows amd64 + arm64
 #   / Termux aarch64 + armv7l + i686 + x86_64
@@ -38,11 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU for Linux ARM64
-        if: matrix.target == 'linux-arm64'
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
       - id: v
         env:
           REF: ${{ github.ref }}
@@ -111,6 +105,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up QEMU for Linux ARM64
+        if: matrix.target == 'linux-arm64'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
       # ubuntu-latest ships cmake; the Arch/macOS images do not guarantee it.
       - name: Ensure cmake
         shell: bash
@@ -124,20 +124,6 @@ jobs:
             *) sudo apt-get update && sudo apt-get install -y cmake ;;
           esac
           cmake --version | head -1
-
-      - name: Install cross toolchain (linux-arm64)
-        if: matrix.cc == 'aarch64-linux-gnu-g++'
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          # libc6-dev-arm64-cross provides the target headers and link-time
-          # libraries; g++-aarch64-linux-gnu alone does not pull all of them in.
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross \
-            libssl-dev:arm64 zlib1g-dev:arm64 libsqlite3-dev:arm64
-          aarch64-linux-gnu-g++ --version | head -1
 
       - name: Install cross toolchain (windows-arm64)
         if: matrix.cc == 'aarch64-w64-mingw32-g++'
@@ -412,7 +398,7 @@ jobs:
             exit 1
           fi
           echo "smoke testing $exe"
-          export PATH="$PWD/$bindir:$PATH"
+          export PATH="$PWD/build:$PWD/build/Release:$PATH"
 
           out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"
@@ -509,7 +495,7 @@ jobs:
       - name: Set up QEMU for Termux architectures
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: arm64,arm,386
+          platforms: all
       - name: Build Kirn and kirnc in Termux Docker
         shell: bash
         env:
@@ -526,6 +512,7 @@ jobs:
               set -eu
               pkg update -y
               pkg install -y clang cmake make openssl zlib sqlite
+              mkdir -p /tmp
               rm -rf /tmp/kirn-src /tmp/kirn-build
               cp -R /work /tmp/kirn-src
               cmake -S /tmp/kirn-src -B /tmp/kirn-build -DCMAKE_BUILD_TYPE=Release

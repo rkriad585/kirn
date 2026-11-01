@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>kirn</id>
+    <version>0.0.1-b3</version>
+    <title>Kirn</title>
+    <authors>RK Riad Khan</authors>
+    <owners>rkriad585</owners>
+    <projectUrl>https://github.com/rkriad585/kirn</projectUrl>
+    <projectSourceUrl>https://github.com/rkriad585/kirn</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/rkriad585/kirn/issues</bugTrackerUrl>
+    <licenseUrl>https://github.com/rkriad585/kirn/blob/main/LICENSE-MIT</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Kirn compiler and checker for the Kirn programming language.</description>
+    <summary>Kirn compiler</summary>
+    <tags>kirn compiler language programming</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

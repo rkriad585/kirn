@@ -118,5 +118,5 @@ jobs:
           set -euo pipefail
           sh -n installer.sh
           grep -F 'TERMUX_VERSION' installer.sh
-          grep -F 'pkg install -y clang cmake make openssl zlib sqlite' installer.sh
+          grep -F 'pkg install -y clang cmake make openssl zlib sqlite libsqlite' installer.sh
           grep -F 'cmake --build' installer.sh

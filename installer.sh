@@ -50,7 +50,7 @@ target="$os-$arch"
 if [ "$os" = android ]; then
   command -v pkg >/dev/null 2>&1 || die "Termux pkg command is required"
   echo "Installing Termux build dependencies"
-  pkg install -y clang cmake make openssl zlib sqlite >/dev/null
+  pkg install -y clang cmake make openssl zlib sqlite libsqlite >/dev/null
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT INT TERM
   fetch() { if command -v curl >/dev/null 2>&1; then curl --proto '=https' --tlsv1.2 -sSfL "$1" -o "$2"; elif command -v wget >/dev/null 2>&1; then wget -q "$1" -O "$2"; else die "need curl or wget"; fi; }
   fetch "https://github.com/$REPO/archive/refs/heads/main.tar.gz" "$tmp/kirn.tar.gz"

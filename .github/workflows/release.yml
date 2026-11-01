@@ -515,12 +515,14 @@ jobs:
             --platform "$PLATFORM" "$IMAGE" sh -lc '
               set -eu
               pkg update -y
-              pkg install -y clang cmake make openssl zlib sqlite
+              pkg install -y clang cmake make openssl zlib sqlite libsqlite
               workroot="${TMPDIR:-$PREFIX/tmp}/kirn-build"
               rm -rf "$workroot"
               mkdir -p "$workroot"
               cp -R /work "$workroot/src"
-              cmake -S "$workroot/src" -B "$workroot/build" -DCMAKE_BUILD_TYPE=Release
+              cmake -S "$workroot/src" -B "$workroot/build" -DCMAKE_BUILD_TYPE=Release \
+                -DSQLite3_INCLUDE_DIR="$PREFIX/include" \
+                -DSQLite3_LIBRARY="$PREFIX/lib/libsqlite3.so"
               cmake --build "$workroot/build" --target kirn kirnc -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
               stage="/work/dist/kirn-termux-$TARGET"
               mkdir -p "$stage/bin"

@@ -4,10 +4,10 @@ name: release
 # v0.0.1-bN tag, publishes it to a GitHub Release together with installers.
 # tag, publishes them to a GitHub Release together with a rust-style installer.
 #
-#   Linux amd64 / macOS arm64 / Windows amd64
+#   Linux amd64 + arm64 / macOS amd64 + arm64 / Windows amd64 + arm64
+#   / Termux aarch64 + armv7l + i686 + x86_64
 #
-# Three runners produce six targets: the native build of each runner, plus a
-# cross build for the sibling architecture. A dispatch with no tag is a DRY RUN:
+# A dispatch with no tag is a DRY RUN:
 # the whole matrix still builds and is still verified, but nothing is published.
 on:
   push:
@@ -75,12 +75,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Native release targets are the combinations tested on the hosted
-          # runners. Termux uses installer.sh's native Android source build.
+          # Linux and Windows use x64 hosted runners for native/cross builds;
+          # macOS uses macos-latest and clang's sibling-architecture support.
           - target: linux-amd64
             os: ubuntu-latest
             mode: native
             runner_target: linux-amd64
+          - target: linux-arm64
+            os: ubuntu-latest
+            mode: cross
+            cc: aarch64-linux-gnu-g++
+            sysroot: /usr/aarch64-linux-gnu
+          - target: darwin-amd64
+            os: macos-latest
+            mode: cross
           - target: darwin-arm64
             os: macos-latest
             mode: native
@@ -89,6 +97,10 @@ jobs:
             os: windows-latest
             mode: native
             runner_target: windows-amd64
+          - target: windows-arm64
+            os: windows-latest
+            mode: cross
+            cc: aarch64-w64-mingw32-g++
 
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +127,10 @@ jobs:
           sudo apt-get update
           # libc6-dev-arm64-cross provides the target headers and link-time
           # libraries; g++-aarch64-linux-gnu alone does not pull all of them in.
-          sudo apt-get install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross \
+            libssl-dev:arm64 zlib1g-dev:arm64 libsqlite3-dev:arm64
           aarch64-linux-gnu-g++ --version | head -1
 
       - name: Install cross toolchain (windows-arm64)
@@ -145,7 +160,7 @@ jobs:
           vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
 
       - name: Install native macOS libraries
-        if: matrix.target == 'darwin-arm64'
+        if: startsWith(matrix.target, 'darwin-')
         shell: bash
         run: |
           set -euo pipefail
@@ -153,6 +168,13 @@ jobs:
           {
             echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3):$(brew --prefix zlib):$(brew --prefix sqlite3)"
           } >> "$GITHUB_ENV"
+
+      - name: Install cross Windows libraries
+        if: matrix.target == 'windows-arm64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          vcpkg install openssl:arm64-windows zlib:arm64-windows sqlite3:arm64-windows --clean-after-build
 
       - name: Configure and build
         shell: bash
@@ -191,7 +213,8 @@ jobs:
                 # Apple clang cross-builds to the sibling arch off one SDK.
                 cmake -S . -B build \
                   -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_OSX_ARCHITECTURES="$proc"
+                  -DCMAKE_OSX_ARCHITECTURES="$proc" \
+                  ${CMAKE_PREFIX_PATH:+-DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"}
               else
                 case "$os" in
                   linux) sysname=Linux ;;
@@ -206,10 +229,18 @@ jobs:
                   -DCMAKE_SYSTEM_NAME="$sysname" \
                   -DCMAKE_SYSTEM_PROCESSOR="$proc" \
                   -DCMAKE_CXX_COMPILER="$CC" \
-                  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
+                  -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+                  -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+                  -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
                 if [ "$os" = "linux" ]; then
                   cmake -S . -B build \
-                    -DCMAKE_FIND_ROOT_PATH="$SYSROOT"
+                    -DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
+                    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+                    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+                elif [ "$os" = "windows" ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
+                  cmake -S . -B build \
+                    -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+                    -DVCPKG_TARGET_TRIPLET=arm64-windows
                 fi
               fi
               ;;
@@ -417,10 +448,65 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  termux:
+    name: termux-${{ matrix.target }}
+    needs: meta
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64
+            image: aarch64
+          - target: armv7l
+            image: arm
+          - target: i686
+            image: i686
+          - target: x86_64
+            image: x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Kirn and kirnc in Termux Docker
+        shell: bash
+        env:
+          IMAGE: termux/termux-docker:${{ matrix.image }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          docker run --rm \
+            -e TARGET="$TARGET" \
+            -v "$GITHUB_WORKSPACE:/work" \
+            "$IMAGE" sh -lc '
+              set -eu
+              pkg update -y
+              pkg install -y clang cmake make openssl zlib sqlite
+              cmake -S /work -B /tmp/kirn-build -DCMAKE_BUILD_TYPE=Release
+              cmake --build /tmp/kirn-build --target kirn kirnc -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+              stage="/work/dist/kirn-termux-$TARGET"
+              mkdir -p "$stage/bin"
+              cp /tmp/kirn-build/kirn /tmp/kirn-build/kirnc "$stage/bin/"
+              cp -R /work/stdpet /work/src "$stage/"
+              tar -czf "/work/dist/kirn-termux-$TARGET.tar.gz" -C /work/dist "kirn-termux-$TARGET"
+              cp /tmp/kirn-build/kirn "/work/dist/kirn-termux-$TARGET"
+              cp /tmp/kirn-build/kirnc "/work/dist/kirnc-termux-$TARGET"
+            '
+      - name: Upload Termux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kirn-termux-${{ matrix.target }}
+          path: |
+            dist/kirn-termux-${{ matrix.target }}.tar.gz
+            dist/kirn-termux-${{ matrix.target }}
+            dist/kirnc-termux-${{ matrix.target }}
+          if-no-files-found: error
+
   release:
     name: publish release
     runs-on: ubuntu-latest
-    needs: [meta, build]
+    needs: [meta, build, termux]
     if: needs.meta.outputs.publish == 'true'
     permissions:
       contents: write

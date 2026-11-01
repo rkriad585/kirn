@@ -140,7 +140,11 @@ std::string nativeArtifactKey(const std::string& launcher,
         const auto size = fs::file_size(dependency, ec);
         const auto stamp = fs::last_write_time(dependency, ec).time_since_epoch().count();
         dependencyMaterial << "\nlib=" << dependency.generic_string()
-                           << ":" << (ec ? 0 : size) << ":" << (ec ? 0 : stamp);
+                           // libc++ on Apple represents filesystem clock reps
+                           // as __int128; normalize before streaming so the
+                           // cache key is portable across standard libraries.
+                           << ":" << (ec ? 0 : size) << ":"
+                           << (ec ? 0 : static_cast<std::intmax_t>(stamp));
     }
     const std::string keyMaterial = dependencyMaterial.str();
     uint64_t a = 1469598103934665603ull;

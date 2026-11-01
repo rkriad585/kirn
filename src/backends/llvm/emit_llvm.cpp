@@ -70,6 +70,9 @@ static const char* opLabel(mir::Op o) {
         case mir::Op::Load:           return "load";
         case mir::Op::Store:          return "store";
         case mir::Op::Move:           return "move";
+        case mir::Op::CaptureRef:     return "capture reference";
+        case mir::Op::EnvLoad:        return "closure environment load";
+        case mir::Op::EnvStore:       return "closure environment store";
         case mir::Op::BucketPark:     return "bucket park";
         case mir::Op::BucketRelease:  return "bucket release";
         case mir::Op::Const:          return "constant";

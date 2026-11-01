@@ -50,6 +50,9 @@ const char* opName(Op o) {
         case Op::Alloca: return "alloca";
         case Op::Load: return "load";
         case Op::Store: return "store";
+        case Op::CaptureRef: return "captureref";
+        case Op::EnvLoad: return "envload";
+        case Op::EnvStore: return "envstore";
         case Op::Move: return "move";
         case Op::BucketPark: return "bucketpark";
         case Op::BucketRelease: return "bucketrelease";
@@ -224,10 +227,13 @@ struct Verifier {
 
                 // Alloca/Load/Store/Phi carry a local index as an immediate.
                 if ((in.op == Op::Alloca || in.op == Op::Load || in.op == Op::Store ||
-                     in.op == Op::Phi) &&
+                     in.op == Op::CaptureRef || in.op == Op::EnvLoad ||
+                     in.op == Op::EnvStore || in.op == Op::Phi) &&
                     !in.opName.empty()) {
                     long idx = std::strtol(in.opName.c_str(), nullptr, 10);
-                    if (idx < 0 || (size_t)idx >= f.localTypes.size()) {
+                    const size_t bound = (in.op == Op::EnvLoad || in.op == Op::EnvStore)
+                        ? f.captureTypes.size() : f.localTypes.size();
+                    if (idx < 0 || (size_t)idx >= bound) {
                         bad(in.span, where + ": '" + opName(in.op) + "' names local " +
                                          in.opName + " but the function has " +
                                          std::to_string(f.localTypes.size()));
@@ -335,6 +341,13 @@ void dump(const Program& p, std::ostream& out) {
                 if (i) out << ' ';
                 out << '#' << f.params[i];
                 if (i < f.paramValues.size()) out << "=%" << f.paramValues[i];
+            }
+        }
+        if (!f.captureDecls.empty()) {
+            out << " captures=";
+            for (size_t i = 0; i < f.captureDecls.size(); ++i) {
+                if (i) out << ' ';
+                out << '#' << f.captureDecls[i];
             }
         }
         out << " ret=" << tyName(f, f.returnType) << "\n";

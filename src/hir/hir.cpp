@@ -469,6 +469,7 @@ struct Lowerer {
                 popScope();
                 l.captures.assign(lambdaStack.back().captures.begin(),
                                   lambdaStack.back().captures.end());
+                f->captures = l.captures;
                 lambdaStack.pop_back();
                 fnStack.pop_back();
                 nestedFuncs.push_back(std::move(f));
@@ -787,7 +788,10 @@ struct Lowerer {
                         if (s.exprs[i]->kind != ast::ExKind::Ident) continue;
                         const std::string& n = s.exprs[i]->text;
                         if (resolve(n) == NO_DECL)
-                            declare(n, Decl::Kind::Var, sp, nullptr, true, nullptr);
+                            declare(n, Decl::Kind::Var, sp,
+                                    s.exprs.size() > nTargets && s.exprs[nTargets]
+                                        ? typeOf(*s.exprs[nTargets]) : nullptr,
+                                    true, nullptr);
                     }
                 }
                 if (s.kind == ast::StKind::Assign) {

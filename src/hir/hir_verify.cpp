@@ -526,6 +526,13 @@ struct Verifier {
                 bad(f.span, "parameter '" + d.name + "' has slot " + std::to_string(d.slot) +
                                 " but the function has " + std::to_string(f.paramNames.size()) + " slots");
         }
+        for (DeclId id : f.captures) {
+            // The declaration may belong to any enclosing function frame; the
+            // lowering pass has already separated this function's parameters
+            // into its lambda frame. The important structural invariant here is
+            // that every capture is a real declaration, not a guessed name.
+            declOk(id, f.span, "function capture");
+        }
         // Slots must be dense: every index 0..paramNames.size()-1 is taken.
         // This is the check that makes "slot < paramNames.size()" a real bound
         // rather than a tautology, and it is rustc's ItemLocalId density

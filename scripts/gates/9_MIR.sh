@@ -129,6 +129,15 @@ else
     report FAIL "closures have function items and explicit captures" "missing synthesized function or capture construction"
 fi
 
+mutable_closure_mir="$($KN rt "$ROOT/tests/mir/closures_mut.kn" 2>&1)"
+if echo "$mutable_closure_mir" | grep -q 'captureref' &&
+   echo "$mutable_closure_mir" | grep -q 'envload' &&
+   echo "$mutable_closure_mir" | grep -q 'envstore'; then
+    report PASS "mutable captures use environment references" "captureref + envload + envstore"
+else
+    report FAIL "mutable captures use environment references" "missing by-reference environment operation"
+fi
+
 # `rt` must agree with itself across runs, and must be a dump rather than an
 # execution: the plan gives `rt` two meanings and resolves it as the dumper.
 "$KN" rt "$ROOT/examples/05_loops_ranges.kn" > "$TMP/m1" 2>&1

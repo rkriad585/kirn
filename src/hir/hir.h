@@ -432,6 +432,10 @@ struct Func {
     std::string name;
     sema::FuncSig sig;
     std::vector<DeclId> params;
+    // Captured declarations are shared by reference with the enclosing frame.
+    // Keeping them on the synthesized function lets MIR build environment
+    // loads/stores in the body instead of resolving a capture as a global call.
+    std::vector<DeclId> captures;
     ast::Span span{};
     ScopeId bodyScope = NO_SCOPE;
     std::vector<StmtP> body;

@@ -118,6 +118,9 @@ enum class Op : uint8_t {
     Alloca,
     Load,
     Store,
+    CaptureRef, // reference to an enclosing local captured by a closure
+    EnvLoad,    // load a captured binding through the closure environment
+    EnvStore,   // store a captured binding through the closure environment
     Move,       // consume a local binding (used by strict move-liveness)
     BucketPark, // move a value into the bucket namespace
     BucketRelease, // restore a parked value into its local binding
@@ -196,6 +199,8 @@ struct Func {
 
     sema::FuncSig sig;
     std::vector<hir::DeclId> params;
+    std::vector<hir::DeclId> captureDecls;
+    std::vector<Type> captureTypes;
     // Parameter Values, in order. A parameter is at once a Value (its entry
     // value, defined by the signature rather than by an instruction) and a
     // Binding: buildFunc gives every param an alloca and stores its entry

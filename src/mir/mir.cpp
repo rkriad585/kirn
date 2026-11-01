@@ -156,6 +156,9 @@ struct Binding {
     uint32_t local = 0;                       // Alloca index, for memory
     Value current = NO_VALUE;                 // value of the last write
     bool isParam = false;
+    bool isCapture = false;
+    uint32_t captureIndex = 0;
+    Type captureType = NO_VALUE;
     bool moved = false;
 };
 
@@ -352,6 +355,16 @@ struct Builder {
         if (!b) return;
         b->current = v;
         b->moved = false;
+        if (b->isCapture) {
+            Inst in;
+            in.op = Op::EnvStore;
+            in.args = {v};
+            in.argTypes = {fn->valueTypes[v]};
+            in.opName = std::to_string(b->captureIndex);
+            in.span = sp(s);
+            emit(std::move(in));
+            return;
+        }
         if (b->local < fn->localTypes.size()) {
             Inst in;
             in.op = Op::Store;
@@ -368,13 +381,16 @@ struct Builder {
     // construction; the phi for a join is what makes the stored value right.
     Value read(hir::DeclId d, ast::Span s) {
         Binding* b = bind(d);
-        if (!b || b->local >= fn->localTypes.size()) return NO_VALUE;
-        Value v = fn->newValue(fn->localTypes[b->local], sp(s));
+        if (!b) return NO_VALUE;
+        Type valueType = b->isCapture ? b->captureType :
+                         (b->local < fn->localTypes.size() ? fn->localTypes[b->local] : NO_VALUE);
+        if (valueType == NO_VALUE) return NO_VALUE;
+        Value v = fn->newValue(valueType, sp(s));
         Inst in;
-        in.op = Op::Load;
+        in.op = b->isCapture ? Op::EnvLoad : Op::Load;
         in.result = v;
-        in.type = fn->localTypes[b->local];
-        in.opName = std::to_string(b->local);
+        in.type = valueType;
+        in.opName = std::to_string(b->isCapture ? b->captureIndex : b->local);
         in.span = sp(s);
         emit(std::move(in));
         return v;
@@ -680,8 +696,12 @@ struct Builder {
         } else if constexpr (std::is_same_v<T, hir::payload::Lambda>) {
             std::vector<Value> a;
             for (hir::DeclId capture : p.captures) {
-                Value v = read(capture, s);
-                if (v != NO_VALUE) a.push_back(v);
+                Binding* b = bind(capture);
+                if (!b || b->isCapture || b->local >= fn->localTypes.size()) continue;
+                Type refTy = fn->internType(TypeEntry{Ty::Ref, "ref", {}, fn->localTypes[b->local]});
+                Value ref = emitValue(Op::CaptureRef, {}, refTy, s,
+                                      std::to_string(b->local).c_str());
+                a.push_back(ref);
             }
             return emitValue(Op::MakeClosure, a, t, s,
                              ("lambda:captures=" +
@@ -1369,6 +1389,7 @@ struct Builder {
         f.span = hf.span;
         f.sig = hf.sig;
         f.params = hf.params;
+        f.captureDecls = hf.captures;
         f.isVariadic = hf.sig.variadic;
         f.newBlock();   // entry
         fn = &f;
@@ -1384,6 +1405,25 @@ struct Builder {
         binds.clear();
         loops.clear();
         pendingAllocas.clear();
+
+        // Captures are environment references, not locals of the closure.
+        // Their declaration ids still point at the enclosing frame, so name
+        // lowering can use the same resolved binding and EnvLoad/EnvStore can
+        // preserve Kirn's by-reference closure semantics.
+        for (size_t ci = 0; ci < hf.captures.size(); ++ci) {
+            hir::DeclId capture = hf.captures[ci];
+            const hir::Decl* d = hctx.get(capture);
+            Type ct = d && d->type ? tyOf(d->type)
+                                   : fn->internType(TypeEntry{Ty::Any, "any", {}, NO_VALUE});
+            f.captureTypes.push_back(ct);
+            Binding b;
+            b.decl = capture;
+            b.name = d ? d->name : "capture";
+            b.isCapture = true;
+            b.captureIndex = static_cast<uint32_t>(ci);
+            b.captureType = ct;
+            binds[capture] = b;
+        }
 
         for (size_t pk = 0; pk < hf.params.size(); ++pk) {
             hir::DeclId p = hf.params[pk];

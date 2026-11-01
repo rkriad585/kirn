@@ -2277,3 +2277,24 @@ Verification: clean CMake build; `tests/mir/closures.kn` now lowers to three
 functions (including `__lambda_*`), preserves `lambda:captures=1`, and returns
 42 through the interpreter; MIR gate **12/12** and HIR/MIR deterministic dump
 checks pass.
+
+### Update (2026-11-01) — Closure captures use explicit environment references (shipped)
+
+The closure representation now preserves Kirn's by-reference capture contract.
+Synthesized HIR functions carry their capture declarations; MIR emits
+`captureref` when constructing a closure, and the closure body uses `envload`
+and `envstore` for reads and writes instead of treating an outer declaration as
+an unresolved global call or copying its current value. Capture types are
+retained where the source declaration has an inferred initializer type, and the
+MIR verifier checks environment-slot bounds. LLVM labels these operations and
+rejects them through the existing explicit unsupported-subset diagnostic until
+its dynamic closure ABI is implemented.
+
+Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`,
+`src/mir/mir.{h,cpp}`, `src/mir/mir_verify.cpp`,
+`src/backends/llvm/emit_llvm.cpp`, `tests/mir/closures_mut.kn`, and
+`scripts/gates/9_MIR.sh`.
+
+Verification: clean CMake build; the mutable-capture fixture executes as
+`1 2 3`; HIR gate **3/3** and MIR gate **13/13** pass, including direct
+assertions for `captureref`, `envload`, and `envstore`.

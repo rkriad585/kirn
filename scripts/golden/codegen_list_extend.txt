@@ -2,13 +2,17 @@ $ KIRN_DUMP_NATIVE kirn build --native tests/codegen/list_extend.kn
 #define KIRN_HAS_NATIVE 1
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
 #include <limits>
 #include <optional>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 namespace kirn_native {
-static inline void co_panic(const char* m){ kirn::interp::panicHere(m); }
+static inline void co_panic(const char* m){ std::fprintf(stderr, "panic: %s\n", m); std::fflush(stderr); std::exit(70); }
 static inline int64_t co_iadd(int64_t a,int64_t b){ if((b>0&&a>std::numeric_limits<int64_t>::max()-b)||(b<0&&a<std::numeric_limits<int64_t>::min()-b))co_panic("integer overflow"); return a+b; }
 static inline int64_t co_isub(int64_t a,int64_t b){ if((b<0&&a>std::numeric_limits<int64_t>::max()+b)||(b>0&&a<std::numeric_limits<int64_t>::min()+b))co_panic("integer overflow"); return a-b; }
 static inline int64_t co_imul(int64_t a,int64_t b){ if(a==0||b==0)return 0; if((a==std::numeric_limits<int64_t>::min()&&b==-1)||(b==std::numeric_limits<int64_t>::min()&&a==-1))co_panic("integer overflow"); if(a>0 ? (b>0 ? a>std::numeric_limits<int64_t>::max()/b : b<std::numeric_limits<int64_t>::min()/a) : (b>0 ? a<std::numeric_limits<int64_t>::min()/b : a!=0&&b<std::numeric_limits<int64_t>::max()/a))co_panic("integer overflow"); return a*b; }
@@ -18,10 +22,10 @@ static inline int64_t co_mod(int64_t a,int64_t b){ if(b==0)co_panic("modulo by z
 static inline double co_fdiv(double a,double b){ if(b==0.0)co_panic("division by zero"); return a/b; }
 static inline double co_fmodm(double a,double b){ return std::fmod(std::fmod(a,b)+b,b); }
 static inline int64_t co_ipow(int64_t b,int64_t e){ int64_t o=1; while(e>0){ if(e&1)o=co_imul(o,b); e>>=1; if(e)b=co_imul(b,b);} return o; }
-static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return (int64_t)((uint64_t)a<<b); }
-static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)kirn::interp::panicHere("shift"); return a>>b; }
-static inline const kirn::interp::Value& co_field(const kirn::interp::Value& v,const char* n){ const auto* fs = v.k == kirn::interp::VK::Struct ? &v.fields : (v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr); if(!fs) kirn::interp::panicHere("native field access on non-struct"); for(const auto& f:*fs) if(f.first == n) return f.second; kirn::interp::panicHere("native field not found"); return v; }
-static inline kirn::interp::Value& co_field_mut(kirn::interp::Value& v,const char* n){ if(v.k != kirn::interp::VK::Struct) kirn::interp::panicHere("native mutable field access on non-struct"); for(auto& f:v.fields) if(f.first == n) return f.second; kirn::interp::panicHere("native field not found"); return v; }
+static inline int64_t co_shl(int64_t a,int64_t b){ if(b<0||b>=63)co_panic("shift"); return (int64_t)((uint64_t)a<<b); }
+static inline int64_t co_shr(int64_t a,int64_t b){ if(b<0||b>=63)co_panic("shift"); return a>>b; }
+static inline const kirn::interp::Value& co_field(const kirn::interp::Value& v,const char* n){ const auto* fs = v.k == kirn::interp::VK::Struct ? &v.fields : (v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr); if(!fs) co_panic("native field access on non-struct"); for(const auto& f:*fs) if(f.first == n) return f.second; co_panic("native field not found"); return v; }
+static inline kirn::interp::Value& co_field_mut(kirn::interp::Value& v,const char* n){ if(v.k != kirn::interp::VK::Struct) co_panic("native mutable field access on non-struct"); for(auto& f:v.fields) if(f.first == n) return f.second; co_panic("native field not found"); return v; }
 static inline std::optional<kirn::interp::Value> co_optional_field(const kirn::interp::Value& v,const char* n){ const auto& f = co_field(v,n); if(f.isNone()) return {}; return f; }
 static inline kirn::interp::Value co_trait_call(const kirn::interp::Value& v,const char* n,std::vector<kirn::interp::Value> a){ return kirn::interp::nativeInvokeMethod(v,n,std::move(a)); }
 static std::vector<kirn::interp::Value> co_native_1_merge(std::vector<kirn::interp::Value> v_left, std::vector<kirn::interp::Value> v_right) {

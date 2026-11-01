@@ -216,6 +216,7 @@ static TyP declTy(const ast::TypeP& t,
     }
     if (t->kind != ast::TyKind::Name) return sema::unkTy();
     const std::string& n = t->name;
+    if (n == "none" || n == "None") return sema::noneTy();
     if (n == "list" && t->generics.size() == 1)
         return sema::listTy(declTy(t->generics[0], traitNames));
     static const char* kInts[] = {"i4", "i8", "i16", "i32", "i64", "i128",
@@ -1044,13 +1045,15 @@ public:
             const sema::Checker& chk)
         : out_(out), lowered_(&lowered), chk_(&chk) {}
 
-    void emitPreamble() {
+    void emitPreamble(bool minimal) {
         out_ << "#include <cmath>\n"
              << "#include <algorithm>\n"
              << "#include <cstdio>\n"
              << "#include <cstdlib>\n"
+             << "#include <cstdint>\n"
              << "#include <limits>\n"
              << "#include <optional>\n"
+             << "#include <functional>\n"
              << "#include <string>\n"
              << "#include <utility>\n"
              << "#include <vector>\n"
@@ -1103,7 +1106,9 @@ public:
              << "static inline int64_t co_shr(int64_t a,int64_t b){"
                 " if(b<0||b>=63)co_panic(\"shift\");"
                 " return a>>b; }\n"
-             << "static inline const kirn::interp::Value& co_field("
+             ;
+        if (!minimal) {
+            out_ << "static inline const kirn::interp::Value& co_field("
                 "const kirn::interp::Value& v,const char* n){"
                 " const auto* fs = v.k == kirn::interp::VK::Struct ? &v.fields : "
                 "(v.k == kirn::interp::VK::Heap && v.heap ? &v.heap->fields : nullptr);"
@@ -1125,6 +1130,7 @@ public:
                 "const kirn::interp::Value& v,const char* n,"
                 "std::vector<kirn::interp::Value> a){"
                 " return kirn::interp::nativeInvokeMethod(v,n,std::move(a)); }\n";
+        }
     }
 
     void emitFunctions(const std::vector<ast::StmtP>& prog) {
@@ -1289,7 +1295,7 @@ private:
     const NativeFunc* findMethod(const std::string& owner,
                                  const std::string& name) const {
         for (const auto& [fn, nf] : *lowered_)
-            if (nf.ownerType == owner && nf.name == name && nf.implTrait.empty())
+            if (nf.ownerType == owner && nf.name == name)
                 return &nf;
         return nullptr;
     }
@@ -1659,6 +1665,8 @@ private:
                         ? findMethod(base->name, e.lhs->text) : nullptr;
                     if (method) {
                         std::string obj = emitExpr(*e.lhs->lhs);
+                        if (obj.empty() && e.lhs->lhs->kind == ExKind::Ident)
+                            obj = cIdent(e.lhs->lhs->text, "v_");
                         std::string call = "kirn_native::" + method->cName + "(";
                         if (optional) call += "*__recv";
                         else call += obj;
@@ -2058,17 +2066,18 @@ void out_registerAll(
 
 NativeProgram emitNative(std::ostream& out,
                          const std::vector<ast::StmtP>& prog,
-                         const sema::Checker& chk) {
+                         const sema::Checker& chk,
+                         bool includeRuntimeBridge) {
     Analyzer an(prog, chk);
     auto lowered = an.lower();
     if (lowered.empty())
         return { {}, false };
 
     Emitter em(out, lowered, chk);
-    em.emitPreamble();
+    em.emitPreamble(!includeRuntimeBridge);
     em.emitFunctions(prog);
     // Registration helper that wires each lowered function into an Interpreter.
-    out_registerAll(out, lowered);
+    if (includeRuntimeBridge) out_registerAll(out, lowered);
     return funcsFrom(lowered);
 }
 

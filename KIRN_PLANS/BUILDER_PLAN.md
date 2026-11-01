@@ -2415,3 +2415,25 @@ Delivered: `src/driver/driver.cpp` and `scripts/gates/11f_object.sh`.
 Verification: object/assembly gate **3/3**; `-O` and `-c` each produce a
 non-empty ELF relocatable object, and `-S` produces non-empty assembler source.
 This closes the former “`-O` dead on POSIX” plan item.
+
+### Update (2026-11-01) — Runtime-free scalar release launchers (shipped)
+
+Release builds now emit a minimal translation unit for fully runtime-free
+scalar programs. The direct entry path contains only the generated scalar
+functions and standard-library headers; it does not include the interpreter
+bridge, runtime registration helpers, or `kirn::interp` symbols. Programs that
+need nominal values, collections, imports, or other runtime-backed features
+continue through the existing registered native/VM launcher. The native type
+lowerer also recognizes the `none` entry-point spelling, and trait-owned native
+methods retain their receiver during direct lowering.
+
+Delivered: `src/backend/native.cpp`, `src/backend/native.h`,
+`src/driver/driver.cpp`, and the runtime-free assertion in
+`scripts/gates/11f_object.sh`.
+
+Verification: clean CMake build; native syntax gate **57/57**, native
+differentials **3/3 + 2/2**, object/assembly/runtime-free gate **4/4**, and
+artifact-cache gate **2/2**. The recursive-integer benchmark measured Kirn
+release build/run **3.097186s/0.008257s**, Rust **5.826884s/0.010128s**, and Go
+**26.822222s/0.011167s** on this host. The generated scalar launcher was
+verified free of interpreter symbols and returned `832040`.

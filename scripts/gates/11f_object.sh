@@ -35,6 +35,17 @@ else
     ok=0
 fi
 
+if KIRN_NO_CACHE=1 "$KIRN" build --release \
+    "$ROOT/tests/codegen/native_int_main.kn" -o "$G11/native" \
+    >"$G11/native.log" 2>&1 &&
+   ! grep -q 'interp::' "$ROOT/build/release/linux-amd64/native_int_main.cpp" &&
+   test "$("$G11/native")" = 832040; then
+    report PASS "runtime-free scalar launcher" "no interpreter symbols"
+else
+    report FAIL "runtime-free scalar launcher" "$(sed -n '1p' "$G11/native.log")"
+    ok=0
+fi
+
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))
 GATE_M=$((GATE_DUR / 60))

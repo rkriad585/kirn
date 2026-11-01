@@ -59,7 +59,8 @@ struct NativeProgram {
 // lowered. Emits nothing (and returns .any=false) when nothing is lowerable.
 NativeProgram emitNative(std::ostream& out,
                          const std::vector<ast::StmtP>& prog,
-                         const sema::Checker& chk);
+                         const sema::Checker& chk,
+                         bool includeRuntimeBridge = true);
 
 // True if `t` is a statically-scalar type we can lower (int/float/bool/char).
 bool isScalarTy(const sema::TyP& t);

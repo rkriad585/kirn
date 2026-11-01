@@ -127,14 +127,25 @@ bool readFile(const std::string& path, std::string& out) {
 // local build cache; cache misses always fall back to the normal compiler.
 std::string nativeArtifactKey(const std::string& launcher,
                               const std::string& compiler,
-                              const BuildOpts& opts) {
+                              const BuildOpts& opts,
+                              const std::vector<fs::path>& dependencies) {
     const std::string material = launcher + "\ncompiler=" + compiler +
                                  "\ntarget=" + opts.target +
                                  "\nrelease=" + (opts.release ? "1" : "0") +
-                                 "\ncache-format=1";
+                                 "\ncache-format=2";
+    std::ostringstream dependencyMaterial;
+    dependencyMaterial << material;
+    for (const auto& dependency : dependencies) {
+        std::error_code ec;
+        const auto size = fs::file_size(dependency, ec);
+        const auto stamp = fs::last_write_time(dependency, ec).time_since_epoch().count();
+        dependencyMaterial << "\nlib=" << dependency.generic_string()
+                           << ":" << (ec ? 0 : size) << ":" << (ec ? 0 : stamp);
+    }
+    const std::string keyMaterial = dependencyMaterial.str();
     uint64_t a = 1469598103934665603ull;
     uint64_t b = 1099511628211ull ^ 0x9e3779b97f4a7c15ull;
-    for (unsigned char c : material) {
+    for (unsigned char c : keyMaterial) {
         a ^= c; a *= 1099511628211ull;
         b ^= (uint64_t)c + 0x9d; b *= 14029467366897019727ull;
         b ^= a >> 29;
@@ -3682,18 +3693,25 @@ int buildProgram(const std::string& name, const std::string& version,
         fs::path outPath(outName);
         if (outPath.has_parent_path()) fs::create_directories(outPath.parent_path());
 
-        // Release scalar launchers are self-contained and depend only on the
-        // generated source plus the selected compiler. Cache the finished
-        // artifact by those exact inputs, following Go's action-key and Zig's
-        // manifest model. Debug/runtime-linked builds deliberately stay on the
-        // ordinary path because their external runtime archives can change.
+        // Host launchers can be reused when their generated source, compiler,
+        // policy, and linked runtime archives are unchanged. This follows Go's
+        // action-key and Zig's manifest model. The archive size/timestamp pair
+        // invalidates the entry after a runtime rebuild without hashing tens of
+        // megabytes on every normal build.
         fs::path cachedArtifact;
-        const bool cacheableNative = directNativeMain && !opts.compileOnly &&
-                                     !opts.emitAsm && !opts.dryRun &&
-                                     !std::getenv("KIRN_NO_CACHE");
-        if (cacheableNative)
+        const bool cacheableHostArtifact = !opts.compileOnly && !opts.emitAsm &&
+                                           !opts.dryRun &&
+                                           !std::getenv("KIRN_NO_CACHE");
+        if (cacheableHostArtifact)
             cachedArtifact = nativeArtifactCachePath(
-                nativeArtifactKey(launcherText, crossCxx, opts));
+                nativeArtifactKey(launcherText, crossCxx, opts,
+                                  directNativeMain ? std::vector<fs::path>{}
+                                                    : [&] {
+                                                        std::vector<fs::path> paths;
+                                                        for (const auto& lib : prebuiltRuntimeLibs)
+                                                            paths.emplace_back(fs::path(binRoot) / lib);
+                                                        return paths;
+                                                    }()));
         if (!cachedArtifact.empty() && fs::is_regular_file(cachedArtifact)) {
             std::error_code copyEc;
             fs::copy_file(cachedArtifact, outPath,

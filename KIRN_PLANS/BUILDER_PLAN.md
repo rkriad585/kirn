@@ -2359,3 +2359,16 @@ produced valid JSONL and measured Kirn release build/run **3.150520s/
 0.010672s**, Rust **0.126642s/0.007790s**, and Go **4.217620s/0.013008s**
 on this host. The cache phase improves repeat builds but does not close the
 plan's stronger cold-build claim against Rust, which remains explicitly open.
+
+### Update (2026-11-01) — Host runtime-backed artifact reuse (shipped)
+
+The host cache now covers ordinary release and debug launchers that link the
+prebuilt Kirn runtime archives, not only the runtime-free scalar subset. Cache
+identity includes each linked archive's path, size, and modification timestamp,
+so a CMake runtime rebuild invalidates old launchers without hashing the full
+archives on every build. `KIRN_NO_CACHE=1` still bypasses all artifact reuse.
+
+Verification: clean CMake build and cache gate **2/2**, covering both a
+runtime-free scalar artifact and a runtime-backed launcher. Both warm builds
+reported a native artifact hit and produced the same executable behavior as
+their cold builds.

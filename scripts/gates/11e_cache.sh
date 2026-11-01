@@ -29,6 +29,20 @@ else
     report FAIL "native artifact cache" "$(sed -n '1p' "$G11/warm.log" 2>/dev/null)"
 fi
 
+if KIRN_CACHE="$G11/runtime-cache" "$KIRN" build --release \
+    "$ROOT/tests/codegen/native_function_return.kn" -o "$G11/out/runtime-cold" \
+    >"$G11/runtime-cold.log" 2>&1 &&
+   KIRN_CACHE="$G11/runtime-cache" KIRN_VERBOSE=1 "$KIRN" build --release \
+    "$ROOT/tests/codegen/native_function_return.kn" -o "$G11/out/runtime-warm" \
+    >"$G11/runtime-warm.log" 2>&1 &&
+   grep -q 'native artifact hit' "$G11/runtime-warm.log" &&
+   test "$("$G11/out/runtime-warm")" = 11; then
+    report PASS "runtime-backed artifact cache" "linked launcher reused"
+else
+    report FAIL "runtime-backed artifact cache" \
+        "$(sed -n '1p' "$G11/runtime-warm.log" 2>/dev/null)"
+fi
+
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))
 GATE_M=$((GATE_DUR / 60))

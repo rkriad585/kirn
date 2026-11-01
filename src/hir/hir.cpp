@@ -32,6 +32,11 @@ struct Lowerer {
     const LowerOptions& opts;
     std::vector<ScopeId> scopeStack;
     std::vector<DeclId> fnStack;
+    struct LambdaFrame {
+        std::set<DeclId> locals;
+        std::set<DeclId> captures;
+    };
+    std::vector<LambdaFrame> lambdaStack;
     int depth = 0;
     // Counters, so the gate can report real coverage rather than a claim.
     std::map<std::string, int> unhandled;
@@ -90,6 +95,7 @@ struct Lowerer {
         if (slotOut) *slotOut = 0;
         DeclId id = ctx.addDecl(std::move(d));
         if (Scope* sc = curScope()) sc->bindings.push_back(id);
+        if (!lambdaStack.empty()) lambdaStack.back().locals.insert(id);
         return id;
     }
 
@@ -343,6 +349,12 @@ struct Lowerer {
                 payload::Name n;
                 n.decl = resolve(e.text);
                 n.spelling = e.text;
+                if (!lambdaStack.empty() && n.decl != NO_DECL &&
+                    !lambdaStack.back().locals.count(n.decl)) {
+                    const Decl* d = ctx.get(n.decl);
+                    if (d && d->isLocal)
+                        lambdaStack.back().captures.insert(n.decl);
+                }
                 return mk(ExprKind::Name, sp, ty, std::move(n));
             }
             case ast::ExKind::Unary: {
@@ -409,6 +421,7 @@ struct Lowerer {
             case ast::ExKind::Lambda: {
                 payload::Lambda l;
                 l.isBlock = e.isBlockClosure;
+                lambdaStack.emplace_back();
                 pushScope(true);
                 for (const auto& pn : e.lambdaParams) {
                     DeclId id = declare(pn, Decl::Kind::Param, sp, nullptr, true, nullptr);
@@ -421,6 +434,9 @@ struct Lowerer {
                 for (const auto& s : e.lambdaBody) l.body.push_back(lower(*s));
                 if (e.rhs) l.arrow = lower(*e.rhs);
                 popScope();
+                l.captures.assign(lambdaStack.back().captures.begin(),
+                                  lambdaStack.back().captures.end());
+                lambdaStack.pop_back();
                 return mk(ExprKind::Lambda, sp, ty, std::move(l));
             }
             case ast::ExKind::List: case ast::ExKind::Set: case ast::ExKind::Tuple: {

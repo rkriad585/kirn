@@ -679,7 +679,13 @@ struct Builder {
             return phi;
         } else if constexpr (std::is_same_v<T, hir::payload::Lambda>) {
             std::vector<Value> a;
-            return emitValue(Op::CallIndirect, a, t, s, "lambda");
+            for (hir::DeclId capture : p.captures) {
+                Value v = read(capture, s);
+                if (v != NO_VALUE) a.push_back(v);
+            }
+            return emitValue(Op::MakeClosure, a, t, s,
+                             ("lambda:captures=" +
+                              std::to_string(p.captures.size())).c_str());
         } else if constexpr (std::is_same_v<T, hir::payload::NewExpr>) {
             std::vector<Value> a;
             for (const auto& x : p.args) {

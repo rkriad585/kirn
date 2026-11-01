@@ -2195,3 +2195,23 @@ formatting contracts are lowered.
 Verification: gate 11a **56/56**, release Fibonacci output `2178308`, and a
 successful release build/run. This improves the native path but does not yet
 prove the plan-wide Rust/Go performance mandate.
+
+### Update (2026-11-01) — Explicit MIR closure captures (shipped)
+
+HIR lambda payloads now retain the resolved local declarations they capture, with
+deterministic declaration ordering and verifier checks for every capture. MIR
+lowers those values through an explicit `makeclosure` operation rather than
+flattening every lambda into an anonymous indirect call. The HIR dump reports the
+capture set, and the LLVM scalar backend names the operation and rejects it with
+the normal unsupported-subset diagnostic until full closure code generation is
+implemented.
+
+Delivered: `src/hir/hir.{h,cpp}`, `src/hir/hir_verify.cpp`, `src/mir/mir.{h,cpp}`,
+`src/mir/mir_verify.cpp`, `src/backends/llvm/emit_llvm.cpp`, and
+`tests/mir/closures.kn`.
+
+Verification: default CMake build, HIR gate **3/3**, MIR gate **10/10**; the
+closure fixture shows `captures #232` in HIR and `makeclosure ...
+lambda:captures=1` in MIR. Runtime closure execution remains owned by the
+interpreter/VM path; this phase closes the structural HIR/MIR requirement without
+claiming scalar LLVM support for dynamic closures.

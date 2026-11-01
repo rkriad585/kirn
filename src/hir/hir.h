@@ -250,6 +250,10 @@ struct FString {
 };
 struct Lambda {
     std::vector<DeclId> params;
+    // Free local declarations resolved while lowering the lambda body. Keeping
+    // this explicit makes capture-by-reference a property of the IR instead of
+    // silently flattening the body into an indirect call later.
+    std::vector<DeclId> captures;
     std::vector<StmtP> body;      // empty for an arrow lambda, which is a Call
     ExprP arrow;                   // `=> expr` form
     bool isBlock = false;

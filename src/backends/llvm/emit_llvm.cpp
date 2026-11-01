@@ -82,6 +82,7 @@ static const char* opLabel(mir::Op o) {
         case mir::Op::MakeDict:       return "dict";
         case mir::Op::MakeStruct:     return "struct";
         case mir::Op::MakeEnum:       return "enum";
+        case mir::Op::MakeClosure:    return "closure";
         case mir::Op::Call:           return "call";
         case mir::Op::CallIndirect:   return "dynamic call";
         case mir::Op::Phi:            return "phi";

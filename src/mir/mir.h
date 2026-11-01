@@ -127,7 +127,7 @@ enum class Op : uint8_t {
     Cast,
     Index,      // list/tuple/dict/string subscript
     Field,      // struct field
-    MakeList, MakeSet, MakeTuple, MakeDict, MakeStruct, MakeEnum,
+    MakeList, MakeSet, MakeTuple, MakeDict, MakeStruct, MakeEnum, MakeClosure,
     Call,       // callee is a Value, args are Values
     CallIndirect,
     Phi,        // incoming, one per predecessor, in PREDECESSOR ORDER

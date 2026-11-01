@@ -1,0 +1,10 @@
+# Closure capture metadata must survive HIR -> MIR lowering.
+fn make_adder() -> fn(Int) -> Int {
+    base = 40;
+    return (value) => base + value;
+}
+
+fn main() -> none {
+    add = make_adder();
+    print(add(2));
+}

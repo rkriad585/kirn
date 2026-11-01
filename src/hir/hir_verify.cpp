@@ -258,6 +258,7 @@ struct Verifier {
         } else if constexpr (std::is_same_v<T, payload::Lambda>) {
             wantKind(e.span, e.kind, ExprKind::Lambda, "Lambda");
             for (DeclId id : p.params) declOk(id, e.span, "lambda parameter");
+            for (DeclId id : p.captures) declOk(id, e.span, "lambda capture");
             for (const auto& s : p.body) if (s) stmt(*s);
             if (p.arrow) expr(*p.arrow);
         } else if constexpr (std::is_same_v<T, payload::NewExpr>) {
@@ -743,6 +744,11 @@ struct Dumper {
                 if (p.subject) expr(*p.subject, n + 1);
                 for (const auto& a : p.arms) { pat(a.pat, n + 1); stmtList(a.body, n + 2); }
             } else if constexpr (std::is_same_v<T, payload::Lambda>) {
+                if (!p.captures.empty()) {
+                    ind(n + 1); o << "captures";
+                    for (DeclId id : p.captures) o << " #" << id;
+                    o << "\n";
+                }
                 for (const auto& s : p.body) if (s) stmt(*s, n + 1);
                 if (p.arrow) expr(*p.arrow, n + 1);
             } else if constexpr (std::is_same_v<T, payload::NewExpr>) {

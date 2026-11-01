@@ -21,6 +21,44 @@ struct Bundle {
     std::vector<std::pair<std::string, std::string>> sections;
 };
 
+using Sections = std::vector<std::pair<std::string, std::string>>;
+
+// PETLIB uses the same section framing as KIRNBUNDLE, but has no executable
+// prefix or @meta record. Keep both the writer and installer on this shared
+// framing so section termination and newline behavior cannot drift.
+inline std::string archiveText(const std::string& magic,
+                               const Sections& sections) {
+    std::ostringstream out;
+    out << magic << "\n";
+    for (const auto& [key, source] : sections)
+        out << "@@FILE " << key << "\n" << source << "@@END\n";
+    return out.str();
+}
+
+inline bool parseArchive(const std::string& data, const std::string& magic,
+                         Sections& sections) {
+    std::istringstream input(data);
+    std::string line, currentKey, current;
+    if (!std::getline(input, line) || line != magic) return false;
+    auto finish = [&]() {
+        if (!currentKey.empty()) sections.emplace_back(currentKey, current);
+        currentKey.clear();
+        current.clear();
+    };
+    while (std::getline(input, line)) {
+        if (line.rfind("@@FILE ", 0) == 0) {
+            if (!currentKey.empty()) finish();
+            currentKey = line.substr(7);
+        } else if (line == "@@END") {
+            finish();
+        } else if (!currentKey.empty()) {
+            current += line + "\n";
+        }
+    }
+    if (!currentKey.empty()) finish();
+    return !sections.empty();
+}
+
 inline std::string bundleTail(
     const std::string& name, const std::string& version,
     const std::string& target, const std::string& entry,

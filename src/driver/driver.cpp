@@ -1699,13 +1699,16 @@ std::string selfExeDir() {
     return ds == std::string::npos ? "." : self.substr(0, ds);
 }
 
-// One installation-root rule for every resource lookup.  KIRN_ROOT is an
-// explicit test/relocation override; otherwise both a source checkout
+// One installation-root rule for every resource lookup.  KIRN_ROOT is the
+// explicit relocation override; KIRN_PREFIX is the install-prefix equivalent
+// used by package managers. Otherwise both a source checkout
 // (<root>/build/kirn) and an installed tree (<root>/bin/kirn) resolve to the
-// directory containing stdpet, src, and tools.  Keeping this decision in one
+// directory containing stdpet, src, and tools. Keeping this decision in one
 // function prevents each backend from inventing a different relative path.
 std::string resourceRoot() {
     if (const char* env = std::getenv("KIRN_ROOT"); env && *env)
+        return fs::path(env).lexically_normal().generic_string();
+    if (const char* env = std::getenv("KIRN_PREFIX"); env && *env)
         return fs::path(env).lexically_normal().generic_string();
     fs::path exe(selfExeDir());
     return exe.parent_path().lexically_normal().generic_string();
@@ -4016,8 +4019,6 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     fs::create_directories(outDir, ec);
     const std::string outPath =
         (outDir / (m.name + "-" + m.version + ".pet")).generic_string();
-    std::ostringstream o;
-    o << "PETLIB/1\n";
     std::vector<fs::path> files;
     files.push_back(fs::path("kirn.toml"));
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
@@ -4034,12 +4035,13 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     // any content-addressed store. A published artifact must be a function of
     // its inputs, not of the filesystem that happened to hold them.
     std::sort(files.begin() + 1, files.end());
+    kirn::payload::Sections sections;
     for (const auto& f : files) {
         std::string content;
         if (!readFile(f.string(), content)) continue;
-        o << "@@FILE " << f.generic_string() << "\n" << content << "@@END\n";
+        sections.emplace_back(f.generic_string(), std::move(content));
     }
-    writeFile(outPath, o.str());
+    writeFile(outPath, kirn::payload::archiveText("PETLIB/1", sections));
     std::cout << "packed " << outPath << " (" << files.size()
               << " files) - ready to publish\n";
     return 0;
@@ -4165,31 +4167,16 @@ int unpackPet(const std::string& raw, bool global_) {
         std::cerr << "kirn install: cannot read bundle '" << raw << "'\n";
         return 1;
     }
-    std::istringstream in(text);
-    std::string header;
-    std::getline(in, header);
-    if (header.rfind("PETLIB/", 0) != 0) {
+    kirn::payload::Sections sections;
+    if (!kirn::payload::parseArchive(text, "PETLIB/1", sections)) {
         std::cerr << "kirn install: not a valid .pet bundle\n";
         return 1;
     }
 
-    // collect sections first so we can learn the package name
-    struct Section { std::string path, body; };
-    std::vector<Section> sections;
-    std::string line;
-    while (std::getline(in, line)) {
-        if (line.rfind("@@FILE ", 0) == 0) {
-            sections.push_back(Section{line.substr(7), ""});
-        } else if (line == "@@END") {
-            // section closed
-        } else if (!sections.empty()) {
-            sections.back().body += line + "\n";
-        }
-    }
     std::string name;
     for (const auto& s : sections)
-        if (s.path == "kirn.toml") {
-            Doc d = kirn::tomlmini::parse(s.body);
+        if (s.first == "kirn.toml") {
+            Doc d = kirn::tomlmini::parse(s.second);
             name = kirn::tomlmini::get(d, "package", "name");
         }
     if (name.empty()) {
@@ -4205,8 +4192,7 @@ int unpackPet(const std::string& raw, bool global_) {
 
     fs::path base = pkgBase(global_);
     for (const auto& s : sections)
-        writeFile(base / name / fs::path(s.path).generic_string(),
-                  s.body);
+        writeFile(base / name / fs::path(s.first).generic_string(), s.second);
     std::cout << "installed " << raw << " -> "
               << (base / name / "").string() << " (" << sections.size()
               << " files)\n";

@@ -2386,3 +2386,18 @@ Verification: clean CMake build; native gates **11a 56/56**, **11b 3/3**, and
 (`--runs 1`) measured Kirn release build/run **5.146834s/0.006523s**, Rust
 **1.586450s/0.008064s**, and Go **11.492529s/0.012189s** on this host. Kirn
 now wins the measured run phase, while cold build time remains slower than Rust.
+
+### Update (2026-11-01) — Shared payload framing and install-prefix resolution (shipped)
+
+The remaining Phase 0 plumbing gaps are closed. `src/driver/payload.h` now
+owns the section archive writer/parser used by both `KIRNBUNDLE/1` support and
+`PETLIB/1` package packing/installing, eliminating the duplicated PETLIB parse
+loop while preserving deterministic section ordering. Resource discovery now
+has the documented precedence `KIRN_ROOT` → `KIRN_PREFIX` → executable-relative
+installation root, so relocated and package-managed `kirn`/`kirnc` trees use
+one resolver.
+
+Verification: clean CMake build; pet pack/install/consume gate **3/3**; a
+`KIRN_PREFIX=$PWD kirn check examples/01_hello.kn` check passed. The earlier
+Phase 0 notes about unshared payload formats and missing root discovery are
+historical and no longer describe the implementation.

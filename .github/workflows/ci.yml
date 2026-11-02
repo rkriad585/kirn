@@ -210,6 +210,30 @@ jobs:
           name: kirn-tools
           path: build
 
+      - name: Normalize downloaded tool layout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # actions/download-artifact preserves the upload root differently
+          # depending on whether the artifact contains one or several paths.
+          # Always put the driver and compiler side by side: kirn resolves its
+          # compiler relative to its own executable before falling back to PATH.
+          $toolDir = Join-Path $PWD "build"
+          foreach ($name in @("kirn.exe", "kirnc.exe", "kirnrun.exe")) {
+            $found = Get-ChildItem -Path $toolDir -Recurse -File -Filter $name |
+              Select-Object -First 1
+            if (-not $found) {
+              throw "downloaded artifact is missing $name"
+            }
+            $destination = Join-Path $toolDir $name
+            if ($found.FullName -ne $destination) {
+              Copy-Item -LiteralPath $found.FullName -Destination $destination -Force
+            }
+          }
+          Add-Content $env:GITHUB_PATH $toolDir
+          Get-ChildItem $toolDir -File -Filter "kirn*.exe" |
+            Select-Object Name, Length
+
       - name: Install llvm-mingw (aarch64 toolchain)
         shell: pwsh
         run: |

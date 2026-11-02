@@ -10,7 +10,7 @@ name: release
 # the whole matrix still builds and is still verified, but nothing is published.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v0.0.1-b*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -744,13 +744,13 @@ jobs:
             echo 'Linux and macOS:'
             echo
             echo '```sh'
-            echo "curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh"
+            echo "curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/installer.sh | sh"
             echo '```'
             echo
             echo 'Windows (PowerShell):'
             echo
             echo '```powershell'
-            echo "irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex"
+            echo "irm https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/installer.ps1 | iex"
             echo '```'
             echo
             echo 'The installer detects your platform, verifies the download against'

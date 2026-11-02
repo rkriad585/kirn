@@ -2,7 +2,7 @@
 # Official root installer for Linux, macOS, and Termux.
 set -eu
 
-REPO="rkriad585/kirn"
+REPO="${KIRN_REPO:-rkriad585/kirn}"
 TERMUX_PREFIX="${PREFIX:-}"
 PREFIX="${KIRN_PREFIX:-$HOME/.kirn}"
 VERSION=""

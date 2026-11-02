@@ -13,7 +13,7 @@ const { execFileSync } = require("child_process");
 const https = require("https");
 
 const version = process.env.KIRN_VERSION || require("../package.json").version;
-const repo = "rkriad585/kirn";
+const repo = process.env.KIRN_REPO || "rkriad585/kirn";
 const cache = process.env.KIRN_NPM_HOME || path.join(os.homedir(), ".kirn-npm", version);
 
 function target() {

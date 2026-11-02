@@ -38,6 +38,8 @@ jobs:
 
   unix:
     needs: select-release
+    env:
+      KIRN_REPO: ${{ github.repository }}
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           prefix="$RUNNER_TEMP/kirn-curl"
-          curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh |
+          curl -fsSL "https://raw.githubusercontent.com/${KIRN_REPO}/main/installer.sh" |
             sh -s -- --version "$TAG" --prefix "$prefix" --no-modify-path
           out="$($prefix/bin/kirn run examples/01_hello.kn)"
           printf '%s\n' "$out"
@@ -68,6 +70,8 @@ jobs:
 
   windows:
     needs: select-release
+    env:
+      KIRN_REPO: ${{ github.repository }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +81,7 @@ jobs:
           TAG: ${{ needs.select-release.outputs.tag }}
         run: |
           $prefix = Join-Path $env:RUNNER_TEMP 'kirn-powershell'
-          $script = irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1
+          $script = irm "https://raw.githubusercontent.com/$env:KIRN_REPO/main/installer.ps1"
           & ([scriptblock]::Create($script)) -Version $env:TAG -Prefix $prefix -NoModifyPath
           $out = & (Join-Path $prefix 'bin\kirn.exe') run examples/01_hello.kn
           $out | Write-Host
@@ -92,6 +96,8 @@ jobs:
 
   chocolatey:
     needs: select-release
+    env:
+      KIRN_REPO: ${{ github.repository }}
     runs-on: windows-latest
     steps:
       - name: Install through Chocolatey and run code
@@ -101,7 +107,7 @@ jobs:
         run: |
           $version = $env:TAG.TrimStart('v')
           choco install kirn --version $version --yes --no-progress
-          kirn run https://raw.githubusercontent.com/rkriad585/kirn/main/examples/01_hello.kn |
+          kirn run "https://raw.githubusercontent.com/$env:KIRN_REPO/main/examples/01_hello.kn" |
             Select-String 'Hello, World!'
 
   termux-contract:

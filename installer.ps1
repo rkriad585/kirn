@@ -1,7 +1,7 @@
 # Official root installer for Windows PowerShell.
 [CmdletBinding()]
 param([string]$Prefix=$(if ($env:KIRN_PREFIX) {$env:KIRN_PREFIX} else {Join-Path $HOME ".kirn"}), [string]$Version="", [switch]$NoModifyPath, [switch]$Uninstall)
-$ErrorActionPreference="Stop"; $Repo="rkriad585/kirn"; $target="windows-amd64"
+$ErrorActionPreference="Stop"; $Repo=if ($env:KIRN_REPO) {$env:KIRN_REPO} else {"rkriad585/kirn"}; $target="windows-amd64"
 if ($Uninstall) { if (Test-Path $Prefix) { Remove-Item $Prefix -Recurse -Force }; exit 0 }
 $tag=if ($Version) {$Version} else {"latest"}; $base=if ($Version) {"https://github.com/$Repo/releases/download/$tag"} else {"https://github.com/$Repo/releases/latest/download"}
 $tmp=Join-Path ([IO.Path]::GetTempPath()) ("kirn-"+[Guid]::NewGuid().ToString("N")); New-Item -ItemType Directory $tmp -Force | Out-Null

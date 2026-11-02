@@ -10,7 +10,7 @@
 #   a.process.arg(c, "hi");
 #   print((await a.process.output(c))["stdout"]);
 #
-# POSIX only: `spawn` is unavailable on Windows (it raises).
+# The native process bridge supports POSIX and Windows hosts.
 import os;
 import time;
 

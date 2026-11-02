@@ -52,6 +52,8 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #endif
 
@@ -4065,6 +4067,66 @@ struct SpawnedProc {
     std::string outPath, errPath, inPath;
 };
 
+#ifdef _WIN32
+static std::mutex g_processM;
+static std::unordered_map<int, HANDLE> g_processHandles;
+
+static std::string windowsError(const char* operation) {
+    DWORD code = GetLastError();
+    char buffer[256]{};
+    DWORD n = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM |
+                             FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code, 0,
+                             buffer, sizeof buffer, nullptr);
+    std::string message = n ? std::string(buffer, n) :
+        ("error " + std::to_string(static_cast<unsigned long>(code)));
+    while (!message.empty() && (message.back() == '\r' || message.back() == '\n'))
+        message.pop_back();
+    return std::string(operation) + ": " + message;
+}
+
+static std::string quoteWindowsArg(const std::string& arg) {
+    if (arg.find_first_of(" \t\n\v\"") == std::string::npos)
+        return arg;
+    std::string out = "\"";
+    size_t slashes = 0;
+    for (char c : arg) {
+        if (c == '\\') {
+            ++slashes;
+        } else if (c == '"') {
+            out.append(slashes * 2 + 1, '\\');
+            out.push_back('"');
+            slashes = 0;
+        } else {
+            out.append(slashes, '\\');
+            slashes = 0;
+            out.push_back(c);
+        }
+    }
+    out.append(slashes * 2, '\\');
+    out.push_back('"');
+    return out;
+}
+
+static HANDLE processHandleFor(int pid) {
+    std::lock_guard<std::mutex> lk(g_processM);
+    auto it = g_processHandles.find(pid);
+    return it == g_processHandles.end() ? nullptr : it->second;
+}
+
+static void forgetProcessHandle(int pid, HANDLE expected = nullptr) {
+    HANDLE h = nullptr;
+    {
+        std::lock_guard<std::mutex> lk(g_processM);
+        auto it = g_processHandles.find(pid);
+        if (it == g_processHandles.end() ||
+            (expected && it->second != expected)) return;
+        h = it->second;
+        g_processHandles.erase(it);
+    }
+    if (h) CloseHandle(h);
+}
+#endif
+
 // Set by the SIGINT handler; `sig_atomic_t` keeps the handler async-signal-safe.
 static volatile sig_atomic_t g_ctrlC = 0;
 #ifndef _WIN32
@@ -4117,9 +4179,78 @@ static bool launchProcess(const std::vector<std::string>& argv,
     sp.pid = (int)pid;
     return true;
 #else
-    (void)argv; (void)sp;
-    err = "process spawn is not supported on this platform";
-    return false;
+    if (argv.empty() || argv[0].empty()) {
+        err = "empty command";
+        return false;
+    }
+    static std::atomic<uint64_t> seq{0};
+    auto stamp = std::to_string(static_cast<unsigned long>(GetCurrentProcessId())) +
+                 "_" + std::to_string(static_cast<unsigned long long>(seq.fetch_add(1)));
+    auto base = std::filesystem::temp_directory_path() / ("kirn_proc_" + stamp);
+    sp.outPath = base.string() + ".out";
+    sp.errPath = base.string() + ".err";
+    sp.inPath  = base.string() + ".in";
+    if (input) {
+        std::ofstream in(sp.inPath, std::ios::binary | std::ios::trunc);
+        if (!in) { err = "cannot write process stdin '" + sp.inPath + "'"; return false; }
+        in.write(input->data(), static_cast<std::streamsize>(input->size()));
+        if (!in) { err = "cannot write process stdin '" + sp.inPath + "'"; return false; }
+    } else {
+        std::ofstream in(sp.inPath, std::ios::binary | std::ios::trunc);
+        if (!in) { err = "cannot create process stdin '" + sp.inPath + "'"; return false; }
+    }
+
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof sa;
+    sa.bInheritHandle = TRUE;
+    HANDLE inHandle = CreateFileA(sp.inPath.c_str(), GENERIC_READ,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE outHandle = CreateFileA(sp.outPath.c_str(), GENERIC_WRITE,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                                   CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE errHandle = CreateFileA(sp.errPath.c_str(), GENERIC_WRITE,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                                   CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (inHandle == INVALID_HANDLE_VALUE || outHandle == INVALID_HANDLE_VALUE ||
+        errHandle == INVALID_HANDLE_VALUE) {
+        if (inHandle != INVALID_HANDLE_VALUE) CloseHandle(inHandle);
+        if (outHandle != INVALID_HANDLE_VALUE) CloseHandle(outHandle);
+        if (errHandle != INVALID_HANDLE_VALUE) CloseHandle(errHandle);
+        err = windowsError("CreateFile");
+        return false;
+    }
+
+    std::string commandLine;
+    for (const auto& arg : argv) {
+        if (!commandLine.empty()) commandLine.push_back(' ');
+        commandLine += quoteWindowsArg(arg);
+    }
+    std::vector<char> mutableCommand(commandLine.begin(), commandLine.end());
+    mutableCommand.push_back('\0');
+    STARTUPINFOA si{};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = inHandle;
+    si.hStdOutput = outHandle;
+    si.hStdError = errHandle;
+    PROCESS_INFORMATION pi{};
+    BOOL created = CreateProcessA(nullptr, mutableCommand.data(), nullptr, nullptr,
+                                  TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    CloseHandle(inHandle);
+    CloseHandle(outHandle);
+    CloseHandle(errHandle);
+    if (!created) {
+        err = windowsError("CreateProcess");
+        return false;
+    }
+    CloseHandle(pi.hThread);
+    sp.pid = static_cast<int>(pi.dwProcessId);
+    {
+        std::lock_guard<std::mutex> lk(g_processM);
+        g_processHandles.emplace(sp.pid, pi.hProcess);
+    }
+    return true;
 #endif
 }
 
@@ -4138,8 +4269,22 @@ static int waitProcessCancelable(int pid) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 #else
-    (void)pid;
-    return -1;
+    HANDLE process = processHandleFor(pid);
+    if (!process) return -1;
+    for (;;) {
+        checkTaskCancellation();
+        DWORD result = WaitForSingleObject(process, 10);
+        if (result == WAIT_OBJECT_0) {
+            DWORD code = 1;
+            if (!GetExitCodeProcess(process, &code)) code = 1;
+            forgetProcessHandle(pid, process);
+            return static_cast<int>(code);
+        }
+        if (result == WAIT_FAILED) {
+            forgetProcessHandle(pid, process);
+            return -1;
+        }
+    }
 #endif
 }
 
@@ -4153,8 +4298,13 @@ static std::optional<int> tryWaitProcess(int pid) {
     if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
     return -1;
 #else
-    (void)pid;
-    return -1;
+    HANDLE process = processHandleFor(pid);
+    if (!process) return -1;
+    DWORD state = STILL_ACTIVE;
+    if (!GetExitCodeProcess(process, &state)) return -1;
+    if (state == STILL_ACTIVE) return std::nullopt;
+    forgetProcessHandle(pid, process);
+    return static_cast<int>(state);
 #endif
 }
 
@@ -4184,6 +4334,13 @@ static Value runProcess(const std::vector<std::string>& argv) {
         ::kill((pid_t)sp.pid, SIGKILL);
         int status = 0;
         while (::waitpid((pid_t)sp.pid, &status, 0) < 0 && errno == EINTR) {}
+#else
+        HANDLE process = processHandleFor(sp.pid);
+        if (process) {
+            TerminateProcess(process, 1);
+            WaitForSingleObject(process, INFINITE);
+            forgetProcessHandle(sp.pid, process);
+        }
 #endif
         throw;
     }
@@ -4201,7 +4358,81 @@ static Value runProcess(const std::vector<std::string>& argv) {
 }
 
 // ---- sockets (POWER_PLAN §2.7) ---------------------------------------------
-#ifndef _WIN32
+using SocketFd = intptr_t;
+#ifdef _WIN32
+using NativeSocket = SOCKET;
+using SocketLen = int;
+static constexpr SocketFd kInvalidSocket = static_cast<SocketFd>(INVALID_SOCKET);
+static void ensureWinsock() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        WSADATA data{};
+        if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
+            panicHere("WSAStartup failed");
+    });
+}
+static std::string socketErrorText() {
+    return "winsock error " + std::to_string(WSAGetLastError());
+}
+static const char* addressErrorText(int error) { return gai_strerrorA(error); }
+static bool socketInterrupted(int error) { return error == WSAEINTR; }
+static bool socketInProgress(int error) {
+    return error == WSAEINPROGRESS || error == WSAEWOULDBLOCK;
+}
+static void closeSocket(SocketFd fd) {
+    if (fd != kInvalidSocket) ::closesocket(static_cast<SOCKET>(fd));
+}
+static int setSocketOption(SocketFd fd, int level, int option,
+                           const void* value, SocketLen len) {
+    return ::setsockopt(static_cast<SOCKET>(fd), level, option,
+                        static_cast<const char*>(value), len);
+}
+static int getSocketOption(SocketFd fd, int level, int option,
+                           void* value, SocketLen* len) {
+    return ::getsockopt(static_cast<SOCKET>(fd), level, option,
+                        static_cast<char*>(value), len);
+}
+static bool setSocketNonblocking(SocketFd fd, bool enabled, std::string& err) {
+    u_long mode = enabled ? 1UL : 0UL;
+    if (ioctlsocket(static_cast<SOCKET>(fd), FIONBIO, &mode) != 0) {
+        err = "ioctlsocket: " + socketErrorText();
+        return false;
+    }
+    return true;
+}
+#else
+using NativeSocket = int;
+using SocketLen = socklen_t;
+static constexpr SocketFd kInvalidSocket = -1;
+static void ensureWinsock() {}
+static std::string socketErrorText() { return std::strerror(errno); }
+static const char* addressErrorText(int error) { return gai_strerror(error); }
+static bool socketInterrupted(int error) { return error == EINTR; }
+static bool socketInProgress(int error) { return error == EINPROGRESS; }
+static void closeSocket(SocketFd fd) { if (fd != kInvalidSocket) ::close(fd); }
+static int setSocketOption(SocketFd fd, int level, int option,
+                           const void* value, SocketLen len) {
+    return ::setsockopt(static_cast<int>(fd), level, option, value, len);
+}
+static int getSocketOption(SocketFd fd, int level, int option,
+                           void* value, SocketLen* len) {
+    return ::getsockopt(static_cast<int>(fd), level, option, value, len);
+}
+static bool setSocketNonblocking(SocketFd fd, bool enabled, std::string& err) {
+    int flags = ::fcntl(static_cast<int>(fd), F_GETFL, 0);
+    if (flags < 0 || ::fcntl(static_cast<int>(fd), F_SETFL,
+                             enabled ? flags | O_NONBLOCK : flags) < 0) {
+        err = "fcntl: " + socketErrorText();
+        return false;
+    }
+    return true;
+}
+#endif
+
+static SocketFd asSocket(const Value& value) {
+    return value.k == VK::Int ? static_cast<SocketFd>(value.i) : kInvalidSocket;
+}
+
 static bool splitHostPort(const std::string& s, std::string& host,
                           std::string& port) {
     if (!s.empty() && s[0] == '[') {
@@ -4221,7 +4452,7 @@ static bool splitHostPort(const std::string& s, std::string& host,
     return true;
 }
 
-static std::string sockAddrStr(const sockaddr* sa, socklen_t len) {
+static std::string sockAddrStr(const sockaddr* sa, SocketLen len) {
     char host[NI_MAXHOST], serv[NI_MAXSERV];
     if (getnameinfo(sa, len, host, sizeof host, serv, sizeof serv,
                     NI_NUMERICHOST | NI_NUMERICSERV) != 0)
@@ -4233,6 +4464,7 @@ static std::string sockAddrStr(const sockaddr* sa, socklen_t len) {
 
 static bool resolveAddr(const std::string& addr, int socktype, bool passive,
                         addrinfo*& out, std::string& err) {
+    ensureWinsock();
     std::string host, port;
     if (!splitHostPort(addr, host, port)) {
         err = "address must be host:port (got '" + addr + "')";
@@ -4245,110 +4477,134 @@ static bool resolveAddr(const std::string& addr, int socktype, bool passive,
     int rc = getaddrinfo(host == "0.0.0.0" ? nullptr : host.c_str(),
                          port.c_str(), &hints, &out);
     if (rc != 0) {
-        err = gai_strerror(rc);
+        err = addressErrorText(rc);
         return false;
     }
     return true;
 }
 
-static int bindSocket(const std::string& addr, int socktype, std::string& bound,
+static SocketFd bindSocket(const std::string& addr, int socktype, std::string& bound,
                       std::string& err) {
+    ensureWinsock();
     addrinfo* res = nullptr;
-    if (!resolveAddr(addr, socktype, true, res, err)) return -1;
-    int fd = -1;
+    if (!resolveAddr(addr, socktype, true, res, err)) return kInvalidSocket;
+    SocketFd fd = kInvalidSocket;
     for (addrinfo* ai = res; ai; ai = ai->ai_next) {
-        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (fd < 0) continue;
+        fd = static_cast<SocketFd>(::socket(ai->ai_family, ai->ai_socktype,
+                                            ai->ai_protocol));
+        if (fd == kInvalidSocket) continue;
         int one = 1;
-        ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-        if (::bind(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
-            if (socktype == SOCK_STREAM && ::listen(fd, 128) != 0) {
-                err = std::string("listen: ") + std::strerror(errno);
-                ::close(fd);
+        setSocketOption(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+        if (::bind(static_cast<NativeSocket>(fd), ai->ai_addr,
+                   static_cast<int>(ai->ai_addrlen)) == 0) {
+            if (socktype == SOCK_STREAM &&
+                ::listen(static_cast<NativeSocket>(fd), 128) != 0) {
+                err = "listen: " + socketErrorText();
+                closeSocket(fd);
                 fd = -1;
                 continue;
             }
             sockaddr_storage ss{};
-            socklen_t sl = sizeof ss;
-            if (::getsockname(fd, (sockaddr*)&ss, &sl) == 0)
+            SocketLen sl = sizeof ss;
+            if (::getsockname(static_cast<NativeSocket>(fd), (sockaddr*)&ss, &sl) == 0)
                 bound = sockAddrStr((sockaddr*)&ss, sl);
             break;
         }
-        err = std::string("bind: ") + std::strerror(errno);
-        ::close(fd);
-        fd = -1;
+        err = "bind: " + socketErrorText();
+        closeSocket(fd);
+        fd = kInvalidSocket;
     }
     freeaddrinfo(res);
-    if (fd < 0 && err.empty()) err = "bind failed";
+    if (fd == kInvalidSocket && err.empty()) err = "bind failed";
     return fd;
 }
 
-static void waitSocketReady(int fd, short events);
+static void waitSocketReady(SocketFd fd, short events);
 
-static int connectSocket(const std::string& addr, int socktype,
+static SocketFd connectSocket(const std::string& addr, int socktype,
                          std::string& peer, std::string& err) {
+    ensureWinsock();
     addrinfo* res = nullptr;
-    if (!resolveAddr(addr, socktype, false, res, err)) return -1;
-    int fd = -1;
+    if (!resolveAddr(addr, socktype, false, res, err)) return kInvalidSocket;
+    SocketFd fd = kInvalidSocket;
     for (addrinfo* ai = res; ai; ai = ai->ai_next) {
-        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (fd < 0) continue;
-        int flags = ::fcntl(fd, F_GETFL, 0);
-        if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-            err = std::string("fcntl: ") + std::strerror(errno);
-            ::close(fd);
-            fd = -1;
+        fd = static_cast<SocketFd>(::socket(ai->ai_family, ai->ai_socktype,
+                                            ai->ai_protocol));
+        if (fd == kInvalidSocket) continue;
+        if (!setSocketNonblocking(fd, true, err)) {
+            closeSocket(fd);
+            fd = kInvalidSocket;
             continue;
         }
-        int rc = ::connect(fd, ai->ai_addr, ai->ai_addrlen);
-        if (rc < 0 && errno == EINPROGRESS) {
+        int rc = ::connect(static_cast<NativeSocket>(fd), ai->ai_addr,
+                           static_cast<int>(ai->ai_addrlen));
+        int connectError = 0;
+        if (rc < 0) {
+#ifdef _WIN32
+            connectError = WSAGetLastError();
+#else
+            connectError = errno;
+#endif
+        }
+        if (rc < 0 && socketInProgress(connectError)) {
             try {
                 waitSocketReady(fd, POLLOUT);
             } catch (...) {
-                ::close(fd);
+                closeSocket(fd);
                 freeaddrinfo(res);
                 throw;
             }
             int soerr = 0;
-            socklen_t sl = sizeof soerr;
-            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl) < 0) {
+            SocketLen sl = sizeof soerr;
+            if (getSocketOption(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl) < 0) {
                 rc = -1;
             } else if (soerr != 0) {
-                errno = soerr;
                 rc = -1;
             } else {
                 rc = 0;
             }
         }
-        ::fcntl(fd, F_SETFL, flags);
+        if (!setSocketNonblocking(fd, false, err)) rc = -1;
         if (rc == 0) {
             peer = addr;
             break;
         }
-        err = std::string("connect: ") + std::strerror(errno);
-        ::close(fd);
-        fd = -1;
+        err = "connect: " + socketErrorText();
+        closeSocket(fd);
+        fd = kInvalidSocket;
     }
     freeaddrinfo(res);
-    if (fd < 0 && err.empty()) err = "connect failed";
+    if (fd == kInvalidSocket && err.empty()) err = "connect failed";
     return fd;
 }
 
 // Poll in short slices so blocking socket operations remain cooperative with
 // Kirn task cancellation. The socket API stays blocking for callers; the
 // readiness wait is the cancellation checkpoint.
-static void waitSocketReady(int fd, short events) {
+static void waitSocketReady(SocketFd fd, short events) {
     for (;;) {
         if (g_currentTask && g_currentTask->aborted.load())
             throw SignalCancel{};
-        pollfd p{fd, events, 0};
+#ifdef _WIN32
+        WSAPOLLFD p{static_cast<SOCKET>(fd), events, 0};
+        int r = ::WSAPoll(&p, 1, 10);
+#else
+        pollfd p{static_cast<int>(fd), events, 0};
         int r = ::poll(&p, 1, 10);
+#endif
         if (r > 0) return;
-        if (r < 0 && errno != EINTR)
-            panicHere(std::string("socket poll: ") + std::strerror(errno));
+        if (r < 0) {
+#ifdef _WIN32
+            int error = WSAGetLastError();
+            if (!socketInterrupted(error))
+                panicHere("socket poll: " + socketErrorText());
+#else
+            if (errno != EINTR)
+                panicHere("socket poll: " + socketErrorText());
+#endif
+        }
     }
 }
-#endif
 }  // namespace
 
 Value Interpreter::moduleMember(const std::string& mod, const std::string& name) {
@@ -5725,6 +5981,12 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
 #ifndef _WIN32
                 if (!a.empty() && a[0].k == VK::Int)
                     ::kill((pid_t)a[0].i, SIGKILL);
+#else
+                if (!a.empty() && a[0].k == VK::Int) {
+                    int pid = static_cast<int>(a[0].i);
+                    HANDLE process = processHandleFor(pid);
+                    if (process) TerminateProcess(process, 1);
+                }
 #endif
                 return Value::none();
             });
@@ -5831,15 +6093,14 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         panicHere("error has no member '" + name + "'");
     }
 
-    // POWER_PLAN §2.7: blocking POSIX sockets. `pat.async_net` wraps each in
+    // POWER_PLAN §2.7: blocking portable sockets. `pat.async_net` wraps each in
     // an `async fn`; fds are plain Ints, so the stdlib handles are cheap.
     if (mod == "net") {
-#ifndef _WIN32
         if (name == "tcp_bind")
             return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
                 std::string bound, err;
-                int fd = bindSocket(toStr(a[0]), SOCK_STREAM, bound, err);
-                if (fd < 0) panicHere("tcp_bind: " + err);
+                SocketFd fd = bindSocket(toStr(a[0]), SOCK_STREAM, bound, err);
+                if (fd == kInvalidSocket) panicHere("tcp_bind: " + err);
                 Value d = Value::dict();
                 dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
                 dictPutInPlace(d, Value::str("addr"), Value::str(bound));
@@ -5847,13 +6108,14 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "tcp_accept")
             return biFn({"fd"}, [](std::vector<Value>& a) -> Value {
-                int lfd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd lfd = asSocket(a.empty() ? Value() : a[0]);
                 waitSocketReady(lfd, POLLIN);
                 sockaddr_storage ss{};
-                socklen_t sl = sizeof ss;
-                int fd = ::accept(lfd, (sockaddr*)&ss, &sl);
-                if (fd < 0) panicHere(std::string("tcp_accept: ") +
-                                      std::strerror(errno));
+                SocketLen sl = sizeof ss;
+                SocketFd fd = static_cast<SocketFd>(::accept(
+                    static_cast<NativeSocket>(lfd), (sockaddr*)&ss, &sl));
+                if (fd == kInvalidSocket)
+                    panicHere(std::string("tcp_accept: ") + socketErrorText());
                 Value d = Value::dict();
                 dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
                 dictPutInPlace(d, Value::str("peer"),
@@ -5863,8 +6125,8 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         if (name == "tcp_connect")
             return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
                 std::string peer, err;
-                int fd = connectSocket(toStr(a[0]), SOCK_STREAM, peer, err);
-                if (fd < 0) panicHere("tcp_connect: " + err);
+                SocketFd fd = connectSocket(toStr(a[0]), SOCK_STREAM, peer, err);
+                if (fd == kInvalidSocket) panicHere("tcp_connect: " + err);
                 Value d = Value::dict();
                 dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
                 dictPutInPlace(d, Value::str("peer"), Value::str(peer));
@@ -5872,18 +6134,25 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "tcp_read")
             return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
                                ? (size_t)a[1].i
                                : 4096;
                 std::string buf(n, '\0');
-                ssize_t k;
+                int k;
                 waitSocketReady(fd, POLLIN);
                 do {
-                    k = ::recv(fd, buf.data(), n, 0);
-                } while (k < 0 && errno == EINTR);
+                    k = ::recv(static_cast<NativeSocket>(fd), buf.data(),
+                               static_cast<int>(n), 0);
+                } while (k < 0 && socketInterrupted(
+#ifdef _WIN32
+                    WSAGetLastError()
+#else
+                    errno
+#endif
+                    ));
                 if (k < 0)
-                    panicHere(std::string("tcp_read: ") + std::strerror(errno));
+                    panicHere(std::string("tcp_read: ") + socketErrorText());
                 buf.resize((size_t)k);
                 Value v = Value::str(std::move(buf));
                 v.k = VK::Bytes;
@@ -5891,7 +6160,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "tcp_write")
             return biFn({"fd", "data"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 std::string data =
                     a.size() > 1 && isBuffer(a[1])
                         ? bytesData(a[1])
@@ -5899,12 +6168,19 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 size_t sent = 0;
                 while (sent < data.size()) {
                     waitSocketReady(fd, POLLOUT);
-                    ssize_t k = ::send(fd, data.data() + sent,
-                                       data.size() - sent, 0);
+                    int k = ::send(static_cast<NativeSocket>(fd),
+                                   data.data() + sent,
+                                   static_cast<int>(data.size() - sent), 0);
                     if (k < 0) {
-                        if (errno == EINTR) continue;
+                        if (socketInterrupted(
+#ifdef _WIN32
+                            WSAGetLastError()
+#else
+                            errno
+#endif
+                            )) continue;
                         panicHere(std::string("tcp_write: ") +
-                                  std::strerror(errno));
+                                  socketErrorText());
                     }
                     if (k == 0) break;
                     sent += (size_t)k;
@@ -5913,75 +6189,75 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "tcp_set_nodelay")
             return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
-                if (::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &enabled,
-                                 sizeof enabled) != 0)
+                if (setSocketOption(fd, IPPROTO_TCP, TCP_NODELAY, &enabled,
+                                    sizeof enabled) != 0)
                     panicHere(std::string("tcp_set_nodelay: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 return Value::none();
             });
         if (name == "tcp_set_keepalive")
             return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
-                if (::setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enabled,
-                                 sizeof enabled) != 0)
+                if (setSocketOption(fd, SOL_SOCKET, SO_KEEPALIVE, &enabled,
+                                    sizeof enabled) != 0)
                     panicHere(std::string("tcp_set_keepalive: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 return Value::none();
             });
         if (name == "socket_set_reuseaddr")
             return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
-                if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enabled,
-                                 sizeof enabled) != 0)
+                if (setSocketOption(fd, SOL_SOCKET, SO_REUSEADDR, &enabled,
+                                    sizeof enabled) != 0)
                     panicHere(std::string("socket_set_reuseaddr: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 return Value::none();
             });
         if (name == "socket_set_recv_buffer" || name == "socket_set_send_buffer")
             return biFn({"fd", "bytes"}, [name](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int bytes = a.size() > 1 && a[1].k == VK::Int ? (int)a[1].i : 0;
                 if (bytes <= 0)
                     panicHere("socket buffer size must be positive");
                 int option = name == "socket_set_recv_buffer" ? SO_RCVBUF : SO_SNDBUF;
-                if (::setsockopt(fd, SOL_SOCKET, option, &bytes, sizeof bytes) != 0)
-                    panicHere(std::string(name) + ": " + std::strerror(errno));
+                if (setSocketOption(fd, SOL_SOCKET, option, &bytes, sizeof bytes) != 0)
+                    panicHere(std::string(name) + ": " + socketErrorText());
                 return Value::none();
             });
         if (name == "udp_set_broadcast")
             return biFn({"fd", "enabled"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int enabled = a.size() > 1 && truthy(a[1]) ? 1 : 0;
-                if (::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enabled,
-                                 sizeof enabled) != 0)
+                if (setSocketOption(fd, SOL_SOCKET, SO_BROADCAST, &enabled,
+                                    sizeof enabled) != 0)
                     panicHere(std::string("udp_set_broadcast: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 return Value::none();
             });
         if (name == "udp_set_ttl")
             return biFn({"fd", "ttl"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 int ttl = a.size() > 1 && a[1].k == VK::Int ? (int)a[1].i : 0;
                 if (ttl <= 0 || ttl > 255)
                     panicHere("udp ttl must be between 1 and 255");
-                if (::setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof ttl) != 0)
-                    panicHere(std::string("udp_set_ttl: ") + std::strerror(errno));
+                if (setSocketOption(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof ttl) != 0)
+                    panicHere(std::string("udp_set_ttl: ") + socketErrorText());
                 return Value::none();
             });
         if (name == "close")
             return biFn({"fd"}, [](std::vector<Value>& a) -> Value {
-                if (!a.empty() && a[0].k == VK::Int) ::close((int)a[0].i);
+                if (!a.empty() && a[0].k == VK::Int) closeSocket(asSocket(a[0]));
                 return Value::none();
             });
         if (name == "udp_bind")
             return biFn({"addr"}, [](std::vector<Value>& a) -> Value {
                 std::string bound, err;
-                int fd = bindSocket(toStr(a[0]), SOCK_DGRAM, bound, err);
-                if (fd < 0) panicHere("udp_bind: " + err);
+                SocketFd fd = bindSocket(toStr(a[0]), SOCK_DGRAM, bound, err);
+                if (fd == kInvalidSocket) panicHere("udp_bind: " + err);
                 Value d = Value::dict();
                 dictPutInPlace(d, Value::str("fd"), Value::integer(fd));
                 dictPutInPlace(d, Value::str("addr"), Value::str(bound));
@@ -5989,7 +6265,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "udp_connect")
             return biFn({"fd", "addr"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 std::string addr = a.size() > 1 ? toStr(a[1]) : "";
                 addrinfo* res = nullptr;
                 std::string err;
@@ -5997,42 +6273,57 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                     panicHere("udp_connect: " + err);
                 bool connected = false;
                 for (addrinfo* ai = res; ai; ai = ai->ai_next) {
-                    if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
+                    if (::connect(static_cast<NativeSocket>(fd), ai->ai_addr,
+                                  static_cast<int>(ai->ai_addrlen)) == 0) {
                         connected = true;
                         break;
                     }
                 }
                 freeaddrinfo(res);
                 if (!connected)
-                    panicHere(std::string("udp_connect: ") + std::strerror(errno));
+                    panicHere(std::string("udp_connect: ") + socketErrorText());
                 return Value::none();
             });
         if (name == "udp_send")
             return biFn({"fd", "data"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 std::string data = a.size() > 1 && isBuffer(a[1])
                                        ? bytesData(a[1])
                                        : toStr(a.size() > 1 ? a[1] : Value());
                 waitSocketReady(fd, POLLOUT);
-                ssize_t k;
-                do { k = ::send(fd, data.data(), data.size(), 0); }
-                while (k < 0 && errno == EINTR);
+                int k;
+                do { k = ::send(static_cast<NativeSocket>(fd), data.data(),
+                                static_cast<int>(data.size()), 0); }
+                while (k < 0 && socketInterrupted(
+#ifdef _WIN32
+                    WSAGetLastError()
+#else
+                    errno
+#endif
+                    ));
                 if (k < 0)
-                    panicHere(std::string("udp_send: ") + std::strerror(errno));
+                    panicHere(std::string("udp_send: ") + socketErrorText());
                 return Value::integer((int64_t)k);
             });
         if (name == "udp_recv")
             return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
                                ? (size_t)a[1].i : 4096;
                 std::string buf(n, '\0');
                 waitSocketReady(fd, POLLIN);
-                ssize_t k;
-                do { k = ::recv(fd, buf.data(), n, 0); }
-                while (k < 0 && errno == EINTR);
+                int k;
+                do { k = ::recv(static_cast<NativeSocket>(fd), buf.data(),
+                                static_cast<int>(n), 0); }
+                while (k < 0 && socketInterrupted(
+#ifdef _WIN32
+                    WSAGetLastError()
+#else
+                    errno
+#endif
+                    ));
                 if (k < 0)
-                    panicHere(std::string("udp_recv: ") + std::strerror(errno));
+                    panicHere(std::string("udp_recv: ") + socketErrorText());
                 buf.resize((size_t)k);
                 Value v = Value::str(std::move(buf));
                 v.k = VK::Bytes;
@@ -6040,7 +6331,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "udp_send_to")
             return biFn({"fd", "data", "addr"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 std::string data =
                     a.size() > 1 && isBuffer(a[1])
                         ? bytesData(a[1])
@@ -6050,35 +6341,43 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 std::string err;
                 if (!resolveAddr(addr, SOCK_DGRAM, false, res, err))
                     panicHere("udp_send_to: " + err);
-                ssize_t k = -1;
+                int k = -1;
                 for (addrinfo* ai = res; ai; ai = ai->ai_next) {
-                    k = ::sendto(fd, data.data(), data.size(), 0,
-                                 ai->ai_addr, ai->ai_addrlen);
+                    k = ::sendto(static_cast<NativeSocket>(fd), data.data(),
+                                 static_cast<int>(data.size()), 0, ai->ai_addr,
+                                 static_cast<int>(ai->ai_addrlen));
                     if (k >= 0) break;
                 }
                 freeaddrinfo(res);
                 if (k < 0)
                     panicHere(std::string("udp_send_to: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 return Value::integer((int64_t)k);
             });
         if (name == "udp_recv_from")
             return biFn({"fd", "n"}, [](std::vector<Value>& a) -> Value {
-                int fd = (!a.empty() && a[0].k == VK::Int) ? (int)a[0].i : -1;
+                SocketFd fd = asSocket(a.empty() ? Value() : a[0]);
                 size_t n = a.size() > 1 && a[1].k == VK::Int && a[1].i > 0
                                ? (size_t)a[1].i
                                : 4096;
                 std::string buf(n, '\0');
                 sockaddr_storage ss{};
-                socklen_t sl = sizeof ss;
-                ssize_t k;
+                SocketLen sl = sizeof ss;
+                int k;
                 waitSocketReady(fd, POLLIN);
                 do {
-                    k = ::recvfrom(fd, buf.data(), n, 0, (sockaddr*)&ss, &sl);
-                } while (k < 0 && errno == EINTR);
+                    k = ::recvfrom(static_cast<NativeSocket>(fd), buf.data(),
+                                   static_cast<int>(n), 0, (sockaddr*)&ss, &sl);
+                } while (k < 0 && socketInterrupted(
+#ifdef _WIN32
+                    WSAGetLastError()
+#else
+                    errno
+#endif
+                    ));
                 if (k < 0)
                     panicHere(std::string("udp_recv_from: ") +
-                              std::strerror(errno));
+                              socketErrorText());
                 buf.resize((size_t)k);
                 Value v = Value::str(std::move(buf));
                 v.k = VK::Bytes;
@@ -6090,6 +6389,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         if (name == "lookup_host")
             return biFn({"host"}, [](std::vector<Value>& a) -> Value {
+                ensureWinsock();
                 std::string host = a.empty() ? "" : toStr(a[0]);
                 addrinfo hints{};
                 hints.ai_socktype = SOCK_STREAM;
@@ -6097,7 +6397,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 addrinfo* res = nullptr;
                 int rc = getaddrinfo(host.c_str(), nullptr, &hints, &res);
                 if (rc != 0) panicHere(std::string("lookup_host: ") +
-                                       gai_strerror(rc));
+                                       addressErrorText(rc));
                 Value out = Value::list();
                 for (addrinfo* ai = res; ai; ai = ai->ai_next) {
                     std::string s = sockAddrStr(ai->ai_addr, ai->ai_addrlen);
@@ -6108,7 +6408,6 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 freeaddrinfo(res);
                 return out;
             });
-#endif
         panicHere("net has no member '" + name + "'");
     }
 

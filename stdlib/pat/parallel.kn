@@ -838,7 +838,11 @@ fn merge_sort(xs: list, depth: Int) -> list {
     mid = n // 2;
     left = xs[0..mid];
     right = xs[mid..n];
-    if depth < 3 and n > 8192 {
+    # A recursive fork/join sort needs spare workers at every join point. The
+    # hosted Windows runners expose a very small executor, so keep the
+    # deterministic merge sort serial until the pool has enough capacity for
+    # nested branches; larger pools still get the parallel implementation.
+    if depth < 3 and n > 8192 and parallel.current_num_threads() > 4 {
         var h = spawn merge_sort(left, depth + 1);
         var r = merge_sort(right, depth + 1);
         var l = h.join();
@@ -871,7 +875,7 @@ fn merge_sort_key(xs: list, key, depth: Int) -> list {
     mid = n // 2;
     left = xs[0..mid];
     right = xs[mid..n];
-    if depth < 3 and n > 8192 {
+    if depth < 3 and n > 8192 and parallel.current_num_threads() > 4 {
         var h = spawn merge_sort_key(left, key, depth + 1);
         var r = merge_sort_key(right, key, depth + 1);
         var l = h.join();
@@ -905,7 +909,7 @@ fn merge_sort_cmp(xs: list, cmp, depth: Int) -> list {
     mid = n // 2;
     left = xs[0..mid];
     right = xs[mid..n];
-    if depth < 3 and n > 8192 {
+    if depth < 3 and n > 8192 and parallel.current_num_threads() > 4 {
         var h = spawn merge_sort_cmp(left, cmp, depth + 1);
         var r = merge_sort_cmp(right, cmp, depth + 1);
         var l = h.join();

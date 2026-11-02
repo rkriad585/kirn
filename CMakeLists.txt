@@ -148,6 +148,12 @@ add_library(kirn_driver STATIC
     src/driver/driver.cpp
 )
 target_link_libraries(kirn_driver PUBLIC kirn_interp kirn_backend kirn_prepro kirn_hir kirn_mir)
+if(WIN32)
+    # The interpreter owns the portable net module, including its WinSock
+    # implementation. Keep the import library on the shared driver so every
+    # frontend (kirnrun, kirn, and kirnc) resolves the same runtime symbols.
+    target_link_libraries(kirn_driver PUBLIC ws2_32)
+endif()
 
 # Phase 1: the stage drivers are thin front ends over the shared library, so all
 # three link kirn_driver instead of the narrow lexer/parser/sema libs. They stay
@@ -239,10 +245,9 @@ if(KIRN_WITH_LLVM)
 endif()
 
 add_executable(kirn tools/kirn.cpp)
-# ws2_32 is the WinSock import lib: only the `kirn doc` HTTP server in
-# tools/kirn.cpp uses it, so it stays on the executable. The driver library
-# deliberately does not link it, which keeps ws2_32 from propagating into every
-# future consumer of kirn_driver (tests, kirnc, embedders).
+# ws2_32 is also linked transitively through kirn_driver because the interpreter
+# owns the portable socket runtime; the explicit executable link keeps the
+# standalone `kirn doc` HTTP server's dependency visible at its call site.
 if(WIN32)
     target_link_libraries(kirn PRIVATE kirn_driver ws2_32)
     target_link_options(kirn PRIVATE "/STACK:16777216")

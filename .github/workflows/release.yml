@@ -200,10 +200,17 @@ jobs:
           fi
           case "$MODE" in
             native)
-              if [ "$TARGET" = windows-amd64 ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
+              if [ "$TARGET" = windows-amd64 ]; then
+                if [ -z "${VCPKG_INSTALLATION_ROOT:-}" ]; then
+                  echo "::error::VCPKG_INSTALLATION_ROOT is required for the native Windows release"
+                  exit 1
+                fi
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
                   -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
-                  -DVCPKG_TARGET_TRIPLET=x64-windows-static
+                  -DVCPKG_TARGET_TRIPLET=x64-windows-static \
+                  -DOPENSSL_USE_STATIC_LIBS=TRUE \
+                  -DZLIB_USE_STATIC_LIBS=TRUE \
+                  -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
               elif [ "$TARGET" = darwin-arm64 ] && [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
                   -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
@@ -261,6 +268,8 @@ jobs:
                   cmake_args+=(
                     -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
                     -DVCPKG_TARGET_TRIPLET=arm64-windows-static
+                    -DOPENSSL_USE_STATIC_LIBS=TRUE
+                    -DZLIB_USE_STATIC_LIBS=TRUE
                   )
                 fi
                 cmake "${cmake_args[@]}"
@@ -414,6 +423,35 @@ jobs:
           fi
           echo "smoke testing $exe"
           export PATH="$PWD/build:$PWD/build/Release:$PATH"
+
+          if [[ "$TARGET" == windows-* ]]; then
+            # A Windows executable can be present and still fail with the
+            # unhelpful MSYS message "The system cannot find the path
+            # specified" when one of its DLL dependencies is absent.  Check
+            # the staged directory before invoking it; the native build is
+            # configured /MT + static vcpkg, so this must be empty.
+            missing=0
+            for dll in \
+              "libcrypto-3-x64.dll" "libssl-3-x64.dll" "zlib1.dll" \
+              "sqlite3.dll" "vcruntime140.dll" "msvcp140.dll"; do
+              if [ -f "$stage/bin/$dll" ]; then
+                echo "::error::unexpected dynamic dependency staged: $dll"
+                missing=1
+              fi
+            done
+            if command -v ldd >/dev/null 2>&1; then
+              deps=$(ldd "$exe" 2>&1 || true)
+              printf '%s\n' "$deps"
+              if printf '%s\n' "$deps" | grep -Eiq 'not found|cannot find'; then
+                echo "::error::Windows executable has an unresolved DLL dependency"
+                exit 1
+              fi
+            fi
+            if [ "$missing" -ne 0 ]; then
+              echo "::error::Windows release is not self-contained"
+              exit 1
+            fi
+          fi
 
           out=$(env -u KIRN_STDLIB -u KIRN_PATS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"

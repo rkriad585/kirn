@@ -3853,6 +3853,45 @@ int buildProgram(const std::string& name, const std::string& version,
         return 0;
     }
     if (useGnuCross && !crossCxx.empty()) {
+        // A release build whose checked program lowered completely to scalar
+        // native code has a self-contained launcher. Do not drag the
+        // interpreter (and its OpenSSL/Zlib/SQLite dependencies) into a
+        // cross-target binary that cannot use them. This is especially
+        // important for llvm-mingw targets, where those target libraries are
+        // not supplied by the compiler distribution.
+        if (directNativeMain) {
+            const std::string outName =
+                !opts.outPath.empty()
+                    ? opts.outPath
+                    : !opts.defaultOut.empty()
+                        ? opts.defaultOut + (ti && ti->isWindows ? ".exe" : "")
+                        : (outDir / (name + (ti ? ti->exeExt : ""))).generic_string();
+            fs::path outPath(outName);
+            if (outPath.has_parent_path()) fs::create_directories(outPath.parent_path());
+            const std::string launcherCpp = (outDir / (name + ".cpp")).generic_string();
+            std::ostringstream command;
+            command << "cd . && \"" << crossCxx << "\" -std=c++20 "
+                    << (opts.release ? "-O3 -s -w " : "-O1 -g ")
+                    << "-static-libgcc -static-libstdc++ -o \""
+                    << fs::absolute(outPath).generic_string() << "\" \""
+                    << fs::absolute(launcherCpp).generic_string() << "\"";
+            if (opts.dryRun) {
+                std::cout << command.str() << "\n";
+                return 0;
+            }
+            if (opts.verbose || std::getenv("KIRN_VERBOSE"))
+                std::cerr << "[cmd] " << command.str() << "\n";
+            std::cout << "compiling runtime-free native launcher with "
+                      << crossCxx << " -> " << outName << "\n";
+            const int nativeRc = std::system(command.str().c_str());
+            if (nativeRc != 0) {
+                std::cerr << "kirn build: cross-compilation failed ("
+                          << nativeRc << ")\n";
+                return nativeRc == 0 ? 1 : nativeRc;
+            }
+            std::cout << "built " << outName << "\n";
+            return 0;
+        }
         auto srcs = collectRuntimeSources(srcRoot);
         if (srcs.empty()) {
             std::cerr << "kirn build: runtime sources not found at "

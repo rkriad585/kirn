@@ -465,7 +465,7 @@ jobs:
           cat > "$work/proj/main.kn" <<'KN'
           import pat.math;
 
-          fn main() {
+          fn main() -> none {
               print(math.abs(-42));
           }
           KN
@@ -536,7 +536,7 @@ jobs:
           @'
           import pat.math;
 
-          fn main() {
+          fn main() -> none {
               print(math.abs(-42));
           }
           '@ | Set-Content -Path (Join-Path $work "proj\main.kn") -Encoding ascii

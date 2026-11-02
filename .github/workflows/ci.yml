@@ -257,6 +257,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $kirn "new" "armapp"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The llvm-mingw cross job validates PE/ARM64 code generation. A
+          # normal scaffold uses the interpreter runtime, which additionally
+          # needs ARM64 OpenSSL/Zlib/SQLite development libraries that are not
+          # part of llvm-mingw. Keep the full runtime smoke test in the native
+          # windows-arm64 release job and use a scalar program here so this
+          # job tests the actual cross compiler and target header.
+          @'
+          fn main() -> Int {
+              return 42;
+          }
+          '@ | Set-Content -Path (Join-Path $PWD "armapp\code\main.kn") -Encoding ascii
           Push-Location armapp
           try {
             & $kirn "build" "--release" "--target=windows-arm64"

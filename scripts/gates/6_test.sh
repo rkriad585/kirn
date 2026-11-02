@@ -7,13 +7,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 GATE_START=${GATE_START:-$(date +%s)}
 GATE_FILES=0
 
-echo "=== gate 6: test (stdlib via kirn driver) ==="
+echo "=== gate 6: test (stdlib/pat via kirn driver) ==="
 rm -f "$ROOT/.io_tmp_test.txt"   # io_test.kn uses append-only scratch; no unlink primitive
-out6=$(cd "$ROOT" && timeout "$WATCH" "$KIRN" test . 2>&1); c6=$?
+out6=$(cd "$ROOT" && timeout "$WATCH" "$KIRN" test stdlib/pat 2>&1); c6=$?
 rm -f "$ROOT/.io_tmp_test.txt"
 if [ "$c6" = 0 ] && echo "$out6" | grep -q "25 passed, 0 failed"; then
     report PASS "kirn test stdlib/pat" "$(echo "$out6" | grep -c 'PASS') tests"
 else
+    printf '%s\n' "$out6"
     report FAIL "kirn test stdlib/pat" "rc=$c6: $(echo "$out6" | tail -1)"
 fi
 

@@ -13,6 +13,19 @@ async fn addup(id: Int) -> Int {
     return id * 10;
 }
 
+# Keep the TaskSet completion-order assertion deterministic. Two equal-duration
+# tasks are intentionally used by `join` above, but completion order for equal
+# timers is scheduler-dependent and must not be assumed by `join_next`.
+async fn taskset_fast() -> Int {
+    await a.sleep(ms: 1);
+    return 10;
+}
+
+async fn taskset_slow() -> Int {
+    await a.sleep(ms: 10);
+    return 20;
+}
+
 async fn afail(n: Int) -> Int {
     await a.sleep(ms: 2);
     if n < 0 { raise("neg"); }
@@ -306,8 +319,8 @@ async fn main() -> none {
     assert(await ta == none);
 
     sset = a.TaskSet();
-    sset.spawn(addup(1));
-    sset.spawn(addup(2));
+    sset.spawn(taskset_fast());
+    sset.spawn(taskset_slow());
     assert_eq(sset.len(), 2);
     assert_eq(await sset.join_next(), 10);
     rest = await sset.join_all();

@@ -52,7 +52,7 @@ await writeFile(join(publicDir, 'ai', 'docs.json'), JSON.stringify({
   pages: pages.map(({ content, ...page }) => page)
 }, null, 2) + '\n')
 
-const index = '# Kirn\n\n> Official documentation for the Kirn programming language.\n\nKirn is a general-purpose language created by RK Riad Khan. These docs describe verified language behavior, tooling, and standard-library material from the source repository.\n\n## Documentation\n\n' + sections.join('\n') + '\n\n## Ecosystem\n\n- [Kirn website](https://kirn-lang.github.io/)\n- [Pets registry](https://pets-registry.github.io/)\n- [Kirnly editor](https://kirnly.github.io/)\n- [KirnOS](https://kirnos-kernel.github.io/)\n- [Creator](https://rkriad585.github.io/)\n'
+const index = '# Kirn\n\n> Official documentation for the Kirn programming language.\n\nKirn is a general-purpose language created by RK Riad Khan. These docs describe verified language behavior, tooling, and standard-library material from the source repository.\n\n## Documentation\n\n' + sections.join('\n') + '\n\n## Ecosystem\n\n- [Kirn website](https://kirn-lang.github.io/)\n- [Pats registry](https://pats-regestry.github.io/)\n- [Kirnly editor](https://kirnly.github.io/)\n- [KirnOS](https://kirnos-kernel.github.io/)\n- [Creator](https://rkriad585.github.io/)\n'
 await writeFile(join(publicDir, 'llms.txt'), index)
 
 const full = pages.map(page => '# ' + page.title + '\n\nSource: ' + page.url + '\n\n' + (page.description ? page.description + '\n\n' : '') + page.content).join('\n\n---\n\n')

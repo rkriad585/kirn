@@ -1,9 +1,9 @@
 # Async filesystem / process / signal surface (POWER_PLAN §2.9). Runs
 # identically under the tree-walker and the VM.
-import pet.async as a;
-import pet.strings as strings;
+import pat.async as a;
+import pat.strings as strings;
 import bytes as byte_ops;
-import pet.json as json;
+import pat.json as json;
 
 struct AsyncUser {
     name: Str;

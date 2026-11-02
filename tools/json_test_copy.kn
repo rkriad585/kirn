@@ -1,4 +1,4 @@
-import pet.json;
+import pat.json;
 fn main() -> none {
     o = {};
     o["name"] = "kirn";

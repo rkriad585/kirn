@@ -709,7 +709,7 @@ diagnostics engine.
 ### Exit criteria
 
 - `kirn fmt --check` is idempotent on the whole corpus (formatted corpus == corpus).
-- REPL executes sample snippets and has completion.
+- REPL executes sample snippats and has completion.
 - CLI application: `kirn new demo && cd demo && kirn add greet && kirn fmt -w && kirn check &&
 kirn test` all green. LSP passes a JSON-RPC smoke suite (completion + diagnostics).
 

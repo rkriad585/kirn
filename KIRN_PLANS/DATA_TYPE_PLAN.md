@@ -354,7 +354,7 @@ _Dependencies:_ Phase 0. Go/Rust parity for `div_euclid` semantics.
 
 **Goal:** Complete the `Float`/`UFloat` width surface and add exact `Rational` arithmetic.
 **Must Follow:** All float widths (`f4..f256`/`Float4..Float256`, `uf4..uf256`/`UFloat4..UFloat256`) share one method table; `Rational(...)` is the capitalized free constructor, methods lowercase.
-**Important Note:** Exact rationals must not round-trip through `double`; keep them integer-limb based and faster than the GMP-backed rationals competitors use.
+**Important Note:** Exact rationals must not round-trip through `double`; keep them integer-limb based and faster than the GMP-backed rationals compatitors use.
 
 > Reference: cpython — `fractions.Fraction` and float surface (`Lib/fractions.py`); go — `math/big` `Rat`.
 
@@ -400,7 +400,7 @@ _Dependencies:_ Phase 1 (int widths). Cross-links to `STD_LIBS_PLAN` Phase 3 (ma
 
 **Goal:** Python/Ruby-style unbounded integers as `BigInt` (`big_int`), while fixed-width `Int` stays the fast default.
 **Must Follow:** Sign + little-endian limb representation; `BigInt(...)` is the capitalized free constructor, methods lowercase (`.bit_length()`, `.powmod()`).
-**Important Note:** Also the later backing store for `>64` and unsigned widths — staged outside Phase 0-15 wholesale; limb arithmetic must outpace the GMP-based BigInt implementations used by competitors.
+**Important Note:** Also the later backing store for `>64` and unsigned widths — staged outside Phase 0-15 wholesale; limb arithmetic must outpace the GMP-based BigInt implementations used by compatitors.
 
 > Reference: cpython — arbitrary-precision `longobject.c`; ruby — `bignum.c`.
 

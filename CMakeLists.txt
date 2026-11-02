@@ -257,7 +257,7 @@ install(TARGETS kirn kirnc
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION bin
 )
-install(DIRECTORY stdpet DESTINATION .)
+install(DIRECTORY stdlib DESTINATION .)
 install(DIRECTORY src DESTINATION .)
 install(FILES tools/runner.cpp DESTINATION tools)
 install(FILES README.md DESTINATION .)

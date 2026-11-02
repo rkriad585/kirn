@@ -1,0 +1,45 @@
+# stdlib/pat/os_test.kn - tests for pat.os.
+import pat.os;
+import pat.io;
+
+fn main() -> none {
+    # args() is a list of program arguments; runners pass none by default.
+    args = os.args();
+    assert(args.len() >= 0);
+    if args.len() > 0 {
+        first = Str(args[0]);
+        assert(first.len() > 0);
+    }
+
+    # getenv: an unset variable reads back as nil, a defined one as a string.
+    g = os.getenv("KIRN_OS_TEST_NOT_SET");
+    assert(g == nil);
+    p = os.getenv("PATH");
+    assert(p != nil);
+
+    os.setenv("KIRN_OS_PHASE0", "ready");
+    assert(os.getenv("KIRN_OS_PHASE0") == "ready");
+    root = os.tmpdir() + "/kirn_os_phase0";
+    os.mkdir_all(root + "/nested");
+    assert(os.exists(root));
+    assert(os.is_dir(root));
+    f = io.open_mode(root + "/nested/value.txt", "w");
+    f.write("ok");
+    f.close();
+    assert(os.is_file(root + "/nested/value.txt"));
+    st = os.stat(root + "/nested/value.txt");
+    assert(st["is_file"] == true);
+    assert(st["size"] == 2);
+    assert(os.listdir(root + "/nested").len() == 1);
+    os.remove(root + "/nested/value.txt");
+    os.rmdir(root + "/nested");
+    os.rmdir(root);
+    assert(os.exists(root) == false);
+    os.unsetenv("KIRN_OS_PHASE0");
+    assert(os.getpid() > 0);
+    assert(os.cpu_count() > 0);
+    assert(os.hostname().len() > 0);
+    assert(os.environ()["PATH"] != nil);
+
+    print("os_test ok");
+}

@@ -1,5 +1,5 @@
 # AsyncBufRead contract regression (POWER_PLAN §2.6).
-import pet.async as a;
+import pat.async as a;
 
 async fn read_lines(reader: any) -> list {
     return await reader.lines();

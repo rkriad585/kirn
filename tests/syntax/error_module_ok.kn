@@ -1,7 +1,7 @@
-# pet.error is file-backed like the other pet modules: it re-exports the
+# pat.error is file-backed like the other pat modules: it re-exports the
 # native error helpers under the same names, and `error.new` still resolves
 # through the native fallback (it cannot be declared here - `new` is a keyword).
-import pet.error;
+import pat.error;
 
 fn boom() -> result[Int] {
     raise error.msg("boom");

@@ -3,7 +3,7 @@
 # Tasks overlap: three 60ms "jobs" finish in well under their 180ms sum. Timer
 # futures (awaitable) cooperate; a spawned `async fn` closure is joined by
 # awaiting its handle.
-import pet.async as a;
+import pat.async as a;
 
 async fn job(name: Str, ms: Int) -> Str {
     await a.sleep(ms: ms);

@@ -1,4 +1,4 @@
-import pet.collections;
+import pat.collections;
 fn main() -> none {
     m = collections.HashMap();
     m.put("a", 1);

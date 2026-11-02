@@ -1,7 +1,7 @@
 # `select` over tasks/timers/channels, `biased`, and `else` (POWER_PLAN §2.10).
 # Runs identically under the tree-walker and the VM (the VM falls back to the
 # tree-walker for functions containing `select`).
-import pet.async as a;
+import pat.async as a;
 
 async fn later(v: Int, ms: Int) -> Int {
     await a.sleep(ms);

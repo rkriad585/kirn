@@ -411,7 +411,7 @@ Each phase: **Goal**, **C++/interpreter substrate**, **Kirn surface**, **code ex
 
 **Goal:** list the 16 phases (0–15) + stretch, each specified by Goal, C++/interpreter substrate, Kirn surface, example(s), dependencies, and tests.
 **Must Follow:** every phase below carries its own `Goal`/`Must Follow`/`Important Note` triple; keep substrate/surface/example/deps/tests as the fixed template.
-**Important Note:** new examples use `.kn` (Kirn); the legacy `.kn` snippets and corpus already in the repo remain valid and are not rewritten.
+**Important Note:** new examples use `.kn` (Kirn); the legacy `.kn` snippats and corpus already in the repo remain valid and are not rewritten.
 
 ---
 

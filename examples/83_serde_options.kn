@@ -1,9 +1,9 @@
 # 83 — serde attributes: rename, skip, flatten, tagging (POWER_PLAN §3.2)
 #
 # `@[serde(...)]` options are read through `reflect` and applied in the shared
-# `pet.codec` tree layer, so JSON / TOML / YAML / CBOR all honour them.
-import pet.json as json;
-import pet.toml as toml;
+# `pat.codec` tree layer, so JSON / TOML / YAML / CBOR all honour them.
+import pat.json as json;
+import pat.toml as toml;
 import reflect;
 
 @[serde(rename_all = "camelCase")]

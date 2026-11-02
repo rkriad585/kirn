@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/88_select_await.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "work" async
   Param "x" : Int
   Param "ms" : Int

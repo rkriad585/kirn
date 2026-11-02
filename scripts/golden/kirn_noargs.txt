@@ -4,21 +4,21 @@ kirn - the Kirn language driver
 usage:
   kirn run .|<file.kn>|<dir>       run a project (requires kirn.toml) or a single .kn file
   kirn new <name>                  scaffold an application
-  kirn new pet <name>              scaffold a package (pet)
+  kirn new pat <name>              scaffold a package (pat)
   kirn test [.|file|dir ...]       run *_test.kn files
   kirn fmt [--check|-d|-w] [path] format .kn files deterministically
   kirn check [flags] <file.kn>     lex, parse, and type-check one file
   kirn lint [flags] <file.kn>      type-check and report lint diagnostics
-  kirn repl                        evaluate snippets interactively
+  kirn repl                        evaluate snippats interactively
   kirn env                         print effective toolchain and cache settings
   kirn get|install [-g] <pkg>      install a package
   kirn lsp                        serve diagnostics, completion, hover, and formatting over JSON-RPC stdio
   kirn sync|update|remove <name>   manage project dependencies
   kirn clone <repo>                clone a repository
-  kirn build [file.kn|pet]         compile or package a project
+  kirn build [file.kn|pat]         compile or package a project
       flags: --debug --release --target <triple> --native --asan -S -O -o <path>
-  kirn publish                     package, cache, and checksum a pet
+  kirn publish                     package, cache, and checksum a pat
   kirn targets                     list supported target triples
-  kirn doc <pet|dir>               serve generated API docs
-  kirn list [online]               list installed or registry pets
+  kirn doc <pat|dir>               serve generated API docs
+  kirn list [online]               list installed or registry pats
 [exit 64]

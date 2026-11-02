@@ -1,11 +1,11 @@
-# examples/74_channels.kn - pet.sync channels (POWER_PLAN §6)
+# examples/74_channels.kn - pat.sync channels (POWER_PLAN §6)
 #
 # Oneshot, Broadcast and Watch mirror tokio::sync. Everything is deterministic:
 # a value sent before recv() is stored, a broadcast receiver created later
 # starts after the messages already sent, and the watch worker is joined before
 # its slot is read.
 
-import pet.sync as sync;
+import pat.sync as sync;
 
 fn main() -> none {
     # Oneshot: exactly one value, delivered at most once. send does not block

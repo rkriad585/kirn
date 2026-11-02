@@ -1,5 +1,5 @@
 # In-place parallel list mutation (POWER_PLAN §4.3).
-import pet.parallel as p;
+import pat.parallel as p;
 
 fn main() -> none {
     var xs = [];

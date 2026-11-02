@@ -1,5 +1,5 @@
 # Explicit async runtime builder surface (POWER_PLAN §2.1).
-import pet.async as a;
+import pat.async as a;
 
 async fn value(x: Int) -> Int {
     await a.sleep(1);

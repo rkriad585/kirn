@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/66_serde_basic.kn
-Import pet.serde as serde
+Import pat.serde as serde
 Import reflect
 StructDef "Address"
   Field "city" : Str

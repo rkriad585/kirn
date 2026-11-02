@@ -1,4 +1,4 @@
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 fn main() -> none {
     workers = parallel.current_num_threads();

@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/67_serde_enum.kn
-Import pet.serde as serde
+Import pat.serde as serde
 Import reflect
 EnumDef "Shape"
   Variant Circle {r: Float}

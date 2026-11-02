@@ -1,5 +1,5 @@
 # Async synchronization surface (POWER_PLAN §2.5). Tree-walker == VM.
-import pet.async as a;
+import pat.async as a;
 
 async fn bump(m: any) -> none {
     g = await m.lock();

@@ -204,7 +204,7 @@ Kirn installed to $PREFIX
 The standard library is bundled in the installation and discovered relative
 to the installed executables. To override it for testing or a private mirror:
 
-  export KIRN_STDLIB="$PREFIX/stdpet"
+  export KIRN_STDLIB="$PREFIX/stdlib"
 
 Try it:
   $bindir/kirn run https://github.com/$REPO/raw/main/examples/01_hello.kn

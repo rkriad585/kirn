@@ -1,5 +1,5 @@
 # Reflection-based serialization (POWER_PLAN §3)
-import pet.serde as serde;
+import pat.serde as serde;
 
 struct Point { x: Int; y: Int; }
 

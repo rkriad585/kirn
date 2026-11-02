@@ -349,7 +349,7 @@ jobs:
               sys.exit(f"wrong architecture: got 0x{got:04X}, want {label}")
           PY
 
-      # One executable plus the data it needs: stdpet/ for imports, src/ for
+      # One executable plus the data it needs: stdlib/ for imports, src/ for
       # `kirn build --native`. Neither is an executable - this is one binary.
       - name: Stage distribution
         shell: bash
@@ -371,7 +371,7 @@ jobs:
            mkdir -p "$stage/bin"
            cp "$src" "$stage/bin/kirn$ext"
            cp "$csrc" "$stage/bin/kirnc$ext"
-           cp -R stdpet src "$stage/"
+           cp -R stdlib src "$stage/"
            cp README.md "$stage/"
 
            # The raw executables as their own assets, so they can be fetched
@@ -415,7 +415,7 @@ jobs:
           echo "smoke testing $exe"
           export PATH="$PWD/build:$PWD/build/Release:$PATH"
 
-          out=$(env -u KIRN_STDLIB -u KIRN_PETS -u KIRN_CXX "$exe" run examples/01_hello.kn)
+          out=$(env -u KIRN_STDLIB -u KIRN_PATS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"
           case "$out" in
             *"Hello, World!"*) ;;
@@ -425,7 +425,7 @@ jobs:
           # A project outside the repo importing the standard library: exactly
           # how an installed copy is used once KIRN_STDLIB is set.
           work="$(mktemp -d)"
-          cp -R "$stage/stdpet" "$work/stdpet"
+          cp -R "$stage/stdlib" "$work/stdlib"
           mkdir -p "$work/proj"
           project_exe="$exe"
           if [[ "$TARGET" == windows-* ]]; then
@@ -433,13 +433,13 @@ jobs:
             project_exe="./kirn.exe"
           fi
            cat > "$work/proj/main.kn" <<'KN'
-           import pet.math;
+           import pat.math;
 
            fn main() {
                print(math.abs(-42));
            }
            KN
-          got=$(cd "$work/proj" && env -u KIRN_PETS KIRN_STDLIB="$work/stdpet" "$project_exe" run main.kn)
+          got=$(cd "$work/proj" && env -u KIRN_PATS KIRN_STDLIB="$work/stdlib" "$project_exe" run main.kn)
           echo "$got"
           case "$got" in
             *42*) ;;
@@ -471,7 +471,7 @@ jobs:
 
       # Only the archives and the raw executable are uploaded. Listing the bare
       # staged directory here would make upload-artifact ship the whole tree
-      # (bin/ + src/ + stdpet/ - already inside the archive) and recreate it as a
+      # (bin/ + src/ + stdlib/ - already inside the archive) and recreate it as a
       # directory on download, which gh release upload then rejects with
       # "read ...: is a directory".
       - name: Upload artifact
@@ -542,7 +542,7 @@ jobs:
               stage="/work/dist/kirn-termux-$target"
               mkdir -p "$stage/bin"
               cp "$workroot/build/kirn" "$workroot/build/kirnc" "$stage/bin/"
-              cp -R /work/stdpet /work/src "$stage/"
+              cp -R /work/stdlib /work/src "$stage/"
               tar -czf "/work/dist/kirn-termux-$target.tar.gz" -C /work/dist "kirn-termux-$target"
               cp "$workroot/build/kirn" "/work/dist/kirn-termux-$target"
               cp "$workroot/build/kirnc" "/work/dist/kirnc-termux-$target"
@@ -635,7 +635,7 @@ jobs:
             echo
             echo 'The installer detects your platform, verifies the download against'
             echo '`checksums.txt`, and installs to `~/.kirn` (`%USERPROFILE%\.kirn` on Windows).'
-            echo 'It also sets `KIRN_STDLIB` so `import pet.*` works from any directory.'
+            echo 'It also sets `KIRN_STDLIB` so `import pat.*` works from any directory.'
             echo
             echo '## Downloads'
             echo
@@ -644,19 +644,19 @@ jobs:
             for f in "${assets[@]}"; do
               name="$(basename "$f")"
               case "$name" in
-                kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdpet + src)" ;;
-                kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdpet + src)" ;;
-                 kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdpet separately)" ;;
-                 kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdpet separately)" ;;
-                 kirnc-*.exe)   t="${name%.exe}";    t="${t#kirnc-}"; kind="raw checker (needs stdpet separately)" ;;
-                 kirnc-*)       t="${name#kirnc-}";  kind="raw checker (needs stdpet separately)" ;;
+                kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
+                kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
+                 kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
+                 kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
+                 kirnc-*.exe)   t="${name%.exe}";    t="${t#kirnc-}"; kind="raw checker (needs stdlib separately)" ;;
+                 kirnc-*)       t="${name#kirnc-}";  kind="raw checker (needs stdlib separately)" ;;
                 *)             t="-"; kind="installer / checksum" ;;
               esac
               echo "| [\`$name\`]($release_url/$name) | \`$t\` | $kind |"
             done
             echo
             echo 'Raw executables are provided for convenience, but they need the standard'
-            echo 'library next to them (or `KIRN_STDLIB` set) for `import pet.*` to resolve - the'
+            echo 'library next to them (or `KIRN_STDLIB` set) for `import pat.*` to resolve - the'
             echo 'archive is the supported way to install.'
           } > "$notes"
           cat "$notes"

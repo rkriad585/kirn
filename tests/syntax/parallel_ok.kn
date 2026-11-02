@@ -1,5 +1,5 @@
 # Parallel iterators and sort (POWER_PLAN §4)
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 fn main() -> none {
     print(parallel.par_iter([1, 2, 3]).map(fn (x) { return x + 1; }).collect());

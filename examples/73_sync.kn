@@ -1,11 +1,11 @@
-# examples/73_sync.kn - pet.sync: Barrier, Semaphore and Notify (POWER_PLAN §6)
+# examples/73_sync.kn - pat.sync: Barrier, Semaphore and Notify (POWER_PLAN §6)
 #
 # The three higher-level primitives build on the native Mutex/Cond values.
 # Everything here is deterministic: the barrier hands out one generation,
 # the semaphore counters are read in a fixed order, and the notification is
 # stored before the waiter arrives.
 
-import pet.sync as sync;
+import pat.sync as sync;
 
 fn main() -> none {
     # Three workers meet at a reusable barrier; every party observes the same

@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/85_parallel_combinators.kn
 Ident	9:1	import
-Ident	9:8	pet
+Ident	9:8	pat
 Punct	9:11	.
 Ident	9:12	parallel
 Ident	9:21	as

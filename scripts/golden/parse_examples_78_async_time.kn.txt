@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/78_async_time.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "fetch" async
   Param "id" : Int
   Param "ms" : Int

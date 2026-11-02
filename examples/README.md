@@ -4,7 +4,7 @@ These programs are the **normative corpus** for the language: they exercise the
 syntax (per `grammar/kirn.ebnf`), semantics, and standard library, and are the
 ground-truth targets the compiler — and any grammar or tooling change — must
 keep working. Numbered files (`n_*.kn`) each demonstrate a focused feature;
-`native*` and `pets/` cover native and packaged-library scenarios.
+`native*` and `pats/` cover native and packaged-library scenarios.
 
 | #   | File                            | Exercises                                                                                        |
 | --- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -56,7 +56,7 @@ keep working. Numbered files (`n_*.kn`) each demonstrate a focused feature;
 Plus:
 
 - `native_main.kn`, `native_scalar_mix.kn` — native-backend scenarios.
-- `pets/greet/` — a packaged-library example (`code/pin.kn` initializer).
+- `pats/greet/` — a packaged-library example (`code/pin.kn` initializer).
 
 **Rule:** any grammar or semantic change must be validated against this corpus
 before merge; expected behavior is documented in each file's header.

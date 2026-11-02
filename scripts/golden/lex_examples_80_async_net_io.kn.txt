@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/80_async_net_io.kn
 Ident	7:1	import
-Ident	7:8	pet
+Ident	7:8	pat
 Punct	7:11	.
 Ident	7:12	async
 Ident	7:18	as

@@ -540,7 +540,7 @@ public:
 
             case StKind::For: {
                 // POWER_PLAN §4.4: `@[par] for …` dispatches through the
-                // tree-walker's pet.parallel.par_iter(...).for_each lowering, so
+                // tree-walker's pat.parallel.par_iter(...).for_each lowering, so
                 // a decorated loop hands the whole function back to the
                 // interpreter (same policy as Try/Match and non-bind patterns).
                 // Loop bindings can receive Drop-capable values. The VM does

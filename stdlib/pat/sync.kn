@@ -1,0 +1,1087 @@
+# stdlib/pat/sync.kn - synchronization primitives (POWER_PLAN §6).
+#
+# The native runtime already provides Mutex, RwMutex, WaitGroup, Once, Cond,
+# and Atomic as globals (and via the prebound `sync` namespace). This module
+# adds the higher-level primitives tokio::sync is known for, built from
+# Mutex + Cond so they compose with everything else:
+#
+#   import pat.sync as sync;
+#   var b = sync.Barrier(4);
+#   var s = sync.Semaphore(2);
+#   var n = sync.Notify();
+#
+# All operations block the calling (OS) thread - Kirn tasks are OS threads,
+# so a blocked task never stalls the others. Every wait loop is a condition
+# check under the lock, which makes "signal first, wait later" safe: a
+# permit/notification delivered before a waiter arrives is stored and the
+# next wait returns immediately.
+#
+# LANGUAGE NOTE (found the hard way): a method receives `self` as a COPY of
+# the receiver, and scalar fields are written back only when the call
+# RETURNS. A method that mutates its own Int fields and then blocks inside
+# c.wait() therefore publishes nothing while it is blocked - other callers
+# keep observing the pre-call values and the primitive deadlocks. Reference
+# fields (lists, sync values) are SHARED through that copy, so this module
+# keeps every piece of mutable state in one list (`st`): the lock, the cond,
+# and the counters all live there, and list element writes are immediately
+# visible to every thread no matter which copy of the receiver is running.
+#
+# Channels (tokio::sync parity) are also built from Mutex + Cond and store all
+# mutable state in a list, so the receiver-copy rule above never bites:
+#
+#   import pat.sync as sync;
+#   var ch = sync.Broadcast(8);
+#   var rx = ch.subscribe();
+#   ch.send(42);
+#   print(rx.recv());
+#
+#   Oneshot()        single-use channel: send once, recv once
+#   Broadcast(cap)   multi-producer/multi-consumer ring buffer, loses oldest
+#                    on overflow and reports per-receiver lag
+#   Watch(init)      retains the latest value; receivers track a seen-version
+#
+# Values are passed by reference (Kirn has no implicit deep copy), unlike
+# tokio which clones T per receiver: for Int/Str/Bool/Float payloads this is
+# identical, but a broadcast of a mutable list hands every receiver the same
+# list. Receivers are never garbage-collected, so `receiver_count` only grows;
+# `send` therefore only raises when no `subscribe` has happened at all.
+#
+# State layout (tokio semantics on top of native primitives):
+#   BarrierState.st   = [mutex, cond, parties, count, generation]
+#   SemaphoreState.st = [mutex, cond, permits]
+#   NotifyState.st    = [mutex, cond, generation, waiters, pending]
+#   OneshotState.st   = [mutex, cond, value, has_value, closed]
+#   BroadcastState.st = [mutex, cond, capacity, total, messages, closed, rx_count]
+#   BroadcastRx.st    = [state, [cursor, lagged]]
+#   WatchState.st     = [mutex, cond, value, version, closed, rx_count]
+#   WatchRx.st        = [state, [seen]]
+
+# ---- Barrier ----------------------------------------------------------------
+
+# Reusable `parties`-way gate: every `wait()` blocks until `parties` callers
+# are inside the current generation, then all are released together. Returns
+# the generation number the caller waited on (identical for every party of
+# that round; increments each round, so a Barrier can be reused).
+struct BarrierState {
+    var st: list;
+
+    fn wait(self) -> Int {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        var gen: Int = self.st[4];
+        self.st[3] = self.st[3] + 1;
+        if self.st[3] >= self.st[2] {
+            self.st[3] = 0;
+            self.st[4] = self.st[4] + 1;
+            c.broadcast();
+            m.unlock();
+            return gen;
+        }
+        while gen == self.st[4] {
+            c.wait(m);
+        }
+        m.unlock();
+        return gen;
+    }
+
+    # Wait for the generation to complete, returning false if the deadline
+    # expires. A timed-out party leaves the generation so later rounds remain
+    # usable instead of permanently retaining a missing participant.
+    fn wait_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        var gen: Int = self.st[4];
+        var deadline = time.now() + ms;
+        self.st[3] = self.st[3] + 1;
+        if self.st[3] >= self.st[2] {
+            self.st[3] = 0;
+            self.st[4] = self.st[4] + 1;
+            c.broadcast();
+            m.unlock();
+            return true;
+        }
+        while gen == self.st[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                self.st[3] = self.st[3] - 1;
+                c.broadcast();
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and gen == self.st[4] {
+                self.st[3] = self.st[3] - 1;
+                c.broadcast();
+                m.unlock();
+                return false;
+            }
+        }
+        m.unlock();
+        return true;
+    }
+}
+
+pub fn Barrier(parties: Int) -> BarrierState {
+    if parties < 1 { raise("sync: Barrier needs at least one party"); }
+    b = BarrierState();
+    b.st = [Mutex(), Cond(), parties, 0, 0];
+    return b;
+}
+
+# ---- Semaphore --------------------------------------------------------------
+
+# Counting semaphore: `acquire` takes one permit (blocking when none are
+# left), `release` returns one; `*_n` variants take/return many; `try_*`
+# never block; `available` reads the current count.
+struct SemaphoreState {
+    var st: list;
+
+    fn acquire(self) -> none {
+        self.acquire_n(1);
+    }
+
+    fn acquire_n(self, n: Int) -> none {
+        if n < 0 { raise("sync: Semaphore.acquire_n needs a non-negative count"); }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        while self.st[2] < n {
+            c.wait(m);
+        }
+        self.st[2] = self.st[2] - n;
+        m.unlock();
+    }
+
+    # Attempt to acquire one permit before `ms` milliseconds elapse.
+    fn acquire_timeout(self, ms: Int) -> Bool {
+        return self.acquire_n_timeout(1, ms);
+    }
+
+    fn acquire_n_timeout(self, n: Int, ms: Int) -> Bool {
+        if n < 0 { raise("sync: Semaphore.acquire_n_timeout needs a non-negative count"); }
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[2] >= n {
+            self.st[2] = self.st[2] - n;
+            m.unlock();
+            return true;
+        }
+        var deadline = time.now() + ms;
+        while self.st[2] < n {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and self.st[2] < n {
+                m.unlock();
+                return false;
+            }
+        }
+        self.st[2] = self.st[2] - n;
+        m.unlock();
+        return true;
+    }
+
+    fn try_acquire(self) -> Bool {
+        return self.try_acquire_n(1);
+    }
+
+    fn try_acquire_n(self, n: Int) -> Bool {
+        if n < 0 { raise("sync: Semaphore.try_acquire_n needs a non-negative count"); }
+        var m = self.st[0];
+        m.lock();
+        if self.st[2] >= n {
+            self.st[2] = self.st[2] - n;
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn release(self) -> none {
+        self.release_n(1);
+    }
+
+    fn release_n(self, n: Int) -> none {
+        if n < 0 { raise("sync: Semaphore.release_n needs a non-negative count"); }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[2] = self.st[2] + n;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn available(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[2];
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Semaphore(permits: Int) -> SemaphoreState {
+    if permits < 0 { raise("sync: Semaphore cannot start negative"); }
+    s = SemaphoreState();
+    s.st = [Mutex(), Cond(), permits];
+    return s;
+}
+
+# ---- Notify -----------------------------------------------------------------
+
+# One-shot/permit-style notification (tokio::sync::Notify):
+#   - `notify_one` wakes one current waiter, or stores one permit if none
+#     is waiting (the next `wait` consumes it immediately);
+#   - `notify_waiters` wakes every current waiter but stores no permit;
+#   - `wait` blocks until it can consume a notification;
+#   - `waiter_count` reads the number of threads currently blocked in
+#     `wait` (lets tests/broadcasts synchronize on "everyone is ready").
+struct NotifyState {
+    var st: list;
+
+    fn notify_one(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[3] > 0 {
+            self.st[2] = self.st[2] + 1;
+            c.signal();
+        } else {
+            self.st[4] = true;
+        }
+        m.unlock();
+    }
+
+    fn notify_waiters(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[2] = self.st[2] + 1;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn wait(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] {
+            self.st[4] = false;
+            m.unlock();
+            return;
+        }
+        var gen: Int = self.st[2];
+        self.st[3] = self.st[3] + 1;
+        while gen == self.st[2] {
+            c.wait(m);
+        }
+        self.st[3] = self.st[3] - 1;
+        m.unlock();
+    }
+
+    # Wait for one notification, returning false when no notification arrives
+    # before the timeout. A stored permit is consumed without waiting.
+    fn wait_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] {
+            self.st[4] = false;
+            m.unlock();
+            return true;
+        }
+        var gen: Int = self.st[2];
+        var deadline = time.now() + ms;
+        self.st[3] = self.st[3] + 1;
+        while gen == self.st[2] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                self.st[3] = self.st[3] - 1;
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and gen == self.st[2] {
+                self.st[3] = self.st[3] - 1;
+                m.unlock();
+                return false;
+            }
+        }
+        self.st[3] = self.st[3] - 1;
+        m.unlock();
+        return true;
+    }
+
+    fn waiter_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[3];
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Notify() -> NotifyState {
+    n = NotifyState();
+    n.st = [Mutex(), Cond(), 0, 0, false];
+    return n;
+}
+
+# ---- Oneshot ----------------------------------------------------------------
+
+# Single-use channel (tokio::sync::oneshot). `send` may run on any thread and
+# does not block; `recv` blocks until a value is sent or the channel is closed.
+# The value is delivered at most once. Because Kirn has no Result channel, a
+# `recv`/`try_recv` on a closed-or-empty channel returns `none` (so `none` is
+# not distinguishable from "nothing arrived" - documented widening).
+struct OneshotState {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[3] { m.unlock(); raise("sync: Oneshot value already sent"); }
+        if self.st[4] { m.unlock(); raise("sync: Oneshot send on closed channel"); }
+        self.st[2] = v;
+        self.st[3] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn recv(self) -> any {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        while not self.st[3] and not self.st[4] {
+            c.wait(m);
+        }
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
+        var m = self.st[0];
+        var c = self.st[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while not self.st[3] and not self.st[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return ["timeout"];
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and not self.st[3] and not self.st[4] {
+                m.unlock();
+                return ["timeout"];
+            }
+        }
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn try_recv(self) -> any {
+        var m = self.st[0];
+        m.lock();
+        if self.st[3] {
+            var v = self.st[2];
+            self.st[3] = false;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_empty(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var e: Bool = not self.st[3];
+        m.unlock();
+        return e;
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[4];
+        m.unlock();
+        return c;
+    }
+}
+
+pub fn Oneshot() -> OneshotState {
+    o = OneshotState();
+    o.st = [Mutex(), Cond(), none, false, false];
+    return o;
+}
+
+# ---- Broadcast --------------------------------------------------------------
+
+# Multi-producer/multi-consumer broadcast queue (tokio::sync::broadcast). The
+# channel retains the last `capacity` messages in a ring; `subscribe` returns a
+# receiver that sees only messages sent after it was created. A receiver that
+# falls more than `capacity` behind is "lagged": its cursor jumps to the oldest
+# retained message and the number skipped is accumulated, readable via
+# `lagged()`. Sending on a closed channel raises.
+struct BroadcastState {
+    var st: list;
+
+    fn send(self, v: any) -> Int {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[5] { m.unlock(); raise("sync: broadcast send on closed channel"); }
+        if self.st[6] < 1 { m.unlock(); raise("sync: broadcast send with no receivers"); }
+        self.st[4].append(v);
+        self.st[3] = self.st[3] + 1;
+        while self.st[4].len() > self.st[2] {
+            self.st[4].shift();
+        }
+        c.broadcast();
+        var n: Int = self.st[6];
+        m.unlock();
+        return n;
+    }
+
+    fn subscribe(self) -> BroadcastRx {
+        var m = self.st[0];
+        m.lock();
+        var rx = BroadcastRx();
+        rx.st = [self.st, [self.st[3], 0]];
+        self.st[6] = self.st[6] + 1;
+        m.unlock();
+        return rx;
+    }
+
+    fn receiver_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[6];
+        m.unlock();
+        return n;
+    }
+
+    fn len(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[4].len();
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[5] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[5];
+        m.unlock();
+        return c;
+    }
+}
+
+struct BroadcastRx {
+    var st: list;
+
+    fn recv(self) -> any {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while true {
+            var total: Int = s[3];
+            var head: Int = total - s[4].len();
+            if inner[0] < head {
+                inner[1] = inner[1] + (head - inner[0]);
+                inner[0] = head;
+            }
+            if inner[0] < total {
+                var v = s[4][inner[0] - head];
+                inner[0] = inner[0] + 1;
+                m.unlock();
+                return v;
+            }
+            if s[5] { m.unlock(); return none; }
+            c.wait(m);
+        }
+    }
+
+    # Receive before the absolute deadline; timeout is reported with the same
+    # marker used by the other timed channel operations.
+    fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        var c = s[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while true {
+            var total: Int = s[3];
+            var head: Int = total - s[4].len();
+            if inner[0] < head {
+                inner[1] = inner[1] + (head - inner[0]);
+                inner[0] = head;
+            }
+            if inner[0] < total {
+                var v = s[4][inner[0] - head];
+                inner[0] = inner[0] + 1;
+                m.unlock();
+                return v;
+            }
+            if s[5] { m.unlock(); return none; }
+            remaining = deadline - time.now();
+            if remaining <= 0 { m.unlock(); return ["timeout"]; }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout {
+                # Recheck the queue once after the timed wake so a message
+                # published at the deadline wins over the timeout marker.
+                total = s[3];
+                head = total - s[4].len();
+                if inner[0] >= total and not s[5] {
+                    m.unlock();
+                    return ["timeout"];
+                }
+            }
+        }
+    }
+
+    fn try_recv(self) -> any {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var total: Int = s[3];
+        var head: Int = total - s[4].len();
+        if inner[0] < head {
+            inner[1] = inner[1] + (head - inner[0]);
+            inner[0] = head;
+        }
+        if inner[0] < total {
+            var v = s[4][inner[0] - head];
+            inner[0] = inner[0] + 1;
+            m.unlock();
+            return v;
+        }
+        m.unlock();
+        return none;
+    }
+
+    fn len(self) -> Int {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var n: Int = s[3] - inner[0];
+        if n < 0 { n = 0; }
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+
+    fn lagged(self) -> Int {
+        var s = self.st[0];
+        var inner = self.st[1];
+        var m = s[0];
+        m.lock();
+        var head: Int = s[3] - s[4].len();
+        var pending = 0;
+        if inner[0] < head { pending = head - inner[0]; }
+        var n: Int = inner[1] + pending;
+        m.unlock();
+        return n;
+    }
+}
+
+pub fn Broadcast(capacity: Int) -> BroadcastState {
+    if capacity < 1 { raise("sync: Broadcast capacity must be at least 1"); }
+    b = BroadcastState();
+    b.st = [Mutex(), Cond(), capacity, 0, [], false, 0];
+    return b;
+}
+
+# ---- Mpsc / Unbounded --------------------------------------------------------
+
+# Multi-producer, single-consumer channel built from Mutex + Cond (tokio::sync
+# parity). `Mpsc(cap)` returns `[tx, rx]` where `tx.send(v)` blocks when full
+# (backpressuring) and `rx.recv()` blocks until a value or close returns `none`.
+# `Unbounded()` never blocks on send. Both are nonblocking via `try_send`/try_recv`.
+# Sending on a closed channel raises; receiving after close returns `none`.
+# Kirn's native `chan` covers a similar shape, but the module APIs follow the
+# tokio surface the POWER_PLAN names.
+
+struct MpscSender {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while true {
+            if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+            if s[2] < 0 {
+                break;
+            }
+            if s[3].len() < s[2] {
+                break;
+            }
+            c.wait(m);
+        }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+    }
+
+    # Bounded send with a deadline. Unbounded senders complete immediately.
+    fn send_timeout(self, v: any, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while s[2] >= 0 and s[3].len() >= s[2] {
+            if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+            remaining = deadline - time.now();
+            if remaining <= 0 { m.unlock(); return false; }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and s[3].len() >= s[2] {
+                m.unlock();
+                return false;
+            }
+        }
+        if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+        return true;
+    }
+
+    fn try_send(self, v: any) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if s[4] { m.unlock(); raise("sync: mpsc send on closed channel"); }
+        if s[2] >= 0 and s[3].len() >= s[2] {
+            m.unlock();
+            return false;
+        }
+        s[3].append(v);
+        c.broadcast();
+        m.unlock();
+        return true;
+    }
+
+    fn close(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        s[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var closed: Bool = s[4];
+        m.unlock();
+        return closed;
+    }
+}
+
+struct MpscReceiver {
+    var st: list;
+
+    fn recv(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while s[3].len() == 0 {
+            if s[4] {
+                m.unlock();
+                return none;
+            }
+            c.wait(m);
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
+    fn recv_timeout(self, ms: Int) -> any {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        var deadline = time.now() + ms;
+        while s[3].len() == 0 and not s[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return ["timeout"];
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and s[3].len() == 0 and not s[4] {
+                m.unlock();
+                return ["timeout"];
+            }
+        }
+        if s[3].len() == 0 {
+            m.unlock();
+            return none;
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
+    fn try_recv(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        if s[3].len() == 0 {
+            m.unlock();
+            return none;
+        }
+        var v = s[3].shift();
+        c.broadcast();
+        m.unlock();
+        return v;
+    }
+
+    fn close(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        s[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var closed: Bool = s[4];
+        m.unlock();
+        return closed;
+    }
+
+    fn len(self) -> Int {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var n: Int = s[3].len();
+        m.unlock();
+        return n;
+    }
+
+    fn is_empty(self) -> Bool {
+        return self.len() == 0;
+    }
+}
+
+pub fn Mpsc(capacity: Int) -> list {
+    if capacity < 1 { raise("sync: Mpsc capacity must be at least 1"); }
+    var m = Mutex();
+    var c = Cond();
+    # [mutex, cond, capacity, queue, closed]
+    var st = [m, c, capacity, [], false];
+    var tx = MpscSender();
+    tx.st = [st];
+    var rx = MpscReceiver();
+    rx.st = [st];
+    return [tx, rx];
+}
+
+pub fn Unbounded() -> list {
+    var m = Mutex();
+    var c = Cond();
+    # [mutex, cond, -1, queue, closed]
+    var st = [m, c, -1, [], false];
+    var tx = MpscSender();
+    tx.st = [st];
+    var rx = MpscReceiver();
+    rx.st = [st];
+    return [tx, rx];
+}
+
+pub fn mpsc(capacity: Int) -> list {
+    return Mpsc(capacity);
+}
+
+pub fn unbounded() -> list {
+    return Unbounded();
+}
+
+# ---- Watch ------------------------------------------------------------------
+
+# Single-value change tracker (tokio::sync::watch). The channel holds one value;
+# every receiver tracks a version it has "seen". `changed` blocks until an
+# unseen value is published (or the channel closes while already seen, in which
+# case it returns false). `borrow`/`has_changed` never mark a value seen;
+# `borrow_and_update` and `changed` do. Sending on a closed channel raises.
+struct WatchState {
+    var st: list;
+
+    fn send(self, v: any) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        self.st[2] = v;
+        self.st[3] = self.st[3] + 1;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn send_replace(self, v: any) -> any {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        var old = self.st[2];
+        self.st[2] = v;
+        self.st[3] = self.st[3] + 1;
+        c.broadcast();
+        m.unlock();
+        return old;
+    }
+
+    # Kirn callbacks return the replacement value instead of receiving a
+    # mutable reference. This is the value-semantic equivalent of Tokio's
+    # send_modify: the callback always publishes one new version.
+    fn send_modify(self, modify) -> none {
+        self.send_replace(modify(self.borrow()));
+    }
+
+    # The callback returns [replacement_value, changed]. The value is stored
+    # even when changed is false, but receivers are notified only when true.
+    fn send_if_modified(self, modify) -> Bool {
+        var r = modify(self.borrow());
+        var v = r[0];
+        var changed: Bool = r[1];
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        if self.st[4] { m.unlock(); raise("sync: watch send on closed channel"); }
+        self.st[2] = v;
+        if changed {
+            self.st[3] = self.st[3] + 1;
+            c.broadcast();
+        }
+        m.unlock();
+        return changed;
+    }
+
+    fn borrow(self) -> any {
+        var m = self.st[0];
+        m.lock();
+        var v = self.st[2];
+        m.unlock();
+        return v;
+    }
+
+    fn subscribe(self) -> WatchRx {
+        var m = self.st[0];
+        m.lock();
+        var rx = WatchRx();
+        rx.st = [self.st, [self.st[3]]];
+        self.st[5] = self.st[5] + 1;
+        m.unlock();
+        return rx;
+    }
+
+    fn receiver_count(self) -> Int {
+        var m = self.st[0];
+        m.lock();
+        var n: Int = self.st[5];
+        m.unlock();
+        return n;
+    }
+
+    fn close(self) -> none {
+        var m = self.st[0];
+        var c = self.st[1];
+        m.lock();
+        self.st[4] = true;
+        c.broadcast();
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var m = self.st[0];
+        m.lock();
+        var c: Bool = self.st[4];
+        m.unlock();
+        return c;
+    }
+}
+
+struct WatchRx {
+    var st: list;
+
+    fn borrow(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var v = s[2];
+        m.unlock();
+        return v;
+    }
+
+    fn borrow_and_update(self) -> any {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3];
+        var v = s[2];
+        m.unlock();
+        return v;
+    }
+
+    fn has_changed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var r: Bool = self.st[1][0] != s[3];
+        m.unlock();
+        return r;
+    }
+
+    fn changed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        m.lock();
+        while self.st[1][0] == s[3] and not s[4] {
+            c.wait(m);
+        }
+        if self.st[1][0] != s[3] {
+            self.st[1][0] = s[3];
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn changed_timeout(self, ms: Int) -> Bool {
+        if ms < 0 { ms = 0; }
+        var s = self.st[0];
+        var m = s[0];
+        var c = s[1];
+        var deadline = time.now() + ms;
+        m.lock();
+        while self.st[1][0] == s[3] and not s[4] {
+            remaining = deadline - time.now();
+            if remaining <= 0 {
+                m.unlock();
+                return false;
+            }
+            timedout = c.wait_timeout(m, remaining);
+            if timedout and self.st[1][0] == s[3] and not s[4] {
+                m.unlock();
+                return false;
+            }
+        }
+        if self.st[1][0] != s[3] {
+            self.st[1][0] = s[3];
+            m.unlock();
+            return true;
+        }
+        m.unlock();
+        return false;
+    }
+
+    fn mark_changed(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3] - 1;
+        m.unlock();
+    }
+
+    fn mark_unchanged(self) -> none {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        self.st[1][0] = s[3];
+        m.unlock();
+    }
+
+    fn is_closed(self) -> Bool {
+        var s = self.st[0];
+        var m = s[0];
+        m.lock();
+        var c: Bool = s[4];
+        m.unlock();
+        return c;
+    }
+}
+
+pub fn Watch(initial: any) -> WatchState {
+    w = WatchState();
+    w.st = [Mutex(), Cond(), initial, 0, false, 0];
+    return w;
+}

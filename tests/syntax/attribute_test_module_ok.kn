@@ -1,5 +1,5 @@
 # A test-only module may omit main when it contains @[test] functions.
-import pet.async as a;
+import pat.async as a;
 
 @[test]
 async fn async_attribute_test() -> none {

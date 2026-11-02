@@ -1,5 +1,5 @@
 # Visitor-style tree decoding regression (POWER_PLAN §3.1).
-import pet.serde as serde;
+import pat.serde as serde;
 
 @[derive(Serialize, Deserialize)]
 struct Point { x: Int; y: Int; }

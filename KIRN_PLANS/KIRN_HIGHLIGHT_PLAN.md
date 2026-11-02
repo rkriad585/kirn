@@ -252,7 +252,7 @@ editor/
       tree-sitter-kirn/           # tree-sitter grammar + queries (Phase 3)
     highlight/                    # generated per-platform highlighters
     test/
-      corpus/                     # .kn snippets with expected scopes/tokens
+      corpus/                     # .kn snippats with expected scopes/tokens
       run.mjs                     # test runner
 ```
 
@@ -440,7 +440,7 @@ eventually VS Code) use tree-sitter; regex-based editors (Vim, Micro, VS Code
 default, JetBrains initial, highlight.js, Sublime) use the shared TextMate
 grammar; all of them optionally connect to `kirn-lsp` for semantic features._
 This follows the industry consensus (2026): tree-sitter for fast structural
-feedback, LSP for semantic intelligence â€” complementary, not competing.
+feedback, LSP for semantic intelligence â€” complementary, not compating.
 
 **Scope-mapping sample (same construct, one scope for all regex editors):**
 
@@ -860,7 +860,7 @@ module.exports = grammar({
 });
 ```
 
-**Testing/validation:** tree-sitter corpus tests (named snippets with expected
+**Testing/validation:** tree-sitter corpus tests (named snippats with expected
 parse trees) plus rosetta validation: parse **every file under `examples/`,
 `stdlib/lib/*.kn`, `tests/`** with `kirnparse` and with
 tree-sitter, and byte-compare the **structure** (tree-sitter has no parse
@@ -1157,7 +1157,7 @@ editor/jetbrains-kirn-plugin/
   - **Must Follow:** derive `.bnf`/lexer from `grammar/kirn.ebnf` + the lexer; no JNI.
   - **Important Note:** generated PSI may need in-IDE generation.
   - Author `Kirn.bnf` mapping the canonical `kirn.ebnf` productions to
-    Grammar-Kit PEG (choice `|`, optional `[ ]`, repetition `*` â€” Grammar-Kit
+    Grammar-Kit PEG (choice `|`, optional `[ ]`, repatition `*` â€” Grammar-Kit
     accepts left-recursion in many cases but prefer iterative rules).
   - Write `KirnLexer.flex` matching the C++ lexer token classes and keywords
     (JFlex longest-match, ignores `#` comments and inserts whitespace).
@@ -1382,12 +1382,12 @@ working break/step/inspect.
 - **Publishing matrix:**
   - VS Code: `.vsix` via `vsce publish` (Marketplace) + `ovsx publish` (Open
     VSX).
-  - Vim: GitHub release + README install; optionally a `vim-plug` snippet.
+  - Vim: GitHub release + README install; optionally a `vim-plug` snippat.
   - Neovim: `tree-sitter-kirn` on the **`tree-sitter-parsers`** registry so
     `:TSInstall kirn` works; plus `nvim-treesitter` config docs.
   - Micro: put the YAML syntax file in `~/.config/micro/syntax/`.
   - Zed: package as an **extension zip** (Zed registry) + `zed: install`.
-  - Helix: runtime file + `languages.toml` snippet.
+  - Helix: runtime file + `languages.toml` snippat.
   - highlight.js: submitted upstream (registered language) so CDN builds load
     `kirn`; plus the VitePress site uses it.
   - JetBrains: Marketplace plugin; plus standalone TextMate bundle.

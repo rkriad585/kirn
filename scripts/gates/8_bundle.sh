@@ -8,8 +8,8 @@ GATE_START=${GATE_START:-$(date +%s)}
 GATE_FILES=0
 
 echo "=== gate 8: build backends (AOT default, explicit runtime) ==="
-T8="$TMP/bd"; mkdir -p "$T8/pets/greet/code"
-printf 'pub fn hey(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T8/pets/greet/code/pin.kn"
+T8="$TMP/bd"; mkdir -p "$T8/pats/greet/code"
+printf 'pub fn hey(who: Str) -> Str { return "hi from pats, " + who + "!"; }\n' > "$T8/pats/greet/code/pin.kn"
 printf 'import greet;\nimport math;\nfn main() -> none {\n    print(greet.hey("bundle"));\n    print(math.floor(3.7));\n}\n' > "$T8/main.kn"
 out8=$(cd "$T8" && timeout 240 "$KIRN" build main.kn -o out 2>&1); c8=$?
 if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
@@ -18,7 +18,7 @@ if [ "$c8" = 0 ] && [ -x "$T8/out" ]; then
     if [ "$magic" = "$(printf '\177ELF')" ]; then
         report PASS "bundle is ELF binary" "not a script"
         out8r=$(cd "$T8" && timeout "$WATCH" ./out 2>&1); c8r=$?
-        if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pets, bundle!" && echo "$out8r" | grep -q "3.0"; then
+        if [ "$c8r" = 0 ] && echo "$out8r" | grep -q "hi from pats, bundle!" && echo "$out8r" | grep -q "3.0"; then
             report PASS "bundle runs (imports+stdlib)" "$out8r"
         else report FAIL "bundle runs (imports+stdlib)" "rc=$c8r: $out8r"; fi
         out8b=$(cd "$T8" && timeout 240 "$KIRN" build main.kn -o out2 2>&1); c8b=$?
@@ -241,14 +241,14 @@ else
     report FAIL "installed tree ships kirn + kirnc only" "installation layout is incomplete"
 fi
 mkdir -p "$TMP/installed-project"
-printf 'import pet.math;\nfn main() -> none { print(math.floor(3.7)); }\n' > "$TMP/installed-project/main.kn"
-out=$(env -u KIRN_STDLIB -u KIRN_PETS "$installRoot/bin/kirn" run "$TMP/installed-project/main.kn" 2>&1); code=$?
+printf 'import pat.math;\nfn main() -> none { print(math.floor(3.7)); }\n' > "$TMP/installed-project/main.kn"
+out=$(env -u KIRN_STDLIB -u KIRN_PATS "$installRoot/bin/kirn" run "$TMP/installed-project/main.kn" 2>&1); code=$?
 if [ "$code" = 0 ] && printf '%s' "$out" | grep -q '^3.0$'; then
-    report PASS "installed tree resolves stdpet" "exe-relative stdlib discovery"
+    report PASS "installed tree resolves stdlib" "exe-relative stdlib discovery"
 else
-    report FAIL "installed tree resolves stdpet" "exit $code; out: $out"
+    report FAIL "installed tree resolves stdlib" "exit $code; out: $out"
 fi
-out=$(env -u KIRN_STDLIB -u KIRN_PETS "$installRoot/bin/kirn" check \
+out=$(env -u KIRN_STDLIB -u KIRN_PATS "$installRoot/bin/kirn" check \
       "$TMP/installed-project/main.kn" 2>&1); code=$?
 if [ "$code" = 0 ] && printf '%s' "$out" | grep -q ': OK$'; then
     report PASS "installed kirn check" "check delegates through the installed kirnc"
@@ -256,7 +256,7 @@ else
     report FAIL "installed kirn check" "exit $code; out: $out"
 fi
 installedBin="$TMP/installed-project/app"
-out=$(cd "$TMP/installed-project" && env -u KIRN_STDLIB -u KIRN_PETS \
+out=$(cd "$TMP/installed-project" && env -u KIRN_STDLIB -u KIRN_PATS \
       "$installRoot/bin/kirn" build main.kn -o "$installedBin" 2>&1); code=$?
 if [ "$code" = 0 ] && [ -x "$installedBin" ] &&
    "$installedBin" >"$TMP/installed-build.out" 2>&1 &&

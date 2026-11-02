@@ -34,7 +34,7 @@ bool readFile(const std::string& path, std::string& out) {
 
 // Module search paths come from the driver library, so `kirnrun` and `kirn run`
 // resolve imports identically (BUILDER-PLAN.md phase 0, §5.2). They used to keep
-// separate lists: this one searched `<dir>/pets` and a CWD-relative bare
+// separate lists: this one searched `<dir>/pats` and a CWD-relative bare
 // `stdlib` but never the project directory itself, so a module sitting next to
 // the entry file resolved under `kirn run` and panicked here with
 // "unknown module". `libDirsFor` is the superset, and it is the one the driver
@@ -65,7 +65,7 @@ void warnLegacyEnv() {
     }
     if (!found.empty())
         std::cerr << "warning[W9008]: " << found
-                  << " are no longer supported; use the KIRN_PETS name\n";
+                  << " are no longer supported; use the KIRN_PATS name\n";
 }
 
 } // namespace

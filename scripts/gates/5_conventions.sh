@@ -35,15 +35,15 @@ mkdir -p "$P/d/code"; printf 'pub fn u() -> Int { return 1; }' > "$P/d/code/util
 r=$(kirn_run "$P/d" run "$P/d"); c=${r%%|*}; out=${r#*|}
 [ "$c" != 0 ] && echo "$out" | grep -q "no entry point" && report PASS "no entry -> fix-it error" || report FAIL "no entry -> fix-it error" "$out"
 # 5. pin.kn runs once + pub surface
-mkdir -p "$P/proj/pets/greet/code"
-printf 'var loads = 0;\nloads = loads + 1;\npub fn load_count() -> Int { return loads; }\npub fn hi(who: Str) -> Str { return "hi " + who; }\n' > "$P/proj/pets/greet/code/pin.kn"
+mkdir -p "$P/proj/pats/greet/code"
+printf 'var loads = 0;\nloads = loads + 1;\npub fn load_count() -> Int { return loads; }\npub fn hi(who: Str) -> Str { return "hi " + who; }\n' > "$P/proj/pats/greet/code/pin.kn"
 printf 'import greet;\nimport greet as g2;\nimport greet as g3;\nfn main() -> none {\n    print("count=", greet.load_count());\n    print(greet.hi("world"));\n}\n' > "$P/proj/main.kn"
 r=$(kirn_run "$P/proj" run "$P/proj"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "count= 1" && report PASS "pin.kn runs once (count=1)" || report FAIL "pin.kn runs once (count=1)" "$out"
 [ "$c" = 0 ] && echo "$out" | grep -q "hi world" && report PASS "pin.kn pub surface" || report FAIL "pin.kn pub surface" "$out"
 # 6. pin.kn discovered without manifest
-mkdir -p "$P/proj2/pets/nomanifest/code"
-printf 'pub fn poke() -> Str { return "poked"; }\n' > "$P/proj2/pets/nomanifest/code/pin.kn"
+mkdir -p "$P/proj2/pats/nomanifest/code"
+printf 'pub fn poke() -> Str { return "poked"; }\n' > "$P/proj2/pats/nomanifest/code/pin.kn"
 printf 'import nomanifest;\nfn main() -> none { print(nomanifest.poke()); }\n' > "$P/proj2/main.kn"
 r=$(kirn_run "$P/proj2" run "$P/proj2"); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "poked" && report PASS "pin.kn discovered w/o manifest" || report FAIL "pin.kn discovered w/o manifest" "$out"
@@ -54,13 +54,13 @@ r=$(kirn_run "$P/gapp" run); c=${r%%|*}; out=${r#*|}
 [ "$c" = 0 ] && echo "$out" | grep -q "hello from gapp, world!" && report PASS "kirn new app: bare run" || report FAIL "kirn new app: bare run" "$out"
 r=$(kirn_run "$P/gapp" test .); c=${r%%|*}; out=${r#*|}
 echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new app: test" || report FAIL "kirn new app: test" "$out"
-# 8. kirn new pet: pin.kn must compile under `kirn test`, and the
-#    README-advertised `kirn build` must pack a .pet.
-(cd "$P" && timeout "$WATCH" "$KIRN" new pet gpk) >/dev/null 2>&1
+# 8. kirn new pat: pin.kn must compile under `kirn test`, and the
+#    README-advertised `kirn build` must pack a .pat.
+(cd "$P" && timeout "$WATCH" "$KIRN" new pat gpk) >/dev/null 2>&1
 r=$(kirn_run "$P/gpk" test .); c=${r%%|*}; out=${r#*|}
-echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new pet: test" || report FAIL "kirn new pet: test" "$out"
+echo "$out" | grep -q "1 passed, 0 failed" && report PASS "kirn new pat: test" || report FAIL "kirn new pat: test" "$out"
 r=$(kirn_run "$P/gpk" build); c=${r%%|*}; out=${r#*|}
-echo "$out" | grep -q "gpk-.*\.pet" && report PASS "kirn new pet: build packs" || report FAIL "kirn new pet: build packs" "$out"
+echo "$out" | grep -q "gpk-.*\.pat" && report PASS "kirn new pat: build packs" || report FAIL "kirn new pat: build packs" "$out"
 
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))

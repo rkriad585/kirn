@@ -451,7 +451,7 @@ void Checker::predeclareBuiltins() {
     scope_->declare(iter);
 
     // Serde derives are language-level trait conformances. The concrete
-    // default implementations live in pet.serde, but predeclaring their
+    // default implementations live in pat.serde, but predeclaring their
     // method shapes lets the checker type-check `value.serialize()` and keeps
     // the derive contract available to code that imports only the format API.
     auto serialize = std::make_shared<Symbol>();
@@ -1366,7 +1366,7 @@ TyP Checker::resolveType(const ast::TypeP& t) {
             // same name still wins.
             //   `Result[T, E]` aliases the lowercase `result` nominal, so the
             //   result return/`?`/raise machinery sees one type.
-            //   `Error` is pet.error's type-erased error. It resolves to the
+            //   `Error` is pat.error's type-erased error. It resolves to the
             //   dynamic type rather than a nominal: the runtime erases types,
             //   and an unregistered nominal would reject `.context()`/`.chain()`.
             if (n == "Error") return unkTy();
@@ -1917,7 +1917,7 @@ std::optional<FuncSig> Checker::methodLookup(const TyP& recv,
             if (name == "unwrap")     { s.ret = argAt(recv, 0); return s; }
             if (name == "unwrap_err") { s.ret = argAt(recv, 1); return s; }
             // POWER_PLAN §5.1: `.context`/`.with_context` (anyhow Context) keep
-            // the result shape but the err becomes a pet.error Error. Typing it
+            // the result shape but the err becomes a pat.error Error. Typing it
             // here (rather than unknown) stops "no method on result".
             if (name == "context" || name == "with_context") {
                 s.ret = recv;
@@ -5103,7 +5103,7 @@ TyP Checker::checkMemberCall(const TyP& recv, const std::string& name,
                              uint32_t line, uint32_t col) {
     auto sig = methodLookup(recv, name);
     if (!sig) {
-        // File-backed pet modules are checked in isolation, so an imported
+        // File-backed pat modules are checked in isolation, so an imported
         // module value is intentionally dynamic. Preserve the key async
         // factory types here so `a.TaskSet().join_next()` remains checked
         // without coupling the checker to module loading order.

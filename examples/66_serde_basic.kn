@@ -3,7 +3,7 @@
 # `serde` walks declared fields via the `reflect` module, so plain structs work
 # without any derive attribute. `from_json_as` rebuilds the typed value,
 # coercing scalars (JSON has a single number type) back to the declared types.
-import pet.serde as serde;
+import pat.serde as serde;
 import reflect;
 
 struct Address {

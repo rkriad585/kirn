@@ -22,7 +22,7 @@ fn open_header(h: Str) -> result[Str, DataStoreError] {
 
 # E defaults to error.Error: `?` auto-converts the payload (§5.4).
 fn open_or_default(h: Str) -> result[Str] {
-    var v = open_header(h)?;   # DataStoreError -> pet.error Error
+    var v = open_header(h)?;   # DataStoreError -> pat.error Error
     return v;
 }
 

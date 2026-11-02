@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/76_par_decorator.kn
 Ident	14:1	import
-Ident	14:8	pet
+Ident	14:8	pat
 Punct	14:11	.
 Ident	14:12	parallel
 Ident	14:21	as

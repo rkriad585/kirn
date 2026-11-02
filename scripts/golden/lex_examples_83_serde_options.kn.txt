@@ -1,13 +1,13 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/83_serde_options.kn
 Ident	5:1	import
-Ident	5:8	pet
+Ident	5:8	pat
 Punct	5:11	.
 Ident	5:12	json
 Ident	5:17	as
 Ident	5:20	json
 Punct	5:24	;
 Ident	6:1	import
-Ident	6:8	pet
+Ident	6:8	pat
 Punct	6:11	.
 Ident	6:12	toml
 Ident	6:17	as

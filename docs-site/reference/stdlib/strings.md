@@ -5,7 +5,7 @@ description: String operations in the Kirn standard library.
 
 # `strings`
 
-String helpers include searching, replacing, splitting, joining, repetition, reversing, padding, and stripping.
+String helpers include searching, replacing, splitting, joining, repatition, reversing, padding, and stripping.
 
 ```kirn
 clean = strip("  kirn  ");

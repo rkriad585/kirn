@@ -3,7 +3,7 @@
 # An `async fn` task can send into a channel; the awaiting task receives. This
 # is the async/await analogue of examples 22–23, but the producer runs as a task
 # and is joined with `await` instead of a thread handle.
-import pet.async as a;
+import pat.async as a;
 
 async fn producer(out: chan[Int], n: Int) -> none {
     for i in 1..=n {

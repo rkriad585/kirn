@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/86_parallel_pool.kn
-Import pet.parallel as p
-Import pet.sync as sync
+Import pat.parallel as p
+Import pat.sync as sync
 FuncDef "square"
   Param "x" : <inferred>
   Ret Int

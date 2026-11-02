@@ -5,7 +5,7 @@
 # fans out one group per worker (not one element): par_chunks(xs, 1024)
 # .for_each(ingest) runs a chunk at a time across the pool. The reshaping
 # itself is a cheap sequential scan; results are deterministic.
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 fn main() -> none {
     # chunks: fixed size, the last group holds the remainder

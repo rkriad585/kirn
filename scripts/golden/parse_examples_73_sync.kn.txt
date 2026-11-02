@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/73_sync.kn
-Import pet.sync as sync
+Import pat.sync as sync
 FuncDef "main"
   Ret none
   Body

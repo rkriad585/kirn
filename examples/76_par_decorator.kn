@@ -1,17 +1,17 @@
 # examples/76_par_decorator.kn - the `@[par] for` loop (POWER_PLAN §4.4)
 #
 # `@[par]` turns a plain `for` into a rayon-style parallel loop: the body runs
-# across the worker pool through `pet.parallel.par_iter(xs).for_each(...)`, so
+# across the worker pool through `pat.parallel.par_iter(xs).for_each(...)`, so
 # `@[par] for x in xs { … }` is exactly the hand-written par_iter form. The loop
 # itself yields no value, so a parallel body must reach its result through an
 # order-independent effect.
 #
-# Like pet.parallel's combinators, a parallel closure must not race on shared
+# Like pat.parallel's combinators, a parallel closure must not race on shared
 # mutable state (there is no sendability checker yet). Use a sync.Atomic — or a
 # Mutex — when you need a shared accumulator over a large input; a plain `+=`
 # is only safe on the small inputs below, which run on the calling thread.
 
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 fn main() -> none {
     # The pool `@[par]` fans out over.

@@ -12,7 +12,7 @@ fn main() -> none {
     d = {b"a": 1, b"b": 2};
     print(d[b"a"], d[b"b"]);
 
-    # Concatenation and repetition.
+    # Concatenation and repatition.
     print((b"\x01" + b"\x02").hex());
     print((b"\xAB" * 3).hex());
 

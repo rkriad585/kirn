@@ -20,7 +20,7 @@ proven, source-verified designs rather than inventing novelty.
 - **Default-on, zero-dependency.** Async runtime, serialization, data parallelism, and the error types ship in the default stdlib/prelude — no package install, no feature flag. They are the "batteries" of Kirn.
 - **Build ships exactly `kirn` + `kirnc`; one owner per topic.** `kirn` and `kirnc` remain the only shipped executables; every capability here is a stdlib module or a compiler feature — never a new executable.
 - **No over-engineering; proven patterns only.** Each API must map to a verified reference implementation under `langs-source-code/rust/{tokio,serde,rayon,anyhow,thiserror}`; cite the file. Adopt the idiom, drop the baggage.
-- **Kirn-style spellings.** `fn`/`var`, CapCase types (`Str`/`Int`/`list[T]`/`result[T,E]`/`any`), lowercase methods, `ok(...)`/`err(...)` constructors, `import pet.…`. Rust `#[…]` becomes Kirn `@[… ]` (attribute list) or `@name`/`@name(...)` (decorator); keep one spelling per meaning.
+- **Kirn-style spellings.** `fn`/`var`, CapCase types (`Str`/`Int`/`list[T]`/`result[T,E]`/`any`), lowercase methods, `ok(...)`/`err(...)` constructors, `import pat.…`. Rust `#[…]` becomes Kirn `@[… ]` (attribute list) or `@name`/`@name(...)` (decorator); keep one spelling per meaning.
 - **AI-first.** Provide the exact surface an agent needs to write correct concurrent/async/serializing code: small, regular grammar, one obvious API per concept, exact docstrings, and machine-checkable diagnostics.
 - **Gate-aligned.** Every phase exits by running `kirn test` and `scripts/gates_linux.sh` (and `scripts/golden_linux.sh` for observable-behavior changes); the suite stays green. Exact counts are recorded in each implementation update because the corpus grows during the plan.
 
@@ -38,10 +38,10 @@ This plan is the **owner of the default-on power layer**. It subsumes the stretc
 
 | Rust reference | What it provides                                                   | Kirn home                           | Kirn surface                                                                     |
 | -------------- | ------------------------------------------------------------------ | ----------------------------------- | -------------------------------------------------------------------------------- |
-| `tokio`        | async runtime, tasks, timers, async I/O/net/fs, `select!/join!`    | `pet.async` + language keywords     | `async fn`, `await`, `@[main]`, `@[test]`, `Task[T]`, `select`/`join`/`try_join` |
-| `serde`        | serialization framework (`Serialize`/`Deserialize`), derive, attrs | `pet.serde` + derive                | `@[derive(Serialize, Deserialize)]`, `@[serde(...)]`                             |
-| `rayon`        | data-parallel iterators, work-stealing pool, par sort              | `pet.parallel` + collection methods | `.par_iter()`, `.par_sort()`, `pool(n)`, `join(a,b)`, `scope`                    |
-| `anyhow`       | type-erased dynamic error, context, `bail!`/`ensure!`              | `pet.error` + prelude               | `Error`, `result[T]`, `.context(...)`, `bail(...)`, `ensure(...)`                |
+| `tokio`        | async runtime, tasks, timers, async I/O/net/fs, `select!/join!`    | `pat.async` + language keywords     | `async fn`, `await`, `@[main]`, `@[test]`, `Task[T]`, `select`/`join`/`try_join` |
+| `serde`        | serialization framework (`Serialize`/`Deserialize`), derive, attrs | `pat.serde` + derive                | `@[derive(Serialize, Deserialize)]`, `@[serde(...)]`                             |
+| `rayon`        | data-parallel iterators, work-stealing pool, par sort              | `pat.parallel` + collection methods | `.par_iter()`, `.par_sort()`, `pool(n)`, `join(a,b)`, `scope`                    |
+| `anyhow`       | type-erased dynamic error, context, `bail!`/`ensure!`              | `pat.error` + prelude               | `Error`, `result[T]`, `.context(...)`, `bail(...)`, `ensure(...)`                |
 | `thiserror`    | typed errors via derive, `#[from]`/`#[source]`                     | `@[derive(Error)]`                  | `@[error("…")]`, `@[from]`, `@[source]`, `@[error(transparent)]`                 |
 
 **Rust attribute → Kirn decorator.** Rust spells meta-programming `#[attr]`, `#[attr(...)]`, `#[derive(...)]`. Kirn spells the same thing two ways, both lowering to an ordered `decorators: list[Decorator]` attached to a declaration:
@@ -120,11 +120,11 @@ fn load_user(id: Str) -> User { ... }
 
 ---
 
-## 2. Async runtime (`tokio`-like) — `pet.async`
+## 2. Async runtime (`tokio`-like) — `pat.async`
 
 **Goal:** make Kirn's existing `spawn`/`chan`/`select` primitives into a coherent, default-on async runtime with `async fn`/`await`, a work-stealing scheduler, async I/O/net/fs, and timers — matching tokio's API surface idiomatically.
 **Must Follow:** `async fn` and `await` are keywords; one runtime, two flavors (multi-thread work-stealing default, current-thread for determinism); async tasks are cancel-safe by drop; `select`/`join` replace tokio's macros with first-class Kirn forms; the runtime is in the prelude (no import needed for `async`/`await`).
-**Important Note:** Kirn already has OS-thread `spawn`, buffered `chan[T]`, and a polling `select` (`src/interp/runtime.cpp:6250`, `:6271`). The async runtime must run **on top of** these, not replace them: `spawn`/`chan` remain the CPU/Go-style layer; `async`/`await` + `pet.async` are the I/O-concurrency layer. `PLAN.md`/`DO_FIRST_PLAN.md` Phase 11 own the worker pool + structured concurrency that this builds on.
+**Important Note:** Kirn already has OS-thread `spawn`, buffered `chan[T]`, and a polling `select` (`src/interp/runtime.cpp:6250`, `:6271`). The async runtime must run **on top of** these, not replace them: `spawn`/`chan` remain the CPU/Go-style layer; `async`/`await` + `pat.async` are the I/O-concurrency layer. `PLAN.md`/`DO_FIRST_PLAN.md` Phase 11 own the worker pool + structured concurrency that this builds on.
 
 ### 2.1 Runtime and entry points
 
@@ -193,7 +193,7 @@ async fn main() -> result[()] {
 
 > Reference: rust — `tokio::spawn` (`rust/tokio/tokio/src/task/spawn.rs`), `JoinSet` (`rust/tokio/tokio/src/task/join_set.rs`), `spawn_blocking` (`rust/tokio/tokio/src/task/blocking.rs`), `yield_now` (`rust/tokio/tokio/src/task/yield_now.rs`).
 
-### 2.4 Channels (`pet.async`)
+### 2.4 Channels (`pat.async`)
 
 Kirn's `chan[T]` becomes the **bounded mpsc** by default; the module adds the rest:
 
@@ -225,7 +225,7 @@ while var Some(j) = await rx.recv() { handle(j); }
 | `async.OnceCell[T]` `.get_or_init(f)`              | `sync::OnceCell`             |
 | `async.Barrier(n)` `.wait()`                       | `sync::Barrier`              |
 
-These complement `MISSING_PLAN` M9 / `DATA_TYPE_PLAN` Phase 12 (sync versions: `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond`, `Atomic[T]`). The async variants live in `pet.async`; the sync variants live in `pet.sync`.
+These complement `MISSING_PLAN` M9 / `DATA_TYPE_PLAN` Phase 12 (sync versions: `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond`, `Atomic[T]`). The async variants live in `pat.async`; the sync variants live in `pat.sync`.
 
 ### 2.6 Async I/O
 
@@ -273,11 +273,11 @@ var (x, y) = (await try_join(load(a), load(b)))?;
 
 ---
 
-## 3. Serialization (`serde`-like) — `pet.serde`
+## 3. Serialization (`serde`-like) — `pat.serde`
 
 **Goal:** a format-agnostic (de)serialization framework with `Serialize`/`Deserialize` traits, a derive that generates the impls, Rust-style `@[serde(...)]` options, and JSON/TOML/YAML/CBOR enabled by default.
 **Must Follow:** traits are format-agnostic; formats implement `Encoder`/`Decoder`; `@[derive(Serialize, Deserialize)]` works on structs, enums, and records; field options cover `rename`, `rename_all`, `skip`, `skip_serializing_if`, `default`, `flatten`, `with`, `tag`/`content`/`untagged`, `deny_unknown_fields`, `transparent`; the default formats ship in the stdlib.
-**Important Note:** `STD_LIBS_PLAN` owns the concrete format modules (`json` already exists at `stdlib/pet/json.kn`; `toml`, `yaml`, `csv` planned). This plan owns the framework (traits + derive + `@[serde(...)]`) that they plug into. The `json.loads` nested-container stack-overflow bug (`STD_LIBS_PLAN.md:62`) is fixed under `STD_LIBS_PLAN` Phase 1a first.
+**Important Note:** `STD_LIBS_PLAN` owns the concrete format modules (`json` already exists at `stdlib/pat/json.kn`; `toml`, `yaml`, `csv` planned). This plan owns the framework (traits + derive + `@[serde(...)]`) that they plug into. The `json.loads` nested-container stack-overflow bug (`STD_LIBS_PLAN.md:62`) is fixed under `STD_LIBS_PLAN` Phase 1a first.
 
 ### 3.1 Traits
 
@@ -333,7 +333,7 @@ Attribute table: `rename`, `rename_all` (case rules: lower/upper/pascal/camel/sn
 
 | Module | API                                                       | Notes                                               |
 | ------ | --------------------------------------------------------- | --------------------------------------------------- |
-| `json` | `to_string`, `from_string[T]`, `to_writer`, `from_reader` | exists (`stdlib/pet/json.kn`); fix nested bug first |
+| `json` | `to_string`, `from_string[T]`, `to_writer`, `from_reader` | exists (`stdlib/pat/json.kn`); fix nested bug first |
 | `toml` | `to_string`, `from_string[T]`                             | `STD_LIBS_PLAN` Phase 5c                            |
 | `yaml` | `to_string`, `from_string[T]`                             | was "optional"; promoted by this plan               |
 | `cbor` | `to_bytes`, `from_bytes[T]`                               | binary; depends on `bytes` type (`DATA_TYPE_PLAN`)  |
@@ -344,11 +344,11 @@ var back = json.from_string[User](s)?;
 var bytes = cbor.to_bytes(user);
 ```
 
-**Phase 3 exit:** `examples/64_serde_derive.kn`, `examples/65_serde_formats.kn`; round-trip tests in `stdlib/pet/serde_test.kn`; `kirn test` green.
+**Phase 3 exit:** `examples/64_serde_derive.kn`, `examples/65_serde_formats.kn`; round-trip tests in `stdlib/pat/serde_test.kn`; `kirn test` green.
 
 ---
 
-## 4. Data parallelism (`rayon`-like) — `pet.parallel`
+## 4. Data parallelism (`rayon`-like) — `pat.parallel`
 
 **Goal:** turn sequential collection operations into parallel ones with the same ergonomics as sequential ones, backed by a default-on work-stealing thread pool.
 **Must Follow:** `.par_iter()`/`.into_par_iter()`/`.par_iter_mut()` mirror the sequential iterators; combinators return the same element types; `par_sort` is stable by default; the pool size defaults to `hardware_concurrency()` and honors `KIRN_NUM_THREADS`; work is stolen, not sharded by hand.
@@ -374,10 +374,10 @@ Pool API: `Pool(n)`, `.install(f)`, `.join`, `.scope`, `.spawn`, `.broadcast`, `
 
 Delivered:
 
-- **`parallel.Pool(threads: n)`** (stdlib struct in `pet/parallel.kn`) with `.size()`, `.install(f)` (run `f` on a worker, return its value, via `spawn f().join()`), `.join(a, b)` (concurrent, `[ra, rb]`), `.broadcast(f)` (once per pool worker, results in worker order), and `.scope(body)` (see below).
+- **`parallel.Pool(threads: n)`** (stdlib struct in `pat/parallel.kn`) with `.size()`, `.install(f)` (run `f` on a worker, return its value, via `spawn f().join()`), `.join(a, b)` (concurrent, `[ra, rb]`), `.broadcast(f)` (once per pool worker, results in worker order), and `.scope(body)` (see below).
 - **`parallel.scope`** via `Pool.scope(body)`: `body(scope)` receives a `PoolScope` whose `.spawn(f)` queues a closure; all queued tasks run concurrently with `parallel.invoke` and are joined before `scope` returns, and `body`'s value is returned.
-- **`parallel.yield_now()`** — a cooperative scheduling hint backed by a new native `parallel.yield_now` (`std::this_thread::yield`), distinct from `pet.async.yield_now` (which is an `async fn` awaiting a zero-delay timer).
-- **Examples/tests**: `examples/86_parallel_pool.kn` + three goldens (examples gate now **83**); `tests/syntax/parallel_pool_ok.kn`; `stdlib/pet/parallel_test.kn` extended to assert `install`/`join`/`broadcast`/`scope`/`yield_now`.
+- **`parallel.yield_now()`** — a cooperative scheduling hint backed by a new native `parallel.yield_now` (`std::this_thread::yield`), distinct from `pat.async.yield_now` (which is an `async fn` awaiting a zero-delay timer).
+- **Examples/tests**: `examples/86_parallel_pool.kn` + three goldens (examples gate now **83**); `tests/syntax/parallel_pool_ok.kn`; `stdlib/pat/parallel_test.kn` extended to assert `install`/`join`/`broadcast`/`scope`/`yield_now`.
 
 Verification: gates **353/0/0 hung** (1_runall 83, 2b_syntax 57, 4_vm_diff 101, 8_bundle 15, 11_native 11, …), golden **348/0** (exactly the three new files recorded), crosscheck **897/0** (148 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
 
@@ -421,12 +421,12 @@ rows.par_chunks(1024).for_each(fn (chunk) { ingest(chunk); });
 
 **Path chosen:** the slice/string forms are stdlib additions on the existing `ParIter`: sorts reuse the stable merge sort (paths already parallelise above the 8192-element grain), and the string helpers split a `Str` and hand the pieces to `par_iter`. Reference read from `langs-source-code/rust/rayon/src/{slice/mod.rs,slice/chunks.rs,str.rs}`.
 
-Delivered (`stdlib/pet/parallel.kn`):
+Delivered (`stdlib/pat/parallel.kn`):
 
 - **`par_sort_by(xs, cmp)`** — stable parallel sort with an `(a, b) -> Int` comparator (negative means `a` first), mirroring `par_sort_by`/`merge_cmp`/`merge_sort_cmp` next to the existing `par_sort`/`par_sort_by_key`.
 - **`par_sort_unstable(xs)`** — the rayon in-place name; delegates to the stable merge sort (see deviation).
 - **String helpers** over `parameter.ParallelString`'s surface: `par_lines(s)` (split on `\n`), `par_str_split(s, sep)` (split on a separator), and `par_bytes(s)` (walk the code points). Each returns a `ParIter` so the §4.2 combinators compose.
-- **Examples/tests**: `examples/87_parallel_slice_string.kn` + three goldens (examples gate now **84**); `tests/syntax/parallel_slice_string_ok.kn`; `stdlib/pet/parallel_test.kn` extended with sort and string assertions.
+- **Examples/tests**: `examples/87_parallel_slice_string.kn` + three goldens (examples gate now **84**); `tests/syntax/parallel_slice_string_ok.kn`; `stdlib/pat/parallel_test.kn` extended with sort and string assertions.
 
 Verification: gates **356/0/0 hung** (1_runall 84, 2b_syntax 58, 4_vm_diff 102, 8_bundle 15, 11_native 11, …), golden **351/0** (exactly the three new files recorded), crosscheck **903/0** (149 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
 
@@ -459,13 +459,13 @@ rows.par_iter_mut().for_each(fn (row) { row.score = score(row); });
 ## 5. Ergonomics: typed and dynamic errors (`anyhow` + `thiserror`)
 
 **Goal:** make error handling pleasant by default — a type-erased `Error` with `.context(...)`, `bail`/`ensure`, and a `@[derive(Error)]` that generates typed errors with `@[from]`/`@[source]`/`@[error(transparent)]` — integrated with existing `result[T,E]`, `raise`, `?`, and `catch`.
-**Must Follow:** `pet.error.Error` is the type-erased dynamic error; `result[T]` defaults `E = Error`; `?` on a `result[T, E2]` auto-converts `E2 → E` when a `@[from]` mapping exists; `@[derive(Error)]` generates the error trait impls and `Display`; no implicit conversions beyond `@[from]`.
+**Must Follow:** `pat.error.Error` is the type-erased dynamic error; `result[T]` defaults `E = Error`; `?` on a `result[T, E2]` auto-converts `E2 → E` when a `@[from]` mapping exists; `@[derive(Error)]` generates the error trait impls and `Display`; no implicit conversions beyond `@[from]`.
 **Important Note:** Kirn already has `result[T,E]`, `raise`, `try`/`?`, `catch`, `panic`, `defer`, `catch_panic` (`src/interp/runtime.cpp`, `src/sema/checker.cpp`); it has no dynamic error and no `From`-style conversion (research: `assignable()` is structural only). `DATA_TYPE_PLAN` owns the error-type hierarchy/interface; this plan owns the ergonomic layer (context, derive, auto-conversion). `panic` stays for unrecoverable bugs; errors use `result`/`raise`.
 
 ### 5.1 Dynamic `Error` and `Context`
 
 ```kirn
-import pet.error;
+import pat.error;
 
 fn load(path: Str) -> error.result[Config] {       # == result[Config, error.Error]
     var text = read_to_string(path).context("reading config")?;
@@ -531,24 +531,24 @@ fn open(p: Str) -> result[Store, DataStoreError] {
 
 Extend the checker's `?` (currently `checker.cpp:2978`) so that `expr?` on `result[T, E2]` in a function returning `result[_, E]` converts `E2 → E` when an impl `From[E2, E]` exists (derived by `@[from]`) or when `E = error.Error` (always convertible). This is the Rust `?`/`From` contract, scoped to errors.
 
-**Phase 5 exit:** `examples/68_error_derive.kn`, `examples/69_error_context.kn`; existing `examples/19`, `20`, `35` still pass; `stdlib/pet/error_test.kn`.
+**Phase 5 exit:** `examples/68_error_derive.kn`, `examples/69_error_context.kn`; existing `examples/19`, `20`, `35` still pass; `stdlib/pat/error_test.kn`.
 
 ---
 
 ## 6. Default-on enablement (prelude + stdlib layout)
 
 **Goal:** these capabilities require no import ceremony for the common path — keywords, decorators, the dynamic `Error`, and the async entry points are in the prelude; the modules are in the default stdlib.
-**Must Follow:** `async`/`await` are keywords; `@[derive(...)]`/`@[serde(...)]`/`@[error(...)]` are built-in attributes; `pet.async`, `pet.serde`, `pet.parallel`, `pet.error`, `pet.sync` ship with `kirn`; importing them is optional (needed only to use namespaced symbols like `time.sleep`).
+**Must Follow:** `async`/`await` are keywords; `@[derive(...)]`/`@[serde(...)]`/`@[error(...)]` are built-in attributes; `pat.async`, `pat.serde`, `pat.parallel`, `pat.error`, `pat.sync` ship with `kirn`; importing them is optional (needed only to use namespaced symbols like `time.sleep`).
 **Important Note:** enabling by default must not break the existing `examples/` corpus or gates; every capability has a "sequential/non-async" fallback so programs compile without the runtime when unused.
 
-Prelude additions: `async`, `await` (keywords); `Error`, `Result[T]`, `ok`, `err`, `bail`, `ensure` (prelude names); `Task`, `chan`, `oneshot`, `broadcast`, `watch` (prelude namespace `async`). Default stdlib modules: `pet.async`, `pet.serde`, `pet.parallel`, `pet.error`, `pet.sync`, plus formats `json`/`toml`/`yaml`/`cbor`.
+Prelude additions: `async`, `await` (keywords); `Error`, `Result[T]`, `ok`, `err`, `bail`, `ensure` (prelude names); `Task`, `chan`, `oneshot`, `broadcast`, `watch` (prelude namespace `async`). Default stdlib modules: `pat.async`, `pat.serde`, `pat.parallel`, `pat.error`, `pat.sync`, plus formats `json`/`toml`/`yaml`/`cbor`.
 
 | Capability                  | Ships by default? | Needs import?          | Runtime cost when unused |
 | --------------------------- | ----------------- | ---------------------- | ------------------------ |
 | `async`/`await` + runtime   | yes               | no                     | none (lazy runtime init) |
 | `serde` traits + derive     | yes               | derive attribute only  | none                     |
-| `json`/`toml`/`yaml`/`cbor` | yes               | `import pet.json` etc. | none                     |
-| parallel iterators          | yes               | `import pet.parallel`  | none                     |
+| `json`/`toml`/`yaml`/`cbor` | yes               | `import pat.json` etc. | none                     |
+| parallel iterators          | yes               | `import pat.parallel`  | none                     |
 | dynamic `Error` + context   | yes               | no (prelude)           | none                     |
 | `@[derive(Error)]`          | yes               | no                     | none                     |
 
@@ -618,7 +618,7 @@ Open decisions needing ratification: (1) `await` prefix vs postfix; `await` hard
 | `#[derive(Serialize, Deserialize)]`                            | `@[derive(Serialize, Deserialize)]`                                    |
 | `#[serde(...)]`                                                | `@[serde(...)]`                                                        |
 | `serde_json::{to_string,from_str}`                             | `json.to_string` / `json.from_string[T]`                               |
-| `rayon` `par_iter`/`par_sort`/`join`/`scope`/`broadcast`       | `pet.parallel` `.par_iter()`/`.par_sort()`/`join`/`scope`/`broadcast`  |
+| `rayon` `par_iter`/`par_sort`/`join`/`scope`/`broadcast`       | `pat.parallel` `.par_iter()`/`.par_sort()`/`join`/`scope`/`broadcast`  |
 | `anyhow::Error`, `Context`, `anyhow!`/`bail!`/`ensure!`        | `error.Error`, `.context`, `bail`/`ensure`                             |
 | `#[derive(Error)]`, `#[error(...)]`, `#[from]`, `#[source]`    | `@[derive(Error)]`, `@[error(...)]`, `@[from]`, `@[source]`            |
 
@@ -652,7 +652,7 @@ Example-number deviations (low slots are taken by existing examples): the plan's
 
 Known pre-existing quirk (not introduced here, tracked for later phases): assigning to a module-global from inside a function without the `global name;` declaration binds a fresh local first, so `c = c + 1` reads the unbound local and panics. Examples use `global name;` for global mutation.
 
-### Update (2026-10-17) — Phase 2: `pet.async` core (shipped)
+### Update (2026-10-17) — Phase 2: `pat.async` core (shipped)
 
 Delivered:
 
@@ -662,17 +662,17 @@ Delivered:
 - **Dump** (`src/ast/ast_dump.cpp`): `async` marker on `FuncDef` and `Lambda`; `await` shows as `Unary op="await"`.
 - **Checker** (`src/sema/checker.cpp`): `asyncDepth_` is set for `async fn` bodies and `async` closures (saved/restored). `await` outside an async body ⇒ error `'await' is only allowed inside an 'async fn' body`; otherwise `await e` has the type of `e`. `spawn` accepts a call **or** an `async` closure. **v1 type-level deviation:** an async call is typed as its declared return `T` (the `Task[T]` wrapper is elided); `await` is identity on types.
 - **Interpreter** (`src/interp/runtime.{h,cpp}`): runtime grows a task handle (`ThreadImpl` with result/panic capture). `spawnTask`/`awaitTask` run a task on an OS thread and join it; `threadEntry` captures the result and re-panics on a task panic. `callValue` and the top-level call sites spawn for async fns/methods/closures; `invokeMethod` spawns async methods (self is arg 0); module-exported `pub fn`s that are `async` also spawn. `runFunc` forces the tree-walker for `async` bodies (never VM/native). `await` on a task joins it, on a `time.after` timer sleeps to its deadline, else is identity. `async fn main` runs synchronously on the main thread (deterministic) and drives its tasks.
-- **Stdlib** (`stdlib/pet/async.kn`): `sleep(ms)`, `yield_now()`, `now_ms()` over the built-in `time` pseudo-module. Because `async` is a keyword the module must be imported under a name (`import pet.async as a;`).
+- **Stdlib** (`stdlib/pat/async.kn`): `sleep(ms)`, `yield_now()`, `now_ms()` over the built-in `time` pseudo-module. Because `async` is a keyword the module must be imported under a name (`import pat.async as a;`).
 - **Bug fixed along the way**: module-exported functions were wrapped as `VK::Builtin` with empty `biParams`, so **named arguments to module functions** (`mod.f(x: 1)`) were silently dropped and the callee panicked with "missing argument". The export now carries parameter names.
-- **Examples/tests**: `examples/63_async_basics.kn`, `examples/64_async_channels.kn`, `examples/65_async_timers.kn`; `tests/syntax/async_ok.kn`; `tests/negative/n22_await_outside_async.kn`; `stdlib/pet/async_test.kn`.
+- **Examples/tests**: `examples/63_async_basics.kn`, `examples/64_async_channels.kn`, `examples/65_async_timers.kn`; `tests/syntax/async_ok.kn`; `tests/negative/n22_await_outside_async.kn`; `stdlib/pat/async_test.kn`.
 
 Verification: gates **293/0**, golden **285/0**, crosscheck **651/0**, stdlib **10/0**.
 
-Example-number deviations: the plan's Phase 2 exits named `61_async_io`/`62_async_channels`/`63_async_net`, but 61/62 are taken (`native_new_surface`, `incdec_ternary`), so async basics/channels/timers ship as `63/64/65`. Async **net/fs/io** and the full tokio sync-primitive set are deferred (documented): the v1 runtime is thread-per-task over the existing `spawn`/`chan`/`select` layer. Because `async`/`await` are keywords, the runtime API is exposed via `stdlib/pet/async.kn` under an alias rather than a `pet.async` member named `async`.
+Example-number deviations: the plan's Phase 2 exits named `61_async_io`/`62_async_channels`/`63_async_net`, but 61/62 are taken (`native_new_surface`, `incdec_ternary`), so async basics/channels/timers ship as `63/64/65`. Async **net/fs/io** and the full tokio sync-primitive set are deferred (documented): the v1 runtime is thread-per-task over the existing `spawn`/`chan`/`select` layer. Because `async`/`await` are keywords, the runtime API is exposed via `stdlib/pat/async.kn` under an alias rather than a `pat.async` member named `async`.
 
-Known pre-existing flake (not introduced here): `stdlib/pet/io_test.kn` appends to `.io_tmp_test.txt` without truncating, so a leftover artifact from an earlier run makes `assert(s == "hello")` fail; delete the file before a suite run.
+Known pre-existing flake (not introduced here): `stdlib/pat/io_test.kn` appends to `.io_tmp_test.txt` without truncating, so a leftover artifact from an earlier run makes `assert(s == "hello")` fail; delete the file before a suite run.
 
-### Update (2026-10-17) — Phase 3: `pet.serde` (shipped, reflection-based)
+### Update (2026-10-17) — Phase 3: `pat.serde` (shipped, reflection-based)
 
 **Path chosen:** after exploring the front end, Phase 3 shipped the **Tier-2 dynamic (reflection-based) serde** rather than the trait + derive design written in §3.1/§3.2. Reasons (checked, not assumed):
 
@@ -685,9 +685,9 @@ Delivered:
 
 - **Runtime reflect additions** (`src/interp/runtime.cpp`): `reflect.variant`, `reflect.payload`, `reflect.variants(T)`, `reflect.enum_payload_names(T, v)`, `reflect.enum_payload_type_names(T, v)`, `reflect.enum_new(T, v, payloadList)`, `reflect.type_ref(name)`, `reflect.field_type_names(T)`, `reflect.field_generics(T)`; static helpers `typeBaseName(const ast::Type&)` and `typeGenericNames(const ast::Type&)`. `reflect.new(T, fields)` now takes an optional field dict so a decoded struct can be rebuilt field-by-field.
 - **Latent crash fixed**: printing a module/type-ref value infinitely recursed `toStr`↔`repr` (both `default:` arms call each other) and segfaulted. `toStr` now has a `VK::Module` arm that strips the `__struct__:`/`__enum__:`/`__trait__:`/`__loaded__:` prefixes.
-- **Stdlib** (`stdlib/pet/serde.kn`): `to_json`/`encode` (Kirn-side encoder — the native `json.dumps` returns `null` for struct/enum values), `from_json`/`decode` (dynamic tree), `from_json_as(T, s)`/`decode(T, s)` (typed rebuild + coercion). Encoding: struct → object, enum → externally tagged `{"Variant": payload}` (`null` for unit, array otherwise), list/dict/scalars per JSON. Decoding coerces scalars back to declared types (JSON has one number type), recurses nested structs/enums via `field_type_names`/`field_generics`, and rebuilds with `reflect.new` / `reflect.enum_new`.
-- **`stdlib/pet/json.kn` fixes** (the `STD_LIBS_PLAN.md:62` Phase 1a item): a `depth` guard on `parse_value` (a pathological `[[[[…]]]]` now raises instead of overflowing the C++ stack), **integer preservation** (no `.`/`e` ⇒ `Int`, was always `Float`), and `skip_ws` now skips `\n`/`\t`/`\r`.
-- **Examples/tests**: `examples/66_serde_basic.kn`, `examples/67_serde_enum.kn`, `tests/syntax/serde_ok.kn`, `stdlib/pet/serde_test.kn` (round-trip + int coercion + escaping + list-of-enum); goldens recorded.
+- **Stdlib** (`stdlib/pat/serde.kn`): `to_json`/`encode` (Kirn-side encoder — the native `json.dumps` returns `null` for struct/enum values), `from_json`/`decode` (dynamic tree), `from_json_as(T, s)`/`decode(T, s)` (typed rebuild + coercion). Encoding: struct → object, enum → externally tagged `{"Variant": payload}` (`null` for unit, array otherwise), list/dict/scalars per JSON. Decoding coerces scalars back to declared types (JSON has one number type), recurses nested structs/enums via `field_type_names`/`field_generics`, and rebuilds with `reflect.new` / `reflect.enum_new`.
+- **`stdlib/pat/json.kn` fixes** (the `STD_LIBS_PLAN.md:62` Phase 1a item): a `depth` guard on `parse_value` (a pathological `[[[[…]]]]` now raises instead of overflowing the C++ stack), **integer preservation** (no `.`/`e` ⇒ `Int`, was always `Float`), and `skip_ws` now skips `\n`/`\t`/`\r`.
+- **Examples/tests**: `examples/66_serde_basic.kn`, `examples/67_serde_enum.kn`, `tests/syntax/serde_ok.kn`, `stdlib/pat/serde_test.kn` (round-trip + int coercion + escaping + list-of-enum); goldens recorded.
 - **Gate hygiene**: `scripts/gates_linux.sh` gate 6 hardcoded `'9 passed, 0 failed'`, which was stale after Phase 2 added `async_test.kn`; updated to `'11 passed, 0 failed'` (Phase 2's own `kirn_test_no_args` golden was likewise stale at 9).
 
 Verification: gates **298/0**, golden **291/0**, crosscheck **681/0**, stdlib **11/0**.
@@ -696,7 +696,7 @@ Example-number deviation: the plan's Phase 3 exits named `64_serde_derive`/`65_s
 
 Not shipped (documented deviation, blocked on the front end above): `trait Serialize`/`Deserialize`, `@[derive(Serialize, Deserialize)]`, `@[serde(...)]` field options (`rename`/`skip`/`flatten`/`tag`/…), the `Encoder`/`Decoder`/`Visitor` trio, and the `toml`/`yaml`/`cbor` formats (JSON only for now). These are gated behind generic impls, signature-only generic trait methods, `static fn`, and call-site type arguments.
 
-### Update (2026-10-18) — Phase 4: `pet.parallel` (shipped, spawn-based)
+### Update (2026-10-18) — Phase 4: `pat.parallel` (shipped, spawn-based)
 
 **Path chosen:** Phase 4 shipped a **spawn-based parallel stdlib** rather than the work-stealing rayon-mirror design in §4 — there is no task scheduler in the runtime to build a stealing pool on. Primitives were verified before committing: `spawn` + `h.join()` gives real parallelism (measured ~2x on a compute example), closures capture loop variables **by value**, and `/` on ints yields `Float` (so chunk math must use `//`).
 
@@ -704,8 +704,8 @@ Delivered:
 
 - **Native `parallel` module** (`src/interp/runtime.cpp`, after the `time` block): `join(a, b)` (spawn both, run one inline, `awaitTask` → `[ra, rb]`), `invoke(fns)` (spawn N−1, run the last inline, await all, results in order), `current_num_threads()` (`KIRN_NUM_THREADS` via `strtol`, else `hardware_concurrency`, min 1), `current_thread_index()` (static atomic + thread-local). `ThreadH .join()` now returns `awaitTask(...)` instead of `none`, so `spawn`ed tasks can yield results. Registered in `checker.cpp`'s `importRoots_` and the runtime prebound list; **not** added to the VM mod set (works under the VM anyway, like `reflect`).
 - **`src/sema/checker.cpp`**: thread-struct `.join()` retyped `noneTy()` → `unkTy()` (it now yields a value).
-- **Stdlib** (`stdlib/pet/parallel.kn`): `ParIter` whose `map`/`filter` inline the chunk+`invoke` pool logic — struct methods run with `globals_`, so they cannot see module-private helpers, which forced prebinding `parallel` in `globals_` and inlining the pool calls; plus `collect`/`count`/`sum`/`product`/`for_each`/`reduce`/`min`/`max`/`any`/`all`; `par_iter(xs)` (materializes any iterable); `par_sort`/`par_sort_by_key` (merge sort with a spawn+`h.join()` parallel branch above 8192 elements); `broadcast`.
-- **Examples/tests**: `examples/68_parallel_iter.kn`, `examples/69_parallel_sort.kn`, `tests/syntax/parallel_ok.kn`, `stdlib/pet/parallel_test.kn` (12th test); goldens recorded; gate 6 count `11` → `12`.
+- **Stdlib** (`stdlib/pat/parallel.kn`): `ParIter` whose `map`/`filter` inline the chunk+`invoke` pool logic — struct methods run with `globals_`, so they cannot see module-private helpers, which forced prebinding `parallel` in `globals_` and inlining the pool calls; plus `collect`/`count`/`sum`/`product`/`for_each`/`reduce`/`min`/`max`/`any`/`all`; `par_iter(xs)` (materializes any iterable); `par_sort`/`par_sort_by_key` (merge sort with a spawn+`h.join()` parallel branch above 8192 elements); `broadcast`.
+- **Examples/tests**: `examples/68_parallel_iter.kn`, `examples/69_parallel_sort.kn`, `tests/syntax/parallel_ok.kn`, `stdlib/pat/parallel_test.kn` (12th test); goldens recorded; gate 6 count `11` → `12`.
 - **Gate harness split** (separate `chore` commit): `scripts/gates_linux.sh` became a thin driver over `scripts/gates/_common.sh` + one file per gate in `scripts/gates/`, because the monolith forced a full run (gate 11 native alone takes ~15m). No args runs every gate (unchanged behaviour); `gates_linux.sh 6 2b` runs a subset.
 
 Verification: gates **303/0** (13 gates, run individually), golden **297/0**, crosscheck **705/0**, stdlib **12/0**.
@@ -714,20 +714,20 @@ Example-number deviation: the plan's Phase 4 exits named `66_par_iter`/`67_par_s
 
 Deviations (documented): the pool is **spawn-based** (one OS thread per task), not work-stealing; `par_iter(xs)` is a **function**, not a `.par_iter()` method (no `.into_par_iter()`/`.par_iter_mut()`). Two items here were fixed on 2026-10-19 (see the §4.4 update below): `@[par] for …` now **is** wired (the tree-walker lowers it, and the bytecode VM hands the enclosing function back to the tree-walker when it sees the decorator), and `for_each` now **fans out across the pool** (it was sequential). Sendability is still unchecked, so a parallel closure must not race on shared state — `par_each` stays dropped.
 
-### Update (2026-10-18) — Phase 5: `pet.error` (shipped, anyhow/thiserror-style)
+### Update (2026-10-18) — Phase 5: `pat.error` (shipped, anyhow/thiserror-style)
 
 **Path chosen:** Phase 5 ships §5's ergonomic layer as **native runtime support** — a type-erased `error.Error` value, `.context`/`chain`/`root_cause`/`downcast`, `bail`/`ensure`, `?` auto-conversion at the result boundary, and a **minimal `@[derive(Error)]` Display generator** — rather than the thiserror derive/codegen design, because the front end still generates no code from `@[derive(...)]` (documented since Phase 3) and has no `From` impls. §5.4's conversion is implemented in the **runtime's `runFunc` result boundary**, not `checker.cpp:2978`, because every `raise`/`?` already funnels through `SignalRaise` there.
 
 Delivered:
 
-- **Dynamic `Error`** (`src/interp/runtime.cpp`): `kErrorType = "error.Error"` struct with `msg`/`source`/`origin`; helpers `mkError`, `isErrorStruct`, `isPetError`, `errorFieldStr`, `errorChainStr` (anyhow `{:#}` → `"top: cause1: cause2"`), `errorWithContext`. `print(e)`/`toStr` on an Error shows the Display chain (`toStr`'s `VK::Struct` arm), not the raw struct.
+- **Dynamic `Error`** (`src/interp/runtime.cpp`): `kErrorType = "error.Error"` struct with `msg`/`source`/`origin`; helpers `mkError`, `isErrorStruct`, `isPatError`, `errorFieldStr`, `errorChainStr` (anyhow `{:#}` → `"top: cause1: cause2"`), `errorWithContext`. `print(e)`/`toStr` on an Error shows the Display chain (`toStr`'s `VK::Struct` arm), not the raw struct.
 - **Module API** (`moduleMember`, `mod == "error"`): `msg`, `new`, `context(r, c)`, `chain`, `root_cause`, `is(e, T)`/`downcast(e, T)`, `display`, `bail(msg)`, `ensure(cond, msg)`. Registered in `checker.cpp`'s `importRoots_` and the runtime prebound-module list.
 - **Context on `result`** (`memberRead` `VK::Result`): `.context(c)` / `.with_context(f)` are native bound builtins — `ok` passes through unchanged, `err` pushes a layer onto the source chain (`with_context` captures `[this]` to call the closure). Added to `checker.cpp`'s `methodLookup` result protocol (params **and** names must be pushed together or `matchArgs` reads `names[]` out of bounds).
 - **Error methods** (`invokeMethod`, `VK::Struct` + `isErrorStruct`, before the user-method lookup): `chain()`, `root_cause()` (returns the deepest **Error value** so `is`/`downcast` still work on it), `is(T)`, `downcast(T)` (matched over the `origin` field, with namespace-tolerant type comparison), `backtrace()` (returns `none` — not captured yet).
-- **§5.4 `?`/`raise` auto-conversion** (`runFunc`'s `catch (SignalRaise&)`): when the function's declared return is a single-argument `result[T]` (E defaults to `error.Error`) and the payload is not already a `pet.error` Error, it is wrapped as `mkError(toStr(payload), none, payload)` — the original stays reachable as `origin`, so `error.is`/`error.downcast` recover it. Two-argument `result[T, E]` fns propagate the payload unchanged, so existing typed-error examples (`19`) are untouched.
+- **§5.4 `?`/`raise` auto-conversion** (`runFunc`'s `catch (SignalRaise&)`): when the function's declared return is a single-argument `result[T]` (E defaults to `error.Error`) and the payload is not already a `pat.error` Error, it is wrapped as `mkError(toStr(payload), none, payload)` — the original stays reachable as `origin`, so `error.is`/`error.downcast` recover it. Two-argument `result[T, E]` fns propagate the payload unchanged, so existing typed-error examples (`19`) are untouched.
 - **§5.3 `@[derive(Error)]` Display (minimal)**: a file-level `g_errDerivedEnums` registry filled by `registerEnumDerive(s)` at the three enum-registration sites; `toStr`'s new `VK::EnumV` arm renders the variant's `@[error("…")]` template with `{field}` / `{0}` / `{field:?}` / `{{`/`}}` interpolation, and `@[error(transparent)]` delegates to the sole payload. Enums without the derive keep the `repr` form (no regression — the repo had no `@[derive(Error)]` enums before this change).
 - **Lexer bug fixed along the way** (`src/lex/lexer.cpp`): `Lexer::fill()` ran `skipInlineWs()`/comment handling **before** dispatching to the f-string literal scanner, so whitespace/`#` right after a `}` was eaten (`f"a {u} b"` → `a 0b`; `examples/01` printed `Kirnsays hi`). `FsMode::Text` is now dispatched at the top of the loop; six goldens (lex/parse 01/04/31) re-recorded.
-- **Examples/tests**: `examples/70_error_derive.kn` (§5.3 Display + §5.4 `?` + `is`/`downcast` round-trip), `examples/71_error_context.kn` (§5.1 context/chain/root_cause + §5.2 ensure/bail), `tests/syntax/error_ok.kn` (warning-free, tree==VM), `stdlib/pet/error_test.kn` (13th test); goldens recorded; gate 6 count `12` → `13` (`scripts/gates/6_test.sh`, `scripts/gates_linux.sh` header).
+- **Examples/tests**: `examples/70_error_derive.kn` (§5.3 Display + §5.4 `?` + `is`/`downcast` round-trip), `examples/71_error_context.kn` (§5.1 context/chain/root_cause + §5.2 ensure/bail), `tests/syntax/error_ok.kn` (warning-free, tree==VM), `stdlib/pat/error_test.kn` (13th test); goldens recorded; gate 6 count `12` → `13` (`scripts/gates/6_test.sh`, `scripts/gates_linux.sh` header).
 
 Verification: gates **308/0** (13 gates), golden **303/0**, crosscheck **723/0**, stdlib **13/0**.
 
@@ -753,35 +753,35 @@ Delivered:
 - **`Result` recognized everywhere `result` was**: `isResultRet`, the runtime type test (`t == "result"`), and `native.cpp`'s AST-return-name check all accept `Result`, so annotated functions keep their result-boundary treatment (§5.4 conversion, return wrapping) and stay off the native backend.
 - **Checker/runtime root alignment**: the runtime's prebound-module list gains `sync`/`reflect` (the checker already allowed them — `sync.X` typechecked and then panicked at runtime) and `importRoots_` gains `text` (the runtime already had it). The two lists had silently drifted.
 - **`kirn run` with no target** now means "current directory" (the scaffold's own hint says `cd <project> && kirn run`); an entryless directory still gets the fix-it error (exit 66).
-- **`kirn new` scaffolds repaired and taught the prelude**: every generated `fn main()` declares `-> none` (the checker rejects bare `fn main()` — the reason the app scaffold was rotten; **no gate ever ran `kirn new`**, so it rotted unnoticed); app `code/main.kn` generates a `greeting` that uses `ensure`/`bail`/`f-string`/`match ok|err`/`error.display` with zero imports, and app `tests/main_test.kn` asserts through `match ok(7)`; pet `code/pin.kn`'s `string` annotations become `Str`, and `shout` now uses the existing `upper()` builtin (the original manual loop called `ord`/`chr`, which exist nowhere in the language or stdlib).
-- **New gate coverage** (`scripts/gates/5_conventions.sh`): `kirn new app` → bare `kirn run` + `kirn test .`, and `kirn new pet` → `kirn test .` + `kirn build` packing a `.pet` — four tests closing exactly the hole that let the scaffolds rot.
+- **`kirn new` scaffolds repaired and taught the prelude**: every generated `fn main()` declares `-> none` (the checker rejects bare `fn main()` — the reason the app scaffold was rotten; **no gate ever ran `kirn new`**, so it rotted unnoticed); app `code/main.kn` generates a `greeting` that uses `ensure`/`bail`/`f-string`/`match ok|err`/`error.display` with zero imports, and app `tests/main_test.kn` asserts through `match ok(7)`; pat `code/pin.kn`'s `string` annotations become `Str`, and `shout` now uses the existing `upper()` builtin (the original manual loop called `ord`/`chr`, which exist nowhere in the language or stdlib).
+- **New gate coverage** (`scripts/gates/5_conventions.sh`): `kirn new app` → bare `kirn run` + `kirn test .`, and `kirn new pat` → `kirn test .` + `kirn build` packing a `.pat` — four tests closing exactly the hole that let the scaffolds rot.
 - **`toStr`/`repr` mutual recursion fixed** (`src/interp/runtime.cpp`): 15 value kinds (`Fn`, `Builtin`, `Chan`, `ThreadH`, `Timer`, `File`, `Arena`, `Ptr`, `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond`, `Atomic`, `Weak`) were in neither function's case list, so `print(f)` fell into `toStr`'s `default → repr` → `repr`'s `default → toStr` and **segfaulted** (~25k stack frames deep; the same failure mode Phase 3 fixed for `VK::Module`). `print(chan)`/`print(handle)` crashed identically.
 - **Detached-task teardown race fixed** (`Interpreter::shutdownThreads`): it **detached** every live task, so a task outliving `run()` kept touching `globals_`/`env` while they were destroyed — `var h = spawn f;` then exiting crashed ~5 runs in 8 (flaky use-after-free at exit, on any program that spawned without joining; a pre-existing bug, reproducible with a two-line script). It now **joins**: `threadEntry` catches every panic and never rethrows, so joining cannot abort the process, and the gates report `0 hung`, confirming no corpus task blocks. Stress: 0/20 failures after (was ~5/8).
-- **Corpus proves the default**: `import pet.error;` stripped from `tests/syntax/error_ok.kn`, `examples/70_error_derive.kn`, `examples/71_error_context.kn` — all three now run on the bare prelude (4 lex/parse goldens re-recorded); the import is kept in `stdlib/pet/error_test.kn` so the import path itself stays tested.
+- **Corpus proves the default**: `import pat.error;` stripped from `tests/syntax/error_ok.kn`, `examples/70_error_derive.kn`, `examples/71_error_context.kn` — all three now run on the bare prelude (4 lex/parse goldens re-recorded); the import is kept in `stdlib/pat/error_test.kn` so the import path itself stays tested.
 
-Verification: gates **312/0/0 hung** (13 gates), golden **303/0**, crosscheck **723/0**, stdlib **13/0**; both scaffolds green end-to-end (`app`: bare `kirn run`, `kirn test .`, `kirnc check`; `pet`: `kirnc check`, `kirn test .`, `kirn build` → `.pet` packed).
+Verification: gates **312/0/0 hung** (13 gates), golden **303/0**, crosscheck **723/0**, stdlib **13/0**; both scaffolds green end-to-end (`app`: bare `kirn run`, `kirn test .`, `kirnc check`; `pat`: `kirnc check`, `kirn test .`, `kirn build` → `.pat` packed).
 
 Deviations / not shipped (documented):
 
 - **`Error` is the type-erased top type, not a nominal struct** — a nominal would make every `.chain()`/`.context()` call a _"struct has no field"_ error (member access only sees registered structs). Dynamic errors are still identified at runtime by `isErrorStruct`.
 - **The prelude namespace `async` (`Task`, `oneshot`, `broadcast`, `watch`) is not implemented**: `async` is a hard keyword and cannot name a namespace (Phase 2 precedent). The equivalents are reachable as plain names (`chan`, `spawn`, …) instead.
-- **`pet.sync`, `toml`, `yaml`, `cbor` are not shipped** (only `pet.json` plus the native sync primitives); §6's stdlib-breadth row remains open. The `sync`/`reflect` roots are registered but their module files do not exist yet — a reference now fails with a normal module-not-found instead of a runtime panic.
+- **`pat.sync`, `toml`, `yaml`, `cbor` are not shipped** (only `pat.json` plus the native sync primitives); §6's stdlib-breadth row remains open. The `sync`/`reflect` roots are registered but their module files do not exist yet — a reference now fails with a normal module-not-found instead of a runtime panic.
 - **`Result` without type args carries no payload type** — `Result[T]` is the form to use.
 - **`ok(x)`/`err(x)` _are_ expressions now** — this supersedes the Phase 5 front-end note above.
 - **`kirn run` on a library still exits through the runtime's `panic: no main() defined`** rather than a tailored _"this project has no `fn main`"_ fix-it.
-- **`ord`/`chr` remain unimplemented** (the pet scaffold no longer needs them); if they land later, the manual-char-loop example style in the scaffold could return.
+- **`ord`/`chr` remain unimplemented** (the pat scaffold no longer needs them); if they land later, the manual-char-loop example style in the scaffold could return.
 
 ### Update (2026-10-19) — Phase 7 (plan P7): default formats json/toml/yaml/cbor (shipped)
 
-**Path chosen:** one shared reflection core plus per-format parse/render. `pet.codec` owns `enc_tree` (any → tree) and `coerce_type` (tree → `T`), both extracted verbatim from `pet.serde`; every format module is then a thin renderer/parser over that tree. Dependencies stay acyclic: `codec` ← `{json, toml, yaml, cbor}`, `serde` → `json`, never in reverse (the runtime has no cyclic-import support — the module cache is written only after execution, so a cycle recurses forever).
+**Path chosen:** one shared reflection core plus per-format parse/render. `pat.codec` owns `enc_tree` (any → tree) and `coerce_type` (tree → `T`), both extracted verbatim from `pat.serde`; every format module is then a thin renderer/parser over that tree. Dependencies stay acyclic: `codec` ← `{json, toml, yaml, cbor}`, `serde` → `json`, never in reverse (the runtime has no cyclic-import support — the module cache is written only after execution, so a cycle recurses forever).
 
 Delivered:
 
-- **`stdlib/pet/codec.kn`**: `enc_tree` (struct → field dict, enum → externally-tagged `{variant: payload-list|none}`, seqs → list, maps → dict with string keys, inf/nan float → none) + `coerce_type`/`decode_struct`/`decode_enum`/`coerce` with `list`/`dict` generic element coercion — moved out of `pet.serde` so four formats share one implementation.
-- **`pet.json`**: gains `render` (tree → JSON text; the old serde quote/enc logic moved here), serde-aware `to_string(v)` and `from_string(T, s)`; `dumps`/`loads` and the pure-Kirn parser untouched. `pet.serde` slimmed to `to_json = json.render(codec.enc_tree(v))` / `from_json_as = codec.coerce_type(T, json.loads(s))` — byte-for-byte identical output (serde_test's exact-string assertions stayed green through the refactor).
-- **`pet.toml`**: subset parser (bare/quoted/dotted keys, `[table]` and `[[array-of-tables]]`, inline tables, arrays with comments/trailing commas, basic/literal/multiline strings, `0x`/`0o`/`0b`, `_` separators, inf/nan, `#` comments, date/time tokens kept as strings, 128-level depth guard) and a block renderer; tree round-trip verified both directions.
-- **`pet.cbor`**: RFC 8949 major types 0/1/3/4/5/7 (uint, negative int, text, array, map, false/true/null, float64/float32) over `bytearray`; encodings are **byte-exact against the appendix A vectors** (`00 01 0a 17 1818 1819 1864 1903e8 20 29 3863 f5 f4 f6 fb3ff8000000000000 626869 83010203 a1616101 …`). Floats use a hand-rolled IEEE754 binary64 codec (no `struct.pack` in the language); normal/subnormal decode, exact round-trips at both ends of the magnitude range.
-- **`pet.yaml`**: block-style parser (indentation, `- key: value` items with continuation lines, `- - 1` nested sequences via line rewriting, minimal flow `{a: 1}`/`[2, 3]`, single/double-quoted scalars incl. `''` escapes, `#` comment stripping that is quote-aware, tabs rejected) and a renderer that quotes number-like/keyword strings so `"42"` and `42` round-trip distinctly.
+- **`stdlib/pat/codec.kn`**: `enc_tree` (struct → field dict, enum → externally-tagged `{variant: payload-list|none}`, seqs → list, maps → dict with string keys, inf/nan float → none) + `coerce_type`/`decode_struct`/`decode_enum`/`coerce` with `list`/`dict` generic element coercion — moved out of `pat.serde` so four formats share one implementation.
+- **`pat.json`**: gains `render` (tree → JSON text; the old serde quote/enc logic moved here), serde-aware `to_string(v)` and `from_string(T, s)`; `dumps`/`loads` and the pure-Kirn parser untouched. `pat.serde` slimmed to `to_json = json.render(codec.enc_tree(v))` / `from_json_as = codec.coerce_type(T, json.loads(s))` — byte-for-byte identical output (serde_test's exact-string assertions stayed green through the refactor).
+- **`pat.toml`**: subset parser (bare/quoted/dotted keys, `[table]` and `[[array-of-tables]]`, inline tables, arrays with comments/trailing commas, basic/literal/multiline strings, `0x`/`0o`/`0b`, `_` separators, inf/nan, `#` comments, date/time tokens kept as strings, 128-level depth guard) and a block renderer; tree round-trip verified both directions.
+- **`pat.cbor`**: RFC 8949 major types 0/1/3/4/5/7 (uint, negative int, text, array, map, false/true/null, float64/float32) over `bytearray`; encodings are **byte-exact against the appendix A vectors** (`00 01 0a 17 1818 1819 1864 1903e8 20 29 3863 f5 f4 f6 fb3ff8000000000000 626869 83010203 a1616101 …`). Floats use a hand-rolled IEEE754 binary64 codec (no `struct.pack` in the language); normal/subnormal decode, exact round-trips at both ends of the magnitude range.
+- **`pat.yaml`**: block-style parser (indentation, `- key: value` items with continuation lines, `- - 1` nested sequences via line rewriting, minimal flow `{a: 1}`/`[2, 3]`, single/double-quoted scalars incl. `''` escapes, `#` comment stripping that is quote-aware, tabs rejected) and a renderer that quotes number-like/keyword strings so `"42"` and `42` round-trip distinctly.
 - **`examples/72_formats.kn`**: a `Profile` struct + `Shape` enum round-tripped through all four formats; three goldens recorded (`check`/`lex`/`parse`); plan-named `65_serde_formats.kn` remains taken by async (serde-phase example-number deviation).
 - **Tests**: `toml_test.kn` (44 assertions incl. AoT, dotted keys, multiline strings, bases, dates-as-strings, struct/enum/generic-list round-trips), `cbor_test.kn` (RFC vectors, float/int boundary matrix, struct/enum incl. unit variant), `yaml_test.kn` (block/flow/quoting/round-trip) — `kirn test .` now **16/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header, and `scripts/golden/kirn_test_no_args.txt` bump 13 → 16.
 - **Language quirks hit while writing the parsers (no compiler changes made)**: struct methods cannot see module-level free functions (so all parser helpers are methods — renderer helpers stay free, free→free works); implicit local bindings may only be _reassigned_ inside loops (outside → "cannot reassign immutable binding"); parameters are immutable; struct fields must be declared after the types they reference; `import math` binds a namespace _different_ from the prebound `math` global (bare `math.floor_div`/`math.pow` work, imported do not).
@@ -795,16 +795,16 @@ Deviations / not shipped (documented):
 - **TOML subset edges**: `\b`/`\f`/`\uXXXX` escapes (no `chr`/`ord` in Kirn), the space-separated datetime form, and native datetime values are out of scope; **unit enum variants cannot survive TOML** (it has no null, so `none` is omitted and the empty table decodes as an ambiguous enum — JSON/YAML/CBOR keep them). This supersedes the Phase 6 deviation row that listed `toml`/`yaml`/`cbor` as unshipped.
 - **CBOR subset edges**: byte strings (major 2), tags (major 6), indefinite-length items, and float16 decode raise.
 - **YAML subset edges**: anchors/aliases, tags, directives, block scalars (`|`/`>`), multi-document streams, and complex (`?`) keys.
-- **`pet.sync` (Barrier/Semaphore over the native primitives) remains deferred** to the next phase.
+- **`pat.sync` (Barrier/Semaphore over the native primitives) remains deferred** to the next phase.
 
-### Update (2026-10-19) — Phase 8 (plan P6/P7 follow-up): `pet.sync` (shipped)
+### Update (2026-10-19) — Phase 8 (plan P6/P7 follow-up): `pat.sync` (shipped)
 
-**Path chosen:** the native runtime already exposes `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond` and `Atomic` (globals and the prebound `sync` namespace), so `pet.sync` only adds the three tokio::sync primitives that were missing — `Barrier`, `Semaphore` and `Notify` — each a factory `fn` over a small state struct built from `Mutex` + `Cond`. No compiler changes.
+**Path chosen:** the native runtime already exposes `Mutex`, `RwMutex`, `WaitGroup`, `Once`, `Cond` and `Atomic` (globals and the prebound `sync` namespace), so `pat.sync` only adds the three tokio::sync primitives that were missing — `Barrier`, `Semaphore` and `Notify` — each a factory `fn` over a small state struct built from `Mutex` + `Cond`. No compiler changes.
 
 Delivered:
 
-- **`stdlib/pet/sync.kn`**: `Barrier(parties)` (`wait() -> Int` returns the generation, reusable across rounds), `Semaphore(permits)` (`acquire`/`acquire_n`/`try_acquire`/`try_acquire_n`/`release`/`release_n`/`available`), `Notify()` (`notify_one` stores one permit when no waiter is registered, `notify_waiters` wakes every current waiter without storing a permit, `wait` consumes one notification, `waiter_count` for deterministic tests). All waits are condition checks under the lock, so signal-before-wait never loses a wakeup.
-- **`stdlib/pet/sync_test.kn`**: 8 tests — barrier single-party reuse and a four-party two-round barrier, semaphore counter/try/limits, semaphore release waking two waiters, permit stored before the waiter arrives, and notify one/two waiters (polls `waiter_count` before broadcasting so the wakeup can never fire into an empty waiter set). `kirn test .` now **17/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header and `scripts/golden/kirn_test_no_args.txt` bump 16 → 17.
+- **`stdlib/pat/sync.kn`**: `Barrier(parties)` (`wait() -> Int` returns the generation, reusable across rounds), `Semaphore(permits)` (`acquire`/`acquire_n`/`try_acquire`/`try_acquire_n`/`release`/`release_n`/`available`), `Notify()` (`notify_one` stores one permit when no waiter is registered, `notify_waiters` wakes every current waiter without storing a permit, `wait` consumes one notification, `waiter_count` for deterministic tests). All waits are condition checks under the lock, so signal-before-wait never loses a wakeup.
+- **`stdlib/pat/sync_test.kn`**: 8 tests — barrier single-party reuse and a four-party two-round barrier, semaphore counter/try/limits, semaphore release waking two waiters, permit stored before the waiter arrives, and notify one/two waiters (polls `waiter_count` before broadcasting so the wakeup can never fire into an empty waiter set). `kirn test .` now **17/0**; `scripts/gates/6_test.sh`, the `gates_linux.sh` header and `scripts/golden/kirn_test_no_args.txt` bump 16 → 17.
 - **`examples/73_sync.kn`**: a three-worker reusable barrier, a two-permit semaphore, and a pre-arrival notification; deterministic output across runs; three goldens recorded.
 - **The design constraint that shaped the module (no compiler changes)**: **a method receives `self` as a _copy_ of the receiver, and scalar fields are written back only when the call returns** (`fn bump(self)` twice yields 2 — copy-out works — while a method that increments an `Int` field and then blocks inside `Cond.wait` publishes nothing to other threads and deadlocks the primitive). Reference fields — **lists and sync values — are shared through that copy** (verified: a list element written under a receiver copy is visible to another thread mid-call; a `Mutex` stored inside a list still serializes two threads, 501 ms for two serialized 250 ms holds). So every piece of mutable state lives in one list per primitive (`st = [mutex, cond, …counters]`); receiver copies then share the lock, the condition and the counters. This also resolved the initial deadlock where each party operated on its own snapshot.
 
@@ -816,18 +816,18 @@ Deviations / not shipped (documented):
 - **Timed waits**: `acquire`/`wait` have no timeout/millis variant — the runtime `Cond` exposes no timed wait, and the plan does not require one.
 - **`Notify` permit accounting**: `notify_one` stores at most one permit (tokio's `notify_one` likewise coalesces); a `notify_waiters` with no registered waiter is a no-op, exactly like tokio's.
 - **`Semaphore` has no `MAX_PERMITS` guard**: `release_n` simply adds; overflow is not checked.
-- **No re-export of the native primitives**: `sync.Mutex`/`sync.Cond` remain the prebound runtime namespace; `import pet.sync as sync` shadows it with this module, so code that wants both imports the file under a different alias.
+- **No re-export of the native primitives**: `sync.Mutex`/`sync.Cond` remain the prebound runtime namespace; `import pat.sync as sync` shadows it with this module, so code that wants both imports the file under a different alias.
 
-### Update (2026-10-19) — Phase 9 (plan §6 follow-up): `pet.sync` channels (shipped)
+### Update (2026-10-19) — Phase 9 (plan §6 follow-up): `pat.sync` channels (shipped)
 
-**Path chosen:** §6 lists `oneshot` / `broadcast` / `watch` under the `async` prelude namespace, but `async` is a keyword, so the namespace cannot exist as a module name. The native `chan` already covers plain FIFO hand-off, so the missing pieces are the three tokio::sync _channels_; they are built in `pet.sync` (the natural home for tokio::sync parity) from the same `Mutex` + `Cond` + single-`st`-list pattern Phase 8 established. No compiler changes. Reference read directly from `langs-source-code/rust/tokio/tokio/src/sync/{oneshot,broadcast,watch}.rs`.
+**Path chosen:** §6 lists `oneshot` / `broadcast` / `watch` under the `async` prelude namespace, but `async` is a keyword, so the namespace cannot exist as a module name. The native `chan` already covers plain FIFO hand-off, so the missing pieces are the three tokio::sync _channels_; they are built in `pat.sync` (the natural home for tokio::sync parity) from the same `Mutex` + `Cond` + single-`st`-list pattern Phase 8 established. No compiler changes. Reference read directly from `langs-source-code/rust/tokio/tokio/src/sync/{oneshot,broadcast,watch}.rs`.
 
 Delivered:
 
 - **`Oneshot()`** — single-use channel: `send(v)` (non-blocking, may run on any thread), `recv()` (blocks until a value or close), `try_recv()`, `close()`, `is_empty()`, `is_closed()`. The value is stored, so a `send` before `recv` is never lost.
 - **`Broadcast(capacity)`** — multi-producer/multi-consumer ring buffer: `send(v) -> Int` (returns the receiver count), `subscribe() -> BroadcastRx`, `receiver_count()`, `len()`/`is_empty()`, `close()`/`is_closed()`. `BroadcastRx`: `recv()` (blocks), `try_recv()`, `len()`/`is_empty()` (pending for this receiver), and `lagged()`. A receiver that falls more than `capacity` behind skips the overwritten values, resumes at the oldest retained one, and accumulates the number skipped in `lagged()`.
 - **`Watch(initial)`** — last-value channel with per-receiver seen-versioning: `send(v)`, `send_replace(v) -> any` (returns the old value), `borrow()`, `subscribe() -> WatchRx`, `receiver_count()`, `close()`/`is_closed()`. `WatchRx`: `borrow()`, `borrow_and_update()`, `has_changed()`, `changed() -> Bool` (blocks; false only when closed _and_ already seen), `mark_changed()`, `mark_unchanged()`, `is_closed()`.
-- **`stdlib/pet/sync_test.kn`**: 10 new tests (18 total) — oneshot roundtrip + close, broadcast fan-out, subscribe-sees-future-only, lag/resume, close-drains; watch `changed`, `borrow` vs `borrow_and_update`, `mark_changed`/`mark_unchanged`, and close semantics.
+- **`stdlib/pat/sync_test.kn`**: 10 new tests (18 total) — oneshot roundtrip + close, broadcast fan-out, subscribe-sees-future-only, lag/resume, close-drains; watch `changed`, `borrow` vs `borrow_and_update`, `mark_changed`/`mark_unchanged`, and close semantics.
 - **`examples/74_channels.kn`** + three goldens; the examples gate now reports **71** files.
 
 Verification: gates **317/0/0 hung** (1_runall 71, 8_bundle 15, 8b_HIR 3, 9_MIR 10, 11_native 11, …), golden **312/0**, crosscheck **795/0** (130 `.kn` files), stdlib **18/18**; `kirnc check` clean. Threaded probes (spawn + join around `recv`/`changed`) were run three times each with identical output.
@@ -841,15 +841,15 @@ Deviations / not shipped (documented):
 - **`Watch` `send_modify`/`send_if_modified`** are not shipped; `send` and `send_replace` cover the publishing cases.
 - **Timed variants** (`recv_timeout`, `changed_timeout`) are absent for the same reason as Phase 8: the runtime `Cond` has no timed wait.
 
-### Update (2026-10-19) — Phase 10 (plan P5): `pet.async` join / try_join (shipped)
+### Update (2026-10-19) — Phase 10 (plan P5): `pat.async` join / try_join (shipped)
 
-**Path chosen:** §2.10's `join`/`try_join` build directly on the existing async runtime — calling an `async fn` already schedules the task and `await` drives it — so the combinators are two `async fn`s in `pet.async` over a list of task handles. `select { await … }` needed grammar/runtime work and is not extended (the existing channel/timer `select` in `examples/23` covers multiplexing); documented below.
+**Path chosen:** §2.10's `join`/`try_join` build directly on the existing async runtime — calling an `async fn` already schedules the task and `await` drives it — so the combinators are two `async fn`s in `pat.async` over a list of task handles. `select { await … }` needed grammar/runtime work and is not extended (the existing channel/timer `select` in `examples/23` covers multiplexing); documented below.
 
 Delivered:
 
 - **Runtime fix (prerequisite, own commit `c4051a5`)**: a task body that called `raise(...)` previously fell into `threadEntry`'s `catch(...)`, becoming the generic panic `"unknown error in task"` — the payload was lost and `try/catch` could not recover it. `threadEntry` now catches `SignalRaise` separately and stores the payload on the `ThreadImpl` (`raised`/`raiseValue`); `awaitTask` (also reached via `ThreadH.join()`) re-throws it, so a task's `raise` surfaces at the await site as an ordinary catchable exception. No corpus file spawns a raising task, so no golden was affected.
-- **`stdlib/pet/async.kn`**: `join(ts: list) -> list` awaits every task and returns results in list order — if any task raised, the **first** error is re-raised only after all tasks have finished (so `join` never returns with a task still unjoined). `try_join(ts: list) -> list` awaits in order and short-circuits on the first raise. Both are `async fn`s, called as `await a.join([t1, t2, …])`.
-- **`stdlib/pet/async_test.kn`**: join ordering (`[10, 20, 30]`), try_join short-circuit, and the join-waits-all-then-raises-first-error case.
+- **`stdlib/pat/async.kn`**: `join(ts: list) -> list` awaits every task and returns results in list order — if any task raised, the **first** error is re-raised only after all tasks have finished (so `join` never returns with a task still unjoined). `try_join(ts: list) -> list` awaits in order and short-circuits on the first raise. Both are `async fn`s, called as `await a.join([t1, t2, …])`.
+- **`stdlib/pat/async_test.kn`**: join ordering (`[10, 20, 30]`), try_join short-circuit, and the join-waits-all-then-raises-first-error case.
 - **`examples/75_async_join.kn`** + three goldens; the examples gate now reports **72** files. Deterministic across runs.
 
 Verification: gates **320/0/0 hung** (1_runall 72, 4_vm_diff 90, 8_bundle 15, 11_native 11, …), golden **315/0**, crosscheck **801/0** (131 `.kn` files), stdlib **18/0**; `kirnc check` clean.
@@ -863,13 +863,13 @@ Deviations / not shipped (documented):
 
 ### Update (2026-10-19) — §4.4: `@[par] for` (shipped)
 
-**Path chosen:** `@[par]` on a `for` loop lowers to the hand-written parallel form, `pet.parallel.par_iter(xs).for_each(fn (it) { … })`. Because the bytecode VM is now the default runner and only compiles simple `for x in …` loops, the two executors needed coordinating: the **tree-walker** does the lowering, and the **VM compiler** hands the enclosing function back to the tree-walker (sets `em.f.interpreted = true`) when it sees a `@[par]` decorator — the same policy it already uses for `Try`/`Match`/`Select` and non-bind loop patterns. This is the only part of §4.4 shipped; `@[par]` on map/fold and on a `fn` (marking it pool-safe) are not shipped.
+**Path chosen:** `@[par]` on a `for` loop lowers to the hand-written parallel form, `pat.parallel.par_iter(xs).for_each(fn (it) { … })`. Because the bytecode VM is now the default runner and only compiles simple `for x in …` loops, the two executors needed coordinating: the **tree-walker** does the lowering, and the **VM compiler** hands the enclosing function back to the tree-walker (sets `em.f.interpreted = true`) when it sees a `@[par]` decorator — the same policy it already uses for `Try`/`Match`/`Select` and non-bind loop patterns. This is the only part of §4.4 shipped; `@[par]` on map/fold and on a `fn` (marking it pool-safe) are not shipped.
 
 Delivered:
 
-- **Tree-walker lowering** (`src/interp/runtime.cpp`, `case StKind::For`): when the statement carries a `@[par]` decorator, it evaluates the iterable, builds a synthetic native closure (`biFn`) that re-binds the original loop pattern (`matchPat`) against each element and runs the body in a child env, then dispatches it through `par_iter` (resolved from `pet.parallel`, loaded on demand) and `invokeMethod(…, "for_each", …)`. A struct method must go through `invokeMethod`, not `memberRead` — `memberRead` on a struct only sees fields. The lowering mirrors a serial `for` (per-iteration child env; `break`/`continue` inside a `@[par]` body are unsupported because the body runs as a closure).
+- **Tree-walker lowering** (`src/interp/runtime.cpp`, `case StKind::For`): when the statement carries a `@[par]` decorator, it evaluates the iterable, builds a synthetic native closure (`biFn`) that re-binds the original loop pattern (`matchPat`) against each element and runs the body in a child env, then dispatches it through `par_iter` (resolved from `pat.parallel`, loaded on demand) and `invokeMethod(…, "for_each", …)`. A struct method must go through `invokeMethod`, not `memberRead` — `memberRead` on a struct only sees fields. The lowering mirrors a serial `for` (per-iteration child env; `break`/`continue` inside a `@[par]` body are unsupported because the body runs as a closure).
 - **VM hand-off** (`src/vm/compiler.cpp`, `case StKind::For`): a `@[par]` decorator marks the whole function interpreted so the default VM path and the `--no-vm` tree-walker produce identical results (gate 4_vm_diff and the syntax test both assert tree == VM).
-- **`for_each` is now parallel** (`stdlib/pet/parallel.kn`): it previously ran `for e in xs { f(e); }` sequentially, which would have made `@[par]` a no-op. It now uses the same chunk-and-`parallel.invoke` shape as `map`/`filter` (threshold 4096, honoring `KIRN_NUM_THREADS`), so `@[par]` — and the manual `par_iter(...).for_each(f)` — genuinely fan out. A 5000×1ms body on 4 threads dropped from ~5s to ~1.5s.
+- **`for_each` is now parallel** (`stdlib/pat/parallel.kn`): it previously ran `for e in xs { f(e); }` sequentially, which would have made `@[par]` a no-op. It now uses the same chunk-and-`parallel.invoke` shape as `map`/`filter` (threshold 4096, honoring `KIRN_NUM_THREADS`), so `@[par]` — and the manual `par_iter(...).for_each(f)` — genuinely fan out. A 5000×1ms body on 4 threads dropped from ~5s to ~1.5s.
 - **`examples/76_par_decorator.kn`** + three goldens; the examples gate now reports **73** files. The example is deterministic: small inputs (sequential path) plus a `sync.Atomic` accumulator over `1..=20000` (parallel path, order-independent integer sum = `200010000`). **`tests/syntax/par_decorator_ok.kn`** pins tree == VM for the list, tuple-pattern, and parallel-atomic cases.
 
 Verification: gates **323/0/0 hung** (1_runall 73, 2b_syntax 47, 4_vm_diff 91, 8_bundle 15, 11_native 11, …), golden **318/0**, crosscheck **807/0** (132 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
@@ -887,14 +887,14 @@ Deviations / not shipped (documented):
 
 Delivered:
 
-- **`ParIter` gains a `divided: Bool` field** (`stdlib/pet/parallel.kn`) and a `grain()` helper: the split threshold is 4096 elements normally, but only **2 groups** once the sequence has been shaped — otherwise a handful of chunks would never leave one thread and `chunks(1024).for_each(...)` would silently run serially. `map`/`filter` thread the flag through appropriately (`map` over groups produces elements again, so it clears it; `filter` preserves it).
+- **`ParIter` gains a `divided: Bool` field** (`stdlib/pat/parallel.kn`) and a `grain()` helper: the split threshold is 4096 elements normally, but only **2 groups** once the sequence has been shaped — otherwise a handful of chunks would never leave one thread and `chunks(1024).for_each(...)` would silently run serially. `map`/`filter` thread the flag through appropriately (`map` over groups produces elements again, so it clears it; `filter` preserves it).
 - **Grouping methods**: `chunks(n)` (fixed size, last group is the remainder), `windows(n)` (slide by one, overlapping; empty below `n`), `split(sep)` (drop separators, adjacent separators give empty groups), `chunk_by(f)` (group _consecutive_ equal-key elements). `chunks`/`windows` raise on `n <= 0` rather than spinning. Each returns `ParIter(xs: groups, divided: true)`.
 - **Free-function entry points** `par_chunks`/`par_windows`/`par_split`/`par_chunk_by`, equivalent to `par_iter(xs).<op>(...)`.
 - **`examples/77_parallel_grouping.kn`** + three goldens; a timing probe with four 300 ms chunks in `for_each` runs in ~0.3 s vs ~1.2 s for four plain elements (one group per worker). **`tests/syntax/parallel_ok.kn`** gained the four ops (tree == VM).
 
 Verification: gates **328/0/0 hung** (1_runall 74, 4_vm_diff 92, 8_bundle 15, 11_native 11, …), golden **321/0**, crosscheck **813/0**, stdlib **17/0**; `kirncheck` clean on the new files.
 
-Loader bug fixed along the way (`src/interp/runtime.cpp`, same commit): `pet/parallel.kn` begins with `import parallel;` (the **native** module). When the entry file lived in `stdlib/pet/` — which the loader adds as an import dir because it is the entry's own directory — the bare name `parallel` resolved to the sibling file `stdlib/pet/parallel.kn`, i.e. the module bound _itself_, and `parallel.current_num_threads()` recursed until the stack overflowed (segfault). A bare `import m;` for a known prebound module name (`math`/`time`/`io`/`mem`/`json`/`text`/`os`/`parallel`/`error`/`sync`/`reflect`) now always binds the native module and never a same-named file. The module is also registered in `loadedModules_` **before** its body runs, so a re-entrant load sees it. This unblocked putting `parallel_test.kn` in `stdlib/pet/` alongside the other pet tests.
+Loader bug fixed along the way (`src/interp/runtime.cpp`, same commit): `pat/parallel.kn` begins with `import parallel;` (the **native** module). When the entry file lived in `stdlib/pat/` — which the loader adds as an import dir because it is the entry's own directory — the bare name `parallel` resolved to the sibling file `stdlib/pat/parallel.kn`, i.e. the module bound _itself_, and `parallel.current_num_threads()` recursed until the stack overflowed (segfault). A bare `import m;` for a known prebound module name (`math`/`time`/`io`/`mem`/`json`/`text`/`os`/`parallel`/`error`/`sync`/`reflect`) now always binds the native module and never a same-named file. The module is also registered in `loadedModules_` **before** its body runs, so a re-entrant load sees it. This unblocked putting `parallel_test.kn` in `stdlib/pat/` alongside the other pat tests.
 
 Deviations / not shipped (documented):
 
@@ -903,16 +903,16 @@ Deviations / not shipped (documented):
 - **Group sessions don't nest.** `chunks(...).chunks(...)` reshapes the already-grouped list (each element being a group), which is well-defined but rarely what you want; group once, then `map`.
 - **`par_sort` has no `_unstable`/in-place variants** (carried over from Phase 8): it is a stable mergesort returning a new list.
 
-### Update (2026-10-20) — §2.8: async time (`pet.async`)
+### Update (2026-10-20) — §2.8: async time (`pat.async`)
 
-**Path chosen:** build the time API on the existing native `time` pseudo-module instead of adding a new reactor, matching how `pet.async` already fronts `time.after`. Two small native primitives were missing: an **absolute-deadline** timer (`after_at`) for `sleep_until`/`timeout_at`, and a **wait-with-timeout** on a task handle (`wait`) for `timeout` — the latter cannot be a plain `await` because the point is to stop waiting before the task finishes. Instants and Durations are **Int milliseconds** (Instants are epoch ms on the `time.after` clock), so they interoperate with `time.now`/`time.after` and arithmetic without adding nominal types; `MissedTickBehavior` is a set of `pub const` strings.
+**Path chosen:** build the time API on the existing native `time` pseudo-module instead of adding a new reactor, matching how `pat.async` already fronts `time.after`. Two small native primitives were missing: an **absolute-deadline** timer (`after_at`) for `sleep_until`/`timeout_at`, and a **wait-with-timeout** on a task handle (`wait`) for `timeout` — the latter cannot be a plain `await` because the point is to stop waiting before the task finishes. Instants and Durations are **Int milliseconds** (Instants are epoch ms on the `time.after` clock), so they interoperate with `time.now`/`time.after` and arithmetic without adding nominal types; `MissedTickBehavior` is a set of `pub const` strings.
 
 Delivered:
 
 - **Native `time` additions** (`src/interp/runtime.cpp`, `time` module handler): `time.after_at(deadline_ms)` returns a `VK::Timer` whose deadline is the absolute instant (immediate if already past); `time.wait(handle, ms) -> Bool` locks the task's `ThreadImpl` and waits on its condition variable until it is done or the budget elapses (returns `true` if done, `false` on timeout; `true` for a non-task handle). `time.wait` is the primitive `timeout` is built on.
-- **`stdlib/pet/async.kn` §2.8 block**: `instant`, `elapsed` (saturating), `duration_since` (`none` if the later instant precedes the earlier, mirroring `checked_duration_since`), `checked_add`; `sleep_until(deadline_ms)`; `async fn timeout(ms, fut) -> ok(v) | err("elapsed")` and `timeout_at(deadline_ms, fut)`; `BURST`/`DELAY`/`SKIP` consts; `struct Interval` + `interval(period_ms)` / `interval_at(start_ms, period_ms)`. `Interval` ports tokio's `next_timeout` logic exactly: the schedule advances from the **fired deadline** by one period (`Burst`), from `now` (`Delay`), or to the next tick aligned to the original phase (`Skip`), with tokio's 5 ms missed-tick tolerance. `interval`'s first tick is immediate (start = now), like tokio; zero/negative periods raise.
+- **`stdlib/pat/async.kn` §2.8 block**: `instant`, `elapsed` (saturating), `duration_since` (`none` if the later instant precedes the earlier, mirroring `checked_duration_since`), `checked_add`; `sleep_until(deadline_ms)`; `async fn timeout(ms, fut) -> ok(v) | err("elapsed")` and `timeout_at(deadline_ms, fut)`; `BURST`/`DELAY`/`SKIP` consts; `struct Interval` + `interval(period_ms)` / `interval_at(start_ms, period_ms)`. `Interval` ports tokio's `next_timeout` logic exactly: the schedule advances from the **fired deadline** by one period (`Burst`), from `now` (`Delay`), or to the next tick aligned to the original phase (`Skip`), with tokio's 5 ms missed-tick tolerance. `interval`'s first tick is immediate (start = now), like tokio; zero/negative periods raise.
 - **`Interval.tick()` is a plain (non-`async`) method that advances the schedule and returns an awaitable timer**, so `await iv.tick()` both waits and persists the new `next_ms` in the receiver. An `async fn` method cannot: its receiver is a per-task copy and field writes are not written back to the caller. The schedule advances when `tick()` is called (the same point tokio's `poll_tick` samples `now`), so `Burst`/`Skip` stay phase-aligned.
-- **`examples/78_async_time.kn`** + three goldens; the examples gate now reports **75** files. **`tests/syntax/async_time_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** gained the Instant/Duration, `sleep_until`, `timeout` ok/elapsed/`timeout_at`, interval cadence/behaviour, and zero-period assertions.
+- **`examples/78_async_time.kn`** + three goldens; the examples gate now reports **75** files. **`tests/syntax/async_time_ok.kn`** pins tree-walker == VM; **`stdlib/pat/async_test.kn`** gained the Instant/Duration, `sleep_until`, `timeout` ok/elapsed/`timeout_at`, interval cadence/behaviour, and zero-period assertions.
 
 Verification: gates **328/0/0 hung** (1_runall 75, 2b_syntax 48, 4_vm_diff 93, 8_bundle 15, 11_native 11, …), golden **324/0**, crosscheck **819/0** (134 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
 
@@ -927,17 +927,17 @@ Deviations / not shipped (documented):
 
 ### Update (2026-10-20) — §2.9: async filesystem, process, signals
 
-**Path chosen:** extend the native `os` pseudo-module with the blocking syscalls, then wrap each in an `async fn` in sibling stdlib modules — `pet.async_fs`, `pet.async_process`, `pet.async_signal` — re-exported from `pet.async` as `a.fs`, `a.process`, `a.signal`. An `async fn` runs on a task thread, so awaiting it yields to the caller; this is the same spawn-blocking shape `tokio::fs` uses, and avoids building a reactor.
+**Path chosen:** extend the native `os` pseudo-module with the blocking syscalls, then wrap each in an `async fn` in sibling stdlib modules — `pat.async_fs`, `pat.async_process`, `pat.async_signal` — re-exported from `pat.async` as `a.fs`, `a.process`, `a.signal`. An `async fn` runs on a task thread, so awaiting it yields to the caller; this is the same spawn-blocking shape `tokio::fs` uses, and avoids building a reactor.
 
 Delivered:
 
 - **Native filesystem** (`src/interp/runtime.cpp`, `os`): `read_file`/`read_bytes`, `write_file` (truncate), `copy_file` (overwrite; returns bytes copied), `rename`, `remove_file`, `create_dir_all`, `exists`, `metadata` (`{is_file, is_dir, size, modified_ms}`), `read_dir` (entry names), all via `<filesystem>`.
 - **Native process** (`os`): `run(argv)` → `{code, stdout, stderr}`; `spawn(argv)` → `{pid, out_path, err_path, in_path}`; `wait(pid)` → status; `kill(pid)` → SIGKILL. fork/exec with temp-file redirection; **argv is built before `fork`** so the child of this multithreaded runtime only calls async-signal-safe functions before `execvp`.
 - **Native signals** (`os`): `install_ctrl_c` (SIGINT handler sets a `volatile sig_atomic_t`), `ctrl_c_pending`, `reset_ctrl_c`.
-- **`stdlib/pet/async_fs.kn`**: `read`, `read_to_string`, `write`, `copy`, `rename`, `remove_file`, `create_dir_all`, `exists`, `metadata`, `read_dir` (all `async fn`).
-- **`stdlib/pet/async_process.kn`**: `command`/`arg`/`args` build a dict handle; `output`/`status`/`spawn` are `async fn`; `wait`/`kill`/`wait_with_output` operate on the child dict and clean up its temp files.
-- **`stdlib/pet/async_signal.kn`**: `install`/`pending`/`reset`, plus `async fn ctrl_c()` (polls the flag on a 10 ms timer) and `stream(sig)` (one-item batch; SIGINT only).
-- **`examples/79_async_fs_process.kn`** + three goldens (examples gate now **76**); **`tests/syntax/async_io_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** covers the fs round-trip, metadata/copy/rename/read_dir, process output/status, and the signal flag.
+- **`stdlib/pat/async_fs.kn`**: `read`, `read_to_string`, `write`, `copy`, `rename`, `remove_file`, `create_dir_all`, `exists`, `metadata`, `read_dir` (all `async fn`).
+- **`stdlib/pat/async_process.kn`**: `command`/`arg`/`args` build a dict handle; `output`/`status`/`spawn` are `async fn`; `wait`/`kill`/`wait_with_output` operate on the child dict and clean up its temp files.
+- **`stdlib/pat/async_signal.kn`**: `install`/`pending`/`reset`, plus `async fn ctrl_c()` (polls the flag on a 10 ms timer) and `stream(sig)` (one-item batch; SIGINT only).
+- **`examples/79_async_fs_process.kn`** + three goldens (examples gate now **76**); **`tests/syntax/async_io_ok.kn`** pins tree-walker == VM; **`stdlib/pat/async_test.kn`** covers the fs round-trip, metadata/copy/rename/read_dir, process output/status, and the signal flag.
 
 Verification: gates **331/0/0 hung** (1_runall 76, 2b_syntax 49, 4_vm_diff 94, 8_bundle 15, 11_native 11, …), golden **327/0**, crosscheck **843/0** (138 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files.
 
@@ -949,20 +949,20 @@ Deviations / not shipped (documented):
 - **`signal.stream(sig)` is a one-shot batch**, not a stream (Kirn has no stream type); only SIGINT is supported, and `ctrl_c` **polls** every 10 ms rather than being woken by the handler.
 - **No process cancellation/timeout**; use `kill`. `wait`/`wait_with_output` are single-shot (a second `waitpid` on the same pid fails).
 
-### Update (2026-10-20) — §2.6 async I/O and §2.7 networking (`pet.async`)
+### Update (2026-10-20) — §2.6 async I/O and §2.7 networking (`pat.async`)
 
-**Path chosen:** extend the native layer with the blocking byte and socket calls, then expose faithful struct APIs in two sibling stdlib modules — `pet.async_io` (re-exported as `a.io`) and `pet.async_net` (`a.net`). Each wrapper that can block is an `async fn`, so it runs on a task thread and `await` yields to the caller: the same spawn-blocking shape used by `tokio::fs`/`tokio::net` without a reactor. This phase also fixed the blocker that had forced §2.9's process API to be free functions: method dispatch in an imported module now resolves names against **that module's** environment, so methods can call the module's own imports.
+**Path chosen:** extend the native layer with the blocking byte and socket calls, then expose faithful struct APIs in two sibling stdlib modules — `pat.async_io` (re-exported as `a.io`) and `pat.async_net` (`a.net`). Each wrapper that can block is an `async fn`, so it runs on a task thread and `await` yields to the caller: the same spawn-blocking shape used by `tokio::fs`/`tokio::net` without a reactor. This phase also fixed the blocker that had forced §2.9's process API to be free functions: method dispatch in an imported module now resolves names against **that module's** environment, so methods can call the module's own imports.
 
-**Module-environment fix (`src/interp/runtime.cpp`, `src/interp/runtime.h`, included here):** added `structEnv_` (struct name → defining `Env`) plus `ImplEntry::env`. It is populated when struct definitions are collected (`globals_`), when a module body executes (the module env), and by `exec`'s StructDef (the current env). `invokeMethod` resolves the defining env and passes it to both `runFunc` (sync) and `spawnTask` (`fv.env`, async). Before this, both paths used `globals_`, so a method in `pet.async` saw neither its own `DELAY`/`SKIP` consts nor its imports; `Interval` had to spell the budget as string literals. Those consts are back in use, and `File`/`TcpStream` methods below call `os`/`net` directly. Inherited structs still fall back to `globals_`.
+**Module-environment fix (`src/interp/runtime.cpp`, `src/interp/runtime.h`, included here):** added `structEnv_` (struct name → defining `Env`) plus `ImplEntry::env`. It is populated when struct definitions are collected (`globals_`), when a module body executes (the module env), and by `exec`'s StructDef (the current env). `invokeMethod` resolves the defining env and passes it to both `runFunc` (sync) and `spawnTask` (`fv.env`, async). Before this, both paths used `globals_`, so a method in `pat.async` saw neither its own `DELAY`/`SKIP` consts nor its imports; `Interval` had to spell the budget as string literals. Those consts are back in use, and `File`/`TcpStream` methods below call `os`/`net` directly. Inherited structs still fall back to `globals_`.
 
 Delivered:
 
 - **Native filesystem additions** (`os`): `read_at(path, offset, len)` → `bytes` (`len < 0` reads to EOF), `write_at(path, offset, data)` → bytes written (creates, never truncates), `file_size(path)` → `Int`. These make a cursor-based `File` possible without an OS handle.
 - **Native networking** (`net`, POSIX only): `tcp_bind(addr)` → `{fd, addr}` (listens, `SO_REUSEADDR`, ephemeral port read back via `getsockname`), `tcp_accept(fd)` → `{fd, peer}`, `tcp_connect(addr)` → `{fd, peer}`, `tcp_read(fd, n)` → `bytes` (empty at EOF), `tcp_write(fd, data)` → bytes written (loops over partial sends), `close(fd)`; `udp_bind(addr)` → `{fd, addr}`, `udp_send_to(fd, data, addr)`, `udp_recv_from(fd, n)` → `{data, addr}`; `lookup_host(host)` → list of addresses (no port). Addresses are `host:port`, IPv6 as `[::1]:port`; helpers resolve with `getaddrinfo` and format with `getnameinfo(NI_NUMERICHOST)`.
-- **`stdlib/pet/async_io.kn`**: `struct File` keeps `{path, pos}` in a **dict** field — dict/list fields are shared with the receiver copy, so the cursor persists across method calls and task hops (scalar field writes are not written back by `async fn`). Methods: `read`, `read_exact`, `read_to_end`, `read_to_string` (UTF-8), `read_line`, `lines`, `write`, `write_all`, `flush`, `seek`, `position`, `size`, `close`. Free functions `open`, `append`, `create`, `copy(reader, writer)`, `buffered_reader`, `buffered_writer`; `BufReader` delegates to `File`, `BufWriter` buffers `Str` chunks until `flush`.
-- **`stdlib/pet/async_net.kn`**: `TcpListener` (`accept`, `local_addr`, `close`), `TcpStream` (`read`, `write`, `write_all`, `peer_addr`, `close`, `split`/`into_split`), `ReadHalf`/`WriteHalf`, `UdpSocket` (`send_to`, `recv_from`, `local_addr`, `close`); free `bind`, `async connect`, `udp_bind`, `lookup_host`. All handles are `Int` fds plus the formatted address.
-- **Re-exports:** `pet.async` now binds `import pet.async_io as io;` and `import pet.async_net as net;`, so `a.io`/`a.net` are available next to `a.fs`/`a.process`/`a.signal`.
-- **`examples/80_async_net_io.kn`** + three goldens (examples gate now **77**); **`tests/syntax/async_byteio_ok.kn`** pins tree-walker == VM over file I/O plus a TCP echo and a UDP datagram; **`stdlib/pet/async_test.kn`** gained read_line/copy/read_to_string and a localhost TCP echo.
+- **`stdlib/pat/async_io.kn`**: `struct File` keeps `{path, pos}` in a **dict** field — dict/list fields are shared with the receiver copy, so the cursor persists across method calls and task hops (scalar field writes are not written back by `async fn`). Methods: `read`, `read_exact`, `read_to_end`, `read_to_string` (UTF-8), `read_line`, `lines`, `write`, `write_all`, `flush`, `seek`, `position`, `size`, `close`. Free functions `open`, `append`, `create`, `copy(reader, writer)`, `buffered_reader`, `buffered_writer`; `BufReader` delegates to `File`, `BufWriter` buffers `Str` chunks until `flush`.
+- **`stdlib/pat/async_net.kn`**: `TcpListener` (`accept`, `local_addr`, `close`), `TcpStream` (`read`, `write`, `write_all`, `peer_addr`, `close`, `split`/`into_split`), `ReadHalf`/`WriteHalf`, `UdpSocket` (`send_to`, `recv_from`, `local_addr`, `close`); free `bind`, `async connect`, `udp_bind`, `lookup_host`. All handles are `Int` fds plus the formatted address.
+- **Re-exports:** `pat.async` now binds `import pat.async_io as io;` and `import pat.async_net as net;`, so `a.io`/`a.net` are available next to `a.fs`/`a.process`/`a.signal`.
+- **`examples/80_async_net_io.kn`** + three goldens (examples gate now **77**); **`tests/syntax/async_byteio_ok.kn`** pins tree-walker == VM over file I/O plus a TCP echo and a UDP datagram; **`stdlib/pat/async_test.kn`** gained read_line/copy/read_to_string and a localhost TCP echo.
 
 Verification: gates **334/0/0 hung** (1_runall 77, 2b_syntax 50, 4_vm_diff 95, 8_bundle 15, 11_native 11, …), golden **330/0**, crosscheck **861/0** (141 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files; `netprobe`/`ioprobe` match byte-for-byte across tree-walker and VM.
 
@@ -998,22 +998,22 @@ Deviations / not shipped (documented):
 - **No `select!`-style `if` guards or per-arm patterns.** An arm is still `case [bind =] expr`; use an `if` inside the body for conditional logic.
 - **`select` arms cannot bind `none` from a timer.** Timer arms bind `none` (as before); task arms bind the result value.
 
-### Update (2026-10-20) — §2.5 async synchronization (`pet.async`)
+### Update (2026-10-20) — §2.5 async synchronization (`pat.async`)
 
-**Path chosen:** thin `async fn` wrappers over the existing blocking primitives. Native `Mutex`/`RwMutex`/`Once` already exist, and `pet.sync` already implements `Semaphore`/`Notify`/`Barrier` on top of `Mutex` + `Cond` with all mutable state in a shared list; duplicating those state machines would add no value. `pet.async` re-exports the factories under the plan's names, so `a.Mutex(v)`/`a.RwLock(v)`/`a.Semaphore(n)`/`a.Notify()`/`a.OnceCell()`/`a.Barrier(n)` all live next to the rest of `pet.async`. A native `try_rlock` was the only missing operation.
+**Path chosen:** thin `async fn` wrappers over the existing blocking primitives. Native `Mutex`/`RwMutex`/`Once` already exist, and `pat.sync` already implements `Semaphore`/`Notify`/`Barrier` on top of `Mutex` + `Cond` with all mutable state in a shared list; duplicating those state machines would add no value. `pat.async` re-exports the factories under the plan's names, so `a.Mutex(v)`/`a.RwLock(v)`/`a.Semaphore(n)`/`a.Notify()`/`a.OnceCell()`/`a.Barrier(n)` all live next to the rest of `pat.async`. A native `try_rlock` was the only missing operation.
 
 Delivered:
 
 - **Native `sync.RwMutex`**: added `try_rlock` (alias `try_read_lock`), a non-blocking shared read acquire used by `RwLock.try_read`.
-- **`stdlib/pet/async.kn` §2.5 block** (imports the native namespace as `sysnc` and `pet.sync` as `psync`):
+- **`stdlib/pat/async.kn` §2.5 block** (imports the native namespace as `sysnc` and `pat.sync` as `psync`):
   - `Mutex(value)` → `MutexState` with `async lock()` → `MutexGuard`, `try_lock()` → guard|`none`, `get`, `async with(f)` (unlocks via `defer`, including on a raise), `is_locked`; guard `get`/`set`/`unlock`.
   - `RwLock(value)` → `RwLockState` with `async read()`/`write()`, `try_read()`/`try_write()`, `get`; `ReadGuard.get`/`unlock`, `WriteGuard.get`/`set`/`unlock`.
   - `Semaphore(permits)` → `AsyncSemaphore` with `async acquire`/`acquire_n`, `try_acquire`/`try_acquire_n`, `release`/`release_n`, `available`.
   - `Notify()` → `AsyncNotify` with `notify_one`/`notify_waiters`, `async notified()`, `waiter_count`.
   - `OnceCell()` → `OnceCellState` with `get`, `is_set`, `async get_or_init(f)`; initialisation is guarded by native `Once`, so concurrent callers run `f` at most once.
   - `Barrier(parties)` → `AsyncBarrier` with `async wait()` returning the generation.
-- **Loader fix (`src/interp/runtime.cpp`)**: inside a module, `import NATIVE as alias;` now binds `alias`. The old code bound a prebound module only when the import had no alias, so `import sync as sysnc;` in `pet.async` left `sysnc` undefined when a factory ran. Entry-file imports already handled aliases; this closes the module-file gap (and is why the async sync API can name its factories `Mutex(...)` while still reaching the native constructor through an alias).
-- **`examples/82_async_sync.kn`** + three goldens (examples gate now **79**); **`tests/syntax/async_sync_ok.kn`** pins tree-walker == VM; **`stdlib/pet/async_test.kn`** covers 4×100 mutex increments, `with`, `try_lock` contention, read/write/try guards, semaphore permits, a stored `Notify` permit, single-run `OnceCell`, and a two-party `Barrier`.
+- **Loader fix (`src/interp/runtime.cpp`)**: inside a module, `import NATIVE as alias;` now binds `alias`. The old code bound a prebound module only when the import had no alias, so `import sync as sysnc;` in `pat.async` left `sysnc` undefined when a factory ran. Entry-file imports already handled aliases; this closes the module-file gap (and is why the async sync API can name its factories `Mutex(...)` while still reaching the native constructor through an alias).
+- **`examples/82_async_sync.kn`** + three goldens (examples gate now **79**); **`tests/syntax/async_sync_ok.kn`** pins tree-walker == VM; **`stdlib/pat/async_test.kn`** covers 4×100 mutex increments, `with`, `try_lock` contention, read/write/try guards, semaphore permits, a stored `Notify` permit, single-run `OnceCell`, and a two-party `Barrier`.
 
 Verification: gates **340/0/0 hung** (1_runall 79, 2b_syntax 52, 4_vm_diff 97, 8_bundle 15, 11_native 11, …), golden **336/0**, crosscheck **873/0** (143 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new files; the §2.5 probe matches across tree-walker and VM.
 
@@ -1024,11 +1024,11 @@ Deviations / not shipped (documented):
 - **`Mutex.get` is an unlocked peek**, for diagnostics/single-threaded reads; use a guard for shared mutation.
 - **Waits block the task thread.** `lock`/`read`/`write`/`acquire`/`notified`/`wait` are `async fn`s for API shape and to keep `await` uniform, but the underlying primitive blocks; there is no async-aware waiter queue.
 - **`OnceCell.get_or_init` takes a plain function value** (no `async` initialiser, no `await` inside `f`), and there is no `set`/`get_or_try_init`. `OnceCell.get()` returns `none` before initialisation (Kirn's `Option`).
-- **`Notify` follows `pet.sync` semantics** (one stored permit, `notify_waiters` wakes current waiters), and `Barrier` is reusable with generation numbers, matching `pet.sync` rather than adding new behaviour.
+- **`Notify` follows `pat.sync` semantics** (one stored permit, `notify_waiters` wakes current waiters), and `Barrier` is reusable with generation numbers, matching `pat.sync` rather than adding new behaviour.
 
 ### Update (2026-10-20) — §3.2 serde attribute options (shipped, reflection-based)
 
-**Path chosen:** `@[derive(Serialize, Deserialize)]` is still inert and §3.1's traits remain blocked on generic impls / `static fn` / call-site type args, so this closes the §3.2 gap **where serde actually lives**: the shared reflection codec. The parser already stored `@[serde(...)]` on structs, fields and variants (Phase 0/1) but nothing read it. Attributes are now exposed as data through `reflect`, and `pet.codec` applies them to the tree, so JSON/TOML/YAML/CBOR all inherit the options without per-format work.
+**Path chosen:** `@[derive(Serialize, Deserialize)]` is still inert and §3.1's traits remain blocked on generic impls / `static fn` / call-site type args, so this closes the §3.2 gap **where serde actually lives**: the shared reflection codec. The parser already stored `@[serde(...)]` on structs, fields and variants (Phase 0/1) but nothing read it. Attributes are now exposed as data through `reflect`, and `pat.codec` applies them to the tree, so JSON/TOML/YAML/CBOR all inherit the options without per-format work.
 
 Delivered:
 
@@ -1036,14 +1036,14 @@ Delivered:
   - `reflect.type_attrs(T)`, `reflect.field_attrs(T)`, `reflect.variant_attrs(T)`, `reflect.payload_attrs(T, variant)` return `{attrName: [{name, value}, …]}`. Arguments are literal-only (str/int/float/bool/list/`none`), so reflection never evaluates user code; a list of args (not a map) preserves repeated options such as `alias`.
   - Bare flags (`@[serde(skip)]`, `@[serde(untagged)]`) parse as positional idents and are normalised to `{name: "skip", value: true}`, so option lookup is uniform.
   - `reflect.case(name, rule, "field"|"variant")` implements serde's eight `rename_all` rules byte-for-byte from `serde_derive_internals::case` (including the field/variant split: snake variants insert `_` before capitals, snake fields are unchanged, pascal/camel strip `_`).
-- **`stdlib/pet/codec.kn`** honours, in both directions:
+- **`stdlib/pat/codec.kn`** honours, in both directions:
   - container: `rename_all` (fields for structs, variants for enums), `deny_unknown_fields`, `transparent`, `tag`, `content`, `untagged`;
   - field: `rename`, `alias` (decode), `skip`, `skip_serializing`, `skip_deserializing`, `flatten` (`deny_unknown_fields` + `flatten` is rejected, as in serde);
   - variant: `rename`, `alias`, `skip`, `skip_serializing`, `skip_deserializing`.
   - Enum encodings: externally tagged (unchanged default), internally tagged `{tag: variant, <payload names>}` (uses the declared payload names), adjacently tagged `{tag, content}` (keeps the list payload convention), and `untagged` (unit → `null`, single payload → the value, multiple → a list).
   - Untagged decode tries variants in declaration order with a shape check (`type_ok`) before coercion, so the first variant no longer always wins through the lenient scalar coercion.
 - **`reflect.new` defaults fixed**: field types spelled `Str`/`Bool`/`Float` now get `""`/`false`/`0.0` (they previously fell through to `none`), which is what makes `@[serde(skip)]` and missing fields produce the declared default.
-- **`examples/83_serde_options.kn`** + three goldens (examples gate now **80**), including a TOML render with camelCase keys; **`tests/syntax/serde_options_ok.kn`** pins tree == VM; **`stdlib/pet/serde_test.kn`** gained rename/skip/default/flatten/transparent/deny/alias and all three enum tagging modes.
+- **`examples/83_serde_options.kn`** + three goldens (examples gate now **80**), including a TOML render with camelCase keys; **`tests/syntax/serde_options_ok.kn`** pins tree == VM; **`stdlib/pat/serde_test.kn`** gained rename/skip/default/flatten/transparent/deny/alias and all three enum tagging modes.
 
 Verification: gates **343/0/0 hung** (1_runall 80, 2b_syntax 53, 4_vm_diff 98, 8_bundle 15, 11_native 11, …), golden **339/0**, crosscheck **879/0** (144 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files; golden record produced exactly the three new files.
 
@@ -1064,7 +1064,7 @@ Delivered:
 
 - **Native task handle** (`src/interp/runtime.{h,cpp}`): `ThreadImpl::aborted` (atomic); `thread` protocol gains `is_finished()` (done || aborted), `is_aborted()`, and `abort()`. `awaitTask` returns `none` immediately for an aborted, unfinished task (a task that already finished still returns its result or re-raises); `is_finished` is checked under the task mutex.
 - **`select` cancellation** (`selectExec`): after an arm is chosen, every other `Prepared::Task` handle is aborted; an arm whose handle was already aborted is treated as ready with payload `none` (so a select cannot spin on a cancelled task).
-- **`pet.async`**:
+- **`pat.async`**:
   - `TaskSet()` → `TaskSetState` with `spawn(t)`/`add(t)`, `len`, `is_empty`, `async join_next` (FIFO: shifts the oldest handle), `async join_all`, `abort_all`, and `async shutdown` (abort-all then drain).
   - `spawn_blocking(f)` = `spawn f()`, available in any (sync) context.
   - `try_join` now aborts every handle after the one that raised, matching its documented short-circuit.
@@ -1089,12 +1089,12 @@ The §3.2 deviation "function-valued options are not implemented" was caused by 
 Delivered:
 
 - **`reflect.fn(name)`** (native): resolves a callable by name, mirroring ident lookup — entry `globals_` first (decorated functions/`const` bindings), then plain top-level functions in `funcs_` (materialized as `VK::Fn` with the entry env), then every `loadedModules_` environment, then each struct's defining module (`structEnv_`). Serde paths use only the final `::` segment, so `"crate::skip"`/`"helpers::skip"`/`"skip"` are equivalent. Missing names raise.
-- **`pet.codec` field options**, encode and decode:
+- **`pat.codec` field options**, encode and decode:
   - `skip_serializing_if = "f"` — `f(value)` is consulted before encoding (and inside `transparent`); a true result omits the field.
   - `default = "f"` — `f()` supplies a missing field (including `skip_deserializing` fields). Bare `default` remains implicit.
   - `serialize_with = "f"` / `deserialize_with = "f"` — because this codec works on trees, `serialize_with(f)` returns the **tree** to emit (not a `Serializer` write) and `deserialize_with(f)` consumes the decoded **tree**; the results bypass scalar coercion.
   - `rename_all_fields = "rule"` — applies `rename_all` to internally-tagged enum payload names on encode and decode (serde's field rules apply, so `snake_case` is a no-op on already-snake fields; `camelCase`/`PascalCase` transform).
-- **Examples/tests**: `examples/83_serde_options.kn` gained a `Server` struct (skip-if-zero, default path, custom point codec) and a `Motion` enum (`rename_all_fields = "camelCase"`), with goldens re-recorded; new `tests/syntax/serde_hooks_ok.kn` (clean, tree == VM); `stdlib/pet/serde_test.kn` asserts the same surface.
+- **Examples/tests**: `examples/83_serde_options.kn` gained a `Server` struct (skip-if-zero, default path, custom point codec) and a `Motion` enum (`rename_all_fields = "camelCase"`), with goldens re-recorded; new `tests/syntax/serde_hooks_ok.kn` (clean, tree == VM); `stdlib/pat/serde_test.kn` asserts the same surface.
 
 Verification: gates **346/0/0 hung** (1_runall 81, 2b_syntax **54**, 4_vm_diff 99, 8_bundle 15, 11_native 11 — one earlier 11_native run hit a transient build timeout and passed on rerun), golden **342/0**, crosscheck **885/0** (145 `.kn` files), stdlib **17/0**; `kirncheck` clean on the new/changed files.
 
@@ -1110,14 +1110,14 @@ Deviations / not shipped (documented):
 
 **Path chosen:** the spawn-based `ParIter` (§4, Phase 4) already fans a slice per worker and reassembles in order, so the remaining rayon combinators are pure stdlib additions on top of it — no compiler change. A new `slices()` helper cuts `xs` into one contiguous slice per worker (honouring the `divided` grain so grouping iterators still fan out per group); the item-preserving adaptors map each slice, then `parallel.invoke` runs them and the partials are concatenated in order, which is exactly the sequential result. Reference read directly from `langs-source-code/rust/rayon/src/iter/{filter_map,flat_map,find,positions,min_by,max_by,zip,enumerate,take,skip,step_by,fold,try_reduce,for_each_init}.rs`.
 
-Delivered (`stdlib/pet/parallel.kn`):
+Delivered (`stdlib/pat/parallel.kn`):
 
 - **Item-preserving adaptors**: `filter_map(f)` (`f` returns a value to keep or `none` to drop), `flat_map(f)` (`f` returns an iterable, concatenated in element order), `flatten()` (one level).
 - **Searching**: `find_any`/`find_first` (first in order), `find_last` (reverse), `positions(f)` (indices), each deterministic because the fan-out reassembles in order.
 - **Ordered min/max**: `min_by`/`max_by` (a `(a, b) -> Int` comparator, as rayon's `min_by`/`max_by`) and `min_by_key`/`max_by_key` (by a key function).
 - **Reshaping**: `zip(other)` (pairs `[a, b]`, truncated to the shorter input), `enumerate()` (pairs `[i, e]`, since Kirn has no tuple value), `take`/`skip`/`step_by` (index-space rewrites returning a fresh, undivided iterator; `step_by` rejects `n <= 0`).
 - **Reducers**: `fold(identity, op)` (per-slice seed from `identity()`, partials combined pairwise with `op`), `try_reduce(init, op)` (`op` returns `ok`/`err`; the first `err` in order short-circuits and is returned, else `ok(final)`), `for_each_init(seed, f)` (one `seed()` per worker, then `f(state, e)` for its slice).
-- **Examples/tests**: `examples/85_parallel_combinators.kn` + three goldens (examples gate now **82**); `tests/syntax/empty_closure_ok.kn`; `stdlib/pet/parallel_test.kn` extended with ordered and large-input (`20000`) coverage of every combinator.
+- **Examples/tests**: `examples/85_parallel_combinators.kn` + three goldens (examples gate now **82**); `tests/syntax/empty_closure_ok.kn`; `stdlib/pat/parallel_test.kn` extended with ordered and large-input (`20000`) coverage of every combinator.
 
 **Incidental bug fixed** (found while testing `for_each_init`): an **empty-body block closure** (`fn (…) { }`) was classified by `lambdaBody.empty()` as an arrow lambda, so invoking it raised `too many lambda arguments` (and it took no parameters). A new `ast::Expr::isBlockClosure` flag is set by the parser and used by `callValue`, the checker, and the HIR lowering, so an empty block closure now takes its declared parameters and returns `none`.
 
@@ -1134,32 +1134,32 @@ Deviations / not shipped (documented):
 - **No `chain`/`interleave`/`rev`/`cloned`/`copied`/`inspect`/`map_with`/`while_some`/`flatten_iter`/`par_bridge`** yet; the §4.2 list named the combinators above.
 - **Sendability is still unchecked.** A closure that mutates captured shared state inside `for_each`/`for_each_init`/`flat_map` can race; use per-slice `init()` state (or `@[par] for`, which the tree-walker lowers) for mutations.
 
-### Update (2026-10-20) — `pet.error` module file + native gate split
+### Update (2026-10-20) — `pat.error` module file + native gate split
 
-- **`stdlib/pet/error.kn`** now exists so `import pet.error` resolves a real, file-backed module like the other `pet` modules. It re-exports the native surface (`msg`, `context`, `chain`, `root_cause`, `is`, `downcast`, `display`, `bail`, `ensure`); the `Error` value, Display/chain internals, `?` conversion, and `@[derive(Error)]` remain native because they need runtime type identity. `error.new` cannot be declared in `.kn` (`new` is a reserved keyword), so `moduleMember`'s file-backed branch falls back to the native pseudo-module of the same base name; `import pet.error; error.new(...)` therefore still works. Covered by `tests/syntax/error_module_ok.kn`.
-- **Race-free Pool examples**: `Pool.scope` tasks run concurrently, so the §4.1 examples/tests now count with `sync.Atomic` instead of appending to a shared list (the old form was an unsynchronized data race and made `86_parallel_pool.kn` flake in gate 4). Output is unchanged; only 86's lex/parse goldens changed (new `pet.sync` import).
+- **`stdlib/pat/error.kn`** now exists so `import pat.error` resolves a real, file-backed module like the other `pat` modules. It re-exports the native surface (`msg`, `context`, `chain`, `root_cause`, `is`, `downcast`, `display`, `bail`, `ensure`); the `Error` value, Display/chain internals, `?` conversion, and `@[derive(Error)]` remain native because they need runtime type identity. `error.new` cannot be declared in `.kn` (`new` is a reserved keyword), so `moduleMember`'s file-backed branch falls back to the native pseudo-module of the same base name; `import pat.error; error.new(...)` therefore still works. Covered by `tests/syntax/error_module_ok.kn`.
+- **Race-free Pool examples**: `Pool.scope` tasks run concurrently, so the §4.1 examples/tests now count with `sync.Atomic` instead of appending to a shared list (the old form was an unsynchronized data race and made `86_parallel_pool.kn` flake in gate 4). Output is unchanged; only 86's lex/parse goldens changed (new `pat.sync` import).
 - **Native gate split**: `scripts/gates/11_native.sh` (one ~13–20m script that often timed out under load) is replaced by three standalone gates — `11a_native.sh` (KIRN_HAS_NATIVE surface, fast), `11b_native.sh` (new-surface + optional-param), `11c_native.sh` (const-inline + coalesce-assign) — totalling the same 11 checks. Per-build timeout raised 300s → 900s.
 - Verification: gates **357/0/0 hung** (1_runall 84, 2b_syntax 59, 4_vm_diff 102, 8_bundle 15, 11a 7, 11b 2, 11c 2, …), golden **351/0**, crosscheck **909/0**, stdlib **17/0**.
 
-### Update (2026-10-21) — §2.4 channels: `Mpsc` / `Unbounded` in `pet.sync` and `pet.async` (shipped)
+### Update (2026-10-21) — §2.4 channels: `Mpsc` / `Unbounded` in `pat.sync` and `pat.async` (shipped)
 
-**Path chosen:** add bounded backpressuring mpsc and unbounded mpsc in `stdlib/pet/sync.kn` using the established `Mutex` + `Cond` + shared-list pattern (no compiler changes). The API returns `[tx, rx]`; `send`/`try_send` and `recv`/`try_recv` follow tokio-style semantics. Re-exported from `stdlib/pet/async.kn` (`Mpsc`/`Unbounded`/`mpsc`/`unbounded`) alongside the existing oneshot/broadcast/watch helpers.
+**Path chosen:** add bounded backpressuring mpsc and unbounded mpsc in `stdlib/pat/sync.kn` using the established `Mutex` + `Cond` + shared-list pattern (no compiler changes). The API returns `[tx, rx]`; `send`/`try_send` and `recv`/`try_recv` follow tokio-style semantics. Re-exported from `stdlib/pat/async.kn` (`Mpsc`/`Unbounded`/`mpsc`/`unbounded`) alongside the existing oneshot/broadcast/watch helpers.
 
 Delivered:
 
-- **`pet.sync`**: `Mpsc(capacity)` and `Unbounded()` returning `[MpscSender, MpscReceiver]`; sender methods `send(v)`, `try_send(v)`, `close()`, `is_closed()`; receiver methods `recv()` (returns `none` on close), `try_recv()`, `close()`, `is_closed()`, `len()`, `is_empty()`. `Unbounded` uses a shared list with no capacity limit; `Mpsc` enforces backpressure and `try_send` returns `false` when full.
-- **`pet.async`**: re-exports `Mpsc`/`Unbounded`/`mpsc`/`unbounded`/`oneshot`/`broadcast`/`watch`.
-- **Tests**: `stdlib/pet/sync_test.kn` extended with `test_mpsc_unbounded`, `test_mpsc_bounded`, `test_mpsc_close`.
+- **`pat.sync`**: `Mpsc(capacity)` and `Unbounded()` returning `[MpscSender, MpscReceiver]`; sender methods `send(v)`, `try_send(v)`, `close()`, `is_closed()`; receiver methods `recv()` (returns `none` on close), `try_recv()`, `close()`, `is_closed()`, `len()`, `is_empty()`. `Unbounded` uses a shared list with no capacity limit; `Mpsc` enforces backpressure and `try_send` returns `false` when full.
+- **`pat.async`**: re-exports `Mpsc`/`Unbounded`/`mpsc`/`unbounded`/`oneshot`/`broadcast`/`watch`.
+- **Tests**: `stdlib/pat/sync_test.kn` extended with `test_mpsc_unbounded`, `test_mpsc_bounded`, `test_mpsc_close`.
 
-Verification: `kirn test stdlib/pet/sync_test.kn` PASS (1 passed); `kirnrun --no-vm stdlib/pet/sync_test.kn` and VM both report the new mpsc tests OK. Both engines produce identical behavior for the new surface.
+Verification: `kirn test stdlib/pat/sync_test.kn` PASS (1 passed); `kirnrun --no-vm stdlib/pat/sync_test.kn` and VM both report the new mpsc tests OK. Both engines produce identical behavior for the new surface.
 
 ### Update (2026-10-21) — §4.2 parallel iterators: `rev` / `chain` / `inspect` / `cloned` / `copied` / `interleave` / `flatten_iter` / `while_some` / `map_with` / `par_bridge` (shipped)
 
 **Path chosen:** stdlib additions on the spawn-based `ParIter` (no compiler changes). `rev`/`chain` return new `ParIter`s with `divided` set appropriately so downstream fanning honors the grain; `inspect(f)` maps through `f` for side effects; `cloned`/`copied` are identity maps; `interleave`/`flatten_iter`/`while_some`/`map_with` added; `par_bridge(xs)` provides a compatibility hook.
 
-Delivered (`stdlib/pet/parallel.kn`): `ParIter.rev()`, `ParIter.chain(other)`, `ParIter.inspect(f)`, `ParIter.cloned()`, `ParIter.copied()`, `ParIter.interleave(other)`, `ParIter.flatten_iter()`, `ParIter.while_some(f)`, `ParIter.map_with(init, map_fn)`, `par_bridge(xs)`.
+Delivered (`stdlib/pat/parallel.kn`): `ParIter.rev()`, `ParIter.chain(other)`, `ParIter.inspect(f)`, `ParIter.cloned()`, `ParIter.copied()`, `ParIter.interleave(other)`, `ParIter.flatten_iter()`, `ParIter.while_some(f)`, `ParIter.map_with(init, map_fn)`, `par_bridge(xs)`.
 
-Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/pet/parallel_test.kn` PASS, `scripts/gates/6_test.sh` green.
+Verification: quick probes confirm VM and `--no-vm` behavior; `kirn test stdlib/pat/parallel_test.kn` PASS, `scripts/gates/6_test.sh` green.
 
 ### Update (2026-10-21) — §2.10 `select` over `await` arms (shipped)
 
@@ -1181,9 +1181,9 @@ treated as pending work.
 
 ### Update (2026-10-21) — timed waits for sync primitives (shipped)
 
-**Path chosen:** add `Cond.wait_timeout`/`wait_timeout_ms` to native `Cond` using `std::condition_variable::wait_for`; extend `pet.sync` with `recv_timeout` on `Oneshot`/`MpscReceiver` and `changed_timeout` on `WatchRx`. Return values follow existing conventions (`none` on close/empty for channels, `['timeout']` marker on timeout, `false` for watch).
+**Path chosen:** add `Cond.wait_timeout`/`wait_timeout_ms` to native `Cond` using `std::condition_variable::wait_for`; extend `pat.sync` with `recv_timeout` on `Oneshot`/`MpscReceiver` and `changed_timeout` on `WatchRx`. Return values follow existing conventions (`none` on close/empty for channels, `['timeout']` marker on timeout, `false` for watch).
 
-Delivered: `src/interp/runtime.cpp`, `stdlib/pet/sync.kn`.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/sync.kn`.
 
 Verification: timed probes return timeout as expected; `scripts/gates/6_test.sh` green.
 
@@ -1197,9 +1197,9 @@ references to callbacks, the callback contract is explicit: `send_modify(fn
 replacement and notifies receivers only when `changed` is true. The update and
 notification happen under the watcher lock.
 
-Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`.
+Delivered: `stdlib/pat/sync.kn`, `stdlib/pat/sync_test.kn`.
 
-Verification: `kirn check stdpet/pet/sync.kn` and the focused sync test pass.
+Verification: `kirn check stdlib/pat/sync.kn` and the focused sync test pass.
 The aggregate stdlib gate remains blocked by the pre-existing
 `contextlib_test.kn` ExitStack cleanup regression (reproduced independently;
 not changed in this phase).
@@ -1209,13 +1209,13 @@ is superseded by this update.
 
 ### Update (2026-10-27) — JSON reader/writer helpers (shipped)
 
-`pet.json` now exposes `to_writer(writer, value)` and
+`pat.json` now exposes `to_writer(writer, value)` and
 `from_reader(T, reader)`. They use Kirn's existing structural `write(Str)` and
 `read()` protocol, so runtime files, buffered writers, and test doubles can be
-used without a new handle type. `pet.io.open(path)` is now public for obtaining
+used without a new handle type. `pat.io.open(path)` is now public for obtaining
 the runtime file value used by these helpers.
 
-Delivered: `stdpet/pet/json.kn`, `stdpet/pet/io.kn`,
+Delivered: `stdlib/pat/json.kn`, `stdlib/pat/io.kn`,
 `tests/syntax/json_writer_reader_ok.kn`.
 
 Verification: both stdlib modules check cleanly; the new test checks, runs, and
@@ -1228,13 +1228,13 @@ update.
 
 ### Update (2026-10-27) — Completion-order `TaskSet.join_next` (shipped)
 
-`pet.async.TaskSet.join_next` now polls each tracked task without blocking and
+`pat.async.TaskSet.join_next` now polls each tracked task without blocking and
 returns the first completed handle, then yields briefly before retrying when no
 task is ready. This matches Tokio `JoinSet.join_next` completion semantics
 while preserving Kirn's eager OS-thread task model. `join_all` remains ordered
 because it intentionally drains the set in insertion order.
 
-Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`.
+Delivered: `stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`.
 
 Verification: `async_test.kn` and `examples/84_task_control.kn` pass. The
 aggregate stdlib run remains affected by the pre-existing
@@ -1250,9 +1250,9 @@ chaining continues to retain each layer's own creation site. This uses the
 existing interpreter frame guard and does not depend on platform-native stack
 symbols.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/error_test.kn`.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/error_test.kn`.
 
-Verification: `error_test.kn` passes and both `pet.error` and its runtime
+Verification: `error_test.kn` passes and both `pat.error` and its runtime
 backtrace method check cleanly. The earlier “backtrace returns none” deviation
 is superseded by this update.
 
@@ -1265,7 +1265,7 @@ variant and carries the original value as its payload. This supplies the
 runtime half of thiserror's `From` conversion while preserving explicit error
 types and existing `result[T]` dynamic wrapping.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/error_test.kn`.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/error_test.kn`.
 
 Verification: `error_test.kn` passes, including a typed `AutoErr` conversion
 from a raised string and derived display formatting.
@@ -1285,7 +1285,7 @@ an actionable diagnostic instead of silently relying on runtime wrapping.
 
 Delivered: `src/sema/checker.cpp`, `src/sema/checker.h`,
 `tests/syntax/error_from_mismatch_err.kn`, and the typed conversion test in
-`stdpet/pet/error_test.kn`.
+`stdlib/pat/error_test.kn`.
 
 Verification: error tests pass and gate 2b passes **71/0/0**, including the
 negative mismatch diagnostic.
@@ -1309,7 +1309,7 @@ The checker recognizes these methods on derived error values.
 ### Update (2026-10-27) — Parallel iterator method entry points (shipped)
 
 Lists now expose `xs.par_iter()` and `xs.into_par_iter()` as method aliases for
-the existing `pet.parallel.par_iter(xs)` function. Both forms return the same
+the existing `pat.parallel.par_iter(xs)` function. Both forms return the same
 ordered `ParIter` and therefore inherit its map/filter/reducer/grouping
 combinators and execution policy. The implementation delegates to the single
 stdlib constructor so the two spellings cannot diverge.
@@ -1339,7 +1339,7 @@ non-panicking handle, so `join()`/`await` still yields `none` and existing
 non-interruptible and finish before their task can observe cancellation.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/error.kn`, `stdpet/pet/error_test.kn`.
+`stdlib/pat/error.kn`, `stdlib/pat/error_test.kn`.
 
 Verification: `error_test.kn` passes for dynamic and typed source access.
 
@@ -1403,7 +1403,7 @@ bind collision.
 
 ### Update (2026-10-28) — Typed async TaskSet surface (shipped)
 
-The checker now recognizes `pet.async.TaskSet()` as `TaskSetState` even when
+The checker now recognizes `pat.async.TaskSet()` as `TaskSetState` even when
 the file-backed module is imported dynamically. Its length, emptiness,
 cancellation, and join methods are checked; `join_next`, `join_all`, and
 `shutdown` retain async task-result shapes instead of collapsing to an
@@ -1429,14 +1429,14 @@ Verification: build, checker, VM, and native execution pass.
 
 ### Update (2026-10-28) — Nominal async time values (shipped)
 
-Added `Duration`, `Instant`, and `Elapsed` value types to `pet.async` while
+Added `Duration`, `Instant`, and `Elapsed` value types to `pat.async` while
 retaining the existing integer-millisecond timer API. The new values provide
 explicit millisecond/second conversion, absolute-instant arithmetic,
 checked/saturating duration calculations, elapsed measurements, and typed
 `sleep_duration`/`sleep_until_instant` helpers. Existing `instant`, `elapsed`,
 `sleep`, `timeout`, and interval callers remain source-compatible.
 
-Delivered: `stdpet/pet/async.kn`,
+Delivered: `stdlib/pat/async.kn`,
 `tests/syntax/async_time_nominal_ok.kn`.
 
 Verification: full build, focused VM/tree nominal-time parity, legacy async
@@ -1446,11 +1446,11 @@ time VM/tree parity, and diff checks pass.
 
 Derived `Deserialize` conformance now exposes the generated type-level
 operation `Type.deserialize(tree)`, alongside the existing value-level
-`value.serialize()`. Both dispatch through the shared `pet.codec` tree
+`value.serialize()`. Both dispatch through the shared `pat.codec` tree
 encoder/coercer, so nested structs, enums, and all format adapters retain one
 implementation rather than diverging generated copies.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/serde_test.kn`.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/serde_test.kn`.
 
 Verification: full rebuild and serde test execution pass under both the VM and
 tree-walker paths; the new type-level operation is covered by the regression.
@@ -1469,13 +1469,13 @@ Delivered: `src/interp/runtime.h`, `src/interp/runtime.cpp`,
 
 ### Update (2026-10-31) — Typed timeout expiration values (shipped)
 
-The nominal `Elapsed` value is now the timeout error payload: `pet.async.timeout`
+The nominal `Elapsed` value is now the timeout error payload: `pat.async.timeout`
 returns `err(Elapsed(millis: budget))` when its task exceeds the budget, and
 `timeout_at` inherits the same typed contract. Callers can inspect the elapsed
 budget with `as_millis()` or `as_duration()` instead of parsing a string marker;
 task-originated errors still propagate unchanged when the task completes first.
 
-Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_time_nominal_ok.kn`, `examples/78_async_time.kn`, and this
 plan update.
 
@@ -1556,13 +1556,13 @@ tree-walker execution.
 The serde layer now has a checker-visible `Serialize`/`Deserialize` trait
 contract. `@[derive(Serialize, Deserialize)]` on structs and enums registers
 the corresponding conformance, and derived values expose `.serialize()` through
-the shared format-agnostic codec. `pet.serde.serialize` and
-`pet.serde.deserialize` provide the same tree-level operations for JSON, TOML,
+the shared format-agnostic codec. `pat.serde.serialize` and
+`pat.serde.deserialize` provide the same tree-level operations for JSON, TOML,
 YAML, and CBOR adapters without duplicating format logic.
 
 Delivered: `src/sema/checker.cpp`, `src/interp/runtime.h`,
-`src/interp/runtime.cpp`, `stdpet/pet/serde.kn`, and
-`stdpet/pet/serde_test.kn`.
+`src/interp/runtime.cpp`, `stdlib/pat/serde.kn`, and
+`stdlib/pat/serde_test.kn`.
 
 Verification: full build, serde module checks, focused serde syntax checks,
 and VM/tree-walker serde test parity pass. The remaining full visitor-based
@@ -1576,9 +1576,9 @@ aggregate stdlib gate still has the pre-existing localhost bind and
 `deserialize` operations through the same reflection hook path used by the
 individual `serialize_with` and `deserialize_with` options. This keeps custom
 field representation format-agnostic and applies consistently to every format
-using `pet.codec`.
+using `pat.codec`.
 
-Delivered: `stdpet/pet/codec.kn`, `stdpet/pet/serde_test.kn`.
+Delivered: `stdlib/pat/codec.kn`, `stdlib/pat/serde_test.kn`.
 
 Verification: serde checks and VM/tree-walker round-trip tests pass. The
 aggregate stdlib gate retains the previously documented async localhost-bind
@@ -1586,14 +1586,14 @@ and `contextlib_test.kn` ExitStack failures.
 
 ### Update (2026-10-28) — In-place parallel list mutation (shipped)
 
-`pet.parallel.par_iter_mut(xs)` now preserves the original list backing storage
+`pat.parallel.par_iter_mut(xs)` now preserves the original list backing storage
 and exposes `for_each_mut(fn (value) -> replacement)`. Large lists are divided
 into disjoint index ranges and each worker writes replacements directly into
 its range; small inputs use the same mutation contract sequentially. This is
 the ownership-safe Kirn equivalent of rayon's `par_iter_mut` while avoiding
 unsound shared mutable references across worker closures.
 
-Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`.
+Delivered: `stdlib/pat/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`.
 
 Verification: parallel module checks and VM/tree-walker execution pass on a
 5,000-element in-place mutation regression. The full syntax gate retains the
@@ -1617,7 +1617,7 @@ localhost bind in `async_byteio_ok.kn` (**79 passed, 1 failed, 0 hung**).
 ### Update (2026-10-28) — Formal async I/O traits and owned file halves (shipped)
 
 Async byte I/O now declares explicit `AsyncRead`, `AsyncWrite`, and
-`AsyncSeek` traits with async method signatures. `pet.async_io.File` and its
+`AsyncSeek` traits with async method signatures. `pat.async_io.File` and its
 buffered and split implementations expose those contracts, while
 `File.into_split()` returns distinct owned file-half types whose independent
 cursor state can be moved to separate tasks. Network `TcpStream.into_split()`
@@ -1626,7 +1626,7 @@ unchanged. File and network half names are module-unique because Kirn's current
 runtime type registry is process-wide.
 
 Delivered: `src/ast/ast.h`, `src/parser/parser.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/async_io.kn`, `stdpet/pet/async_net.kn`, and
+`stdlib/pat/async_io.kn`, `stdlib/pat/async_net.kn`, and
 `tests/syntax/async_io_ok.kn`.
 
 Verification: full build, async I/O and async network checks, focused
@@ -1640,7 +1640,7 @@ The historical deviation lists above remain as design rationale, but later
 implementation updates supersede several of their “not shipped” statements.
 The authoritative shipped surface now includes:
 
-- `pet.sync` oneshot, broadcast, watch, timed waits, and watch mutation
+- `pat.sync` oneshot, broadcast, watch, timed waits, and watch mutation
   callbacks;
 - `select` task and `await` arms, `else`, biased/rotating selection, guarded
   arms, and cooperative cancellation of enabled losing tasks;
@@ -1669,7 +1669,7 @@ legacy `iv.next_ms`, `period_ms`, and `behaviour` field API remains readable.
 Cancelling a tick therefore leaves the schedule unchanged, matching Tokio's
 cancel-safe tick contract.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async.kn`,
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async.kn`,
 `tests/syntax/async_time_ok.kn`.
 
 Verification: full build, async module checks, VM/tree parity, and syntax gate
@@ -1678,12 +1678,12 @@ Verification: full build, async module checks, VM/tree parity, and syntax gate
 ### Update (2026-10-28) — Cooperative async process waits (shipped)
 
 The native `os.try_wait(pid)` primitive now performs a non-blocking
-`waitpid(WNOHANG)`. `pet.async_process.wait` and `wait_with_output` poll it
+`waitpid(WNOHANG)`. `pat.async_process.wait` and `wait_with_output` poll it
 with timer checkpoints, so cancelling a process wait no longer leaves the task
 blocked in a native `waitpid`; the child remains available for explicit
 `kill()` and later reaping.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_process.kn`,
 `tests/syntax/async_io_ok.kn`.
 
 Verification: full build, process-module checks, VM/tree parity, and syntax
@@ -1691,12 +1691,12 @@ gate 2b (**78 passed, 0 failed, 0 hung**).
 
 ### Update (2026-10-28) — Cancel-safe process output and status (shipped)
 
-`pet.async_process.output` and `status` now spawn their child and poll
+`pat.async_process.output` and `status` now spawn their child and poll
 `os.try_wait` directly instead of nesting a blocking run or an await of another
 task. Deferred cleanup kills and reaps a child when the owning task is
 cancelled, and normal completion removes all capture files.
 
-Delivered: `stdpet/pet/async_process.kn`, `tests/syntax/async_io_ok.kn`.
+Delivered: `stdlib/pat/async_process.kn`, `tests/syntax/async_io_ok.kn`.
 
 Verification: process-module checks, VM/tree cancellation parity (cancelled
 wait completes in under 500 ms), and syntax gate 2b (**78 passed, 0 failed,
@@ -1706,7 +1706,7 @@ wait completes in under 500 ms), and syntax gate 2b (**78 passed, 0 failed,
 
 Native TCP accept/read/write and UDP receive now wait for descriptor readiness
 in short poll slices and check the current task's cancellation flag between
-slices. The public blocking-shaped `pet.async.net` API is unchanged, while a
+slices. The public blocking-shaped `pat.async.net` API is unchanged, while a
 cancelled operation unwinds instead of remaining stuck in a syscall.
 
 Delivered: `src/interp/runtime.cpp`, `tests/syntax/async_byteio_ok.kn`.
@@ -1731,7 +1731,7 @@ and syntax gate 2b (**78 passed, 0 failed, 0 hung**).
 
 Native whole-file and positional filesystem operations now transfer data in
 bounded 64 KiB chunks and check the current task cancellation flag between
-chunks. The public `pet.async.fs` and `pet.async.io` APIs remain unchanged,
+chunks. The public `pat.async.fs` and `pat.async.io` APIs remain unchanged,
 while large reads and writes can unwind cooperatively instead of completing a
 single uninterruptible whole-file operation.
 
@@ -1764,7 +1764,7 @@ to finish and joins it even when the public handle was cooperatively aborted.
 not report completion while cancelled OS tasks are still running.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+`stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_tasks_ok.kn`.
 
 Verification: full build, async stdlib/checker checks, focused VM/tree parity,
@@ -1802,12 +1802,12 @@ gate 2b (**78 passed, 0 failed, 0 hung**).
 
 ### Update (2026-10-28) — Timeout cancellation (shipped)
 
-`pet.async.timeout` now cooperatively aborts a task that exceeds its deadline
+`pat.async.timeout` now cooperatively aborts a task that exceeds its deadline
 before returning `err("elapsed")`. This uses the task handle cancellation
 surface and preserves the existing result/error behavior for tasks that finish
 within the timeout.
 
-Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_time_ok.kn`.
 
 Verification: async time checks and VM/native runs pass, including the
@@ -1857,12 +1857,12 @@ Verification: build, checker, VM, and native execution pass.
 
 ### Update (2026-10-28) — Async buffered-read contract (shipped)
 
-`pet.async_io` now exposes `AsyncBufRead` with asynchronous `read_line` and
+`pat.async_io` now exposes `AsyncBufRead` with asynchronous `read_line` and
 `lines` operations. `File` and `BufReader` implement the contract while
 retaining their concrete APIs, so line-oriented consumers can use one stable
 async surface across unbuffered and buffered readers.
 
-Delivered: `stdpet/pet/async_io.kn`, `tests/syntax/async_bufread_ok.kn`.
+Delivered: `stdlib/pat/async_io.kn`, `tests/syntax/async_bufread_ok.kn`.
 
 Verification: full build, checker, tree-walker/VM parity, and the async-I/O
 syntax regression pass.
@@ -1894,7 +1894,7 @@ explicit trait implementation regression.
 ### Update (2026-10-28) — Parallel map/fold decorator forms (shipped)
 
 `@[par]` now lowers decorated `map` and `fold` calls on ordinary iterables to
-the `pet.parallel` iterator implementation. Both expression statements and
+the `pat.parallel` iterator implementation. Both expression statements and
 assignments preserve the normal result and assignment semantics, while an
 already-parallel iterator is dispatched directly.
 
@@ -1905,12 +1905,12 @@ Verification: full rebuild, checker, and repeated tree-walker/VM parity pass.
 
 ### Update (2026-10-28) — Tree encoder/decoder adapter surface (shipped)
 
-`pet.serde` now exposes format-neutral `Encoder` and `Decoder` contracts plus
+`pat.serde` now exposes format-neutral `Encoder` and `Decoder` contracts plus
 `TreeEncoder`/`TreeDecoder` adapters. `serialize_into` and `deserialize_from`
 connect those adapters to the shared codec, allowing format modules and user
 code to exchange typed trees without depending directly on JSON rendering.
 
-Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
+Delivered: `stdlib/pat/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
 
 Verification: checker and repeated tree-walker/VM serde adapter tests pass.
 
@@ -1921,7 +1921,7 @@ Verification: checker and repeated tree-walker/VM serde adapter tests pass.
 current parent, while `write_key`, scalar writers, `end`, and `finish` preserve
 ordered nested trees for adapter and format code.
 
-Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
+Delivered: `stdlib/pat/serde.kn`, `tests/syntax/serde_adapter_ok.kn`.
 
 Verification: repeated tree-walker/VM nested adapter tests pass.
 
@@ -1932,7 +1932,7 @@ Verification: repeated tree-walker/VM nested adapter tests pass.
 then feeds its returned tree through the normal typed coercion path, providing
 custom decoding without format-specific code.
 
-Delivered: `stdpet/pet/serde.kn`, `tests/syntax/serde_visitor_ok.kn`.
+Delivered: `stdlib/pat/serde.kn`, `tests/syntax/serde_visitor_ok.kn`.
 
 Verification: repeated tree-walker/VM visitor regressions pass.
 
@@ -1943,7 +1943,7 @@ copies into Kirn's automatic-drop frame. It registers managers before entering
 them and invokes cleanup directly from the stored stack, preventing duplicate
 `exit()` calls while preserving reverse-order cleanup and callback execution.
 
-Delivered: `stdpet/pet/contextlib.kn`, `KIRN_PLANS/POWER_PLAN.md`.
+Delivered: `stdlib/pat/contextlib.kn`, `KIRN_PLANS/POWER_PLAN.md`.
 
 Verification: `contextlib_test.kn` and the complete stdlib test gate pass.
 
@@ -1997,7 +1997,7 @@ Final evidence after rebuild:
 
 ### Update (2026-10-30) — Async socket options (shipped)
 
-`pet.async_net` now exposes practical POSIX socket configuration methods:
+`pat.async_net` now exposes practical POSIX socket configuration methods:
 `TcpStream.set_nodelay`, `TcpStream.set_keepalive`,
 `TcpListener.set_reuseaddr`, and `UdpSocket.set_broadcast`. The native `net`
 module applies them through checked `setsockopt` calls and reports failures as
@@ -2005,7 +2005,7 @@ Kirn panics with the platform error text. This closes the previously missing
 TCP_NODELAY/keepalive/reuse-address/broadcast subset while retaining the
 documented POSIX-only and blocking-task model.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`, and
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_net.kn`, and
 `tests/syntax/async_net_options_ok.kn`.
 
 Verification: checker plus tree-walker/VM network execution pass; full syntax,
@@ -2017,7 +2017,7 @@ The async network handles now also expose receive/send buffer sizing on TCP
 and UDP sockets, plus IPv4 UDP TTL. Values are validated before checked native
 `setsockopt` calls, with clear range errors for invalid sizes or TTLs.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`, and the
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_net.kn`, and the
 expanded `tests/syntax/async_net_options_ok.kn` regression.
 
 ### Update (2026-10-28) — Mutable parallel chunks and drain ranges (shipped)
@@ -2029,10 +2029,10 @@ through the shared parallel pool. `par_drain(xs, start, end)` removes a
 half-open range while preserving the original list handle, so aliases observe
 the mutation and the removed values are returned in order.
 
-Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
+Delivered: `stdlib/pat/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
 the stdlib parallel regression coverage.
 
-Verification: mutable tree-walker/VM parity passes; `kirn test stdpet/pet`
+Verification: mutable tree-walker/VM parity passes; `kirn test stdlib/pat`
 passes with **18 passed, 0 failed**. The earlier `par_chunks_mut` and
 `ParallelDrainRange` deviation is superseded by this explicit-window Kirn API;
 Rust-style borrowed references remain intentionally absent.
@@ -2046,7 +2046,7 @@ so aliases observe the sorted result without introducing Rust-style borrowed
 references. The unstable-named form retains Kirn's deterministic stable
 implementation while honoring in-place mutation.
 
-Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
+Delivered: `stdlib/pat/parallel.kn`, `tests/syntax/parallel_mut_ok.kn`, and
 stdlib parallel regression coverage.
 
 ### Update (2026-10-30) — Mutable iterator method dispatch fix (shipped)
@@ -2084,18 +2084,18 @@ serial even when the global scheduler has multiple workers. Invalid widths are
 rejected with a clear error. The global scheduler remains shared, but the
 public per-pool concurrency contract is now honored.
 
-Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
+Delivered: `stdlib/pat/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
 ### Update (2026-10-31) — Cancellation-safe async filesystem copy (shipped)
 
-`os.copy_file`, used by `pet.async_fs.copy`, now transfers data in bounded
+`os.copy_file`, used by `pat.async_fs.copy`, now transfers data in bounded
 64 KiB chunks and checks the owning task's cancellation flag between chunks.
 If cancellation or another failure interrupts the transfer, the partially
 written destination is closed and removed before the signal is propagated.
 Successful copies retain overwrite behavior and return the exact byte count.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_test.kn`,
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-30) — Scheduler-local work stealing and configured worker identity (shipped)
@@ -2131,7 +2131,7 @@ duration and rechecks its predicate, so a spurious or unrelated wake cannot
 turn a bounded operation into an unbounded one. Barrier timeout cleanup still
 removes the participant from the current generation.
 
-Delivered: `stdpet/pet/sync.kn` and this plan update.
+Delivered: `stdlib/pat/sync.kn` and this plan update.
 
 Verification: focused timed-sync tests pass; syntax gate **94 passed, 0
 failed, 0 hung** after rerun; stdlib gate **1 passed, 0 failed, 0 hung** (19
@@ -2147,18 +2147,18 @@ returns `true` when enqueued and `false` when capacity remains unavailable.
 Both operations recheck predicates after wakeups and preserve messages that
 arrive at the deadline.
 
-Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
+Delivered: `stdlib/pat/sync.kn`, `stdlib/pat/sync_test.kn`, the updated test
 golden, and this plan update.
 
 ### Update (2026-10-30) — Explicit async runtime builders (shipped)
 
-`pet.async` now exposes `multi_thread(workers)` and `current_thread()` runtime
+`pat.async` now exposes `multi_thread(workers)` and `current_thread()` runtime
 builders with `Runtime.block_on`, `spawn`, `spawn_blocking`, `handle`,
 `shutdown_timeout`, and `shutdown_background`. Runtime handles retain the
 configured flavor/worker metadata, share task tracking through a common state
 cell, reject new work after shutdown, and provide bounded shutdown waits.
 
-Delivered: `stdpet/pet/async.kn`,
+Delivered: `stdlib/pat/async.kn`,
 `tests/syntax/async_runtime_builder_ok.kn`, and this plan update.
 
 Verification: checker plus tree-walker/VM runtime-builder execution pass; syntax
@@ -2171,8 +2171,8 @@ hung** (19 tests); examples gate **90 passed, 0 failed, 0 hung**; golden suite
 Because `async` is a reserved keyword, the common channel constructors are now
 also available without imports as `oneshot()`, `broadcast(capacity)`,
 `watch(initial)`, `mpsc(capacity)`, and `unbounded()`. They delegate to the
-canonical `pet.sync` implementations, so behavior and channel state are not
-duplicated; the namespaced `pet.async`/`pet.sync` APIs remain available.
+canonical `pat.sync` implementations, so behavior and channel state are not
+duplicated; the namespaced `pat.async`/`pat.sync` APIs remain available.
 
 Delivered: `src/sema/checker.cpp`, `src/interp/runtime.cpp`,
 `tests/syntax/async_channel_prelude_ok.kn`, and this plan update.
@@ -2185,11 +2185,11 @@ passed, 0 failed**.
 ### Update (2026-10-30) — Network async I/O trait conformance (shipped)
 
 TCP streams and borrowed/owned read/write halves now implement the shared
-`pet.async_io.AsyncRead`/`AsyncWrite` contracts. Each read side exposes
+`pat.async_io.AsyncRead`/`AsyncWrite` contracts. Each read side exposes
 `read_exact` and `read_to_end`, using the same EOF and byte-buffer behavior as
 file readers, so generic async I/O helpers can operate across files and sockets.
 
-Delivered: `stdpet/pet/async_net.kn`,
+Delivered: `stdlib/pat/async_net.kn`,
 `tests/syntax/async_net_trait_ok.kn`, and this plan update.
 
 ### Update (2026-10-30) — Connected UDP convenience API (shipped)
@@ -2199,7 +2199,7 @@ Delivered: `stdpet/pet/async_net.kn`,
 connects the datagram descriptor, waits for readiness, and preserves the
 existing `send_to`/`recv_from` APIs for connectionless traffic.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_net.kn`,
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_net.kn`,
 `tests/syntax/async_net_options_ok.kn`, and this plan update.
 
 Verification: full build; focused UDP/TCP regression passes under tree-walker
@@ -2220,7 +2220,7 @@ wakes no longer return a false empty/unchanged result early or extend the
 operation beyond its requested bound; close and queued-value behavior remains
 unchanged.
 
-Delivered: `stdpet/pet/sync.kn` and this plan update.
+Delivered: `stdlib/pat/sync.kn` and this plan update.
 
 Verification: focused checker and full sync test pass; syntax gate **94 passed,
 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19 tests);
@@ -2236,7 +2236,7 @@ Verification: checker plus tree-walker/VM pool parity pass; syntax gate **94
 passed, 0 failed, 0 hung**; stdlib gate **1 passed, 0 failed, 0 hung** (19
 tests); examples gate **90 passed, 0 failed, 0 hung**.
 
-### Update (2026-10-30) — Timed `pet.sync` waits (shipped)
+### Update (2026-10-30) — Timed `pat.sync` waits (shipped)
 
 The higher-level synchronization primitives now expose bounded waits backed by
 the native timed condition variable: `Barrier.wait_timeout(ms) -> Bool`,
@@ -2245,7 +2245,7 @@ the native timed condition variable: `Barrier.wait_timeout(ms) -> Bool`,
 available permit or notification returns `true`. A timed-out barrier participant
 leaves its generation so a missed party cannot permanently wedge later rounds.
 
-Delivered: `stdpet/pet/sync.kn`, `stdpet/pet/sync_test.kn`, the updated test
+Delivered: `stdlib/pat/sync.kn`, `stdlib/pat/sync_test.kn`, the updated test
 golden, and this plan update.
 
 Verification: focused checker and sync test pass; syntax gate **94 passed, 0
@@ -2283,7 +2283,7 @@ only `main()`. This completes the runner wiring for modules that use `main` for
 setup and `@[test]` for assertions.
 
 Delivered: `src/interp/runtime.{h,cpp}`, `src/driver/driver.{h,cpp}`,
-`tools/kirn.cpp`, `stdpet/pet/attribute_runner_test.kn`, and this plan update.
+`tools/kirn.cpp`, `stdlib/pat/attribute_runner_test.kn`, and this plan update.
 
 Verification: focused checker and tree-walker/VM execution pass; syntax gate
 **93 passed, 0 failed, 0 hung**; stdlib gate **19 passed, 0 failed**; examples
@@ -2324,7 +2324,7 @@ can observe work in progress and all spawned work is complete when the scope
 returns. Pool permits and cancellation/error propagation continue to use the
 existing task machinery.
 
-Delivered: `stdpet/pet/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
+Delivered: `stdlib/pat/parallel.kn`, `tests/syntax/parallel_pool_ok.kn`, and
 this plan update.
 
 ### Update (2026-10-31) — Parallel stateful `map_with` (shipped)
@@ -2335,18 +2335,18 @@ slices in source order. This makes the existing Rayon-style API genuinely
 parallel for large inputs while keeping per-slice state isolated and ordered
 results deterministic.
 
-Delivered: `stdpet/pet/parallel.kn`, `stdpet/pet/parallel_test.kn`, and this
+Delivered: `stdlib/pat/parallel.kn`, `stdlib/pat/parallel_test.kn`, and this
 plan update.
 
 ### Update (2026-10-31) — Async file close state (shipped)
 
-`pet.async_io.File.close()` and all file split halves now publish a shared
+`pat.async_io.File.close()` and all file split halves now publish a shared
 closed state. Reads, writes, seeks, position/size queries, and further splits
 reject use-after-close with a clear error; owned halves retain independent
 close state. This makes the existing close API enforceable while preserving
 the path-cursor implementation and its cancellation-safe chunked I/O.
 
-Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async_io.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Buffered async I/O lifecycle (shipped)
@@ -2356,7 +2356,7 @@ flushes pending chunks before closing the delegated file. Buffered adapters
 therefore participate in the same deterministic close and use-after-close
 contract as direct files.
 
-Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async_io.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — AsyncWrite method conformance (shipped)
@@ -2367,7 +2367,7 @@ also returns the accepted byte count from its asynchronous `write` method;
 existing eager-task behavior remains compatible with callers that only await
 `write_all` or `flush`.
 
-Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async_io.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Buffered byte writes (shipped)
@@ -2377,17 +2377,17 @@ bytes without corrupting their length semantics, and returns the number of
 bytes accepted. This brings the buffered adapter in line with the byte-oriented
 `AsyncWrite` surface used by direct files and network streams.
 
-Delivered: `stdpet/pet/async_io.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async_io.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Structured timeout cancellation (shipped)
 
-`pet.async.timeout` now aborts and drains a timed-out task before returning
+`pat.async.timeout` now aborts and drains a timed-out task before returning
 `Elapsed`. This prevents timeout from leaving an eager OS task detached while
 retaining cooperative cancellation semantics; tasks that do not reach a
 cancellation checkpoint still retain the runtime's documented blocking limits.
 
-Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_time_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Nominal time values at async boundaries (shipped)
@@ -2398,46 +2398,46 @@ milliseconds. Conversion is centralized at the runtime boundary, preserving
 backward compatibility while making the planned typed time surface usable in
 ordinary async code.
 
-Delivered: `stdpet/pet/async.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_time_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Async process stdin piping (shipped)
 
 The POSIX process launcher now accepts an optional text/byte stdin payload,
 writes it before `fork`, and connects the resulting file to the child's stdin.
-`pet.async_process.input(command, data)` exposes the capability for
+`pat.async_process.input(command, data)` exposes the capability for
 `output`, `status`, and `spawn` while retaining empty-stdin behavior when no
 payload is supplied.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/async_process.kn`,
-`stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/async_process.kn`,
+`stdlib/pat/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Filesystem streaming handles (shipped)
 
-`pet.async_fs` now re-exports cursor-based `open`, `append`, and `create`
-constructors backed by `pet.async_io.File`. Callers can use `a.fs` directly
+`pat.async_fs` now re-exports cursor-based `open`, `append`, and `create`
+constructors backed by `pat.async_io.File`. Callers can use `a.fs` directly
 for `AsyncRead`/`AsyncWrite`/`AsyncSeek` operations while the existing whole-
 file filesystem helpers remain unchanged.
 
-Delivered: `stdpet/pet/async_fs.kn`, `stdpet/pet/async_test.kn`,
+Delivered: `stdlib/pat/async_fs.kn`, `stdlib/pat/async_test.kn`,
 `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — Awaitable JSON stream adapters (shipped)
 
-`pet.json.write_to` and `read_from` now bridge serde-aware JSON with the
+`pat.json.write_to` and `read_from` now bridge serde-aware JSON with the
 `AsyncWrite`/`AsyncRead` contract. They await buffered or direct file handles,
 while the existing synchronous `to_writer`/`from_reader` helpers remain
 available for legacy streams. `BufWriter` now also implements the complete
 `write_all` method required by `AsyncWrite`.
 
-Delivered: `stdpet/pet/json.kn`, `stdpet/pet/async_io.kn`,
-`stdpet/pet/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
+Delivered: `stdlib/pat/json.kn`, `stdlib/pat/async_io.kn`,
+`stdlib/pat/async_test.kn`, `tests/syntax/async_io_ok.kn`, and this plan update.
 
 ### Update (2026-10-31) — JSON reader uses the formal async byte contract (shipped)
 
-`pet.json.read_from` now consumes `AsyncRead.read_to_end()` and decodes the
+`pat.json.read_from` now consumes `AsyncRead.read_to_end()` and decodes the
 returned bytes, rather than depending on the optional text convenience method.
 This makes the adapter usable with every declared async reader, including
 network-style readers that expose bytes but not `read_to_string`.
 
-Delivered: `stdpet/pet/json.kn` and this plan update.
+Delivered: `stdlib/pat/json.kn` and this plan update.

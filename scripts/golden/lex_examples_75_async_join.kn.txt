@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/75_async_join.kn
 Ident	8:1	import
-Ident	8:8	pet
+Ident	8:8	pat
 Punct	8:11	.
 Ident	8:12	async
 Ident	8:18	as

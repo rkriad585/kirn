@@ -99,7 +99,7 @@ What **does** exist and is solid:
 - One shared `frontEnd()` = lex + parse + `sema::Checker::checkModule`
   (`kirn_driver::readManifest`).
 - `kirn build` modes today: `-S` sasm listing, default host bundle, GNU C++
-  cross/native (used on Linux), MSVC `-O`/link, pet pack
+  cross/native (used on Linux), MSVC `-O`/link, pat pack
   (`kirn_driver::buildProgram`).
 - FFI to C via `extern fn` + `unsafe` (`examples/24_ffi_unsafe.kn`); symbols
   resolve through the process's linked C runtime
@@ -266,7 +266,7 @@ Notes:
 
 This section quotes the _actual_ compiler sources (local trees in
 `/home/rkriad585/Projects/go-rust-ruby-cpython-source-code`) that the Kirn
-design below borrows from. Every snippet is `file:line`-verified. Paths are
+design below borrows from. Every snippat is `file:line`-verified. Paths are
 relative to each tree: `go-master`, `rust-main`, `ruby-master`, `cpython-main`.
 
 #### 3.4.1 Two-tool split (`kirn` vs `kirnc`) — modeled on Go's `cmd/go` ↔ `cmd/compile`
@@ -860,7 +860,7 @@ Design as built:
     bounded: a body can only name a macro that already existed, so the reference
     graph only ever points backwards. `{.fn A. A.}` is caught at definition time
     with a message that names the cause. `kMaxSteps` remains as defence in depth.
-- **No `#include`.** Module imports stay semantic (`import pet.math`), as
+- **No `#include`.** Module imports stay semantic (`import pat.math`), as
   originally decided.
 - **Deliverable**: `kirnc -E` prints the expanded token stream.
 
@@ -1134,10 +1134,10 @@ _Target: object emission for the phase's program must beat the Rust/Go equivalen
 > Reference: LLVM — LLD in-process linkers; Go — a single `cmd/link`; Zig — self-contained linking.
 
 ```kirn
-import pet.math;
+import pat.math;
 
 fn main() -> none {
-    print(pet.math.abs(-4));
+    print(pat.math.abs(-4));
 }
 ```
 
@@ -1186,7 +1186,7 @@ _Target: link time for the phase's program must beat the Rust/Go equivalent, mea
    installed `kirn`+`kirnc` pair works without the source tree. Today
    `ensureRunner` still hardcodes `<exedir>/../src` and `<exedir>/../tools`.
 5. **Share the payload formats.** `KIRNBUNDLE/1` writer/reader
-   (`kirn_driver::bundleTail` / `tools/runner.cpp:61-90`) and `PETLIB/1`
+   (`kirn_driver::bundleTail` / `tools/runner.cpp:61-90`) and `PATLIB/1`
    (`:2937-2951` / `:3068-3120`) are duplicated three ways; promote to one
    header. _Not started — now a cross-library concern_, since the writer is in
    `kirn_driver` and the reader is compiled into `kirnrt`. Two details make a
@@ -1283,7 +1283,7 @@ having oracles at all — none was visible in "199 goldens pass, 153 gates pass"
 
 1. **`libDirsFor` broke bare filenames** (a regression this phase introduced).
    `fs::path("main.kn").parent_path()` is empty, so the derived search dirs
-   became `/pets`, `/../stdlib`, `/../../stdlib` — absolute paths off the
+   became `/pats`, `/../stdlib`, `/../../stdlib` — absolute paths off the
    filesystem root. `kirnrun main.kn` panicked `unknown module 'greet'` (exit 70) where `kirnrun ./main.kn` worked. The recorded golden could not see it,
    because the fixture passes an _absolute_ path, which always has a directory
    component. Fixed by mapping an empty parent to `.`.
@@ -1297,12 +1297,12 @@ having oracles at all — none was visible in "199 goldens pass, 153 gates pass"
 3. **`kirn build` shipped unchecked code** (§5.6). It returned 0 and produced an
    executable for a program `kirn run` rejects with 65; the failure only
    appeared when the binary was run. The bundled branch now type-checks first
-   and returns 65. `gatherEmbedded` was also reading neither `$KIRN_PETS` nor
+   and returns 65. `gatherEmbedded` was also reading neither `$KIRN_PATS` nor
    `$KIRN_STDLIB`, so a program using them built into a binary that panicked
    `unknown module`; it now shares `libDirsFor`.
 
 The two items below were open in the original phase-0 snapshot. They are now
-closed: `src/driver/payload.h` shares the `KIRNBUNDLE/1` and `PETLIB/1`
+closed: `src/driver/payload.h` shares the `KIRNBUNDLE/1` and `PATLIB/1`
 framing, and `resourceRoot()` implements the environment-override,
 `KIRN_PREFIX`, and executable-relative discovery used by the installed tree.
 
@@ -1833,7 +1833,7 @@ fn main() -> none {
 
 > Reference: LLVM — LLD; Zig — `-femit-asm` / `-femit-bin` stage flags.
 
-_Verify:_ `kirnc -c` → object; linker output runs `hello` + `pet.math`; reuse
+_Verify:_ `kirnc -c` → object; linker output runs `hello` + `pat.math`; reuse
 release-workflow machine-header checks for all 6 release targets.
 
 **Phase 6 — `kirn` integration + shipping.** `kirn check`; `kirn build`/`kirn
@@ -1873,7 +1873,7 @@ _Verify:_ `kirn new` + `kirn build` + run works from a _clean installed_ tree
   "behavior-preserving" becomes a checked claim. Re-record with `--record`
   only as a deliberate act: every diff is a behavior change that needs a
   reason. One gotcha it taught us: `kirn test` discovers tests from the CWD and
-  `stdlib/pet/io_test.kn` writes a temp file, so a probe that leaves state
+  `stdlib/pat/io_test.kn` writes a temp file, so a probe that leaves state
   behind makes the _next_ run's snapshot differ; the harness cleans up the way
   `gates_linux.sh` does.
 - **Pipeline cross-check tools** (heavy reuse of the "two oracles must agree"
@@ -2013,11 +2013,11 @@ dry-run command check, and the full golden corpus pass.
 
 Builder Phase 6 now makes `kirn` the orchestrator and `kirnc` the compiler:
 ordinary `kirn check`, `kirn run`, and `kirn build` delegate to the sibling
-`kirnc`, while package builds (`build pet`) remain on the package path. The
+`kirnc`, while package builds (`build pat`) remain on the package path. The
 driver exposes `kirn version`/`--version` and `kirn doctor`, and global
 `--verbose` reaches the compiler command without changing source arguments.
 
-Installed binaries discover `stdpet` relative to their own prefix, with
+Installed binaries discover `stdlib` relative to their own prefix, with
 `KIRN_STDLIB` remaining an explicit override. CMake installs exactly `kirn`
 and `kirnc` as user-facing executables plus the runtime data required for a
 clean installed tree. The lazy runner's standalone link now carries the same
@@ -2029,7 +2029,7 @@ Delivered: `tools/kirn.cpp`, `src/driver/driver.cpp`, `CMakeLists.txt`,
 Verification: serial CMake build; gate 8 **23/23**; syntax **104/104**;
 stdlib test **1/1**; examples **90/90**; golden corpus **419/419**; clean
 prefix installation with exactly `bin/kirn` and `bin/kirnc`; installed-tree
-execution of a program importing `pet.math` with `KIRN_STDLIB` unset.
+execution of a program importing `pat.math` with `KIRN_STDLIB` unset.
 
 ### Update (2026-10-31) — AOT default and explicit runtime backend (shipped)
 
@@ -2149,7 +2149,7 @@ green.
 The shipping gate now proves the complete clean-prefix workflow, not only
 stdlib import discovery: installed `kirn check` delegates to the installed
 `kirnc`, and installed `kirn build` produces and executes an AOT application
-with `KIRN_STDLIB`/`KIRN_PETS` unset and no source-checkout paths available.
+with `KIRN_STDLIB`/`KIRN_PATS` unset and no source-checkout paths available.
 The installation is still asserted to contain exactly the two user-facing
 executables, `kirn` and `kirnc`.
 
@@ -2413,13 +2413,13 @@ now wins the measured run phase, while cold build time remains slower than Rust.
 
 The remaining Phase 0 plumbing gaps are closed. `src/driver/payload.h` now
 owns the section archive writer/parser used by both `KIRNBUNDLE/1` support and
-`PETLIB/1` package packing/installing, eliminating the duplicated PETLIB parse
+`PATLIB/1` package packing/installing, eliminating the duplicated PATLIB parse
 loop while preserving deterministic section ordering. Resource discovery now
 has the documented precedence `KIRN_ROOT` → `KIRN_PREFIX` → executable-relative
 installation root, so relocated and package-managed `kirn`/`kirnc` trees use
 one resolver.
 
-Verification: clean CMake build; pet pack/install/consume gate **3/3**; a
+Verification: clean CMake build; pat pack/install/consume gate **3/3**; a
 `KIRN_PREFIX=$PWD kirn check examples/01_hello.kn` check passed. The earlier
 Phase 0 notes about unshared payload formats and missing root discovery are
 historical and no longer describe the implementation.

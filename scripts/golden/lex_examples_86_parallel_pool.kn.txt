@@ -1,13 +1,13 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/86_parallel_pool.kn
 Ident	8:1	import
-Ident	8:8	pet
+Ident	8:8	pat
 Punct	8:11	.
 Ident	8:12	parallel
 Ident	8:21	as
 Ident	8:24	p
 Punct	8:25	;
 Ident	9:1	import
-Ident	9:8	pet
+Ident	9:8	pat
 Punct	9:11	.
 Ident	9:12	sync
 Ident	9:17	as

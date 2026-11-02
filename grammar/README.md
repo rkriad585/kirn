@@ -4,7 +4,7 @@ The normative, machine-checkable grammar of the Kirn language.
 
 | File | Description |
 |------|-------------|
-| `grammar/kirn.ebnf` | The authoritative EBNF grammar (ISO EBNF: `=` definition, `;` terminator, `[ ]` optional, `{ }` repetition, `(* *)` comments) |
+| `grammar/kirn.ebnf` | The authoritative EBNF grammar (ISO EBNF: `=` definition, `;` terminator, `[ ]` optional, `{ }` repatition, `(* *)` comments) |
 
 ## Usage
 

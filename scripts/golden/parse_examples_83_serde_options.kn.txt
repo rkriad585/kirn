@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/83_serde_options.kn
-Import pet.json as json
-Import pet.toml as toml
+Import pat.json as json
+Import pat.toml as toml
 Import reflect
 Decorator "serde" bracket
   ArgName "rename_all"

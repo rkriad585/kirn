@@ -1,5 +1,5 @@
 # TCP stream halves implement the shared async I/O contracts (POWER_PLAN §2.7).
-import pet.async as a;
+import pat.async as a;
 
 fn main() -> none {
     # Trait conformance is checked at the impl boundary; runtime socket

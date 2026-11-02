@@ -26,7 +26,7 @@ jobs:
             echo 'stale release version found'; exit 1
           fi
   # The full seven-suite matrix (runall/types/negative/vm_diff/conventions/
-  # test/pets) against a from-scratch cmake build. build-test covers the same
+  # test/pats) against a from-scratch cmake build. build-test covers the same
   # suites on Windows via the PowerShell harnesses; this job is the Linux
   # equivalent, and it is the job that proves `cmake --build` output - not just
   # a locally hand-rolled build - still passes the whole corpus.

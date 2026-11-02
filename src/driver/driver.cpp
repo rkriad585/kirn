@@ -452,11 +452,11 @@ std::string resolveEntry(const Manifest& m, const fs::path& dir) {
 std::string globalPkgDir() {
     const char* home = std::getenv("USERPROFILE");
     if (!home) home = std::getenv("HOME");
-    return home ? std::string(home) + "/.kirn/pets" : "";
+    return home ? std::string(home) + "/.kirn/pats" : "";
 }
 
 // app shims live under ~/.kirn/apps/bin for global installs (kept out of
-// the pets tree so /bin stays importable); local shims stay in ./pets/bin.
+// the pats tree so /bin stays importable); local shims stay in ./pats/bin.
 std::string globalAppsBinDir() {
     const char* home = std::getenv("USERPROFILE");
     if (!home) home = std::getenv("HOME");
@@ -464,7 +464,7 @@ std::string globalAppsBinDir() {
 }
 
 // Defined with the other executable/root helpers below; the shared resolver
-// needs it here so installed binaries can discover <prefix>/stdpet.
+// needs it here so installed binaries can discover <prefix>/stdlib.
 std::string selfExeDir();
 std::string resourceRoot();
 
@@ -472,17 +472,17 @@ std::vector<std::string> libDirsFor(const std::string& script) {
     std::vector<std::string> dirs;
     // An explicit standard-library override is the highest-precedence root.
     // This is the installed-tree equivalent of rustup's sysroot override: a
-    // project must not accidentally select a checkout-local stdpet when the
+    // project must not accidentally select a checkout-local stdlib when the
     // user explicitly selected another one.
     if (const char* env = std::getenv("KIRN_STDLIB")) dirs.push_back(env);
-    if (const char* env = std::getenv("KIRN_PETS")) dirs.push_back(env);
+    if (const char* env = std::getenv("KIRN_PATS")) dirs.push_back(env);
     // The `script` is either a directory (project root) or a file path whose
     // parent is the project root. Resolve robustly regardless of trailing
     // slashes / relative prefixes like "./proj".
     //
     // A bare filename ("main.kn", no directory component) has an EMPTY
-    // parent_path(). Using that as `dir` builds "/pets", "/../stdpet" and
-    // "/../../stdpet" -- absolute paths off the filesystem root, so the
+    // parent_path(). Using that as `dir` builds "/pats", "/../stdlib" and
+    // "/../../stdlib" -- absolute paths off the filesystem root, so the
     // sibling module next to the entry file is never found and the program
     // panics with `unknown module`. An empty parent means "the CWD", so map
     // it to "."; that is also what `kirn run` already passes explicitly.
@@ -496,35 +496,35 @@ std::vector<std::string> libDirsFor(const std::string& script) {
         std::string parent = sp.parent_path().string();
         dir = parent.empty() ? "." : parent;
     }
-    // package root: everything lands under <base>/pets (managed pets share the
-    // root with ad-hoc modules); apps additionally get a <base>/pets/bin binary.
-    dirs.push_back(dir + "/pets");
+    // package root: everything lands under <base>/pats (managed pats share the
+    // root with ad-hoc modules); apps additionally get a <base>/pats/bin binary.
+    dirs.push_back(dir + "/pats");
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir());
     }
-    dirs.push_back(dir + "/../stdpet");
-    dirs.push_back(dir + "/../../stdpet");
-    // Installed releases place both executables in <prefix>/bin and stdpet at
-    // <prefix>/stdpet.  Source-tree builds have the same shape at
-    // <checkout>/build and <checkout>/stdpet.  Resolve both without requiring
+    dirs.push_back(dir + "/../stdlib");
+    dirs.push_back(dir + "/../../stdlib");
+    // Installed releases place both executables in <prefix>/bin and stdlib at
+    // <prefix>/stdlib.  Source-tree builds have the same shape at
+    // <checkout>/build and <checkout>/stdlib.  Resolve both without requiring
     // KIRN_STDLIB, while retaining the explicit override above as first choice.
-    dirs.push_back((fs::path(resourceRoot()) / "stdpet").generic_string());
+    dirs.push_back((fs::path(resourceRoot()) / "stdlib").generic_string());
     dirs.push_back(dir);   // a project/package can import itself
     return dirs;
 }
 
 // install destination: <base>/<name> for every package; apps additionally get
-// a shim (see appsBinDir). Project base = ./pets, global = ~/.kirn/pets
-// (relative .kirn/pets fallback when $HOME/$USERPROFILE is unset).
+// a shim (see appsBinDir). Project base = ./pats, global = ~/.kirn/pats
+// (relative .kirn/pats fallback when $HOME/$USERPROFILE is unset).
 fs::path pkgBase(bool global_) {
     if (global_) {
         std::string g = globalPkgDir();
-        return g.empty() ? fs::path(".kirn/pets") : fs::path(g);
+        return g.empty() ? fs::path(".kirn/pats") : fs::path(g);
     }
-    return fs::path("pets");
+    return fs::path("pats");
 }
 
-// app binary directory: local ./pets/bin, global ~/.kirn/apps/bin
+// app binary directory: local ./pats/bin, global ~/.kirn/apps/bin
 fs::path appsBinDir(bool global_) {
     if (global_) {
         std::string b = globalAppsBinDir();
@@ -1303,31 +1303,31 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
     Manifest m;
     m.name = name;
     m.version = "0.0.1-b3";
-    m.type = lib ? "pet" : "app";
-    m.description = lib ? "A Kirn pet" : "A Kirn application";
+    m.type = lib ? "pat" : "app";
+    m.description = lib ? "A Kirn pat" : "A Kirn application";
     m.license = "MIT";
     m.docs = "docs/index.md";
     m.readme = "README.md";
     m.author = "Your Name <you@example.com>";
-    m.repo = "github.com/pets-registry/" + name;
-    m.homepage = "https://github.com/pets-registry/" + name;
+    m.repo = "github.com/pats-regestry/" + name;
+    m.homepage = "https://github.com/pats-regestry/" + name;
     m.authors.push_back("Your Name <you@example.com>");
     if (lib) {
         m.tags.push_back("utility");
         m.keywords.push_back("kirn");
         m.keywords.push_back(name);
     }
-    m.gitIgnoreExtra.push_back(".pets-registry.toml");
-    m.gitIgnoreExtra.push_back(".pets-sha");
+    m.gitIgnoreExtra.push_back(".pats-regestry.toml");
+    m.gitIgnoreExtra.push_back(".pats-sha");
 
     const std::string gitignore =
         "# kirn build output\n"
         "build/\n"
         "# installed dependencies\n"
-        "pets/\n"
+        "pats/\n"
         "# cached registry copy + temp git sha during install/update\n"
-        ".pets-registry.toml\n"
-        ".pets-sha\n"
+        ".pats-regestry.toml\n"
+        ".pats-sha\n"
         "# editor/OS noise\n"
         ".vscode/\n.idea/\n*.swp\nThumbs.db\n.DS_Store\n";
 
@@ -1339,7 +1339,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
         // once when the package is imported and re-exports the package's
         // `pub` surface (Python __init__ analogue).
         writeFile(root / "code" / "pin.kn",
-                  "## " + name + " - a Kirn pet.\n"
+                  "## " + name + " - a Kirn pat.\n"
                   "##\n"
                   "## This pin.kn file is the package's public-API aggregator.\n"
                   "## It runs once when the package is imported, then the\n"
@@ -1377,7 +1377,7 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
         writeFile(root / "docs" / "index.md",
                   "# " + name + "\n\n" + m.description +
                       ".\n\n## Install\n\n```bash\n"
-                      "kirn install github.com/pets-registry/" + name +
+                      "kirn install github.com/pats-regestry/" + name +
                       "\n```\n\n## Usage\n\n```kirn\n"
                       "import \"" + name + "\"\n\n"
                       "print(" + name + ".hello(\"world\"))\n```\n");
@@ -1395,13 +1395,13 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
                       "to deal in the Software without restriction.\n");
         writeFile(root / ".gitignore", gitignore);
 
-        std::cout << "created pet '" << name << "'\n"
+        std::cout << "created pat '" << name << "'\n"
                   << "  " << name << "/kirn.toml      manifest\n"
                   << "  code/pin.kn   package initializer + pub API\n"
                   << "  tests/          *_test.kn files\n"
                   << "  docs/           markdown docs\n"
                   << "next:\n"
-                  << "  cd " << name << " && kirn build pet && kirn test .\n";
+                  << "  cd " << name << " && kirn build pat && kirn test .\n";
     } else {
         m.main = "code/main.kn";
         ::writeManifest(root, m);
@@ -1456,13 +1456,13 @@ int cmdPreprocess(const std::vector<std::string>& args, const char* toolName) {
 }
 
 // ---------------------------------------------------------------------------
-// package sources: local path | git repo | Pets Registry
+// package sources: local path | git repo | Pats Registry
 // ---------------------------------------------------------------------------
 
 struct PkgRef {
     std::string spec;      // normalized repo path or local dir
     std::string tag;
-    std::string destName;  // directory name under pets/ or ~/.kirn/pets
+    std::string destName;  // directory name under pats/ or ~/.kirn/pats
     enum class Kind { Path, Git } kind = Kind::Git;
 };
 
@@ -1484,7 +1484,7 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
                       (!spec.empty() &&
                        (spec[0] == '.' || spec[0] == '/' || spec[0] == '\\'));
     if (looksLocal) {
-        if (asPath.extension() == ".pet") return true;  // handled later
+        if (asPath.extension() == ".pat") return true;  // handled later
         if (!fs::is_directory(asPath)) {
             std::cerr << "kirn install: local package '" << raw
                       << "' does not exist\n";
@@ -1521,20 +1521,20 @@ bool parsePkgRef(const std::string& raw, PkgRef& ref) {
 
 // repo = "owner/repo" -> "github.com/owner/repo", the shorthand the clone
 // pipeline expects ("https://" + spec + ".git")
-static std::string petUrl(const std::string& repo) {
+static std::string patUrl(const std::string& repo) {
     std::string u = repo;
     if (u.find('/') != std::string::npos && u.rfind("github.com/", 0) != 0)
         u = "github.com/" + u;
     return u;
 }
 
-// enumerate [pets."<name>"] entries from a Pets Registry index (registry.toml).
-// tomlmini folds section headers into flat kv keys ("pets.<name>.<key>"), so
+// enumerate [pats."<name>"] entries from a Pats Registry index (registry.toml).
+// tomlmini folds section headers into flat kv keys ("pats.<name>.<key>"), so
 // unlike the old [[lib]] rows these arrive in Doc::kv, not Doc::tables.
 static std::vector<std::pair<std::string, std::map<std::string, std::string>>>
-enumPets(const Doc& d) {
+enumPats(const Doc& d) {
     std::vector<std::pair<std::string, std::map<std::string, std::string>>> out;
-    const std::string prefix = "pets.";
+    const std::string prefix = "pats.";
     for (const auto& [k, raw] : d.kv) {
         if (k.rfind(prefix, 0) != 0) continue;
         size_t last = k.rfind('.');
@@ -1554,22 +1554,22 @@ enumPets(const Doc& d) {
     return out;
 }
 
-// resolve a bare library name through the Pets Registry
-// (github.com/pets-registry/pets -> registry.toml, [pets."<name>"] sections)
+// resolve a bare library name through the Pats Registry
+// (github.com/pats-regestry/pats -> registry.toml, [pats."<name>"] sections)
 bool lookupRegistry(const std::string& name, std::string& url) {
-    const std::string cache = ".pets-registry.toml";
+    const std::string cache = ".pats-regestry.toml";
     // refresh the cached registry copy; fall back to it when offline
-    std::system("curl -s --max-time 15 -o .pets-registry.toml "
-                "https://raw.githubusercontent.com/pets-registry/pets/main/"
+    std::system("curl -s --max-time 15 -o .pats-regestry.toml "
+                "https://raw.githubusercontent.com/pats-regestry/pats/main/"
                 "registry.toml");
     std::string text;
     if (!readFile(cache, text)) return false;
     Doc d = kirn::tomlmini::parse(text);
-    for (const auto& [pname, kv] : enumPets(d)) {
+    for (const auto& [pname, kv] : enumPats(d)) {
         if (pname != name) continue;
         auto u = kv.find("repo");
         if (u != kv.end() && !u->second.empty()) {
-            url = petUrl(u->second);
+            url = patUrl(u->second);
             return true;
         }
         return false;
@@ -1580,7 +1580,7 @@ bool lookupRegistry(const std::string& name, std::string& url) {
 std::string gitHeadSha(const fs::path& dir) {
     std::string cmd = "git -C \"" + dir.string() + "\" rev-parse HEAD 2>" + shellNullDevice();
     // capture via temp file (system() has no portable pipe-back)
-    std::string tmp = ".pets-sha";
+    std::string tmp = ".pats-sha";
     std::string full = cmd + " > \"" + tmp + "\"";
     if (std::system(full.c_str()) != 0) return "";
     std::string sha;
@@ -1707,7 +1707,7 @@ std::string selfExeDir() {
 // explicit relocation override; KIRN_PREFIX is the install-prefix equivalent
 // used by package managers. Otherwise both a source checkout
 // (<root>/build/kirn) and an installed tree (<root>/bin/kirn) resolve to the
-// directory containing stdpet, src, and tools. Keeping this decision in one
+// directory containing stdlib, src, and tools. Keeping this decision in one
 // function prevents each backend from inventing a different relative path.
 std::string resourceRoot() {
     if (const char* env = std::getenv("KIRN_ROOT"); env && *env)
@@ -1720,10 +1720,10 @@ std::string resourceRoot() {
 
 // Install one resolved reference. Returns process exit code.
 // Package layout (like cargo/npm hybrids):
-//   pet -> <base>/<name>              (importable, registered in the lock)
+//   pat -> <base>/<name>              (importable, registered in the lock)
 //   app -> <base>/<name>              (sources stay importable/runnable)
 //          + <bin>/<name>              real bundled executable: local
-//          ./pets/bin, global ~/.kirn/apps/bin (+ PATH entry for global)
+//          ./pats/bin, global ~/.kirn/apps/bin (+ PATH entry for global)
 int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                bool record, int depth) {
     fs::path base = pkgBase(global_);
@@ -1764,7 +1764,7 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
                 // gatherEmbedded's probing dirs resolve against CWD (= libDest
                 // here); hand it the tool's own stdlib explicitly
                 gatherEmbedded(entry, mainSrc, embedded,
-                               {(fs::path(selfExeDir()) / ".." / "stdpet")
+                               {(fs::path(selfExeDir()) / ".." / "stdlib")
                                     .generic_string()});
                 fs::current_path(old, cec);
                 std::string runner = ensureRunner();
@@ -1823,18 +1823,18 @@ int installOne(const PkgRef& ref, const std::string& raw, bool global_,
               << (ref.kind == PkgRef::Kind::Path ? raw : ref.spec);
     if (!ref.tag.empty()) std::cout << "@" << ref.tag;
     std::cout << " (" << (pkg.version.empty() ? "?" : pkg.version) << ", "
-              << (isApp ? "app" : "pet") << ") -> " << (libDest / "").string()
+              << (isApp ? "app" : "pat") << ") -> " << (libDest / "").string()
               << (global_ ? "  [global]" : "") << "\n";
     return 0;
 }
 
-// resolve a raw spec (bare registry name | path | user/repo | .pet)
+// resolve a raw spec (bare registry name | path | user/repo | .pat)
 static bool resolveRaw(const std::string& raw, PkgRef& ref);
-int unpackPet(const std::string& raw, bool global_);
+int unpackPat(const std::string& raw, bool global_);
 static bool resolveRaw(const std::string& raw, PkgRef& ref) {
-    // .pet bundle?
-    if (fs::is_regular_file(raw) && fs::path(raw).extension() == ".pet")
-        return unpackPet(raw, /*global_=*/false) == 0;
+    // .pat bundle?
+    if (fs::is_regular_file(raw) && fs::path(raw).extension() == ".pat")
+        return unpackPat(raw, /*global_=*/false) == 0;
     // local directory -> install by its manifest name
     if (fs::is_directory(raw)) {
         Manifest pm = readManifest(raw);
@@ -1854,7 +1854,7 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
         ref.destName = n;
         return true;
     }
-    // bare name -> look it up in the Pets Registry
+    // bare name -> look it up in the Pats Registry
     bool isBareName =
         raw.find('/') == std::string::npos &&
         raw.find('\\') == std::string::npos && raw.find(':') == std::string::npos &&
@@ -1863,8 +1863,8 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
         std::string url;
         if (!lookupRegistry(raw, url)) {
             std::cerr << "kirn install: '" << raw
-                      << "' not found in the Pets Registry\n"
-                      << "  browse: https://github.com/pets-registry/pets\n";
+                      << "' not found in the Pats Registry\n"
+                      << "  browse: https://github.com/pats-regestry/pats\n";
             return false;
         }
         ref.kind = PkgRef::Kind::Git;
@@ -1884,7 +1884,7 @@ static bool resolveRaw(const std::string& raw, PkgRef& ref) {
 // `kirn add` — npm-install / go-mod-tidy style sync.
 //   kirn add <pkg>...   resolve + install + record each dependency
 //   kirn add            (no args) tidy: install every manifest dep that is
-//                       missing from pets/
+//                       missing from pats/
 [[maybe_unused]] int cmdAdd(const std::vector<std::string>& pkgs) {
     if (pkgs.empty()) {
         Manifest proj = readManifest(".");
@@ -1908,7 +1908,7 @@ if (fs::exists(pkgBase(false) / name)) continue;
                 std::string url;
                 if (!lookupRegistry(name, url)) {
                     std::cerr << "kirn add: '" << name
-                              << "' not found in the Pets Registry\n";
+                              << "' not found in the Pats Registry\n";
                     rc = 1;
                     continue;
                 }
@@ -1957,7 +1957,7 @@ if (fs::exists(pkgBase(false) / name)) continue;
             std::string url;
             if (!lookupRegistry(name, url)) {
                 std::cerr << "kirn update: '" << name
-                          << "' not found in the Pets Registry\n";
+                          << "' not found in the Pats Registry\n";
                 rc = 1;
                 continue;
             }
@@ -2003,8 +2003,8 @@ if (fs::exists(pkgBase(false) / name)) continue;
                 locks.end());
     std::error_code ec;
     fs::remove_all(pkgBase(false) / name, ec);
-    fs::remove_all(fs::path("pets") / "bin" / name, ec);
-    fs::remove_all(fs::path("pets") / "bin" / (name + ".exe"), ec);
+    fs::remove_all(fs::path("pats") / "bin" / name, ec);
+    fs::remove_all(fs::path("pats") / "bin" / (name + ".exe"), ec);
     ::writeManifest(".", proj);
     writeLock(".", locks);
     std::cout << "removed " << name;
@@ -2031,7 +2031,7 @@ if (fs::exists(pkgBase(false) / name)) continue;
             std::cout << "\n";
         }
     };
-    show("", fs::path("pets"));
+    show("", fs::path("pats"));
     if (!globalPkgDir().empty()) {
         show("[global] ", fs::path(globalPkgDir()));
         // globally installed apps (real binaries under ~/.kirn/apps/bin)
@@ -2103,37 +2103,37 @@ if (fs::exists(pkgBase(false) / name)) continue;
     if (!m.name.empty())
         std::cout << " - " << m.name << " v"
                   << (m.version.empty() ? "?" : m.version)
-                  << (m.type == "pet" ? " [pet]" : " [app]");
+                  << (m.type == "pat" ? " [pat]" : " [app]");
     std::cout << "\nnext:\n  cd " << name << " && kirn run | kirn test .\n";
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// kirn list online — browse the Pets Registry
+// kirn list online — browse the Pats Registry
 // ---------------------------------------------------------------------------
 
 [[maybe_unused]] int cmdListOnline() {
-    const std::string cache = ".pets-registry.toml";
-    std::system("curl -s --max-time 15 -o .pets-registry.toml "
-                "https://raw.githubusercontent.com/pets-registry/pets/main/"
+    const std::string cache = ".pats-regestry.toml";
+    std::system("curl -s --max-time 15 -o .pats-regestry.toml "
+                "https://raw.githubusercontent.com/pats-regestry/pats/main/"
                 "registry.toml");
     std::string text;
     if (!readFile(cache, text)) {
         std::cerr << "kirn list online: cannot reach "
-                     "raw.githubusercontent.com/pets-registry/pets\n";
+                     "raw.githubusercontent.com/pats-regestry/pats\n";
         return 1;
     }
     Doc d = kirn::tomlmini::parse(text);
     struct Row { std::string name, desc, url, ver; };
     std::vector<Row> rows;
-    // [pets."<name>"] sections arrive as flat kv keys ("pets.<name>.<key>")
-    for (const auto& [pname, kv] : enumPets(d)) {
+    // [pats."<name>"] sections arrive as flat kv keys ("pats.<name>.<key>")
+    for (const auto& [pname, kv] : enumPats(d)) {
         auto g = [&](const char* k) {
             auto it = kv.find(k);
             return it == kv.end() ? "" : it->second;
         };
-        // advertise the latest release (optional per-pet)
-        rows.push_back({pname, g("license"), petUrl(g("repo")), g("latest")});
+        // advertise the latest release (optional per-pat)
+        rows.push_back({pname, g("license"), patUrl(g("repo")), g("latest")});
     }
     if (rows.empty()) {
         std::cout << "registry is empty (be the first to publish!)\n";
@@ -2174,7 +2174,7 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
         if (ec) break;
         const fs::path& p = it->path();
         std::string fn = p.filename().string();
-        if (fn == "pets" || fn == "build" || fn == ".git") {
+        if (fn == "pats" || fn == "build" || fn == ".git") {
             it.disable_recursion_pending();
             continue;
         }
@@ -2222,10 +2222,10 @@ void collectTestFiles(const fs::path& dir, std::vector<fs::path>& out) {
     if (std::find(dirs.begin(), dirs.end(), ".") == dirs.end())
         dirs.push_back(".");
     // the repo ships its stdlib as Kirn source under ./stdlib; tests import it
-    if (std::find(dirs.begin(), dirs.end(), "./stdpet") == dirs.end())
-        dirs.push_back("./stdpet");
-    if (std::find(dirs.begin(), dirs.end(), "stdpet") == dirs.end())
-        dirs.push_back("stdpet");
+    if (std::find(dirs.begin(), dirs.end(), "./stdlib") == dirs.end())
+        dirs.push_back("./stdlib");
+    if (std::find(dirs.begin(), dirs.end(), "stdlib") == dirs.end())
+        dirs.push_back("stdlib");
     int pass = 0, fail = 0;
     for (const auto& f : files) {
         std::cout << "test " << f.string() << " ... " << std::flush;
@@ -2541,7 +2541,7 @@ int serveDocs(const fs::path&, int, const std::string&,
     // resolve target: dir | installed name
     fs::path libDir(target);
     if (!fs::is_directory(libDir)) {
-        fs::path local = fs::path("pets") / target;
+        fs::path local = fs::path("pats") / target;
         fs::path glob;
         if (!globalPkgDir().empty()) glob = fs::path(globalPkgDir()) / target;
         if (fs::is_directory(local))
@@ -2549,7 +2549,7 @@ int serveDocs(const fs::path&, int, const std::string&,
         else if (!glob.empty() && fs::is_directory(glob))
             libDir = glob;
         else {
-            std::cerr << "kirn doc: no project or installed pet '"
+            std::cerr << "kirn doc: no project or installed pat '"
                       << target << "'\n";
             return 1;
         }
@@ -2581,7 +2581,7 @@ int serveDocs(const fs::path&, int, const std::string&,
 // ---------------------------------------------------------------------------
 // kirn build — app: standalone bundle (prebuilt runtime + appended sources;
 //              native/A-san/cross variants go through the C++ toolchain)
-//              pet: type-check all sources + pack distributable .pet
+//              pat: type-check all sources + pack distributable .pat
 // ---------------------------------------------------------------------------
 
 // resolve a module name to a source file across the given dirs (loader rules)
@@ -2747,13 +2747,13 @@ std::string resolveCrossCxx(const TargetInfo* ti) {
     return "";
 }
 
-// Phase 8: KIRN_LIBS was renamed to KIRN_PETS and is a hard cut. Do not list
+// Phase 8: KIRN_LIBS was renamed to KIRN_PATS and is a hard cut. Do not list
 // variables whose spelling did not change: warning about KIRN_VERBOSE while it
 // is actively being used makes a valid verbose build look like a stale-env
 // failure and breaks the positive/negative logging contract.
 void warnLegacyEnv() {
     const char* const legacy[] = {"KIRN_LIBS"};
-    const char* const now[] = {"KIRN_PETS"};
+    const char* const now[] = {"KIRN_PATS"};
     std::string found;
     for (size_t i = 0; i < sizeof(legacy) / sizeof(legacy[0]); ++i)
         if (std::getenv(legacy[i])) {
@@ -2953,7 +2953,7 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
                     std::map<std::string, std::string>& embedded,
                     const std::vector<std::string>& extraDirs) {
     // One resolver, shared with `kirn run` (phase 0 section 5.2). Before this,
-    // bundling kept its own hand-rolled list that read NEITHER $KIRN_PETS nor
+    // bundling kept its own hand-rolled list that read NEITHER $KIRN_PATS nor
     // $KIRN_STDLIB and never looked next to the entry file, so a program that
     // `kirn run` executed correctly produced a bundle missing the module and
     // panicked `unknown module` with exit 70 -- silently, after exit 0.
@@ -2962,14 +2962,14 @@ bool gatherEmbedded(const std::string& entry, const std::string& mainSrc,
     // Project-layout conventions. These stay because callers rely on them:
     // installOne chdir()s to the install destination and hands us the tool's
     // stdlib via extraDirs precisely because CWD-relative probing is what it
-    // wants, and a project keeps its modules in ./code with pets in ./pets.
+    // wants, and a project keeps its modules in ./code with pats in ./pats.
     dirs.push_back("code");
-    dirs.push_back("pets");
+    dirs.push_back("pats");
     if (!globalPkgDir().empty()) {
         dirs.push_back(globalPkgDir());
     }
-    dirs.push_back("../stdpet");
-    dirs.push_back("../../stdpet");
+    dirs.push_back("../stdlib");
+    dirs.push_back("../../stdlib");
     // De-duplicate, keeping the FIRST occurrence so precedence stays exactly
     // what the list above reads as: caller-supplied, then the shared resolver
     // (env override, then entry-relative), then project conventions.
@@ -4069,7 +4069,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         }
     }
     if (bad) {
-        std::cerr << "kirn build pet: " << bad << " file(s) failed checks\n";
+        std::cerr << "kirn build pat: " << bad << " file(s) failed checks\n";
         return 1;
     }
     ::regenerateDocs(m);
@@ -4079,7 +4079,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         fs::path("build") / (opts.release ? "release" : "debug") / opts.target;
     fs::create_directories(outDir, ec);
     const std::string outPath =
-        (outDir / (m.name + "-" + m.version + ".pet")).generic_string();
+        (outDir / (m.name + "-" + m.version + ".pat")).generic_string();
     std::vector<fs::path> files;
     files.push_back(fs::path("kirn.toml"));
     for (fs::recursive_directory_iterator it("code", ec), end; !ec && it != end;
@@ -4091,7 +4091,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
     if (fs::is_regular_file("README.md")) files.push_back("README.md");
     if (fs::is_regular_file("LICENSE")) files.push_back("LICENSE");
     // Sort the code/ and docs/ sections (leaving the fixed head in place) so the
-    // .pet bytes are reproducible. readdir order here would make two builds of
+    // .pat bytes are reproducible. readdir order here would make two builds of
     // the same tree differ, which breaks checksums, `kirn install` diffing and
     // any content-addressed store. A published artifact must be a function of
     // its inputs, not of the filesystem that happened to hold them.
@@ -4102,7 +4102,7 @@ int packLib(const Manifest& m, const BuildOpts& opts) {
         if (!readFile(f.string(), content)) continue;
         sections.emplace_back(f.generic_string(), std::move(content));
     }
-    writeFile(outPath, kirn::payload::archiveText("PETLIB/1", sections));
+    writeFile(outPath, kirn::payload::archiveText("PATLIB/1", sections));
     std::cout << "packed " << outPath << " (" << files.size()
               << " files) - ready to publish\n";
     return 0;
@@ -4135,9 +4135,9 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     std::string positional;
     for (size_t i = from; i < args.size(); ++i) {
         const std::string& a = args[i];
-        if (a == "pet") opts.wantPet = true;
+        if (a == "pat") opts.wantPat = true;
         else if (a == "lib") {
-            std::cerr << "kirn build: `build lib` was renamed to `build pet`\n";
+            std::cerr << "kirn build: `build lib` was renamed to `build pat`\n";
             return 64;
         }
         else if (a == "--release" || a == "-r") opts.release = true;
@@ -4212,9 +4212,9 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
                   << "(or compile a single file: kirn build main.kn)\n";
         return 1;
     }
-    if (opts.wantPet || m.type == "pet") {
+    if (opts.wantPat || m.type == "pat") {
         if (!fs::is_directory("code")) {
-            std::cerr << "kirn build pet: no code/ directory\n";
+            std::cerr << "kirn build pat: no code/ directory\n";
             return 1;
         }
         return ::packLib(m, opts);
@@ -4222,15 +4222,15 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     return ::buildAppShim(m, opts);
 }
 
-int unpackPet(const std::string& raw, bool global_) {
+int unpackPat(const std::string& raw, bool global_) {
     std::string text;
     if (!readFile(raw, text)) {
         std::cerr << "kirn install: cannot read bundle '" << raw << "'\n";
         return 1;
     }
     kirn::payload::Sections sections;
-    if (!kirn::payload::parseArchive(text, "PETLIB/1", sections)) {
-        std::cerr << "kirn install: not a valid .pet bundle\n";
+    if (!kirn::payload::parseArchive(text, "PATLIB/1", sections)) {
+        std::cerr << "kirn install: not a valid .pat bundle\n";
         return 1;
     }
 
@@ -4241,7 +4241,7 @@ int unpackPet(const std::string& raw, bool global_) {
             name = kirn::tomlmini::get(d, "package", "name");
         }
     if (name.empty()) {
-        // greet-0.1.0.pet -> greet
+        // greet-0.1.0.pat -> greet
         std::string stem = fs::path(raw).stem().string();
         size_t dash = stem.find('-');
         name = dash == std::string::npos ? stem : stem.substr(0, dash);
@@ -4301,23 +4301,23 @@ void usage() {
         << "usage:\n"
         << "  kirn run .|<file.kn>|<dir>       run a project (requires kirn.toml) or a single .kn file\n"
         << "  kirn new <name>                  scaffold an application\n"
-        << "  kirn new pet <name>              scaffold a package (pet)\n"
+        << "  kirn new pat <name>              scaffold a package (pat)\n"
         << "  kirn test [.|file|dir ...]       run *_test.kn files\n"
         << "  kirn fmt [--check|-d|-w] [path] format .kn files deterministically\n"
         << "  kirn check [flags] <file.kn>     lex, parse, and type-check one file\n"
         << "  kirn lint [flags] <file.kn>      type-check and report lint diagnostics\n"
-        << "  kirn repl                        evaluate snippets interactively\n"
+        << "  kirn repl                        evaluate snippats interactively\n"
         << "  kirn env                         print effective toolchain and cache settings\n"
         << "  kirn get|install [-g] <pkg>      install a package\n"
         << "  kirn lsp                        serve diagnostics, completion, hover, and formatting over JSON-RPC stdio\n"
         << "  kirn sync|update|remove <name>   manage project dependencies\n"
         << "  kirn clone <repo>                clone a repository\n"
-        << "  kirn build [file.kn|pet]         compile or package a project\n"
+        << "  kirn build [file.kn|pat]         compile or package a project\n"
         << "      flags: --debug --release --target <triple> --native --asan -S -O -o <path>\n"
-        << "  kirn publish                     package, cache, and checksum a pet\n"
+        << "  kirn publish                     package, cache, and checksum a pat\n"
         << "  kirn targets                     list supported target triples\n"
-        << "  kirn doc <pet|dir>               serve generated API docs\n"
-        << "  kirn list [online]               list installed or registry pets\n";
+        << "  kirn doc <pat|dir>               serve generated API docs\n"
+        << "  kirn list [online]               list installed or registry pats\n";
 }
 
 }  // anonymous namespace
@@ -4630,8 +4630,8 @@ int cmdBuild(const std::vector<std::string>& args, size_t from) {
     return ::cmdBuild(args, from);
 }
 
-int unpackPet(const std::string& raw, bool global_) {
-    return ::unpackPet(raw, global_);
+int unpackPat(const std::string& raw, bool global_) {
+    return ::unpackPat(raw, global_);
 }
 
 int cmdTargets() {

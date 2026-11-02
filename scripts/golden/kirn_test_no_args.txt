@@ -1,24 +1,24 @@
 $ <ROOT>/build/kirn test
-test ./stdpet/pet/async_test.kn ... async_test ok
+test ./stdlib/pat/async_test.kn ... async_test ok
 PASS
-test ./stdpet/pet/attribute_runner_test.kn ... PASS
-test ./stdpet/pet/bytes_sys_test.kn ... bytes_sys_test ok
+test ./stdlib/pat/attribute_runner_test.kn ... PASS
+test ./stdlib/pat/bytes_sys_test.kn ... bytes_sys_test ok
 PASS
-test ./stdpet/pet/cbor_test.kn ... cbor_test ok
+test ./stdlib/pat/cbor_test.kn ... cbor_test ok
 PASS
-test ./stdpet/pet/collections_test.kn ... collections_test ok
+test ./stdlib/pat/collections_test.kn ... collections_test ok
 PASS
-test ./stdpet/pet/compress_test.kn ... compress_test ok
+test ./stdlib/pat/compress_test.kn ... compress_test ok
 PASS
-test ./stdpet/pet/contextlib_test.kn ... contextlib_test ok
+test ./stdlib/pat/contextlib_test.kn ... contextlib_test ok
 PASS
-test ./stdpet/pet/crypto_test.kn ... crypto_test ok
+test ./stdlib/pat/crypto_test.kn ... crypto_test ok
 PASS
-test ./stdpet/pet/error_test.kn ... error_test ok
+test ./stdlib/pat/error_test.kn ... error_test ok
 PASS
-test ./stdpet/pet/io_test.kn ... io_test ok
+test ./stdlib/pat/io_test.kn ... io_test ok
 PASS
-test ./stdpet/pet/json_test.kn ... N1 kirn
+test ./stdlib/pat/json_test.kn ... N1 kirn
 N2 42
 N3 true
 N4 v
@@ -26,27 +26,27 @@ N5 3
 N6 3
 json_test ok
 PASS
-test ./stdpet/pet/math_test.kn ... math_test ok
+test ./stdlib/pat/math_test.kn ... math_test ok
 PASS
-test ./stdpet/pet/os_test.kn ... os_test ok
+test ./stdlib/pat/os_test.kn ... os_test ok
 PASS
-test ./stdpet/pet/parallel_test.kn ... parallel_test ok
+test ./stdlib/pat/parallel_test.kn ... parallel_test ok
 PASS
-test ./stdpet/pet/path_test.kn ... path_test ok
+test ./stdlib/pat/path_test.kn ... path_test ok
 PASS
-test ./stdpet/pet/process_test.kn ... process_test ok
+test ./stdlib/pat/process_test.kn ... process_test ok
 PASS
-test ./stdpet/pet/regexp_test.kn ... regexp_test ok
+test ./stdlib/pat/regexp_test.kn ... regexp_test ok
 PASS
-test ./stdpet/pet/serde_test.kn ... serde_test ok
+test ./stdlib/pat/serde_test.kn ... serde_test ok
 PASS
-test ./stdpet/pet/socket_test.kn ... socket_test ok
+test ./stdlib/pat/socket_test.kn ... socket_test ok
 PASS
-test ./stdpet/pet/sqlite_test.kn ... sqlite_test ok
+test ./stdlib/pat/sqlite_test.kn ... sqlite_test ok
 PASS
-test ./stdpet/pet/strings_test.kn ... strings_test ok
+test ./stdlib/pat/strings_test.kn ... strings_test ok
 PASS
-test ./stdpet/pet/sync_test.kn ... barrier single party: ok
+test ./stdlib/pat/sync_test.kn ... barrier single party: ok
 barrier four parties: ok
 semaphore counts: ok
 timed waits: ok
@@ -71,11 +71,11 @@ mpsc unbounded: ok
 mpsc bounded: ok
 mpsc close: ok
 PASS
-test ./stdpet/pet/time_test.kn ... time_test ok
+test ./stdlib/pat/time_test.kn ... time_test ok
 PASS
-test ./stdpet/pet/toml_test.kn ... toml_test ok
+test ./stdlib/pat/toml_test.kn ... toml_test ok
 PASS
-test ./stdpet/pet/yaml_test.kn ... yaml_test ok
+test ./stdlib/pat/yaml_test.kn ... yaml_test ok
 PASS
 25 passed, 0 failed
 [exit 0]

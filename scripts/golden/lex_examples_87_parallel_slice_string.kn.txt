@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/87_parallel_slice_string.kn
 Ident	8:1	import
-Ident	8:8	pet
+Ident	8:8	pat
 Punct	8:11	.
 Ident	8:12	parallel
 Ident	8:21	as

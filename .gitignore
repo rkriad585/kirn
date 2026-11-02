@@ -12,8 +12,8 @@ _site/
 Gemfile.lock
 
 # kirn package manager temp files (created in cwd during install/update)
-.pets-registry.toml
-.pets-sha
+.pats-regestry.toml
+.pats-sha
 # Python bytecode - never track (regenerates every py_compile; tracked .pyc was committed debt from before this session)
 __pycache__/
 *.pyc
@@ -21,3 +21,5 @@ __pycache__/
 /.opencode/
 
 AGENTS.md
+
+.codex/

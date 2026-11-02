@@ -1,6 +1,6 @@
 # Async byte I/O and TCP/UDP surface (POWER_PLAN §2.6 / §2.7). Runs identically
 # under the tree-walker and the VM.
-import pet.async as a;
+import pat.async as a;
 
 async fn main() -> none {
     p = "/tmp/kirn_syntax_byteio_" + Str(a.now_ms()) + ".txt";

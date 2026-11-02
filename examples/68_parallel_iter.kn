@@ -3,7 +3,7 @@
 # `par_iter` splits work across the worker pool; `map`/`filter` run their
 # closures concurrently while `collect`/`sum` reassemble results in order, so
 # output is deterministic even though execution is parallel.
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 fn main() -> none {
     var n = parallel.current_num_threads();

@@ -1,6 +1,6 @@
 # POWER_PLAN §3: stream-oriented JSON helpers.
-import pet.json as json;
-import pet.io as io;
+import pat.json as json;
+import pat.io as io;
 import os;
 
 struct User {

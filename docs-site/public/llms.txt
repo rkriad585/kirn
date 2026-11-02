@@ -36,7 +36,7 @@ Kirn is a general-purpose language created by RK Riad Khan. These docs describe 
 ## Ecosystem
 
 - [Kirn website](https://kirn-lang.github.io/)
-- [Pets registry](https://pets-registry.github.io/)
+- [Pats registry](https://pats-regestry.github.io/)
 - [Kirnly editor](https://kirnly.github.io/)
 - [KirnOS](https://kirnos-kernel.github.io/)
 - [Creator](https://rkriad585.github.io/)

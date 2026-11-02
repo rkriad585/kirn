@@ -1525,7 +1525,7 @@ with `kirn bench`.
 
 **Required architectural changes:** a small build-graph scheduler (dependencies → topological
 order → thread pool) so multiple foreign modules compile concurrently; a unified diagnostics
-surface with per-language error snippets; a `kirn doctor` / `kirn ffi --doctor` subcommand that
+surface with per-language error snippats; a `kirn doctor` / `kirn ffi --doctor` subcommand that
 reports which toolchains are present (reusing the §7.1 probes).
 
 **Implementation steps:** thread pool for independent compile units; structured error formatting

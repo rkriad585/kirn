@@ -260,7 +260,7 @@ check "kirn_run_type_error"     "$BIN/kirn" run "$TMP/undef.kn"
 check "kirn_run_no_entry"       "$BIN/kirn" run "$TMP"
 
 # `kirn test` with no args discovers *_test.kn under the CWD, which means it runs
-# the real stdpet suite -- and stdpet/pet/io_test.kn writes .io_tmp_test.txt
+# the real stdlib suite -- and stdlib/pat/io_test.kn writes .io_tmp_test.txt
 # into the CWD. Left behind, that file makes the next run's discovery differ, so
 # the snapshot would flap. Run it from a scratch directory and clean up, the same
 # way the gate scripts do.

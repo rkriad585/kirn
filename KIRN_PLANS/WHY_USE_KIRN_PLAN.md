@@ -433,7 +433,7 @@ this is a tooling _completer_, not a language feature.
   3
   kirn> xs = [1,2,3]; sum(x for x in xs if x > 1)
   5
-  kirn> spawn (() => print("hello"))  # dynamic snippet works live
+  kirn> spawn (() => print("hello"))  # dynamic snippat works live
   ```
 - **Testing:** scripted REPL sessions with expected output in `tests/repl/`.
 - **Expected outcome:** an interactive on-ramp and teaching tool.

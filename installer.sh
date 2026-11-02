@@ -58,7 +58,7 @@ if [ "$os" = android ]; then
   cmake -S "$tmp/source" -B "$tmp/build" -DCMAKE_BUILD_TYPE=Release
   cmake --build "$tmp/build" -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
   mkdir -p "$PREFIX/bin"; cp "$tmp/build/kirn" "$tmp/build/kirnc" "$PREFIX/bin/"
-  cp -R "$tmp/source/stdpet" "$tmp/source/src" "$PREFIX/"
+  cp -R "$tmp/source/stdlib" "$tmp/source/src" "$PREFIX/"
   echo "Kirn built and installed to $PREFIX (Termux/$arch)"
   echo "Run: $PREFIX/bin/kirn --version"
   exit 0

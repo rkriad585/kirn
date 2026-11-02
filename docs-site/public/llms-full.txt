@@ -174,7 +174,7 @@ Start with **Learn** if you are new to Kirn. Use **Guides** when you are working
 <div class="home-links">
   <a href="/kirn/learn/installation">Install Kirn <span>↗</span></a>
   <a href="https://kirn-lang.github.io/">Visit the Kirn website <span>↗</span></a>
-  <a href="https://pets-registry.github.io/">Explore Pets <span>↗</span></a>
+  <a href="https://pats-regestry.github.io/">Explore Pats <span>↗</span></a>
 </div>
 
 ## Toolchain at a glance
@@ -418,7 +418,7 @@ Kirn is not finished. Claims about performance, ownership, networking, IDE suppo
 - **New to Kirn?** Continue to [Installation](/learn/installation), then [Quick start](/learn/quick-start).
 - **Know the basics?** Read the [CLI workflow](/guide/cli) and [Project structure](/guide/project).
 - **Looking for exact syntax?** Open the [Language reference](/reference/language/lexical).
-- **Looking for packages?** Visit the [Pets registry](https://pets-registry.github.io/).
+- **Looking for packages?** Visit the [Pats registry](https://pats-regestry.github.io/).
 
 ## Source of truth
 
@@ -723,7 +723,7 @@ String operations in the Kirn standard library.
 
 # `strings`
 
-String helpers include searching, replacing, splitting, joining, repetition, reversing, padding, and stripping.
+String helpers include searching, replacing, splitting, joining, repatition, reversing, padding, and stripping.
 
 ```kirn
 clean = strip("  kirn  ");

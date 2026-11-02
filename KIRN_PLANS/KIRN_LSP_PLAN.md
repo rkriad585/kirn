@@ -822,17 +822,17 @@ completion; the checker already resolves all of it.
      `Function`/`Struct`/`Enum`/`Trait`/`Class` items.
    - After `import lib.foo;`, offer `foo.<member>` from the indexed stdlib
      (Phase 7); within `import mod;`+`.` offer that module's **`pub`** symbols.
-   - Keywords from the frozen keyword list (with snippets for `fn`, `if`,
+   - Keywords from the frozen keyword list (with snippats for `fn`, `if`,
      `match`, `for in`), filtered by what the parser accepts at the position.
    - Respect `isIncomplete` when indexing grows.
 3. **Signature help (`textDocument/signatureHelp`):**
    - On a call position, resolve the callee symbol â†’ its `FuncSig{names, params,
 ret, required, variadic}`; emit `SignatureInformation` with parameter labels
-     and a `MarkupContent` snippet; track `activeParameter` from the cursor.
+     and a `MarkupContent` snippat; track `activeParameter` from the cursor.
    - Handle `matchArgs` variadic/optional params (the checker's `required`
      min-arg-count).
 
-**LSP features introduced:** `hover`, `completion` (+ `InsertText`/`snippet`),
+**LSP features introduced:** `hover`, `completion` (+ `InsertText`/`snippat`),
 `signatureHelp`, `MarkupContent`, `CompletionItemKind` mapping
 (`Symbol.kind` â†’ LSP kind).
 

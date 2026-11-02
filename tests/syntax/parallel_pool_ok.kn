@@ -2,8 +2,8 @@
 # closure and returns its value, join runs two concurrently, broadcast fans out
 # once per worker, and scope joins every task spawned through its handle.
 # Deterministic (small work stays on one worker) and identical on both engines.
-import pet.parallel as p;
-import pet.sync as sync;
+import pat.parallel as p;
+import pat.sync as sync;
 
 fn main() -> none {
     pool = p.Pool(threads: 2);

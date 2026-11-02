@@ -5,7 +5,7 @@
 # Kirn returns a new list rather than mutating in place). The string helpers
 # split a `Str` and hand the pieces to a `ParIter`; `par_bytes` walks the code
 # points (Kirn strings index by character, so there is no separate byte view).
-import pet.parallel as p;
+import pat.parallel as p;
 
 fn main() -> none {
     print("by asc:", p.par_sort_by([3, 1, 4, 2], fn (a, b) { return a - b; }));

@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://kirn-lang.github.io/">Website</a> ·
   <a href="https://rkriad585.github.io/kirn/">Documentation</a> ·
-  <a href="https://pets-registry.github.io/">Pets registry</a> ·
+  <a href="https://pats-regestry.github.io/">Pats registry</a> ·
   <a href="https://github.com/rkriad585/kirn">Source</a>
 </p>
 
@@ -151,11 +151,11 @@ The `kirn` driver is the main project tool:
 | --- | --- |
 | `kirn run <file.kn>` | Run a program |
 | `kirn new <name>` | Scaffold a project |
-| `kirn new pets <name>` | Scaffold a Pet and release workflow |
+| `kirn new pats <name>` | Scaffold a Pat and release workflow |
 | `kirn test` | Run project tests |
 | `kirn build` | Build a program or package |
 | `kirn targets` | List target shapes |
-| `kirn install` | Install a package or Pet |
+| `kirn install` | Install a package or Pat |
 | `kirn add` | Add a dependency |
 | `kirn update` | Update dependencies |
 | `kirn remove` | Remove a dependency |
@@ -185,21 +185,21 @@ The current source tree includes:
 Each module’s source and `_test.kn` files are the authority for signatures
 and behavior.
 
-## Packages, Pets, and dependency trust
+## Packages, Pats, and dependency trust
 
-Kirn calls reusable ecosystem packages **Pets**. Each Pet’s source and release
+Kirn calls reusable ecosystem packages **Pats**. Each Pat’s source and release
 workflow live in its own repository, while the registry provides discovery and
 installation metadata.
 
 ~~~bash
 kirn install math-ext
-kirn install github.com/user/my-pet@v1
-kirn add my-pet
+kirn install github.com/user/my-pat@v1
+kirn add my-pat
 kirn update
 kirn list
 ~~~
 
-Packages may be installed into `./pets/` or `~/.kirn/pets`. A
+Packages may be installed into `./pats/` or `~/.kirn/pats`. A
 `kirn.lock` file records resolved sources and commit information for
 reproducible builds; commit it with your project.
 
@@ -209,15 +209,15 @@ before installing them, especially code using files, external processes,
 networking, or `extern__/FFI. Prefer pinned tags or commit SHAs and inspect
 lockfile changes during updates.
 
-Read the [Pets publishing guide](https://pets-registry.github.io/pets/) to
-create a Pet, validate it, publish a release, fork the registry, and open a PR.
+Read the [Pats publishing guide](https://pats-regestry.github.io/pats/) to
+create a Pat, validate it, publish a release, fork the registry, and open a PR.
 
 ## Repository structure
 
 | Path | Purpose |
 | --- | --- |
 | `src/` | Compiler source: lexer, parser, sema, VM, interpreter, backend |
-| `stdpet/pet/` | Standard-library modules and tests |
+| `stdlib/pat/` | Standard-library modules and tests |
 | `examples/` | Runnable language examples |
 | `grammar/` | Normative EBNF grammar |
 | `tools/` | CLI and companion tools |
@@ -232,8 +232,8 @@ create a Pet, validate it, publish a release, fork the registry, and open a PR.
 - [Kirn website](https://kirn-lang.github.io/)
 - [Kirn documentation](https://rkriad585.github.io/kirn/)
 - [Kirn language source](https://github.com/rkriad585/kirn)
-- [Pets registry website](https://pets-registry.github.io/)
-- [Pets contribution docs](https://pets-registry.github.io/pets)
+- [Pats registry website](https://pats-regestry.github.io/)
+- [Pats contribution docs](https://pats-regestry.github.io/pats)
 - [Kirnly editor](https://kirnly.github.io/)
 - [KirnOS](https://kirnos-kernel.github.io/)
 - [RK Riad Khan](https://rkriad585.github.io/)

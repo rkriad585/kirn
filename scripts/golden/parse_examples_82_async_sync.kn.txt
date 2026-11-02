@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/82_async_sync.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "bump" async
   Param "m" : any
   Param "n" : Int

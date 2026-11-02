@@ -1,4 +1,4 @@
-# 85 — rayon-style combinators on pet.parallel (POWER_PLAN §4.2)
+# 85 — rayon-style combinators on pat.parallel (POWER_PLAN §4.2)
 #
 # `ParIter` gained the item-preserving adaptors (`filter_map`, `flat_map`,
 # `flatten`), searching (`find_any`/`find_first`/`find_last`/`positions`),
@@ -6,7 +6,7 @@
 # forms (`zip`/`enumerate`/`take`/`skip`/`step_by`), and the reducers
 # (`fold`/`try_reduce`/`for_each_init`). Small inputs stay on one worker, so the
 # output below is deterministic; larger inputs fan out but reassemble in order.
-import pet.parallel as p;
+import pat.parallel as p;
 
 fn main() -> none {
     xs = p.par_iter([1, 2, 3, 4, 5, 6]);

@@ -4,7 +4,7 @@
 # seek) plus `copy` and buffered adapters. `a.net` offers TCP listener/stream
 # and UDP sockets. The syscalls block, but each wrapper is an `async fn`, so
 # `await` hands the worker to other tasks.
-import pet.async as a;
+import pat.async as a;
 
 async fn main() -> none {
     p = "/tmp/kirn_example_80.txt";

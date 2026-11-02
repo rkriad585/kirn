@@ -4,7 +4,7 @@
 # time as integer milliseconds, `sleep_until` waits for an absolute deadline,
 # `timeout` gives up on a task after a budget with typed `Elapsed`, and `interval` yields a steady
 # tick sequence without drifting when the work between ticks takes time.
-import pet.async as a;
+import pat.async as a;
 
 async fn fetch(id: Int, ms: Int) -> Int {
     await a.sleep(ms: ms);

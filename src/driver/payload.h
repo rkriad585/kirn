@@ -23,7 +23,7 @@ struct Bundle {
 
 using Sections = std::vector<std::pair<std::string, std::string>>;
 
-// PETLIB uses the same section framing as KIRNBUNDLE, but has no executable
+// PATLIB uses the same section framing as KIRNBUNDLE, but has no executable
 // prefix or @meta record. Keep both the writer and installer on this shared
 // framing so section termination and newline behavior cannot drift.
 inline std::string archiveText(const std::string& magic,

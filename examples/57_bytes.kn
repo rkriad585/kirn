@@ -24,7 +24,7 @@ fn main() -> none {
     mv[1] = 0xBE;                # writes are visible in the source buffer
     print(ba.hex());
 
-    # Concatenation and repetition.
+    # Concatenation and repatition.
     print((b"\x01\x02" + b"\x03").hex());
     print((b"\xAB" * 2).hex());
 

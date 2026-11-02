@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/88_select_await.kn
 Ident	2:1	import
-Ident	2:8	pet
+Ident	2:8	pat
 Punct	2:11	.
 Ident	2:12	async
 Ident	2:18	as

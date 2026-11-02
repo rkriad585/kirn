@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/67_serde_enum.kn
 Ident	6:1	import
-Ident	6:8	pet
+Ident	6:8	pat
 Punct	6:11	.
 Ident	6:12	serde
 Ident	6:18	as

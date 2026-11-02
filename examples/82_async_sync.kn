@@ -3,7 +3,7 @@
 # Kirn tasks are OS threads, so these primitives block only the waiting task;
 # every wait is wrapped in an `async fn` so `await` has tokio's shape. Guards
 # are explicit (there is no RAII drop): call `unlock()`, or use `Mutex.with`.
-import pet.async as a;
+import pat.async as a;
 
 async fn bump(m: any, n: Int) -> none {
     for _i in 0..n {

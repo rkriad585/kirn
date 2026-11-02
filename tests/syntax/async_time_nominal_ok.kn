@@ -1,5 +1,5 @@
 # Nominal async time values coexist with the legacy integer-millisecond API.
-import pet.async as a;
+import pat.async as a;
 
 async fn main() -> none {
     d = a.duration_ms(25);

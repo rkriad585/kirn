@@ -979,7 +979,7 @@ static std::string fmtDouble(double d) {
     return std::to_string(d);
 }
 
-// POWER_PLAN §5: `pet.error` dynamic error (anyhow-style). An Error is a
+// POWER_PLAN §5: `pat.error` dynamic error (anyhow-style). An Error is a
 // struct value with fields:
 //   msg    (Str) - this layer's Display message
 //   source (any) - the next cause (an Error struct) or none
@@ -1000,9 +1000,9 @@ static Value mkError(std::string msg, Value source, Value origin) {
     v.fields.emplace_back("backtrace", std::move(frames));
     return v;
 }
-// True when v is a pet.error Error built by mkError (precise: not a user
+// True when v is a pat.error Error built by mkError (precise: not a user
 // struct that merely happens to be named "Error").
-static bool isPetError(const Value& v) {
+static bool isPatError(const Value& v) {
     if (v.k == VK::Struct) return v.typeName == kErrorType;
     if (v.k == VK::Heap && v.heap) return v.heap->typeName == kErrorType;
     return false;
@@ -1207,7 +1207,7 @@ std::string toStr(const Value& v) {
             return v.typeName;
         }
         case VK::Struct:
-            // pet.error: print(e) shows the Display chain, not the raw struct.
+            // pat.error: print(e) shows the Display chain, not the raw struct.
             if (isErrorStruct(v.typeName)) return errorChainStr(v);
             return repr(v);
         case VK::EnumV: {
@@ -1885,7 +1885,7 @@ Value Interpreter::run(bool testMode) {
 
 // True for the native/prebound pseudo-modules. A bare `import m;` for one of
 // these must never be satisfied by a same-named *.kn file: a stdlib module such
-// as pet/parallel.kn starts with `import parallel;` (the native module), and if
+// as pat/parallel.kn starts with `import parallel;` (the native module), and if
 // the entry file lives in that same directory the file resolver finds
 // parallel.kn and binds the module to *itself* - `parallel.current_num_threads()`
 // then recurses until the stack overflows.
@@ -2800,10 +2800,10 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
 
     // POWER_PLAN §6 async-channel prelude. The `async` namespace cannot be
     // used as an identifier because it is a language keyword, so these plain
-    // constructors delegate to the canonical pet.sync implementations.
+    // constructors delegate to the canonical pat.sync implementations.
     auto syncCtor = [this](const std::string& name,
                            std::vector<Value> args) -> Value {
-        Value mod = loadModuleFile("pet.sync");
+        Value mod = loadModuleFile("pat.sync");
         Value fn = moduleMember(mod.typeName, name);
         return callValue(fn, std::move(args), 0, 0);
     };
@@ -2843,7 +2843,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         }
     });
 
-    // POWER_PLAN §6 prelude: reachable with no `import pet.error;`. bail/ensure
+    // POWER_PLAN §6 prelude: reachable with no `import pat.error;`. bail/ensure
     // mirror error.bail / error.ensure exactly (same SignalRaise payload), and
     // ok/err make the checker's predeclared `result` variants constructible.
     globals_->vars["bail"] = biFn({"msg"}, [](std::vector<Value>& a) -> Value {
@@ -3558,7 +3558,7 @@ globals_->vars["ToInt"] = biFn({"x"}, [](std::vector<Value>& a) -> Value {
         return Value::str(out);
     });
 
-    // Native regular-expression substrate used by pet.regexp. The public
+    // Native regular-expression substrate used by pat.regexp. The public
     // module remains Kirn while std::regex supplies real regex semantics.
     auto regexArgs = [](const std::vector<Value>& a) -> std::pair<std::string, std::string> {
         if (a.size() < 2 || a[0].k != VK::Str || a[1].k != VK::Str)
@@ -3839,7 +3839,7 @@ Value Interpreter::loadModuleFile(const std::string& dottedRaw) {
                 found = cand;
                 break;
             }
-            // package directory (installed under pets/): use entry file
+            // package directory (installed under pats/): use entry file
             std::string pkgDir =
                 dir + "/" + rel.substr(0, rel.size() - 3);   // strip ".kn"
             if (!pkgDir.empty() && std::filesystem::is_directory(pkgDir) &&
@@ -4361,7 +4361,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         const Value* mv = it->second->find(name);
         if (!mv || name.empty() || name[0] == '_') {
             // A file-backed wrapper may re-export a native pseudo-module
-            // (pet/error.kn wraps the native `error`). Members the file cannot
+            // (pat/error.kn wraps the native `error`). Members the file cannot
             // declare - notably `new`, a reserved keyword - still resolve from
             // the native module of the same base name.
             size_t dot = dotted.rfind('.');
@@ -4662,7 +4662,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         // POWER_PLAN §3.2: attribute introspection for serde options.
         // `type_attrs`/`field_attrs`/`variant_attrs` expose the parsed
-        // `@[serde(...)]` decorators as data so `pet.codec` can honour
+        // `@[serde(...)]` decorators as data so `pat.codec` can honour
         // rename/rename_all/skip/flatten/tag/deny_unknown_fields/transparent.
         if (name == "type_attrs")
             return biFn({"t"}, [this](std::vector<Value>& a) -> Value {
@@ -4733,7 +4733,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         // `crate::helpers::skip`; only the final segment is used. The lookup
         // walks the entry globals, then every loaded module, then each struct's
         // defining module, so a hook defined beside the type is found even when
-        // the encoder itself runs inside `pet.codec`.
+        // the encoder itself runs inside `pat.codec`.
         if (name == "fn")
             return biFn({"name"}, [this](std::vector<Value>& a) -> Value {
                 if (a.empty() || a[0].k != VK::Str)
@@ -4912,7 +4912,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::integer(nowMs());
             });
         // Wait on a task handle until it finishes or `ms` elapses: returns true
-        // if the task completed (ready), false on timeout. `pet.async.timeout`
+        // if the task completed (ready), false on timeout. `pat.async.timeout`
         // is built on this - it cannot be a plain `await` because the whole
         // point is to stop waiting before the task does.
         if (name == "wait") {
@@ -4941,7 +4941,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
     // POWER_PLAN §4: rayon-like data parallelism. `join`/`invoke` run Kirn
     // closures on OS threads and block until the results are ready (reusing the
     // task machinery that backs `spawn`/`await`), and the thread-info queries
-    // back `pet.parallel`'s pool sizing.
+    // back `pat.parallel`'s pool sizing.
     if (mod == "parallel") {
         if (name == "join")
             return biFn({"a", "b"}, [this](std::vector<Value>& a) -> Value {
@@ -5450,7 +5450,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 return Value::none();
             });
         // ---- filesystem primitives (POWER_PLAN §2.9) -----------------------
-        // These are the blocking syscalls. `pet.async.fs` wraps each in an
+        // These are the blocking syscalls. `pat.async.fs` wraps each in an
         // `async fn`, so the call runs on a task thread instead of the caller
         // (the same spawn-blocking shape tokio::fs uses).
         if (name == "read_file" || name == "read_bytes") {
@@ -5489,7 +5489,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
                 f.close();
                 return Value::none();
             });
-        // Positional whole-file I/O backing `pet.async_io.File` (§2.6).
+        // Positional whole-file I/O backing `pat.async_io.File` (§2.6).
         if (name == "read_at")
             return biFn({"path", "offset", "len"}, [](std::vector<Value>& a) -> Value {
                 std::string path = toStr(a[0]);
@@ -5676,7 +5676,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         // ---- process primitives (POWER_PLAN §2.9) --------------------------
         // `run` blocks to completion and captures output; `spawn` returns a
-        // handle (pid + temp paths) for `pet.async.process.Child`.
+        // handle (pid + temp paths) for `pat.async.process.Child`.
         if (name == "run")
             return biFn({"argv"}, [](std::vector<Value>& a) -> Value {
                 std::vector<std::string> argv;
@@ -5730,7 +5730,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
             });
         // ---- signal primitives (POWER_PLAN §2.9) ---------------------------
         // `install_ctrl_c` arms a SIGINT handler that only raises a flag;
-        // `ctrl_c_pending` polls it, so `pet.async.signal.ctrl_c` can wait
+        // `ctrl_c_pending` polls it, so `pat.async.signal.ctrl_c` can wait
         // cooperatively with a timer instead of blocking a worker.
         if (name == "install_ctrl_c")
             return biFn({}, [](std::vector<Value>&) -> Value {
@@ -5752,9 +5752,9 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
     }
 
     // POWER_PLAN §5.1/5.2: anyhow-style dynamic error. `error` is the import
-    // root for `pet.error` (importRootOf gives "error"); the prebound module
+    // root for `pat.error` (importRootOf gives "error"); the prebound module
     // value is Value::module("error").
-    if (mod == "error" || mod == "pet.error") {
+    if (mod == "error" || mod == "pat.error") {
         if (name == "msg")
             return biFn({"msg"}, [](std::vector<Value>& a) -> Value {
                 return mkError(toStr(a[0]), Value::none(), Value::none());
@@ -5831,7 +5831,7 @@ Value Interpreter::moduleMember(const std::string& mod, const std::string& name)
         panicHere("error has no member '" + name + "'");
     }
 
-    // POWER_PLAN §2.7: blocking POSIX sockets. `pet.async_net` wraps each in
+    // POWER_PLAN §2.7: blocking POSIX sockets. `pat.async_net` wraps each in
     // an `async fn`; fds are plain Ints, so the stdlib handles are cheap.
     if (mod == "net") {
 #ifndef _WIN32
@@ -6728,7 +6728,7 @@ void Interpreter::exec(const Stmt& s, Env env) {
             if (isParallel) {
                 // POWER_PLAN §4.4: `@[par] for x in xs { … }` runs the body
                 // concurrently across the worker pool. Lower to
-                // `pet.parallel.par_iter(xs).for_each(fn (it) { … })`; the
+                // `pat.parallel.par_iter(xs).for_each(fn (it) { … })`; the
                 // synthetic native closure re-binds the original loop pattern
                 // against each element, exactly like a serial `for`.
                 Value seq = eval(*s.exprs[0], env);
@@ -6749,9 +6749,9 @@ void Interpreter::exec(const Stmt& s, Env env) {
                     }
                     return item;
                 });
-                Value mod = loadModuleFile("pet.parallel");
+                Value mod = loadModuleFile("pat.parallel");
                 if (mod.k != VK::Module)
-                    panicHere("`@[par]` requires the pet.parallel module");
+                    panicHere("`@[par]` requires the pat.parallel module");
                 const char* constructor = seq.k == VK::List
                                               ? "par_iter_mut"
                                               : "par_iter";
@@ -7792,7 +7792,7 @@ Value Interpreter::evalParallelDecoratorExpr(const Expr& e, Env env) {
     bool alreadyParallel = receiver.k == VK::Struct &&
                            receiver.typeName == "ParIter";
     if (!alreadyParallel) {
-        Value mod = loadModuleFile("pet.parallel");
+        Value mod = loadModuleFile("pat.parallel");
         Value makePar = moduleMember(mod.typeName, "par_iter");
         receiver = callValue(std::move(makePar), {receiver},
                              e.span.line, e.span.col);
@@ -8144,7 +8144,7 @@ Value Interpreter::runFunc(const Stmt* fn, std::vector<Value> pos,
             // `result[T, E]` functions propagate E2 unchanged.
             if (fn->ret->generics.size() == 1 && sraise.errResult.k == VK::Result &&
                 !sraise.errResult.payload.empty() &&
-                !isPetError(sraise.errResult.payload[0])) {
+                !isPatError(sraise.errResult.payload[0])) {
                 Value& p = sraise.errResult.payload[0];
                 p = mkError(toStr(p), Value::none(), p);
             }
@@ -8260,7 +8260,7 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
             }
         }
         if (derived) {
-            Value codec = loadModuleFile("pet.codec");
+            Value codec = loadModuleFile("pat.codec");
             Value decoder = moduleMember(codec.typeName, "coerce_type");
             return callValue(std::move(decoder), {obj, pos[0]}, line, col);
         }
@@ -8314,7 +8314,7 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
     if (obj.k == VK::Struct || obj.k == VK::Heap) {
         const std::string& tn =
             obj.k == VK::Heap ? obj.heap->typeName : obj.typeName;
-        // POWER_PLAN §5: pet.error's Error methods are native (no AST decl).
+        // POWER_PLAN §5: pat.error's Error methods are native (no AST decl).
         if (isErrorStruct(tn)) {
             if (name == "chain") {
                 std::vector<Value> out;
@@ -8400,7 +8400,7 @@ Value Interpreter::invokeMethod(Value obj, const std::string& name,
                 if (it->typeName != tn || it->traitName != "Serialize" ||
                     name != "serialize")
                     continue;
-                Value codec = loadModuleFile("pet.codec");
+                Value codec = loadModuleFile("pat.codec");
                 Value encoder = moduleMember(codec.typeName, "enc_tree");
                 return callValue(std::move(encoder), {obj}, line, col);
             }
@@ -8555,7 +8555,7 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                     if (it->traitName != "Deserialize" || it->typeName != tn)
                         continue;
                     return bind({"data"}, [this, obj](std::vector<Value>& a) {
-                        Value codec = loadModuleFile("pet.codec");
+                        Value codec = loadModuleFile("pat.codec");
                         Value decoder = moduleMember(codec.typeName, "coerce_type");
                         Value data = a.size() > 1 ? a[1] : Value::none();
                         return callValue(std::move(decoder), {obj, data}, 0, 0);
@@ -8711,7 +8711,7 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 return bind({}, [this](std::vector<Value>& a) -> Value {
                     // POWER_PLAN §4: a task handle's `join()` now yields the
                     // task's return value (previously `none`), which lets
-                    // `pet.parallel` collect parallel results without `await`.
+                    // `pat.parallel` collect parallel results without `await`.
                     return awaitTask(a[0]);
                 });
             if (name == "wait")
@@ -9355,7 +9355,7 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 });
             if (name == "par_iter" || name == "into_par_iter")
                 return bind({}, [this](std::vector<Value>& a) -> Value {
-                    Value mod = loadModuleFile("pet.parallel");
+                    Value mod = loadModuleFile("pat.parallel");
                     if (mod.k != VK::Module)
                         panicHere("list parallel iterator module is unavailable");
                     Value f = moduleMember(mod.typeName, "par_iter");
@@ -9364,7 +9364,7 @@ Value Interpreter::memberRead(const Value& obj, const std::string& name,
                 });
             if (name == "par_iter_mut")
                 return bind({}, [this](std::vector<Value>& a) -> Value {
-                    Value mod = loadModuleFile("pet.parallel");
+                    Value mod = loadModuleFile("pat.parallel");
                     if (mod.k != VK::Module)
                         panicHere("list mutable parallel iterator module is unavailable");
                     Value f = moduleMember(mod.typeName, "par_iter_mut");

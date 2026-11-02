@@ -3,7 +3,7 @@
 # Enums are encoded externally tagged: `{"Variant": payload}`, where payload is
 # `null` for unit variants and a JSON array otherwise. The target type is known
 # at decode time, so the decoder can recover the variant and coerce payloads.
-import pet.serde as serde;
+import pat.serde as serde;
 import reflect;
 
 enum Shape {

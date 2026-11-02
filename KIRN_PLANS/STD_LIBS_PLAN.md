@@ -2,27 +2,27 @@
 
 ## Goal
 
-One consolidated **pet** (Kirn standard-library) roadmap: an industry-standard,
+One consolidated **pat** (Kirn standard-library) roadmap: an industry-standard,
 batteries-included yet minimal library that is **AI-first** and **faster than
 Rust/Go on the common paths**, taking the best of Go's flat stdlib, Rust's
-crate/module structure, and Python's batteries — implemented as real Kirn pet
-units (`stdlib/pet/*.kn`; the `lib/*` names below are those same units) over the
+crate/module structure, and Python's batteries — implemented as real Kirn pat
+units (`stdlib/pat/*.kn`; the `lib/*` names below are those same units) over the
 native substrate.
 
 ## Must Follow
 
 - The toolchain build ships **exactly two executables**: `kirn` (driver) and `kirnc` (checker/compiler). No other binaries.
-- **No over-engineering** — keep the smallest proven pet set that matches the reference langs; extend an existing pet before adding a new one.
-- **AI-first**: every pet's public API must be discoverable and checkable — explicit signatures, doc comments, and a `kirn test` suite (`*_test.kn`).
+- **No over-engineering** — keep the smallest proven pat set that matches the reference langs; extend an existing pat before adding a new one.
+- **AI-first**: every pat's public API must be discoverable and checkable — explicit signatures, doc comments, and a `kirn test` suite (`*_test.kn`).
 - **Kirn style**: lowercase width micros (`u8`..`u256`, `i8`..`i256`, `f8`..`f256`), capitalized primitives (`Int Float Bool Str Char BigInt Rational`), lowercase methods (`.bit_length()`), CapCase free builtins/types (`__Sqrt`, `BigInt`, `Str`, `Min`, `Max`).
-- Pet internals must **not reimplement the builtin runtime**; performance is measured with `kirn bench` and each hot pet must beat its Go/Rust counterpart on the common path.
+- Pat internals must **not reimplement the builtin runtime**; performance is measured with `kirn bench` and each hot pat must beat its Go/Rust counterpart on the common path.
 
 ## Important Note
 
-The existing structure is kept and remains authoritative: the pet catalogue
+The existing structure is kept and remains authoritative: the pat catalogue
 (baseline + native substrate), the per-module plans (Phases 0–15), and the test
 strategy. Each phase below is a **work unit**, not a rewrite; APIs stay
-`import pet.<mod>` / `mod.fn(...)`. Catalogues and per-module plans are preserved. The
+`import pat.<mod>` / `mod.fn(...)`. Catalogues and per-module plans are preserved. The
 default-on serialization framework (serde-style `Serialize`/`Deserialize` traits +
 `@[derive(...)]`) that the `json`/`toml`/`yaml`/`cbor` formats plug into is owned by
 `POWER_PLAN.md`.
@@ -188,10 +188,10 @@ phase is a Kirn file. New native pseudo-modules:
 **Goal:** add the pseudo-modules/values of §2 + `io` fill gaps (`File.write` modes
 `w/a`, `truncate`), all in `src/interp/runtime.cpp`, with `*_test.kn` smoke tests.
 **Must Follow:** native stays ~15 thin pseudo-modules (policy/formatting/logic live
-in Kirn pets); register every new pseudo-module in the `installBuiltins` prebind
-loop and the checker allowlist; pets never reimplement a builtin.
+in Kirn pats); register every new pseudo-module in the `installBuiltins` prebind
+loop and the checker allowlist; pats never reimplement a builtin.
 **Important Note:** the only phase that touches C++ — every later phase is a pure
-Kirn pet file; the build still yields exactly `kirn` + `kirnc`.
+Kirn pat file; the build still yields exactly `kirn` + `kirnc`.
 
 **Key C++ work items**
 
@@ -220,7 +220,7 @@ if (mod == "os" && name == "mkdir_all")
 `collections/io/os/time/math/json` untouched behavior; `kirn test` recursive green.
 
 ```kirn
-# stdlib/pet/os_smoke_test.kn — exercise the Phase-0 substrate from Kirn
+# stdlib/pat/os_smoke_test.kn — exercise the Phase-0 substrate from Kirn
 import os;
 import io;
 
@@ -251,7 +251,7 @@ fn main() {
 
 **Goal:** stabilize the substrate layer used by everything else and fix the known
 `json.loads` recursion bug.
-**Must Follow:** extend the existing `json`/`io`/`os`/`path` pets in place (tagged
+**Must Follow:** extend the existing `json`/`io`/`os`/`path` pats in place (tagged
 `[NEEDS-ENHANCE]`); add no new pseudo-modules here; preserve the `priv_*` self-shadow
 capture convention.
 **Important Note:** `json` is the only true blocker — the rest are API extensions
@@ -293,7 +293,7 @@ unicode, `NaN`/`inf` optional.
 
 ### 1b. `lib.errors`
 
-**Goal:** canonical error values + sentinels shared by every failing pet.
+**Goal:** canonical error values + sentinels shared by every failing pat.
 **Must Follow:** predicates/optional getters return `nil`/`?`; contract failures raise;
 messages are plain `Str`.
 **Important Note:** `errors` shadows no pseudo-module; consumers are `os`, `io`, `path`.
@@ -314,7 +314,7 @@ Hmm — Kirn module `errors` shadows nothing; fine. Consumers: `os`, `io`, `path
 
 ### 1c. `lib.io` (real, over Phase-0 substrate)
 
-**Goal:** real file-I/O pet over the Phase-0 substrate (`read/read_text/read_bytes/read_lines/write/append/exists/is_dir/copy`).
+**Goal:** real file-I/O pat over the Phase-0 substrate (`read/read_text/read_bytes/read_lines/write/append/exists/is_dir/copy`).
 **Must Follow:** capture `io.open` at load into `priv_open` (self-shadow guard); overwrite = truncate mode `w`, append = mode `a`.
 **Important Note:** wraps the builtin `File` runtime — no reimplementation of `read/write/close`.
 
@@ -334,7 +334,7 @@ pub fn copy(src, dst) { write(dst, read(src)); }
 
 ### 1d. `lib.os` (real, over Phase-0 `os`)
 
-**Goal:** OS/filesystem/process/FS pet over Phase-0 `os` + `process`.
+**Goal:** OS/filesystem/process/FS pat over Phase-0 `os` + `process`.
 **Must Follow:** one canonical form per op (`mkdir(p, parents=true)`, `env(name, default=nil)`); no import cycles with `path`/`io`.
 **Important Note:** `walk` is Python-style `[(dir,[subdirs],[files])]`; `system` delegates to `process.run`.
 
@@ -362,7 +362,7 @@ pub const sep: Str = "/";
 
 ### 1e. `lib.path` (real, platform separator + glob)
 
-**Goal:** platform-correct path pet (separator + glob) matching Go `path/filepath`.
+**Goal:** platform-correct path pat (separator + glob) matching Go `path/filepath`.
 **Must Follow:** honor `os.sep()`; `glob` supports `* ? [] **`; keep pure Kirn (no native dep).
 **Important Note:** extends the existing pure-Kirn `path`; here `abs(p)` is the path function, **not** the numeric `__Abs` builtin.
 
@@ -393,13 +393,13 @@ green. **Consumes:** Phase 0. **Consumed by:** all later phases.
 > fns; the deque/Counter/ordered-collections TYPES are pending — type model in `DATA_TYPE_PLAN.md`
 > Phase 10, module here). **2d/2e `itertools`/sort = PENDING.**
 
-**Goal:** rich text + data-structure pets used by nearly every other pet.
+**Goal:** rich text + data-structure pats used by nearly every other pat.
 **Must Follow:** extend `strings`/`collections` in place; new types (`Deque`/`Counter`) package here while their type model lives in `DATA_TYPE_PLAN.md` Phase 10.
 **Important Note:** `strings` and `collections` are hot-path — `kirn bench` must show them beating Go `strings`/`container` on common ops.
 
 ### 2a. `lib.strings` (extend; keep existing names)
 
-**Goal:** complete the Python/Go/Ruby-convergent string set in one pet.
+**Goal:** complete the Python/Go/Ruby-convergent string set in one pat.
 **Must Follow:** keep existing names stable; add only harmonized names; `join(xs, sep)` (Go is the odd one out).
 **Important Note:** **performance-critical** — `contains`/`index`/`split`/`replace` must beat Go `strings` on the common path (delegate to native builtins; no per-char Kirn scans).
 
@@ -453,7 +453,7 @@ pub fn chr(n) -> Str { return chr(n); }
 
 **Goal:** `HashSet`/`Deque`/`Counter` (+ helper fns) alongside the existing `HashMap`.
 **Must Follow:** reuse the runtime dict/list; types exported via `pub struct`; no native reimplementation.
-**Important Note:** type internals belong to `DATA_TYPE_PLAN.md` Phase 10; this pet owns packaging/APIs only.
+**Important Note:** type internals belong to `DATA_TYPE_PLAN.md` Phase 10; this pat owns packaging/APIs only.
 
 > Reference: Rust — `std::collections` (`rust/library/std`) for `VecDeque`/`HashSet` op names.
 
@@ -508,7 +508,7 @@ pub fn chain(xs) -> list, product(xs) -> list, permutations(xs, r) -> list,
 
 ### 2e. `lib.sort` (new; Go sort + Rust slice::sort)
 
-**Goal:** sorting/searching pet over the native `sorted`/`reversed` builtins.
+**Goal:** sorting/searching pat over the native `sorted`/`reversed` builtins.
 **Must Follow:** `sort_by` takes a key function; `search` returns the insertion point (Go `sort.Search`).
 **Important Note:** stable variants must be stable; `kirn bench` vs Go `sort`/`slices`.
 
@@ -543,9 +543,9 @@ CapCase renames apply here — see 3a (`abs` → `__Abs`, `rational` → `Ration
 
 ### 3a. `lib.math` (extend to full reference surface)
 
-**Goal:** full reference math surface (constants + fns) in one pet, matching Python/Go/Rust names.
+**Goal:** full reference math surface (constants + fns) in one pat, matching Python/Go/Rust names.
 **Must Follow:** qualified `math.*`; capture `priv_sqrt = __Sqrt` at load where a global is needed; `Float` results throughout.
-**Important Note:** **CapCase rename** — the old lowercase `abs(` builtin is now `__Abs` (the pet wrapper stays `math.fabs`), and `rational(` is now `Rational(...)`/`__Rational(...)`; methods stay lowercase (`.bit_length()`). `kirn bench` must match or beat Go `math`.
+**Important Note:** **CapCase rename** — the old lowercase `abs(` builtin is now `__Abs` (the pat wrapper stays `math.fabs`), and `rational(` is now `Rational(...)`/`__Rational(...)`; methods stay lowercase (`.bit_length()`). `kirn bench` must match or beat Go `math`.
 
 Import with `import lib.math;` uses **qualified** `math.sqrt(...)` so it does not
 shadow the native `math` pseudo-module; no self-shadow hazard.
@@ -621,7 +621,7 @@ pub fn shuffle(xs) -> list { ... }
 
 ### 3c. `lib.time` (extend; Python `time`, Rust `std::time`, Go `time`)
 
-**Goal:** extend the existing `time` pet with breakdown/monotonic/format helpers.
+**Goal:** extend the existing `time` pat with breakdown/monotonic/format helpers.
 **Must Follow:** capture pseudo `time.*` at load (`priv_*`); formatting/locale logic stays in Kirn.
 **Important Note:** `now_ns`/`monotonic`/`local_breakdown` come from Phase 0; no wall-clock logic in C++.
 
@@ -714,15 +714,15 @@ green. **Consumes:** Phase 0 (time breakdown), Phase 2 (collections), `math` cor
 **Goal:** binary + integrity/security primitives (Python `base64/hashlib/hmac/
 secrets/binascii`, Go `encoding/base64/encoding/hex/hash/crypto`, Ruby
 `Base64/Digest/SecureRandom`).
-**Must Follow:** all hashing/crypto primitives come from Phase-0 pseudo-modules; pets are thin wrappers + policy.
+**Must Follow:** all hashing/crypto primitives come from Phase-0 pseudo-modules; pats are thin wrappers + policy.
 **Important Note:** **performance-critical** — `base64`/`hex`/sha256 must beat Go
 `encoding/base64`/`crypto/sha256` on the common path (`kirn bench`).
 
 ### 4a. `lib.bytes` (new)
 
-**Goal:** bytes pet wrapping the Phase-0 `Bytes` value.
+**Goal:** bytes pat wrapping the Phase-0 `Bytes` value.
 **Must Follow:** no byte loops in Kirn where a native `Bytes` op exists; str↔bytes conversions are explicit.
-**Important Note:** Phase 0 must land first; every later binary pet builds on this.
+**Important Note:** Phase 0 must land first; every later binary pat builds on this.
 
 ```kirn
 pub fn new(cap: Int=0) -> bytes { return bytes.new(cap); }
@@ -932,7 +932,7 @@ inline `{a=1}`, dotted `a.b.c`.
 
 ### 5d. `lib.json` (extend; add options)
 
-**Goal:** extend the fixed `json` pet with options + file helpers.
+**Goal:** extend the fixed `json` pat with options + file helpers.
 **Must Follow:** keep native `dumps`; parser is the Phase-1 fix; all options additive (non-breaking).
 **Important Note:** must beat Go `encoding/json` on typical payloads; no reflection-heavy encode.
 
@@ -959,7 +959,7 @@ optional). **Consumed by:** `http`, `args`(config), `psutil`, `template`, `yaml`
 **Goal:** CLI/observability/system modules (Python `argparse/sys/logging/
 platform`, Go `flag/log/testing`, Ruby `OptionParser/Benchmark`, Rust `env/process`).
 **Must Follow:** thin wrappers over Phase-0 `os`/`process`/`sys`/`keyboard`; no native CLI parsing in C++.
-**Important Note:** `args`/`sys` must be startup-cheap; `benchmark` uses `time.monotonic`. Interactive pets (console/keyboard) are env-gated in tests.
+**Important Note:** `args`/`sys` must be startup-cheap; `benchmark` uses `time.monotonic`. Interactive pats (console/keyboard) are env-gated in tests.
 
 ### 6a. `lib.args` (new; Python `argparse`, Go `flag`, Ruby `OptionParser`)
 
@@ -1063,7 +1063,7 @@ pub fn users() -> list { ... }
 
 ### 6g. `lib.sys` (new; Python `sys`, Go `os`, Rust `std::env/process`, Ruby `ENV`)
 
-**Goal:** Python-`sys`/Go-`os` introspection pet.
+**Goal:** Python-`sys`/Go-`os` introspection pat.
 **Must Follow:** `argv/stdin_line/stdout_write/stderr_write/exit/platform/version/...`; delegate to pseudo `sys`/`os`.
 **Important Note:** must not shadow the `sys` pseudo-module — capture at load (`priv_*`).
 
@@ -1242,7 +1242,7 @@ pub fn make_environ(url, method, headers, body) -> dict { ... }
 
 **Goal:** arbitrary-precision integer arithmetic + public-key crypto (Python `int`
 is arbitrary precision; Go `math/big`; Rust `num-bigint` crate; PHP `gmp`).
-**Must Follow:** bigint value comes from Phase 0; RSA/DH math in Kirn over `bigint`; no bignum in pets.
+**Must Follow:** bigint value comes from Phase 0; RSA/DH math in Kirn over `bigint`; no bignum in pats.
 **Important Note:** skip cleanly if the `bigint` substrate is deferred.
 
 ### 8a. `lib.bigint` (new; wrapper + helpers)
@@ -1266,13 +1266,13 @@ pub fn to_int(b) -> Int { ... }
 ### 8b. `lib.crypto` big-key ops
 
 **Goal:** RSA/DH/signature operations over `bigint`.
-**Must Follow:** reuse the Phase-4 `crypto` pet; primes via Miller-Rabin in Kirn; no hand-rolled padding.
+**Must Follow:** reuse the Phase-4 `crypto` pat; primes via Miller-Rabin in Kirn; no hand-rolled padding.
 **Important Note:** key generation is slow — expose bit-size limits; constant-time modular exponentiation.
 
 `generate_rsa`, `rsa_encrypt/decrypt/sign/verify`, `diffie_hellman`, `random_prime`.
 
 ```kirn
-# stdlib/pet/crypto_rsa_test.kn
+# stdlib/pat/crypto_rsa_test.kn
 import crypto;
 
 fn main() {
@@ -1401,7 +1401,7 @@ external; Go `gopkg.in/yaml.v3` external)
 
 **Goal:** optional YAML load/dump.
 **Must Follow:** pure Kirn; explicitly non-stdlib/community.
-**Important Note:** unlike `toml`/`http`, YAML is not in Python/Go stdlib — keep it out of the core pet set.
+**Important Note:** unlike `toml`/`http`, YAML is not in Python/Go stdlib — keep it out of the core pat set.
 
 ```kirn
 pub fn dump(v) -> Str { ... }
@@ -1423,7 +1423,7 @@ differently — `toml` and `http` ARE stdlib in Python/Go, YAML is **not**. Mark
 
 **Goal:** embedded SQL (Python `sqlite3`, Go `database/sql`, Rust `rusqlite`).
 **Must Follow:** DB-API-style `Connection`; transactions via explicit BEGIN/COMMIT/ROLLBACK; all SQL execution in the Phase-0 `sqlite` substrate.
-**Important Note:** sqlite is an optional compile flag; the pet stays thin.
+**Important Note:** sqlite is an optional compile flag; the pat stays thin.
 
 Sits on Phase-0 `sqlite`.
 
@@ -1449,7 +1449,7 @@ pub fn connect(path) -> Connection { return Connection(path); }
 ## Phase 12 — keyboard polish, console raw-mode, term input (final I/O ergonomics)
 
 **Goal:** refine `keyboard`/`console` with raw terminal + termios-style modes.
-**Must Follow:** raw mode via Phase-0 getch/console; no per-key C++ logic in the pet.
+**Must Follow:** raw mode via Phase-0 getch/console; no per-key C++ logic in the pat.
 **Important Note:** interactive — gate tests behind an env var/driver.
 
 Refine `keyboard`/`console` with raw terminal, termios-style modes:
@@ -1534,7 +1534,7 @@ pub fn look_path(cmd: Str) -> Str? { ... }
 
 **Goal:** remaining runtime-ish modules (Ruby `Signal`, Python `signal/sys`, Go
 `os/signal`).
-**Must Follow:** all delegate to Phase-0 `os`/`time`; no native signal handling in the pet.
+**Must Follow:** all delegate to Phase-0 `os`/`time`; no native signal handling in the pat.
 **Important Note:** `perf_counter`/`process_time` come from the `time` pseudo-module.
 
 ```kirn
@@ -1555,12 +1555,12 @@ pub fn process_time() -> Float { ... }
 
 ## Phase 15 — `sql`, `orm`, `mime`, `mem`, `crypto` completeness
 
-**Goal:** stretch pets over already-landed substrate (query builders, MIME table, arena helpers, crypto completeness).
-**Must Follow:** each is additive and independently shippable; reuse lower pets; no new native surface unless justified.
+**Goal:** stretch pats over already-landed substrate (query builders, MIME table, arena helpers, crypto completeness).
+**Must Follow:** each is additive and independently shippable; reuse lower pats; no new native surface unless justified.
 **Important Note:** long-lead — split across owners; `mem` helpers wrap the Phase-0 `Arena`.
 
 ```kirn
-# stdlib/pet/mem_smoke_test.kn — Arena helpers over the Phase-0 arena
+# stdlib/pat/mem_smoke_test.kn — Arena helpers over the Phase-0 arena
 import mem;
 
 fn main() {
@@ -1586,7 +1586,7 @@ Stretch modules (longer lead, team can split):
 
 ## Beyond Phase 15 — future / stretch
 
-**Goal:** speculative pets (ui/tui, async, db clients, ffi, serialization, http2/quic).
+**Goal:** speculative pats (ui/tui, async, db clients, ffi, serialization, http2/quic).
 **Must Follow:** only after Phases 0–15 are stable; still no new executables (`kirn` + `kirnc` only).
 **Important Note:** not committed — a backlog of proven patterns, not a plan of record.
 
@@ -1654,7 +1654,7 @@ min2 max2`.
 
 > **CapCase rename (Kirn style):** the free builtins previously spelled lowercase
 > are now CapCase — `abs(` → `__Abs`, `rational(` → `Rational` / `__Rational`,
-> `min(`/`max(` → `Min`/`Max`. Pet wrappers keep lowercase module methods
+> `min(`/`max(` → `Min`/`Max`. Pat wrappers keep lowercase module methods
 > (`math.fabs`, `math.min2`) and object methods stay lowercase (`x.bit_length()`).
 
 ### os
@@ -1848,7 +1848,7 @@ body) → `sqlite3` (persist) → `time` (TTL) → `log` (observability). All mo
 
 ## 7. Concurrency & synchronization (deferred to Phase 11 of `DO_FIRST_PLAN`)
 
-**Goal:** a `lib.sync` pet (`Mutex/RWMutex/Once/WaitGroup/Cond`) modeling Go `sync` / Rust `std::sync`.
+**Goal:** a `lib.sync` pat (`Mutex/RWMutex/Once/WaitGroup/Cond`) modeling Go `sync` / Rust `std::sync`.
 **Must Follow:** keep API names identical to Go/Rust so the substrate drop-in is seamless; build on `chan`/`spawn`/`select`.
 **Important Note:** **deliberately deferred** until the safe worker-pool substrate lands; do not ship a half-safe mutex.
 
@@ -2132,10 +2132,10 @@ The native `io` file handle now preserves shared cursor state and supports expli
 `r`, `w`, `a`, `r+`, `w+`, and `a+` modes. `File.read` accepts an optional byte
 count, `write` honors the cursor or append mode, and `truncate`, `seek`, `tell`,
 `write_w`, and `write_a` are available. The existing default open behavior remains
-append-compatible, while `pet.io.open_mode` exposes the explicit mode surface.
+append-compatible, while `pat.io.open_mode` exposes the explicit mode surface.
 
 Delivered: `src/interp/value.h`, `src/interp/runtime.cpp`,
-`stdpet/pet/io.kn`, and `stdpet/pet/io_test.kn`.
+`stdlib/pat/io.kn`, and `stdlib/pat/io_test.kn`.
 
 Verification: full build; focused checker/tree-walker/compiler checks; syntax gate
 **97 passed, 0 failed, 0 hung**; stdlib gate **19 tests passed**; examples gate
@@ -2147,12 +2147,12 @@ The native `os` substrate now covers the portable filesystem and process-query
 surface planned for Phase 0: `cwd`, `chdir`, `mkdir`, `mkdir_all`, `rmdir`,
 `remove`, `rename`, `listdir`, `stat`, `exists`/`exist`, `is_dir`, `is_file`,
 `home`, `tmpdir`, `getpid`, `cpu_count`, `hostname`, `environ`, `setenv`, and
-`unsetenv`. The `pet.os` wrapper exports the same operations, and its regression
+`unsetenv`. The `pat.os` wrapper exports the same operations, and its regression
 now exercises nested directory creation, metadata, cleanup, and environment
 mutation.
 
-Delivered: `src/interp/runtime.cpp`, `stdpet/pet/os.kn`, and
-`stdpet/pet/os_test.kn`.
+Delivered: `src/interp/runtime.cpp`, `stdlib/pat/os.kn`, and
+`stdlib/pat/os_test.kn`.
 
 ### Update (2026-10-30) — Explicit bytes and system modules (Phase 0 checkpoint)
 
@@ -2164,7 +2164,7 @@ The existing global `bytes(...)` constructor remains intact even when the
 module is imported.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/bytes_sys_test.kn`, `tests/syntax/bytes_sys_phase0_ok.kn`, and
+`stdlib/pat/bytes_sys_test.kn`, `tests/syntax/bytes_sys_phase0_ok.kn`, and
 this plan update.
 
 Verification: full build; focused checker/tree-walker/compiler and `kirn test`
@@ -2180,7 +2180,7 @@ These names share the existing safe fork/exec, nonblocking wait, capture, and
 cleanup implementation used by `os`, so existing callers remain compatible.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/process_test.kn`, `tests/syntax/process_phase0_ok.kn`, and this
+`stdlib/pat/process_test.kn`, `tests/syntax/process_phase0_ok.kn`, and this
 plan update.
 
 Verification: full build; focused checker/tree-walker/compiler and `kirn test`
@@ -2198,7 +2198,7 @@ historical `net` namespace remains unchanged and both paths share the same
 native implementation.
 
 Delivered: `src/interp/runtime.cpp`, `src/sema/checker.cpp`,
-`stdpet/pet/socket_test.kn`, `tests/syntax/socket_phase0_ok.kn`, and this plan
+`stdlib/pat/socket_test.kn`, `tests/syntax/socket_phase0_ok.kn`, and this plan
 update.
 
 Verification: full build; focused TCP/UDP namespace checks including localhost
@@ -2215,7 +2215,7 @@ The native `crypto` module now uses OpenSSL EVP/RAND primitives for `md5`,
 implementations are involved.
 
 Delivered: `CMakeLists.txt`, `src/interp/runtime.cpp`,
-`src/sema/checker.cpp`, `stdpet/pet/crypto_test.kn`,
+`src/sema/checker.cpp`, `stdlib/pat/crypto_test.kn`,
 `tests/syntax/crypto_phase0_ok.kn`, and this plan update.
 
 Verification: full build with OpenSSL Crypto linkage; focused checker/tree-
@@ -2232,7 +2232,7 @@ and decompression growth is capped at 64 MiB to prevent unbounded allocation
 from malformed input.
 
 Delivered: `CMakeLists.txt`, `src/interp/runtime.cpp`,
-`src/sema/checker.cpp`, `stdpet/pet/compress_test.kn`,
+`src/sema/checker.cpp`, `stdlib/pat/compress_test.kn`,
 `tests/syntax/compress_phase0_ok.kn`, and this plan update.
 
 Verification: full build with zlib linkage; focused checker/tree-walker/compiler
@@ -2250,7 +2250,7 @@ errors are finalized and reported through Kirn panics. CMake links the system
 SQLite3 library explicitly.
 
 Delivered: `CMakeLists.txt`, `src/interp/value.h`, `src/interp/runtime.cpp`,
-`src/sema/checker.cpp`, `stdpet/pet/sqlite_test.kn`,
+`src/sema/checker.cpp`, `stdlib/pat/sqlite_test.kn`,
 `tests/syntax/sqlite_phase0_ok.kn`, the test gate, and its golden snapshot.
 
 Verification: full build with SQLite3 linkage; focused SQLite test passed;

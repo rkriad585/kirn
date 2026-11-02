@@ -15,7 +15,7 @@
 #              ref pattern `&pat`, `do_while_stmt` spelling,
 #              removed duplicate pattern rules and the undefined `attr_of` /
 #              `call_arg_list` / `call_expr` references. ISO EBNF `{ }` is used
-#              for all repetition (no stray `*`/`+` postfix).
+#              for all repatition (no stray `*`/`+` postfix).
 #  Conformance:
 #    * This file is NORMATIVE. The parser (src/parser) must accept exactly the
 #      language generated here; golden-file tests derive their expectations
@@ -25,7 +25,7 @@
 #
 #  Notation (ISO EBNF):
 #    =  definition            ;  terminator           |  alternation
-#    [ ]  optional (0/1)      { }  repetition (0+)    ( )  grouping
+#    [ ]  optional (0/1)      { }  repatition (0+)    ( )  grouping
 #    (* *) comment            "…"  terminal string
 #  Non-terminals starting uppercase are LEXER tokens (§1); lowercase are
 #  syntactic rules (§3).

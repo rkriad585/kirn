@@ -4,7 +4,7 @@
 # arm runs; `select biased` checks arms in source order, while a plain `select`
 # rotates its starting arm so a constantly-ready arm cannot starve the rest.
 # `else` is the non-blocking tail, run when a full pass finds nothing ready.
-import pet.async as a;
+import pat.async as a;
 
 async fn fetch(ms: Int, v: Int) -> Int {
     await a.sleep(ms);

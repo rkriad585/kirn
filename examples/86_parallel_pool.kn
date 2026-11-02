@@ -5,8 +5,8 @@
 # `broadcast` fans out to. `scope` collects tasks handed to `scope.spawn` and
 # runs them together before returning. Small work stays on one worker, so the
 # output is deterministic.
-import pet.parallel as p;
-import pet.sync as sync;
+import pat.parallel as p;
+import pat.sync as sync;
 
 fn square(x) -> Int { return x * x; }
 

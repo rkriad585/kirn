@@ -1,6 +1,6 @@
 # serde function-valued options (POWER_PLAN §3.2): skip_serializing_if,
 # default = "path", serialize_with / deserialize_with. Clean + tree == VM.
-import pet.json as json;
+import pat.json as json;
 
 struct Pair { a: Int; b: Int; }
 

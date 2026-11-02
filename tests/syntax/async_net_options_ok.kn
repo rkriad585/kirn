@@ -1,5 +1,5 @@
 # Async socket option surface (POWER_PLAN §2.7).
-import pet.async as a;
+import pat.async as a;
 
 async fn main() -> none {
     l = a.net.bind("127.0.0.1:0");

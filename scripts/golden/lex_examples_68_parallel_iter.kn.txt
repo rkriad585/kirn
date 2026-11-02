@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/68_parallel_iter.kn
 Ident	6:1	import
-Ident	6:8	pet
+Ident	6:8	pat
 Punct	6:11	.
 Ident	6:12	parallel
 Ident	6:21	as

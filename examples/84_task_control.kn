@@ -5,7 +5,7 @@
 # keeps running to completion (there is no cancellation unwinding); the flag
 # only affects the handle. `select` aborts the task arms it did not pick, and
 # `try_join` aborts the handles it never reached.
-import pet.async as a;
+import pat.async as a;
 
 async fn work(id: Int, ms: Int) -> Int {
     await a.sleep(ms: ms);

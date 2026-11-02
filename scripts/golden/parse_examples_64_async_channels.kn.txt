@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/64_async_channels.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "producer" async
   Param "out" : chan[Int]
   Param "n" : Int

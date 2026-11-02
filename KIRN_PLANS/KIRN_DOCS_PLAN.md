@@ -13,17 +13,17 @@ A documentation website plan for **Kirn** that is industry-standard, AI-first, a
 
 ## Must Follow
 
-- The toolchain ships EXACTLY two executables — `kirn` (driver) and `kirnc` (checker/compiler). Docs generation must be a `kirn`/pet tool or script, **never a third shipped binary**. `> Reference: Rust — rustdoc (rust/src/tools/rustdoc)`, `> Reference: Nim — nim docgen (Nim/doc/docgen.md)`.
+- The toolchain ships EXACTLY two executables — `kirn` (driver) and `kirnc` (checker/compiler). Docs generation must be a `kirn`/pat tool or script, **never a third shipped binary**. `> Reference: Rust — rustdoc (rust/src/tools/rustdoc)`, `> Reference: Nim — nim docgen (Nim/doc/docgen.md)`.
 - No over-engineering: a **single docs toolchain**, reference site + guides only. No extra services, databases, or bespoke frameworks beyond the VitePress plan below.
 - AI-first: reference pages must be markdown + JSON metadata generated from the source (doc comments / signatures) so they are token-efficient, embeddable, and usable directly as agent/training context and VSCode hovers. `> Reference: Go — go doc (go/src/go/doc)`, `> Reference: Zig — std docs (zig/lib/docs)`.
 - Kirn-style spellings/CapCase everywhere: lowercase width micros + capitalized primitives (`Int`, `Float`, `Bool`, `Str`, `Char`, `BigInt`, `Rational`, `UInt`/`UFloat`, `Int4..UInt256`, `Float4..UFloat256`, `u4..u256`, `i4..i256`); free builtins/types Capitalized (`Str(...)`, `BigInt(...)`, `__Sqrt`); methods lowercase.
-- Doc examples must be continuously verified with `kirn test` / `kirn check` — no broken snippets may ship.
+- Doc examples must be continuously verified with `kirn test` / `kirn check` — no broken snippats may ship.
 
 ## Important Note
 
 Keep the existing site structure, technology plan (VitePress + TypeScript), content model, and phase order exactly as written below. These sections add intent, AI-first requirements, and verification rules only; they do not replace or reorder any existing phase.
 
-> **AI-first note (bundle + fingerprints).** The docs site must expose the full pet reference as a single bundle (markdown + JSON) that agents can ingest in one fetch — `manifests/docs.bundle.json` — with a content fingerprint (e.g. `sha256`) per page and one for the whole bundle, so agents know when docs changed and re-fetch only the diff. One generated source, served statically; no second build system.
+> **AI-first note (bundle + fingerprints).** The docs site must expose the full pat reference as a single bundle (markdown + JSON) that agents can ingest in one fetch — `manifests/docs.bundle.json` — with a content fingerprint (e.g. `sha256`) per page and one for the whole bundle, so agents know when docs changed and re-fetch only the diff. One generated source, served statically; no second build system.
 
 ---
 
@@ -150,10 +150,10 @@ The developer-experience research (APIScout DX Gap 2026, GitBook State of Docs) 
 
 These are separate sidebar trees with distinct URL prefixes (`/learn/` and `/ref/`), so search and navigation don't mix them. A third, smaller **Guides** area (`/guide/`) holds tooling, project structure, comparison, and contributing content.
 
-The doc comments are the single generated source for both basins' reference half — a `///` block on a `fn` in a pet module becomes a reference page and its JSON record:
+The doc comments are the single generated source for both basins' reference half — a `///` block on a `fn` in a pat module becomes a reference page and its JSON record:
 
 ````kirn
-# pet/math.kn — `///` doc comments generate the reference page + JSON record
+# pat/math.kn — `///` doc comments generate the reference page + JSON record
 /// Square root of a non-negative number.
 /// ```
 /// assert_eq(__Sqrt(16.0), 4.0)
@@ -219,7 +219,7 @@ Every generated reference item carries a machine-readable record alongside its m
 
 ```json
 {
-  "kind": "pet",
+  "kind": "pat",
   "name": "math",
   "fingerprint": "sha256:9f2c…",
   "items": [
@@ -439,7 +439,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 
 ### Phase 5 â€” Learning journey part 1: foundations (intro, install, quick start, basics)
 
-**Goal:** Zero→working Kirn in the first session. **Must Follow:** Every snippet copied from a `kirn test`-passing file. **Important Note:** Verify current syntax; prefer examples over README.
+**Goal:** Zero→working Kirn in the first session. **Must Follow:** Every snippat copied from a `kirn test`-passing file. **Important Note:** Verify current syntax; prefer examples over README.
 
 - **Goal:** the first genuinely teachable path â€” a reader goes from zero to writing working Kirn in minutes, then masters the foundations.
 - **What to implement:** the `Introduction`, `Why Kirn`, `Installation`, `Quick Start`, and `Basics` pages (variables, data types, functions, control flow, matches).
@@ -458,10 +458,10 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   $ kirn run main.kn
   Hello, World!
   ```
-- **Content requirements:** each page: concept â†’ minimal example â†’ explanation â†’ a "try it" snippet. Mark `BASIC` level.
+- **Content requirements:** each page: concept â†’ minimal example â†’ explanation â†’ a "try it" snippat. Mark `BASIC` level.
 - **Testing/verification:** run **every** example in CI against the real compiler (`scripts/runall.ps1` pattern) and assert the documented output matches; Claim Gate pass; Lighthouse â‰¥ 95; search finds "variable", "hello".
 - **Expected result:** users succeed in their first session and learn the foundations with runnable code.
-- **Issues/trade-offs:** the README's "main.kn" once used `name = "World"` while current examples use `name = "World"` (immutable default). **Verify exact current syntax before publishing each snippet** (the plan's testing gate catches drift). Prefer `examples/*.kn` as canonical snippets over README snippets.
+- **Issues/trade-offs:** the README's "main.kn" once used `name = "World"` while current examples use `name = "World"` (immutable default). **Verify exact current syntax before publishing each snippat** (the plan's testing gate catches drift). Prefer `examples/*.kn` as canonical snippats over README snippats.
 
 ---
 
@@ -486,7 +486,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
   }
   ```
 - **Content requirements:** mark each page `INTERMEDIATE`; include a "common pitfalls" callout (e.g. pointer-vs-value, exhaustive match).
-- **Testing/verification:** every snippet runs; output asserted in CI; Claim Gate.
+- **Testing/verification:** every snippat runs; output asserted in CI; Claim Gate.
 - **Expected result:** learners can model real data and handle errors idiomatically.
 - **Issues/trade-offs:** dict/list built-in method names vary (e.g. `get`, `setdefault`, `append`, `extend`) â€” document the **verified** method names by grepping `examples/*.kn` and `stdlib/lib/collections.kn` rather than guessing.
 
@@ -576,7 +576,7 @@ Phases are ordered so the site is **buildable and deployable from Phase 1** and 
 The source doc comments that generate that page and its JSON record:
 
 ```kirn
-# stdlib/pet/math.kn — single source for ref/stdlib/math (markdown + JSON)
+# stdlib/pat/math.kn — single source for ref/stdlib/math (markdown + JSON)
 /// Square root of a non-negative number.
 /// assert_eq(__Sqrt(16.0), 4.0)     # doc-test, run by `kirn test`
 pub fn sqrt(x: Float) -> Float { __Sqrt(x) }
@@ -694,7 +694,7 @@ fn root(n: BigInt) -> BigInt { __Sqrt(n) }
 
 ### Phase 13 â€” Verification tooling, docs-generation, and (documented) alternatives handy
 
-**Goal:** Make correctness reproducible and self-maintaining. **Must Follow:** Docs gen is a script/pet tool, not a third shipped binary. **Important Note:** Regenerate reference pages; wire into CI.
+**Goal:** Make correctness reproducible and self-maintaining. **Must Follow:** Docs gen is a script/pat tool, not a third shipped binary. **Important Note:** Regenerate reference pages; wire into CI.
 
 - **Goal:** make correctness reproducible and the content self-maintaining, and document the non-recommended alternative.
 - **What to implement:**
@@ -730,11 +730,11 @@ fn root(n: BigInt) -> BigInt { __Sqrt(n) }
 - **Expected result:** content correctness is enforced, and reference pages can be regenerated as the language evolves.
 - **Issues/trade-offs:** example extraction via regex can mis-parse nested fences â€” use a note that examples live in `examples/` and are linked, and the script runs those; keep the site's inline examples small and simple.
 
-> **AI-first note (single ingestible bundle).** Docs generation must emit the full pet reference as one bundle — `manifests/docs.bundle.json` — containing every page's markdown + JSON plus per-page and whole-bundle `sha256` fingerprints, so agents and VSCode hovers ingest one artifact and know exactly when docs changed. It is produced by a `kirn`/pet tool or `scripts/gen_*.ps1`, never a third shipped binary.
+> **AI-first note (single ingestible bundle).** Docs generation must emit the full pat reference as one bundle — `manifests/docs.bundle.json` — containing every page's markdown + JSON plus per-page and whole-bundle `sha256` fingerprints, so agents and VSCode hovers ingest one artifact and know exactly when docs changed. It is produced by a `kirn`/pat tool or `scripts/gen_*.ps1`, never a third shipped binary.
 
 ```kirn
-# pet/docgen.kn — one pass emits markdown + JSON + fingerprints from doc comments
-/// Parse a pet module's `///` blocks into the reference bundle.
+# pat/docgen.kn — one pass emits markdown + JSON + fingerprints from doc comments
+/// Parse a pat module's `///` blocks into the reference bundle.
 pub fn gen(module: Str) -> dict { parse_docs(module) }
 ```
 

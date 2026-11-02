@@ -2,7 +2,7 @@
 #
 # `par_sort` and `par_sort_by_key` are stable mergesorts that sort halves
 # concurrently on large inputs; results are deterministic.
-import pet.parallel as parallel;
+import pat.parallel as parallel;
 
 struct Row {
     name: Str;

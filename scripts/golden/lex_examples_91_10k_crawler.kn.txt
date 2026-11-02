@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/91_10k_crawler.kn
 Ident	5:1	import
-Ident	5:8	pet
+Ident	5:8	pat
 Punct	5:11	.
 Ident	5:12	parallel
 Ident	5:21	as

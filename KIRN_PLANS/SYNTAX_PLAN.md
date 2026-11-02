@@ -617,7 +617,7 @@ always-in-scope**, cheap to call.
 - Each is a `biFn` in `installBuiltins()` (runtime.cpp:485) — additive, no parser change except
   `Str`/conversion-cast names which are just identifiers.
 - `map/filter/reduce` take a `fn` value (lambdas are first-class, example 07) — natureal fit.
-- New builtins are **not keywords**, so no reserved-word churn; they compete in normal scope so
+- New builtins are **not keywords**, so no reserved-word churn; they compate in normal scope so
   users can shadow them.
 
 **Exit criteria:** every builtin listed runs in a demo example `39_builtins.kn`; `map/filter/

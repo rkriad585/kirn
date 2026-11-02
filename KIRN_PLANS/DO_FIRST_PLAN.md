@@ -63,7 +63,7 @@ regexp, strings, time` as importable Kirn modules (see `STD_LIBS_PLAN.md`).
    patterns, multi-statement closures, borrow/move checker, default generic params,
    `iota`-like discriminants, collections/strings/regexp/path stdlib, `kirn fmt/repl/check/lint`.
    **[PARTIALLY RESOLVED]** — slice/rest patterns, multi-statement closures, and generators
-   landed in Phases 3/3.5/4; collections/strings/regexp/path now exist in `stdpet/pet/`;
+   landed in Phases 3/3.5/4; collections/strings/regexp/path now exist in `stdlib/pat/`;
    borrow/move checking, default generic params, enum discriminants, and
    `kirn fmt/repl/check/lint` are complete in Phases 5, 8, and 10.
 4. **Native backend** `src/backend/native.cpp` lowers only _scalar_ functions; not strings/lists/`main`.
@@ -368,7 +368,7 @@ existing `tests/negative/n*.kn` are still rejected with identical text.
 
 ## Phase 6 — Stdlib breadth as real Kirn modules
 
-> **Status: DONE** — the stdlib ships as importable Kirn source in `stdpet/pet/` — `collections, io, json, math, os, path, regexp, strings, time` — with the complete `kirn test` suite green (18/18), nested JSON round-trips covered, and regexp backed by the native regex engine.
+> **Status: DONE** — the stdlib ships as importable Kirn source in `stdlib/pat/` — `collections, io, json, math, os, path, regexp, strings, time` — with the complete `kirn test` suite green (18/18), nested JSON round-trips covered, and regexp backed by the native regex engine.
 
 **Goal:** Replace C++ builtins with importable, dogfoodable Kirn source as the smallest change to achieve parity while dogfooding the language.
 **Must Follow:** Allow `pub struct`/`pub class`/`pub enum`/`pub trait` in imported modules; all examples use `fn`/`var`, CapCase types; verify with `kirn test`, `scripts/gates_linux.sh`.
@@ -414,7 +414,7 @@ terminates, and the representative worker-pool/channel/timer corpus is TSan
 clean; the full VM/type/MIR corpus remains green.
 
 **Goal:** Fix latent correctness/robustness bugs with the smallest surgical changes to keep `kirn test` and `scripts/gates_linux.sh` green.
-**Must Follow:** No feature creep; apply fixes in C++ seed; use `fn`/`var`/CapCase in any new snippets; verify with `kirn test`, `scripts/gates_linux.sh`.
+**Must Follow:** No feature creep; apply fixes in C++ seed; use `fn`/`var`/CapCase in any new snippats; verify with `kirn test`, `scripts/gates_linux.sh`.
 **Important Note:** Preserve corpus semantics; prefer cycle guards and safe defaults. > Reference: CPython — cycle-safe repr (`cpython/Objects/object.c`); Go — runtime correctness patterns (`go/src/runtime/` in `/home/rkriad585/Projects/langs-source-code/go`).
 
 - `repr`/`toStr` depth + cycle guard (stack-overflow on self-referential data today).

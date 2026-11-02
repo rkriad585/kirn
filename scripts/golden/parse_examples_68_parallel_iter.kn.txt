@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/68_parallel_iter.kn
-Import pet.parallel as parallel
+Import pat.parallel as parallel
 FuncDef "main"
   Ret none
   Body

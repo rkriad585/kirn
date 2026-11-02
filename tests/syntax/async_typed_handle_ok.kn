@@ -1,4 +1,4 @@
-import pet.async as a;
+import pat.async as a;
 
 async fn answer() -> Int {
     return 7;

@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/69_parallel_sort.kn
-Import pet.parallel as parallel
+Import pat.parallel as parallel
 StructDef "Row"
   Field "name" : Str
   Field "score" : Int

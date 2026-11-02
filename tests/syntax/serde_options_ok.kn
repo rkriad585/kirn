@@ -1,5 +1,5 @@
 # serde attribute surface (POWER_PLAN §3.2). Tree-walker == VM.
-import pet.json as json;
+import pat.json as json;
 import reflect;
 
 @[serde(rename_all = "camelCase", deny_unknown_fields)]

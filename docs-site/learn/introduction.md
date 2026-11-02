@@ -24,7 +24,7 @@ Kirn is not finished. Claims about performance, ownership, networking, IDE suppo
 - **New to Kirn?** Continue to [Installation](/learn/installation), then [Quick start](/learn/quick-start).
 - **Know the basics?** Read the [CLI workflow](/guide/cli) and [Project structure](/guide/project).
 - **Looking for exact syntax?** Open the [Language reference](/reference/language/lexical).
-- **Looking for packages?** Visit the [Pets registry](https://pets-registry.github.io/).
+- **Looking for packages?** Visit the [Pats registry](https://pats-regestry.github.io/).
 
 ## Source of truth
 

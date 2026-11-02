@@ -12,7 +12,7 @@ and expected semantics.
 | `tests/conventions/` | Convention-focused cases |
 
 The stdlib acceptance tests live with each module under
-[`stdlib/pet/*_test.kn`](../stdlib/README.md), and `examples/*.kn` form the
+[`stdlib/pat/*_test.kn`](../stdlib/README.md), and `examples/*.kn` form the
 positive parse/run corpus.
 
 ## Running

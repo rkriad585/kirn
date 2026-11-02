@@ -1,9 +1,9 @@
 # 79 — Async filesystem, process, and signals (POWER_PLAN §2.9)
 #
-# `pet.async` re-exports sibling modules: `a.fs` (filesystem), `a.process`
+# `pat.async` re-exports sibling modules: `a.fs` (filesystem), `a.process`
 # (commands) and `a.signal`. Each blocking syscall runs inside an `async fn`, so
 # `await` yields to other tasks instead of blocking the caller.
-import pet.async as a;
+import pat.async as a;
 
 async fn main() -> none {
     dir = "/tmp/kirn_example_79";

@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/79_async_fs_process.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "main" async
   Ret none
   Body

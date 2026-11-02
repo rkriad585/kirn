@@ -79,7 +79,7 @@ struct Manifest {
 // methods, so it is safe to hand across the library boundary.
 struct BuildOpts {
     bool release = false;
-    bool wantPet = false;
+    bool wantPat = false;
     bool sasm = false;
     bool obj = false;
     bool compileOnly = false;
@@ -252,7 +252,7 @@ std::string emitSasm(const std::string& srcPath,
 
 // --- inline API docs -------------------------------------------------------
 // Lives in the library because `packLib` regenerates docs/api.md as part of
-// building a .pet, while the `kirn doc` verb triggers the same generator.
+// building a .pat, while the `kirn doc` verb triggers the same generator.
 std::string extractApiDocs(const Manifest& m);
 bool regenerateDocs(const Manifest& m);
 
@@ -264,7 +264,7 @@ int buildProgram(const std::string& name, const std::string& version,
 int packLib(const Manifest& m, const BuildOpts& opts);
 int buildAppShim(const Manifest& m, BuildOpts& opts);
 int cmdBuild(const std::vector<std::string>& args, size_t from);
-int unpackPet(const std::string& raw, bool global_);
+int unpackPat(const std::string& raw, bool global_);
 
 // --- verbs that stay in tools/kirn.cpp but reach into the driver ----------
 int cmdTargets();

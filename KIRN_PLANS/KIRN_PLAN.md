@@ -27,7 +27,7 @@ over-engineering.
 
 Key choices are already made — keep every later section coherent with them: §6 memory model
 (value semantics + escape analysis + ARC), §10 LLVM-based AOT with an interpreter bootstrap,
-§13 ships **no built-in pets** (external registry; `kirn setup` installs the std set),
+§13 ships **no built-in pats** (external registry; `kirn setup` installs the std set),
 §17 Roadmap Phases 0–8, §16 benchmarking targets, and §19 governance.
 
 > **One-line vision:** Python's syntax, Go's compilation model, Rust/C++-level performance.
@@ -90,7 +90,7 @@ Being explicit prevents scope creep:
 - **No** C++-style template metaprogramming, ADL, or implicit conversions.
 - **No** macros-as-syntax (no Lisp/Rust macro system in v1).
 - **No** manual memory management as default (`malloc`/`free` are unsafe-only escape hatches).
-- **Not** aiming to be a JVM-language competitor; we target native code.
+- **Not** aiming to be a JVM-language compatitor; we target native code.
 
 ---
 
@@ -725,7 +725,7 @@ kirn/
 │   ├── interp/                 # tree-walk interpreter
 │   └── support/                # diag engine, arena, hashing, paths
 ├── rt/                         # libkirn_rt (C11): sched, chan, arc, panics
-├── stdpet/                     # std modules written IN KIRN (§13)
+├── stdlib/                     # std modules written IN KIRN (§13)
 ├── tests/                      # §15 layout
 ├── tools/                      # fmt, lsp, bindgen, bench-runner
 ├── third_party/{llvm,fmt,utf8proc,...}
@@ -791,8 +791,8 @@ fn main():
 
 ## 13. Standard Library Plan
 
-**Goal:** Ship the standard library as external **pets** written in Kirn, installed globally by `kirn setup`, adding zero bundled runtime deps.
-**Must Follow:** No built-in pets in the binary (§13.1); "std" is just the curated pet set on the registry; every module follows semver.
+**Goal:** Ship the standard library as external **pats** written in Kirn, installed globally by `kirn setup`, adding zero bundled runtime deps.
+**Must Follow:** No built-in pats in the binary (§13.1); "std" is just the curated pat set on the registry; every module follows semver.
 **Important Note:** Registry-first (Go philosophy) keeps `kirn`/`kirnc` tiny and makes the ecosystem the single source of truth.
 
 Written **in Kirn itself** wherever possible (dogfooding):
@@ -815,9 +815,9 @@ Non-negotiable rule: stdlib adds **zero runtime deps** beyond libkirn_rt/libc; n
 may shell to nothing — pure socket APIs.
 
 ```python
-# std is just curated external pets (§13.1); imported like any other pet
-import pet.collections as coll
-import pet.text as text
+# std is just curated external pats (§13.1); imported like any other pat
+import pat.collections as coll
+import pat.text as text
 
 fn main():
     counts = coll.Dict[string, int]()
@@ -831,34 +831,34 @@ fn main():
 
 ---
 
-### 13.1 Kirn ships **no built-in pets** — all std pets live on GitHub, `kirn setup` installs them globally
+### 13.1 Kirn ships **no built-in pats** — all std pats live on GitHub, `kirn setup` installs them globally
 
-- **Author decision (2026):** Kirn does **not** contain any built-in pets. There is no
-  bundled/embedded std library in the binary, and no std pets are hard-coded into the
-  compiler output. The "dogs" analogy is dropped entirely — no pre-installed pets ship
+- **Author decision (2026):** Kirn does **not** contain any built-in pats. There is no
+  bundled/embedded std library in the binary, and no std pats are hard-coded into the
+  compiler output. The "dogs" analogy is dropped entirely — no pre-installed pats ship
   with the toolchain.
-- **All std pets are pushed to GitHub** (the pets registry — see §14.2 "Package manager"
-  and §7/§10.5 identities; registry host is the `pets-registry` GitHub org, website
-  `https://pets-registry.github.io`). Each std pet (`core`, `collections`, `io`, `os`,
+- **All std pats are pushed to GitHub** (the pats registry — see §14.2 "Package manager"
+  and §7/§10.5 identities; registry host is the `pats-regestry` GitHub org, website
+  `https://pats-regestry.github.io`). Each std pat (`core`, `collections`, `io`, `os`,
   `net`, `concur`, `text`, `math`, `time`, `serialize`, `test`) is published as its own
   repo in that org so it can be fetched/installed by URL, org+name, or org+name@version —
-  exactly like any third-party pet. There is **no special stdlib fetch path** distinct
-  from the normal package manager: "std" is just the set of pets the Kirn org curates.
-- **`kirn setup` auto-installs the std pets globally.** When a developer runs `kirn setup`
+  exactly like any third-party pat. There is **no special stdlib fetch path** distinct
+  from the normal package manager: "std" is just the set of pats the Kirn org curates.
+- **`kirn setup` auto-installs the std pats globally.** When a developer runs `kirn setup`
   (first-time init or after install), Kirn:
-  1. reads the pinned std-pet set from the registry lock metadata (`kirn.lock` / the
-     `[pets]` manifest section),
-  2. fetches each std pet **into the system-wide pet store** (global, under
-     `~/.kirn/pets` — available on any path, any project, any directory on the machine),
-  3. records a global `<std-pet>@<version>` snapshot so all std pets become resolvable
-     from **anywhere** (`import pet.io*;` works in `/tmp/x.kn` as well as in a project).
-     This is the "usable anywhere, globally, std-only" guarantee: only the **std** pets are
-     auto-installed machine-wide; third-party pets stay scoped to their project's `pets/` as
+  1. reads the pinned std-pat set from the registry lock metadata (`kirn.lock` / the
+     `[pats]` manifest section),
+  2. fetches each std pat **into the system-wide pat store** (global, under
+     `~/.kirn/pats` — available on any path, any project, any directory on the machine),
+  3. records a global `<std-pat>@<version>` snapshot so all std pats become resolvable
+     from **anywhere** (`import pat.io*;` works in `/tmp/x.kn` as well as in a project).
+     This is the "usable anywhere, globally, std-only" guarantee: only the **std** pats are
+     auto-installed machine-wide; third-party pats stay scoped to their project's `pats/` as
      in §14.2. Re-running `kirn setup` is idempotent — it re-fetches/updates the std set to
-     the pinned registry tags without touching project-local pets.
+     the pinned registry tags without touching project-local pats.
 - **Rationale:** keeps the language binary tiny and registry-first (Go philosophy), makes
   the ecosystem the single source of truth for std, and gives new machines a one-command
-  `kirn setup` bootstrap that lands the whole standard library in the global pet store.
+  `kirn setup` bootstrap that lands the whole standard library in the global pat store.
 
 ---
 
@@ -879,62 +879,62 @@ All subcommands ship inside the one `kirn` binary (Go philosophy):
 | `kirn bench`                                   | criterion-style statistical benches (§16)                                                       |
 | `kirn fmt`                                     | opinionated formatter (gofmt spirit: zero config)                                               |
 | `kirn doc`                                     | doc comment extraction → static HTML                                                            |
-| `kirn i` / `kirn install <pets>@<tag\|commit>` | package manager fetch: registry name, `user/repo`, or third-party full URL (see §14.2)          |
-| `kirn update [pets name]` / `.`                | update pets — `.` = default **all** (§14.2)                                                     |
+| `kirn i` / `kirn install <pats>@<tag\|commit>` | package manager fetch: registry name, `user/repo`, or third-party full URL (see §14.2)          |
+| `kirn update [pats name]` / `.`                | update pats — `.` = default **all** (§14.2)                                                     |
 | `kirn sync`                                    | reconciles manifest ↔ lock ↔ installed (replaces `kirn add`; npm-install / go-mod-tidy spirit). |
-| `kirn info <pets>\|<user>/<repo>\|full-url`    | print a pet's config info to terminal / website (§14.2)                                         |
+| `kirn info <pats>\|<user>/<repo>\|full-url`    | print a pat's config info to terminal / website (§14.2)                                         |
 | `kirn doctor`                                  | syntax + type check (`kirn check` + negative/types harnesses) + registry/install sanity         |
-| `kirn new <project>` / `kirn new pets <name>`  | init project/pets template + auto Auto Build & Release workflow (§14.2)                         |
-| `kirn setup`                                   | one-time machine init: global defaults + auto-install std pets (§13.1)                          |
+| `kirn new <project>` / `kirn new pats <name>`  | init project/pats template + auto Auto Build & Release workflow (§14.2)                         |
+| `kirn setup`                                   | one-time machine init: global defaults + auto-install std pats (§13.1)                          |
 | `kirn self-update`                             | fetch & install the latest `kirn` release (§14.2)                                               |
 | `kirn repl`                                    | interpreter-backed REPL w/ multiline, completion                                                |
 | `kirn bindgen header.h`                        | C header → Kirn extern decls                                                                    |
 
-### 14.2 Package manager, pets registry & the ecosystem
+### 14.2 Package manager, pats registry & the ecosystem
 
 - **GitHub orgs (rkriad585 has full access to both):** the language org
   `https://github.com/kirn-lang` (the compiler repo `kirn-lang/kirn` + the `kirn-lang` GitHub
-  Pages landing) and the pets registry org `https://github.com/pets-registry` (the registry
-  repo + every std/third-party pet repo). A dedicated **registry repo is created on the
-  `pets-registry` org** (the pets index, same role the `kirn-lib` registry repo played for
-  the old KIRN ecosystem) — it hosts the machine-readable pet index (`registry.toml`) that
+  Pages landing) and the pats registry org `https://github.com/pats-regestry` (the registry
+  repo + every std/third-party pat repo). A dedicated **registry repo is created on the
+  `pats-regestry` org** (the pats index, same role the `kirn-lib` registry repo played for
+  the old KIRN ecosystem) — it hosts the machine-readable pat index (`registry.toml`) that
   powers name→repo resolution.
 - **Websites:** full-identity landing `https://kirn-lang.github.io`; **docs / learn-Kirn-
-  syntax** site `https://rkriad585.github.io/kirn`; **pets landing** `https://pets-registry.github.io`
-  where developers search pets or learn how to author/`kirn new pets <name>`. (The old
-  `kirn_pets` branding is dropped — the library term is `pet`/`pets`, not `kirn_pets`.)
+  syntax** site `https://rkriad585.github.io/kirn`; **pats landing** `https://pats-regestry.github.io`
+  where developers search pats or learn how to author/`kirn new pats <name>`. (The old
+  `kirn_pats` branding is dropped — the library term is `pat`/`pats`, not `kirn_pats`.)
 - **`kirn setup` — global defaults, asked once, remembered.** First-time `kirn setup`
   prompts for global project defaults: **package name, version, license, author, website
   URL (optional), GitHub URL (optional)** — the GitHub URL accepts any of
   `[https://]github|gitlab|codeberg.com/some_user` (repo name auto-inferred from the project
-  or pets name: `[https://]github|gitlab|codeberg.com/<user>/<project|pets>`) plus an
+  or pats name: `[https://]github|gitlab|codeberg.com/<user>/<project|pats>`) plus an
   optional **branch** (default `main`). These are stored globally (`~/.kirn/kirn.toml`,
   `[global]` section). Kirn **does not re-ask** once global info is set; the user must pass
   `kirn new --setup` to re-run/re-edit the global defaults. `kirn setup` also auto-installs
-  the std pets globally (idempotent — §13.1).
-- **`kirn i` / `kirn install <pets>@<tag\|commit>`** fetches a pet by:
-  1. **registry name** (`kirn i json`) — resolved via the `pets-registry` index;
-  2. **user/repo** (`kirn i someuser/some_kirn_pets_repo`) — no URL prefix needed;
-  3. **third-party git services by full URL** (`kirn i [https://]gitlab.com/someuser/some_kirn_pets`)
+  the std pats globally (idempotent — §13.1).
+- **`kirn i` / `kirn install <pats>@<tag\|commit>`** fetches a pat by:
+  1. **registry name** (`kirn i json`) — resolved via the `pats-regestry` index;
+  2. **user/repo** (`kirn i someuser/some_kirn_pats_repo`) — no URL prefix needed;
+  3. **third-party git services by full URL** (`kirn i [https://]gitlab.com/someuser/some_kirn_pats`)
      — auto-{fetch,install} from any git host. Version is optional (`@<semver tag>` or
      `@<commit id>`); default = default branch (`main`).
-- **`kirn i`, `kirn install <pets>@<tag\|commit>`** — see above; tag/commit form always
+- **`kirn i`, `kirn install <pats>@<tag\|commit>`** — see above; tag/commit form always
   allowed. `kirn i` is the short form.
-- **`kirn update [pets name]`** updates a single pet; `kirn update .` (or bare `kirn update`)
-  updates **all** registered pets to the latest within their range.
+- **`kirn update [pats name]`** updates a single pat; `kirn update .` (or bare `kirn update`)
+  updates **all** registered pats to the latest within their range.
 - **`kirn sync`** is the new consolidate command (replaces `kirn add`): reads the manifest
   (`kirn.toml`) + lockfile, installs/removes what changed, rewrites `kirn.lock` — the
   npm-install / go-mod-tidy reconciliation step.
-- **`kirn info <pets>|<user>/<repo>|full-url`** fetches the pet's config (name, version,
+- **`kirn info <pats>|<user>/<repo>|full-url`** fetches the pat's config (name, version,
   license, author, website, GitHub URL) and prints it to the terminal or renders it on the
   registry website.
 - **`kirn doctor`** runs syntax + type checking (reuses the negative/types harnesses) and
   health-checks the registry/installer/global config.
-- **`kirn new <project>`** and **`kirn new pets <petsname>`** scaffold a template. A pets
+- **`kirn new <project>`** and **`kirn new pats <patsname>`** scaffold a template. A pats
   template auto-generates a GitHub **Auto Build & Release workflow** (tag-triggered): on a
-  pushed `v*` tag the workflow runs `kirn build pets` and publishes a release artifact so
-  anyone can `kirn i <petsname>` (registry), `kirn i someuser/some_kirn_pets_name`, or
-  `kirn i [https://]gitlab.com/someuser/some_kirn_pets` to install it.
+  pushed `v*` tag the workflow runs `kirn build pats` and publishes a release artifact so
+  anyone can `kirn i <patsname>` (registry), `kirn i someuser/some_kirn_pats_name`, or
+  `kirn i [https://]gitlab.com/someuser/some_kirn_pats` to install it.
 - **Cross-platform, rust-style one-shot installers** (tag-triggered from the same Auto Build
   & Release repo, no extra setup / no config prompts):
   Windows PowerShell `irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex`,
@@ -1206,13 +1206,13 @@ fn main():
 
 ### Phase 5 — Stdlib + net + tooling
 
-**Goal:** net/text/serialize modules, `kirn fmt`, package-manager MVP with ≥20 published demo pets, and the bench infrastructure online.
-**Must Follow:** Stdlib adds zero runtime deps beyond libkirn_rt/libc (§13); pets are external (§13.1); pure socket APIs, no shelling out.
+**Goal:** net/text/serialize modules, `kirn fmt`, package-manager MVP with ≥20 published demo pats, and the bench infrastructure online.
+**Must Follow:** Stdlib adds zero runtime deps beyond libkirn_rt/libc (§13); pats are external (§13.1); pure socket APIs, no shelling out.
 **Important Note:** This is the ecosystem proof point — a real JSON REST API must build and serve under load with good p99.
 
 ```python
-import pet.net.http as http
-import pet.text.json as json
+import pat.net.http as http
+import pat.text.json as json
 
 fn handle(req: http.Request) -> http.Response:
     body = json.encode(dict[string, int]{"ok": 1, "n": req.query.get("n", 0)})
@@ -1273,7 +1273,7 @@ test "reverses":
 
 ```python
 # perf-hardening workload: arena + value vectors, no per-object RC
-import pet.mem as mem
+import pat.mem as mem
 
 struct Particle:
     pos: f64

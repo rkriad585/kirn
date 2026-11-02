@@ -3,7 +3,7 @@
 # Calling an `async fn` schedules a task and returns its handle; `await` drives
 # the task to completion. Tasks here overlap: three 30ms "requests" finish in
 # roughly 30ms, not 90ms.
-import pet.async as a;
+import pat.async as a;
 
 async fn fetch(id: Int) -> Int {
     await a.sleep(ms: 30);          # simulated I/O; other tasks progress meanwhile

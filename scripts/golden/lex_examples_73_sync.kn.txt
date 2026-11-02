@@ -1,6 +1,6 @@
 $ <ROOT>/build/kirnlex --dump <ROOT>/examples/73_sync.kn
 Ident	8:1	import
-Ident	8:8	pet
+Ident	8:8	pat
 Punct	8:11	.
 Ident	8:12	sync
 Ident	8:17	as

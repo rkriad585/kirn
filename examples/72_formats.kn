@@ -1,8 +1,8 @@
 # 72 — default formats: json / toml / yaml / cbor    (POWER_PLAN §3.3)
-import pet.json as json;
-import pet.toml as toml;
-import pet.yaml as yaml;
-import pet.cbor as cbor;
+import pat.json as json;
+import pat.toml as toml;
+import pat.yaml as yaml;
+import pat.cbor as cbor;
 
 struct Point { x: Int; y: Int; }
 struct Profile {

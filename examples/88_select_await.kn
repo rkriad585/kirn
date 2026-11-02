@@ -1,5 +1,5 @@
 # examples/88_select_await.kn - select over await arms (POWER_PLAN §2.10)
-import pet.async as a;
+import pat.async as a;
 
 async fn work(x: Int, ms: Int) -> Int {
     await a.sleep(ms);

@@ -1,8 +1,8 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/72_formats.kn
-Import pet.json as json
-Import pet.toml as toml
-Import pet.yaml as yaml
-Import pet.cbor as cbor
+Import pat.json as json
+Import pat.toml as toml
+Import pat.yaml as yaml
+Import pat.cbor as cbor
 StructDef "Point"
   Field "x" : Int
   Field "y" : Int

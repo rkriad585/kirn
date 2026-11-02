@@ -1,0 +1,361 @@
+# stdlib/pat/async_test.kn - tests for pat.async.
+import pat.async as a;
+import bytes as byte_ops;
+import pat.json as json;
+
+struct AsyncUser {
+    name: Str;
+    score: Int;
+}
+
+async fn addup(id: Int) -> Int {
+    await a.sleep(ms: 2);
+    return id * 10;
+}
+
+async fn afail(n: Int) -> Int {
+    await a.sleep(ms: 2);
+    if n < 0 { raise("neg"); }
+    return n;
+}
+
+async fn ordered_slow() -> Int {
+    await a.sleep(ms: 30);
+    return 30;
+}
+
+async fn ordered_fast() -> Int {
+    await a.sleep(ms: 1);
+    return 1;
+}
+
+async fn bump(m: any, n: Int) -> none {
+    for _i in 0..n {
+        g = await m.lock();
+        g.set(g.get() + 1);
+        g.unlock();
+    }
+}
+
+async fn main() -> none {
+    t0 = a.now_ms();
+    await a.sleep(ms: 30);        # must actually wait, not run instantly
+    assert(a.now_ms() - t0 >= 20);
+
+    await a.yield_now();          # must not hang or error
+
+    t = spawn(async fn () -> Int {
+        await a.sleep(ms: 10);
+        return 7;
+    });
+    assert_eq(await t, 7);
+
+    # join awaits every task and returns the results in order
+    var jr = await a.join([addup(1), addup(2), addup(3)]);
+    assert_eq(jr[0], 10);
+    assert_eq(jr[1], 20);
+    assert_eq(jr[2], 30);
+
+    # try_join short-circuits: the first raised error propagates
+    var caught = "none";
+    try {
+        await a.try_join([addup(4), afail(-1), addup(5)]);
+    } catch e {
+        caught = Str(e);
+    }
+    assert_eq(caught, "neg");
+
+    # join waits for all tasks, then re-raises the first error, so the error
+    # from a task that is not first in the list is not lost
+    var jcaught = "none";
+    try {
+        await a.join([afail(-7), addup(6)]);
+    } catch e {
+        jcaught = Str(e);
+    }
+    assert_eq(jcaught, "neg");
+
+    # ---- §2.8 time: Instant / Duration helpers ----
+    tnow = a.instant();
+    await a.sleep(ms: 15);
+    assert(a.elapsed(tnow) >= 15);
+    assert_eq(a.duration_since(tnow + 100, tnow), 100);
+    assert(a.duration_since(tnow, tnow + 100) == none);
+    assert_eq(a.checked_add(5, 7), 12);
+
+    # Copy transfers in bounded chunks and preserves the byte-count contract.
+    copy_src = "/tmp/kirn_async_copy_src.txt";
+    copy_dst = "/tmp/kirn_async_copy_dst.txt";
+    os.write_file(copy_src, "copy-me");
+    assert_eq(await a.fs.copy(copy_src, copy_dst), 7);
+    assert_eq(os.read_file(copy_dst), "copy-me");
+    os.remove_file(copy_src);
+    os.remove_file(copy_dst);
+
+    # sleep_until waits for an absolute deadline (an Instant), not a duration
+    tsu = a.instant();
+    await a.sleep_until(tsu + 20);
+    assert(a.elapsed(tsu) >= 20);
+    await a.sleep(a.duration_ms(1));
+    await a.sleep_until(a.now_instant().add(a.duration_ms(1)));
+
+    # timeout: finishes in time -> ok(value); too slow -> typed err(Elapsed)
+    fast = spawn(async fn () -> Int { await a.sleep(ms: 5); return 42; });
+    assert_eq(Str(await a.timeout(1000, fast)), "ok(42)");
+    fast_nominal = spawn(async fn () -> Int { await a.sleep(ms: 5); return 43; });
+    assert_eq(Str(await a.timeout(a.duration_ms(1000), fast_nominal)), "ok(43)");
+    slowt = spawn(async fn () -> Int { await a.sleep(ms: 300); return 1; });
+    slowResult = await a.timeout(15, slowt);
+    assert(slowResult.is_err());
+    assert_eq(slowResult.unwrap_err().as_millis(), 15);
+    assert(slowt.is_aborted());
+    slowt.wait();
+    assert(slowt.is_finished());
+    fast2 = spawn(async fn () -> Int { await a.sleep(ms: 5); return 9; });
+    assert_eq(Str(await a.timeout_at(a.instant() + 1000, fast2)), "ok(9)");
+
+    # interval: the first tick is immediate, later ticks are one period apart,
+    # and the schedule advances by exactly one period each time
+    var iv = a.interval(period_ms: 20);
+    tiv = a.instant();
+    await iv.tick();
+    assert(a.elapsed(tiv) < 18);
+    n1 = iv.next_ms;
+    await iv.tick();
+    n2 = iv.next_ms;
+    assert_eq(n2 - n1, 20);
+    assert_eq(iv.period(), 20);
+    assert_eq(iv.missed_tick_behavior(), "burst");
+    iv.set_missed_tick_behavior(a.SKIP);
+    assert_eq(iv.missed_tick_behavior(), "skip");
+    iv.reset();
+    await iv.tick();
+
+    # a zero/negative period is rejected
+    bad = "none";
+    try { a.interval(period_ms: 0); } catch e { bad = Str(e); }
+    assert_eq(bad, "interval period must be positive");
+
+    # ---- §2.9 async filesystem ----
+    adir = "/tmp/kirn_async_test_fs";
+    await a.fs.create_dir_all(adir);
+    ap = adir + "/t.txt";
+    await a.fs.write(ap, "abc");
+    assert(await a.fs.exists(ap));
+    assert_eq(await a.fs.read_to_string(ap), "abc");
+    assert_eq((await a.fs.metadata(ap))["size"], 3);
+    assert_eq(await a.fs.copy(ap, adir + "/c.txt"), 3);
+    await a.fs.rename(adir + "/c.txt", adir + "/m.txt");
+    assert(await a.fs.exists(adir + "/m.txt"));
+    names = await a.fs.read_dir(adir);
+    assert(names.contains("t.txt"));
+    assert(names.contains("m.txt"));
+    await a.fs.remove_file(ap);
+    await a.fs.remove_file(adir + "/m.txt");
+    assert(not await a.fs.exists(ap));
+
+    # ---- §2.9 process execution ----
+    var pc = a.process.command("printf");
+    a.process.arg(pc, "hi");
+    pout = await a.process.output(pc);
+    assert_eq(pout["code"], 0);
+    assert_eq(pout["stdout"], "hi");
+    assert_eq(await a.process.status(a.process.command("false")), 1);
+    piped = a.process.command("cat");
+    a.process.input(piped, "piped input\n");
+    piped_out = await a.process.output(piped);
+    assert_eq(piped_out["stdout"], "piped input\n");
+
+    # ---- §2.9 signals: the handler installs and the flag starts clear ----
+    a.signal.install();
+    assert(not a.signal.pending());
+
+    # ---- §2.6 async byte I/O ----
+    iod = "/tmp/kirn_async_test_io.txt";
+    var iof = a.io.create(iod);
+    await iof.write_all("one\ntwo\n");
+    var ior = a.io.open(iod);
+    assert_eq(await ior.read_line(), "one");
+    assert_eq(await ior.read_line(), "two");
+    assert_eq(await ior.read_line(), "");
+    assert_eq(await ior.size(), 8);
+    var ioc = a.io.create("/tmp/kirn_async_test_io2.txt");
+    assert_eq(await a.io.copy(a.io.open(iod), ioc), 8);
+    assert_eq((await a.io.open(iod).read_to_string()), "one\ntwo\n");
+    fs_file = a.fs.open(iod);
+    assert_eq((await fs_file.read(3)).decode("utf-8"), "one");
+    fs_file.close();
+    closed_io = a.io.open(iod);
+    closed_io.close();
+    var closed_error = false;
+    try { await closed_io.read(1); }
+    catch _e { closed_error = true; }
+    assert(closed_error);
+    buffered_path = "/tmp/kirn_async_buffered.txt";
+    buffered_writer = a.io.buffered_writer(a.io.create(buffered_path));
+    assert_eq(await buffered_writer.write(byte_ops.from_str("buffered")), 8);
+    await buffered_writer.close();
+    buffered_reader = a.io.buffered_reader(a.io.open(buffered_path));
+    assert_eq(await buffered_reader.read_to_string(), "buffered");
+    buffered_reader.close();
+    var buffered_error = false;
+    try { await buffered_reader.read(1); }
+    catch _e2 { buffered_error = true; }
+    assert(buffered_error);
+    json_path = "/tmp/kirn_async_json_" + Str(a.now_ms()) + ".json";
+    json_writer = a.io.buffered_writer(a.io.create(json_path));
+    await json.write_to(json_writer, AsyncUser(name: "async", score: 9));
+    await json_writer.close();
+    json_reader = a.io.buffered_reader(a.io.open(json_path));
+    json_user: AsyncUser = await json.read_from(AsyncUser, json_reader);
+    assert_eq(json_user.name, "async");
+    assert_eq(json_user.score, 9);
+    json_reader.close();
+    await a.fs.remove_file(json_path);
+    await a.fs.remove_file(buffered_path);
+    await a.fs.remove_file(iod);
+    await a.fs.remove_file("/tmp/kirn_async_test_io2.txt");
+
+    # ---- §2.7 TCP echo ----
+    var lst = a.net.bind("127.0.0.1:0");
+    var srv = spawn(async fn () -> Int {
+        s = await lst.accept();
+        d = await s.read(16);
+        await s.write_all(d);
+        s.close();
+        return d.len();
+    });
+    var tc = await a.net.connect(lst.local_addr());
+    await tc.write_all("hi");
+    assert_eq((await tc.read(16)).decode("utf-8"), "hi");
+    assert_eq(await srv, 2);
+    tc.close();
+    lst.close();
+
+    # ---- §2.5 async synchronization ----
+    var sm = a.Mutex(0);
+    await a.join([bump(sm, 100), bump(sm, 100), bump(sm, 100), bump(sm, 100)]);
+    assert_eq(sm.get(), 400);
+    assert_eq(await sm.with(fn (v) -> Int { return v + 1; }), 401);
+    assert(not sm.is_locked());
+
+    var sm2 = a.Mutex(1);
+    started = chan[Int]();
+    holder = spawn(async fn () -> none {
+        hg = await sm2.lock();
+        started.send(1);
+        await a.sleep(ms: 20);
+        hg.unlock();
+    });
+    started.recv();
+    assert(sm2.try_lock() == none);
+    await holder;
+    hg2 = await sm2.lock();
+    assert_eq(hg2.get(), 1);
+    hg2.unlock();
+
+    var srw = a.RwLock(3);
+    srg = await srw.read();
+    assert_eq(srg.get(), 3);
+    srg.unlock();
+    swg = await srw.write();
+    swg.set(4);
+    swg.unlock();
+    assert_eq(srw.get(), 4);
+    tgr = srw.try_read();
+    assert(tgr != none);
+    tgr.unlock();
+    twg = srw.try_write();
+    assert(twg != none);
+    twg.unlock();
+
+    var ssem = a.Semaphore(2);
+    assert(ssem.try_acquire());
+    assert(ssem.try_acquire());
+    assert(not ssem.try_acquire());
+    assert_eq(ssem.available(), 0);
+    ssem.release();
+    ssem.release();
+    assert_eq(ssem.available(), 2);
+
+    var sn = a.Notify();
+    sn.notify_one();
+    await sn.notified();
+
+    var sc = a.OnceCell();
+    assert(not sc.is_set());
+    assert_eq(await sc.get_or_init(fn () -> Int { return 7; }), 7);
+    assert_eq(await sc.get_or_init(fn () -> Int { return 9; }), 7);
+    assert(sc.is_set());
+    assert_eq(sc.get(), 7);
+
+    var sb = a.Barrier(2);
+    sbt = spawn(async fn () -> none { await sb.wait(); });
+    await sb.wait();
+    await sbt;
+
+    # ---- §2.3 tasks: abort / TaskSet / spawn_blocking ----
+    var ta: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 300);
+        return 9;
+    });
+    assert(not ta.is_finished());
+    ta.abort();
+    assert(ta.is_aborted());
+    assert(ta.is_finished());
+    assert(await ta == none);
+
+    sset = a.TaskSet();
+    sset.spawn(addup(1));
+    sset.spawn(addup(2));
+    assert_eq(sset.len(), 2);
+    assert_eq(await sset.join_next(), 10);
+    rest = await sset.join_all();
+    assert_eq(rest.len(), 1);
+    assert_eq(rest[0], 20);
+    assert(sset.is_empty());
+
+    # join_next returns completion order rather than insertion order.
+    var ordered = a.TaskSet();
+    ordered.spawn(ordered_slow());
+    ordered.spawn(ordered_fast());
+    assert_eq(await ordered.join_next(), 1);
+    assert_eq(await ordered.join_next(), 30);
+
+    var sset2 = a.TaskSet();
+    sset2.spawn(addup(3));
+    sset2.abort_all();
+    drained = await sset2.shutdown();
+    assert_eq(drained.len(), 1);
+
+    var waited = addup(8);
+    waited.wait();
+    assert(waited.is_finished());
+    assert_eq(await waited, 80);
+
+    var tj_slow: any = addup(7);
+    try { await a.try_join([afail(-1), tj_slow]); }
+    catch { }
+    assert(tj_slow.is_aborted());
+
+    assert_eq(await a.spawn_blocking(fn () -> Int { return 5; }), 5);
+
+    # `select` cancels the task arms it did not pick.
+    var sc_slow: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 300);
+        return 1;
+    });
+    var sc_fast: any = spawn(async fn () -> Int {
+        await a.sleep(ms: 1);
+        return 2;
+    });
+    select biased {
+        case _v = sc_fast { }
+        case _v = sc_slow { }
+    }
+    assert(not sc_fast.is_aborted());
+    assert(sc_slow.is_aborted());
+    assert(await sc_slow == none);
+
+    print("async_test ok");
+}

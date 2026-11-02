@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/85_parallel_combinators.kn
-Import pet.parallel as p
+Import pat.parallel as p
 FuncDef "main"
   Ret none
   Body

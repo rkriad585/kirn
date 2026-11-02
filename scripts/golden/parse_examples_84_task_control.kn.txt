@@ -1,5 +1,5 @@
 $ <ROOT>/build/kirnparse --ast <ROOT>/examples/84_task_control.kn
-Import pet.async as a
+Import pat.async as a
 FuncDef "work" async
   Param "id" : Int
   Param "ms" : Int

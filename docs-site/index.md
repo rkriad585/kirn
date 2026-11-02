@@ -46,7 +46,7 @@ Start with **Learn** if you are new to Kirn. Use **Guides** when you are working
 <div class="home-links">
   <a href="/kirn/learn/installation">Install Kirn <span>↗</span></a>
   <a href="https://kirn-lang.github.io/">Visit the Kirn website <span>↗</span></a>
-  <a href="https://pets-registry.github.io/">Explore Pets <span>↗</span></a>
+  <a href="https://pats-regestry.github.io/">Explore Pats <span>↗</span></a>
 </div>
 
 ## Toolchain at a glance

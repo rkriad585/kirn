@@ -1,5 +1,5 @@
 # Synchronous process waits used inside async tasks must observe cancellation.
-import pet.async as a;
+import pat.async as a;
 import os;
 
 async fn blocking_run() -> any {

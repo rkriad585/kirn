@@ -1,4 +1,4 @@
-# `@[par] for` runs the loop body across the pet.parallel worker pool
+# `@[par] for` runs the loop body across the pat.parallel worker pool
 # (POWER_PLAN §4.4). Its output must match the serial `for` exactly on both the
 # tree-walker and the bytecode VM.
 fn main() -> none {

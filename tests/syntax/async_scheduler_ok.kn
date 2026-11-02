@@ -1,5 +1,5 @@
 # Work-stealing async scheduler regression: many tasks and nested awaits.
-import pet.async as a;
+import pat.async as a;
 
 async fn leaf(n: Int) -> Int {
     await a.yield_now();

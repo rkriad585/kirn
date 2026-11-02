@@ -1,0 +1,70 @@
+# stdlib/pat/os.kn - operating-system helpers (Kirn-written, Phase 6).
+# Wraps the runtime `os` pseudo-module (exit/args/getenv). Import with:
+#   import pat.os;
+#
+# The pseudo-module is captured at load time (the module's own namespace is
+# bound under the same name `os` in the consumer, which shadows it inside).
+
+priv_args = os.args;
+priv_getenv = os.getenv;
+priv_exit = os.exit;
+priv_setenv = os.setenv;
+priv_unsetenv = os.unsetenv;
+priv_cwd = os.cwd;
+priv_chdir = os.chdir;
+priv_home = os.home;
+priv_tmpdir = os.tmpdir;
+priv_mkdir = os.mkdir;
+priv_mkdir_all = os.mkdir_all;
+priv_rmdir = os.rmdir;
+priv_remove = os.remove;
+priv_exists = os.exists;
+priv_is_file = os.is_file;
+priv_is_dir = os.is_dir;
+priv_stat = os.stat;
+priv_listdir = os.listdir;
+priv_getpid = os.getpid;
+priv_cpu_count = os.cpu_count;
+priv_hostname = os.hostname;
+priv_environ = os.environ;
+
+# Program arguments (excluding the interpreter itself).
+pub fn args() -> list {
+    return priv_args();
+}
+
+# Environment variable value, or nil if unset.
+pub fn getenv(name: Str) -> none {
+    return priv_getenv(name);
+}
+
+pub fn setenv(name: Str, value: Str) -> none {
+    priv_setenv(name, value);
+}
+
+pub fn unsetenv(name: Str) -> none {
+    priv_unsetenv(name);
+}
+
+pub fn cwd() -> Str { return priv_cwd(); }
+pub fn chdir(path: Str) -> none { priv_chdir(path); }
+pub fn home() -> none { return priv_home(); }
+pub fn tmpdir() -> Str { return priv_tmpdir(); }
+pub fn mkdir(path: Str) -> Bool { return priv_mkdir(path); }
+pub fn mkdir_all(path: Str) -> Bool { return priv_mkdir_all(path); }
+pub fn rmdir(path: Str) -> none { priv_rmdir(path); }
+pub fn remove(path: Str) -> none { priv_remove(path); }
+pub fn exists(path: Str) -> Bool { return priv_exists(path); }
+pub fn is_file(path: Str) -> Bool { return priv_is_file(path); }
+pub fn is_dir(path: Str) -> Bool { return priv_is_dir(path); }
+pub fn stat(path: Str) -> dict { return priv_stat(path); }
+pub fn listdir(path: Str) -> list { return priv_listdir(path); }
+pub fn getpid() -> Int { return priv_getpid(); }
+pub fn cpu_count() -> Int { return priv_cpu_count(); }
+pub fn hostname() -> Str { return priv_hostname(); }
+pub fn environ() -> dict { return priv_environ(); }
+
+# Exit the program with the given status code.
+pub fn exit(code: Int) -> none {
+    priv_exit(code);
+}

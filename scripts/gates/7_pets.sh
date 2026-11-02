@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
 # Standalone gate script. Every gate in this directory runs on its own:
-#     bash scripts/gates/7_pets.sh
+#     bash scripts/gates/7_pats.sh
 # There is no aggregate driver - loading the shared setup (ROOT, binaries,
 # report(), TMP) is done here unconditionally.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 GATE_START=${GATE_START:-$(date +%s)}
 GATE_FILES=0
 
-echo "=== gate 7: pets (.pet pack -> install -> consume) ==="
+echo "=== gate 7: pats (.pat pack -> install -> consume) ==="
 T7="$TMP/rt"; mkdir -p "$T7"
-(cd "$T7" && "$KIRN" new pet mypet >/dev/null 2>&1)
-printf 'pub fn hello(who: Str) -> Str { return "hi from pets, " + who + "!"; }\n' > "$T7/mypet/code/pin.kn"
-if (cd "$T7/mypet" && "$KIRN" build) >/dev/null 2>&1; then
-    PET=$(find "$T7/mypet/build" -name '*.pet' | head -1)
-    if [ -z "$PET" ]; then report FAIL "pack .pet" "no .pet produced in build/"
-    elif [ ! -f "$T7/mypet/kirn.toml" ]; then report FAIL "pack .pet" "kirn.toml not scaffolded"
+(cd "$T7" && "$KIRN" new pat mypat >/dev/null 2>&1)
+printf 'pub fn hello(who: Str) -> Str { return "hi from pats, " + who + "!"; }\n' > "$T7/mypat/code/pin.kn"
+if (cd "$T7/mypat" && "$KIRN" build) >/dev/null 2>&1; then
+    PAT=$(find "$T7/mypat/build" -name '*.pat' | head -1)
+    if [ -z "$PAT" ]; then report FAIL "pack .pat" "no .pat produced in build/"
+    elif [ ! -f "$T7/mypat/kirn.toml" ]; then report FAIL "pack .pat" "kirn.toml not scaffolded"
     else
-        report PASS "pack .pet" "$(basename "$PET")"
+        report PASS "pack .pat" "$(basename "$PAT")"
         (cd "$T7" && "$KIRN" new app >/dev/null 2>&1)
-        if (cd "$T7/app" && "$KIRN" install "$PET" >/dev/null 2>&1); then
-            if [ -f "$T7/app/pets/mypet/code/pin.kn" ] && [ -f "$T7/app/pets/mypet/kirn.toml" ]; then report PASS "install .pet" "pets/mypet"
-            else report FAIL "install .pet" "destination pets/mypet missing"; fi
-            printf 'import mypet;\nfn main() -> none { print(mypet.hello("world")); }\n' > "$T7/app/code/main.kn"
+        if (cd "$T7/app" && "$KIRN" install "$PAT" >/dev/null 2>&1); then
+            if [ -f "$T7/app/pats/mypat/code/pin.kn" ] && [ -f "$T7/app/pats/mypat/kirn.toml" ]; then report PASS "install .pat" "pats/mypat"
+            else report FAIL "install .pat" "destination pats/mypat missing"; fi
+            printf 'import mypat;\nfn main() -> none { print(mypat.hello("world")); }\n' > "$T7/app/code/main.kn"
             out7=$(cd "$T7/app" && timeout "$WATCH" "$KIRN" run "$T7/app" 2>&1); c7=$?
-            if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pets, world!"; then report PASS "consume .pet" "$out7"
-            else report FAIL "consume .pet" "rc=$c7: $out7"; fi
-        else report FAIL "install .pet" "kirn install failed"; fi
+            if [ "$c7" = 0 ] && echo "$out7" | grep -q "hi from pats, world!"; then report PASS "consume .pat" "$out7"
+            else report FAIL "consume .pat" "rc=$c7: $out7"; fi
+        else report FAIL "install .pat" "kirn install failed"; fi
     fi
-else report FAIL "pack .pet" "kirn build pet failed"; fi
+else report FAIL "pack .pat" "kirn build pat failed"; fi
 
 GATE_END=$(date +%s)
 GATE_DUR=$((GATE_END - GATE_START))

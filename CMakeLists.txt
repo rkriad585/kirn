@@ -180,8 +180,12 @@ target_link_libraries(kirnrun PRIVATE kirn_driver)
 # valid corpus programs to terminate with STATUS_STACK_OVERFLOW (0xC00000FD).
 # Reserve enough stack for the interpreter while keeping the committed memory
 # demand lazy, as Windows only commits pages that are touched.
-if(WIN32)
+if(WIN32 AND MSVC)
     target_link_options(kirnrun PRIVATE "/STACK:16777216")
+elseif(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # MinGW/LLVM-MinGW uses GNU linker syntax; `/STACK:...` is interpreted as
+    # a filename by clang and breaks cross-compilation.
+    target_link_options(kirnrun PRIVATE "-Wl,--stack,16777216")
 endif()
 
 # Phase 1: the compiler driver proper. Two lines, because phase 0 already
@@ -250,7 +254,11 @@ add_executable(kirn tools/kirn.cpp)
 # standalone `kirn doc` HTTP server's dependency visible at its call site.
 if(WIN32)
     target_link_libraries(kirn PRIVATE kirn_driver ws2_32)
-    target_link_options(kirn PRIVATE "/STACK:16777216")
+    if(MSVC)
+        target_link_options(kirn PRIVATE "/STACK:16777216")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_link_options(kirn PRIVATE "-Wl,--stack,16777216")
+    endif()
 else()
     target_link_libraries(kirn PRIVATE kirn_driver)
 endif()

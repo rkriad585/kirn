@@ -99,8 +99,10 @@ jobs:
             runner_target: windows-amd64
           - target: windows-arm64
             os: windows-latest
-            mode: cross
-            cc: aarch64-w64-mingw32-g++
+            # vcpkg's arm64-windows-static libraries are MSVC ABI libraries.
+            # Build them with the hosted Visual Studio ARM64 generator instead
+            # of mixing them with LLVM-MinGW's incompatible CRT.
+            mode: msvc-cross
 
     steps:
       - uses: actions/checkout@v4
@@ -218,6 +220,23 @@ jobs:
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
               fi
               ;;
+            msvc-cross)
+              if [ "$TARGET" != windows-arm64 ]; then
+                echo "::error::msvc-cross is only supported for windows-arm64"
+                exit 1
+              fi
+              if [ -z "${VCPKG_INSTALLATION_ROOT:-}" ]; then
+                echo "::error::VCPKG_INSTALLATION_ROOT is required for the Windows ARM64 release"
+                exit 1
+              fi
+              cmake -S . -B build -G "Visual Studio 17 2022" -A ARM64 \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+                -DVCPKG_TARGET_TRIPLET=arm64-windows-static \
+                -DOPENSSL_USE_STATIC_LIBS=TRUE \
+                -DZLIB_USE_STATIC_LIBS=TRUE \
+                -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+              ;;
             cross)
               # Everything below is derived from the target triple. Hardcoding the
               # system name is a trap: a "Linux" system name for the Windows
@@ -319,7 +338,7 @@ jobs:
           fi
 
       - name: Verify cross target architecture
-        if: matrix.mode == 'cross'
+        if: matrix.mode == 'cross' || matrix.mode == 'msvc-cross'
         shell: bash
         env:
           EXPECTED: ${{ matrix.target }}

@@ -60,7 +60,23 @@ async function ensureBinary(t) {
   try {
     await get(`https://github.com/${repo}/releases/download/${tag}/${name}`, archive);
     if (process.platform === "win32") {
-      execFileSync("powershell", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${archive.replace(/'/g, "''")}' -DestinationPath '${cache.replace(/'/g, "''")}' -Force`], { stdio: "inherit" });
+      const extracted = path.join(os.tmpdir(), `kirn-extract-${process.pid}-${Date.now()}`);
+      fs.mkdirSync(extracted, { recursive: true });
+      try {
+        execFileSync("powershell", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${archive.replace(/'/g, "''")}' -DestinationPath '${extracted.replace(/'/g, "''")}' -Force`], { stdio: "inherit" });
+        const entries = fs.readdirSync(extracted);
+        const root = fs.existsSync(path.join(extracted, "bin"))
+          ? extracted
+          : entries.length === 1 && fs.statSync(path.join(extracted, entries[0])).isDirectory()
+            ? path.join(extracted, entries[0])
+            : extracted;
+        fs.mkdirSync(cache, { recursive: true });
+        for (const entry of fs.readdirSync(root)) {
+          fs.cpSync(path.join(root, entry), path.join(cache, entry), { recursive: true, force: true });
+        }
+      } finally {
+        fs.rmSync(extracted, { recursive: true, force: true });
+      }
     } else {
       execFileSync("tar", ["-xzf", archive, "-C", cache, "--strip-components=1"], { stdio: "inherit" });
     }

@@ -68,11 +68,15 @@ jobs:
 
       - name: Install through npm and run code
         shell: bash
+        env:
+          TAG: ${{ needs.select-release.outputs.tag }}
         run: |
           set -euo pipefail
-          npm install -g . --ignore-scripts
+          npm pack --ignore-scripts >/dev/null
+          package=$(find . -maxdepth 1 -type f -name '*.tgz' -print -quit)
+          npm install -g "$package" --ignore-scripts
           # The package launcher downloads the matching release lazily.
-          KIRN_VERSION=0.0.1-b3 kirn run examples/01_hello.kn | grep -F 'Hello, World!'
+          KIRN_VERSION="${TAG#v}" kirn run examples/01_hello.kn | grep -F 'Hello, World!'
 
   windows:
     needs: select-release
@@ -95,13 +99,18 @@ jobs:
 
       - name: Install through npm and run code
         shell: pwsh
+        env:
+          TAG: ${{ needs.select-release.outputs.tag }}
         run: |
-          npm install -g . --ignore-scripts
-          $env:KIRN_VERSION = '0.0.1-b3'
+          npm pack --ignore-scripts | Out-Null
+          $package = Get-ChildItem -File -Filter '*.tgz' | Select-Object -First 1
+          npm install -g $package.FullName --ignore-scripts
+          $env:KIRN_VERSION = $env:TAG.TrimStart('v')
           kirn run examples/01_hello.kn | Select-String 'Hello, World!'
 
   chocolatey:
     needs: select-release
+    if: github.repository == 'rkriad585/kirn'
     env:
       KIRN_REPO: ${{ github.repository }}
     runs-on: windows-latest

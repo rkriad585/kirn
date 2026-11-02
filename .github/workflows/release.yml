@@ -227,7 +227,11 @@ jobs:
                   -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
               elif [ "$TARGET" = darwin-arm64 ] && [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+                  -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+                  -DOPENSSL_USE_STATIC_LIBS=TRUE \
+                  -DZLIB_USE_STATIC_LIBS=TRUE \
+                  -DSQLite3_LIBRARY="$(brew --prefix sqlite3)/lib/libsqlite3.a" \
+                  -DSQLite3_INCLUDE_DIR="$(brew --prefix sqlite3)/include"
               else
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
               fi

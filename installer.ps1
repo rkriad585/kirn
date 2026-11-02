@@ -10,9 +10,16 @@ try {
   Invoke-WebRequest "$base/$archive" -OutFile $archivePath
   $sums=Join-Path $tmp "checksums.txt"
   try { Invoke-WebRequest "$base/checksums.txt" -OutFile $sums; $line=Get-Content $sums | Where-Object {$_ -match "\s+$([regex]::Escape($archive))\s*$"} | Select-Object -First 1; if ($line) { $want=($line -split '\s+')[0].ToLower(); $got=(Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLower(); if ($want -ne $got) {throw "checksum mismatch"} } } catch { if ($_.Exception.Message -eq "checksum mismatch") {throw} }
-  if (Test-Path $Prefix) {Remove-Item $Prefix -Recurse -Force}; Expand-Archive $archivePath $Prefix -Force
-  if (-not (Test-Path (Join-Path $Prefix "bin\kirn.exe"))) {throw "archive did not contain bin\kirn.exe"}
-  if (-not (Test-Path (Join-Path $Prefix "bin\kirnc.exe"))) {throw "archive did not contain bin\kirnc.exe"}
+  $expanded=Join-Path $tmp "expanded"; Expand-Archive $archivePath $expanded -Force
+  $root=$expanded
+  if (-not (Test-Path (Join-Path $root "bin\kirn.exe"))) {
+    $children=@(Get-ChildItem -LiteralPath $expanded)
+    if ($children.Count -eq 1 -and $children[0].PSIsContainer) {$root=$children[0].FullName}
+  }
+  if (-not (Test-Path (Join-Path $root "bin\kirn.exe"))) {throw "archive did not contain bin\kirn.exe"}
+  if (-not (Test-Path (Join-Path $root "bin\kirnc.exe"))) {throw "archive did not contain bin\kirnc.exe"}
+  if (Test-Path $Prefix) {Remove-Item $Prefix -Recurse -Force}; New-Item -ItemType Directory $Prefix -Force | Out-Null
+  Copy-Item (Join-Path $root "*") $Prefix -Recurse -Force
   if (-not $NoModifyPath) { $p=[Environment]::GetEnvironmentVariable("Path","User"); $b=Join-Path $Prefix "bin"; if ($p -notlike "*$b*") {[Environment]::SetEnvironmentVariable("Path", (($p,$b) -ne "") -join ';',"User")} }
   Write-Host "Kirn installed to $Prefix ($tag)"
 } finally {Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}

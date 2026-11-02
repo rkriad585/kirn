@@ -98,7 +98,10 @@ jobs:
             mode: native
             runner_target: windows-amd64
           - target: windows-arm64
-            os: windows-latest
+            # windows-latest now uses the VS 2026 image. This build explicitly
+            # asks CMake for the VS 2022 generator and therefore must use the
+            # pinned image that still provides VS 2022 plus ARM64 tools.
+            os: windows-2022
             # vcpkg's arm64-windows-static libraries are MSVC ABI libraries.
             # Build them with the hosted Visual Studio ARM64 generator instead
             # of mixing them with LLVM-MinGW's incompatible CRT.
@@ -583,8 +586,28 @@ jobs:
             --platform "$PLATFORM" "$IMAGE" sh -lc '
               set -eu
               target="$(cat /work/dist/.kirn-target)"
-              pkg update -y
-              pkg install -y clang cmake make openssl zlib sqlite libsqlite
+              # The image may start with a rotating third-party mirror. A
+              # mirror can publish Release metadata before its Packages index
+              # is synchronized, which makes apt reject the index as having an
+              # unexpected size. Use Termux's official primary repository and
+              # rebuild the container-local index before installing packages.
+              printf "%s\\n" \
+                "deb https://packages.termux.dev/apt/termux-main stable main" \
+                > "$PREFIX/etc/apt/sources.list"
+              rm -rf "$PREFIX/var/lib/apt/lists/"*
+              mkdir -p "$PREFIX/var/lib/apt/lists/partial"
+              updated=false
+              for attempt in 1 2 3; do
+                if apt-get -o Acquire::Retries=5 update; then
+                  updated=true
+                  break
+                fi
+                echo "Termux package index update failed (attempt $attempt/3); retrying"
+                sleep 5
+              done
+              [ "$updated" = true ]
+              apt-get -o Acquire::Retries=5 install -y \
+                clang cmake make openssl zlib sqlite libsqlite
               workroot="${TMPDIR:-$PREFIX/tmp}/kirn-build"
               rm -rf "$workroot"
               mkdir -p "$workroot"

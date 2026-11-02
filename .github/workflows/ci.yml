@@ -189,6 +189,7 @@ jobs:
           # Ship those too, or cross-arm64 cannot start kirn.exe.
           path: |
             build/Debug/kirn.exe
+            build/Debug/kirnc.exe
             build/Debug/kirnrun.exe
             build/Debug/*.dll
           retention-days: 1

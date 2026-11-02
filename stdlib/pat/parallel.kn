@@ -833,22 +833,13 @@ fn merge(a, b) -> list {
 }
 
 fn merge_sort(xs: list, depth: Int) -> list {
-    n = xs.len();
-    if n <= 1 { return xs; }
-    mid = n // 2;
-    left = xs[0..mid];
-    right = xs[mid..n];
-    # A recursive fork/join sort needs spare workers at every join point. The
-    # hosted Windows runners expose a very small executor, so keep the
-    # deterministic merge sort serial until the pool has enough capacity for
-    # nested branches; larger pools still get the parallel implementation.
-    if depth < 3 and n > 8192 and parallel.current_num_threads() > 4 {
-        var h = spawn merge_sort(left, depth + 1);
-        var r = merge_sort(right, depth + 1);
-        var l = h.join();
-        return merge(l, r);
-    }
-    return merge(merge_sort(left, depth + 1), merge_sort(right, depth + 1));
+    # The list runtime already provides a stable C++ sort. Copy first so this
+    # non-mutating API preserves list aliasing, then let the native comparator
+    # avoid thousands of interpreted recursive calls for large inputs.
+    var out = [];
+    out.extend(xs);
+    out.sort();
+    return out;
 }
 
 # Stable parallel sort (ascending).
@@ -870,19 +861,10 @@ fn merge_key(a, b, key) -> list {
 }
 
 fn merge_sort_key(xs: list, key, depth: Int) -> list {
-    n = xs.len();
-    if n <= 1 { return xs; }
-    mid = n // 2;
-    left = xs[0..mid];
-    right = xs[mid..n];
-    if depth < 3 and n > 8192 and parallel.current_num_threads() > 4 {
-        var h = spawn merge_sort_key(left, key, depth + 1);
-        var r = merge_sort_key(right, key, depth + 1);
-        var l = h.join();
-        return merge_key(l, r, key);
-    }
-    return merge_key(merge_sort_key(left, key, depth + 1),
-                     merge_sort_key(right, key, depth + 1), key);
+    var out = [];
+    out.extend(xs);
+    out.sort(key: key);
+    return out;
 }
 
 # Stable parallel sort by a key function.

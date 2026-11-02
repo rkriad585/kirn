@@ -14,15 +14,24 @@ cmake --build "$BDIR" -j"$(nproc)"
 
 fail=0
 count=0
+watch="${TSAN_WATCH:-60}"
 for f in "$ROOT"/examples/*.kn; do
   [ -e "$f" ] || continue
   count=$((count+1))
   name="$(basename "$f")"
-  out="$(TSAN_OPTIONS="second_deadlock_stack=1:halt_on_error=1" "$RUNNER" "$f" 2>&1 || true)"
-  ec=$?
+  if out="$(timeout "$watch" env TSAN_OPTIONS="second_deadlock_stack=1:halt_on_error=1" "$RUNNER" "$f" 2>&1)"; then
+    ec=0
+  else
+    ec=$?
+  fi
   if echo "$out" | grep -q "ThreadSanitizer\|data race\|lock-order-inversion"; then
     echo "TSAN: $name RACE"
     echo "$out" | tail -40
+    fail=1
+    continue
+  fi
+  if [ "$ec" -eq 124 ]; then
+    echo "TSAN: $name TIMEOUT after ${watch}s"
     fail=1
     continue
   fi

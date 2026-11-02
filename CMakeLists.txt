@@ -168,6 +168,16 @@ add_executable(kirnrun tools/kirnrun.cpp)
 # ordered list `kirn run` uses (phase 0 §5.2: one resolver, not two).
 target_link_libraries(kirnrun PRIVATE kirn_driver)
 
+# The interpreter walks nested expressions, patterns, closures, and async
+# continuations on the native call stack.  Windows reserves only 1 MiB by
+# default, which is smaller than the equivalent hosted POSIX stack and causes
+# valid corpus programs to terminate with STATUS_STACK_OVERFLOW (0xC00000FD).
+# Reserve enough stack for the interpreter while keeping the committed memory
+# demand lazy, as Windows only commits pages that are touched.
+if(WIN32)
+    target_link_options(kirnrun PRIVATE "/STACK:16777216")
+endif()
+
 # Phase 1: the compiler driver proper. Two lines, because phase 0 already
 # extracted the pipeline into kirn_driver -- that library IS the point of the
 # split, and it is what makes this target a 2-line addition instead of a
@@ -235,6 +245,7 @@ add_executable(kirn tools/kirn.cpp)
 # future consumer of kirn_driver (tests, kirnc, embedders).
 if(WIN32)
     target_link_libraries(kirn PRIVATE kirn_driver ws2_32)
+    target_link_options(kirn PRIVATE "/STACK:16777216")
 else()
     target_link_libraries(kirn PRIVATE kirn_driver)
 endif()

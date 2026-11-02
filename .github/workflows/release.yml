@@ -4,7 +4,7 @@ name: release
 # v0.0.1-bN tag, publishes it to a GitHub Release together with installers.
 #
 #   Linux amd64 + arm64 / macOS amd64 + arm64 / Windows amd64 + arm64
-#   / Termux aarch64 + i686 + x86_64
+#   / Termux aarch64 + x86_64
 #
 # A dispatch with no tag is a DRY RUN:
 # the whole matrix still builds and is still verified, but nothing is published.
@@ -558,9 +558,6 @@ jobs:
           - target: aarch64
             image: aarch64
             platform: linux/arm64
-          - target: i686
-            image: i686
-            platform: linux/386
           - target: x86_64
             image: x86_64
             platform: linux/amd64

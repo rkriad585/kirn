@@ -10,7 +10,7 @@ name: release
 # the whole matrix still builds and is still verified, but nothing is published.
 on:
   push:
-    tags: ["v0.0.1-b*"]
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -98,9 +98,12 @@ jobs:
             mode: native
             runner_target: windows-amd64
           - target: windows-arm64
-            # windows-latest now uses the VS 2026 image. This build explicitly
-            # asks CMake for the VS 2022 generator and therefore must use the
-            # pinned image that still provides VS 2022 plus ARM64 tools.
+            # windows-latest moved to the Visual Studio 2026 image in June 2026;
+            # windows-2022 still ships VS 2022 plus the MSVC ARM64 tools. The
+            # configure step no longer hard-codes a generator, so CMake uses
+            # whatever Visual Studio the runner has - this pin only keeps the
+            # toolset stable. A preflight step below fails with a clear message
+            # if the ARM64 tools ever disappear from the image.
             os: windows-2022
             # vcpkg's arm64-windows-static libraries are MSVC ABI libraries.
             # Build them with the hosted Visual Studio ARM64 generator instead
@@ -130,24 +133,24 @@ jobs:
           esac
           cmake --version | head -1
 
-      - name: Install cross toolchain (windows-arm64)
-        if: matrix.cc == 'aarch64-w64-mingw32-g++'
+      # Fail early and legibly. A missing ARM64 toolset used to surface as the
+      # misleading CMake error "could not find any instance of Visual Studio".
+      - name: Verify Visual Studio ARM64 build tools
+        if: matrix.mode == 'msvc-cross'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $ver = "20260616"
-          $zip = "$env:RUNNER_TEMP\llvm-mingw-$ver.zip"
-          Invoke-WebRequest -Uri `
-            "https://github.com/mstorsjo/llvm-mingw/releases/download/$ver/llvm-mingw-$ver-ucrt-x86_64.zip" `
-            -OutFile $zip
-          $bin = "$env:RUNNER_TEMP\llvm-mingw\llvm-mingw-$ver-ucrt-x86_64\bin"
-          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\llvm-mingw"
-          if (-not (Test-Path -LiteralPath $bin)) { throw "llvm-mingw bin not found at $bin" }
-          # GITHUB_PATH only applies to LATER steps, so the compiler also has to
-          # be put on PATH here for the check below to find it.
-          Add-Content $env:GITHUB_PATH $bin
-          $env:PATH = "$bin;$env:PATH"
-          aarch64-w64-mingw32-g++ --version | Select-Object -First 1
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          Write-Host "Visual Studio instances on this runner:"
+          & $vswhere -all -prerelease -products * -format text | Select-String 'displayName|installationVersion|installationPath'
+          $arm = & $vswhere -latest -prerelease -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 `
+            -property installationPath
+          if (-not $arm) {
+            Write-Host "::error::no Visual Studio with the MSVC ARM64 build tools (VC.Tools.ARM64) on this runner image"
+            exit 1
+          }
+          Write-Host "ARM64 tools found in: $arm"
 
       - name: Install native Windows libraries
         if: matrix.target == 'windows-amd64'
@@ -189,6 +192,12 @@ jobs:
           TARGET: ${{ matrix.target }}
           CC: ${{ matrix.cc }}
           SYSROOT: ${{ matrix.sysroot }}
+          # src/interp/runtime.cpp overflows MSVC's default object-section limit
+          # (error C1128). CMake appends $CXXFLAGS to its own MSVC defaults, so
+          # this does not clobber /EHsc. "-bigobj" rather than "/bigobj": a
+          # leading slash would be rewritten to a Git-for-Windows path by
+          # MSYS before cmake ever saw it. Empty (harmless) off Windows.
+          CXXFLAGS: ${{ startsWith(matrix.target, 'windows-') && '-bigobj' || '' }}
         run: |
           set -euo pipefail
           if [ "$TARGET" = linux-arm64 ]; then
@@ -232,7 +241,11 @@ jobs:
                 echo "::error::VCPKG_INSTALLATION_ROOT is required for the Windows ARM64 release"
                 exit 1
               fi
-              cmake -S . -B build -G "Visual Studio 17 2022" -A ARM64 \
+              # No -G: let CMake pick the newest Visual Studio on the runner
+              # (17 2022 on windows-2022, 18 2026 on windows-latest). Naming
+              # one generator is what produced "could not find any instance of
+              # Visual Studio" when the image moved.
+              cmake -S . -B build -A ARM64 \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
                 -DVCPKG_TARGET_TRIPLET=arm64-windows-static \
@@ -267,9 +280,10 @@ jobs:
                     -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
                 fi
               else
+                # Windows ARM64 is built with MSVC (mode msvc-cross above), so the
+                # only non-Apple cross target left here is Linux.
                 case "$os" in
                   linux) sysname=Linux ;;
-                  windows) sysname=Windows ;;
                   *) echo "::error::cannot map os '$os'"; exit 1 ;;
                 esac
                 # Deliberately NOT -static on the ELF target: the Ubuntu cross
@@ -286,14 +300,6 @@ jobs:
                   -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
                   -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
                 )
-                if [ "$os" = "windows" ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
-                  cmake_args+=(
-                    -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-                    -DVCPKG_TARGET_TRIPLET=arm64-windows-static
-                    -DOPENSSL_USE_STATIC_LIBS=TRUE
-                    -DZLIB_USE_STATIC_LIBS=TRUE
-                  )
-                fi
                 cmake "${cmake_args[@]}"
                 if [ "$os" = "linux" ]; then
                   cmake -S . -B build \
@@ -350,7 +356,8 @@ jobs:
           # A cross binary cannot run on the build machine, so assert on the
           # header bytes instead. ELF e_machine, PE machine, and Mach-O cputype
           # are all read straight out of the file.
-          python3 - "$EXPECTED" <<'PY'
+          py="$(command -v python3 || command -v python)"
+          "$py" - "$EXPECTED" <<'PY'
           import glob, struct, sys
           expected = sys.argv[1]
           want = {
@@ -381,7 +388,12 @@ jobs:
           PY
 
       # One executable plus the data it needs: stdlib/ for imports, src/ for
-      # `kirn build --native`. Neither is an executable - this is one binary.
+      # `kirn build --native`. The staged tree lives in stage/, NOT in dist/.
+      # dist/ holds only files that get uploaded, and on Linux/macOS the raw
+      # executable is named dist/kirn-<target>. When the staged directory was
+      # dist/kirn-<target> as well, `cp kirn dist/kirn-<target>` copied the
+      # binary *into* that directory: the raw-executable asset never existed and
+      # upload-artifact shipped the whole tree instead.
       - name: Stage distribution
         shell: bash
         env:
@@ -393,24 +405,24 @@ jobs:
           # $ext carries its own leading dot: it is concatenated directly, and
           # without the dot the copies below are named "kirnexe" and
           # "kirn-windows-amd64exe".
-           if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=".exe"; else src="$bindir/kirn"; ext=""; fi
-           [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
-           csrc="$bindir/kirnc$ext"
-           [ -f "$csrc" ] || { echo "::error::no kirnc binary in $bindir"; exit 1; }
+          if [ -f "$bindir/kirn.exe" ]; then src="$bindir/kirn.exe"; ext=".exe"; else src="$bindir/kirn"; ext=""; fi
+          [ -f "$src" ] || { echo "::error::no kirn binary in $bindir"; exit 1; }
+          csrc="$bindir/kirnc$ext"
+          [ -f "$csrc" ] || { echo "::error::no kirnc binary in $bindir"; exit 1; }
 
-           stage="dist/kirn-$TARGET"
-           mkdir -p "$stage/bin"
-           cp "$src" "$stage/bin/kirn$ext"
-           cp "$csrc" "$stage/bin/kirnc$ext"
-           cp -R stdlib src "$stage/"
-           cp README.md "$stage/"
+          stage="stage/kirn-$TARGET"
+          mkdir -p dist "$stage/bin"
+          cp "$src" "$stage/bin/kirn$ext"
+          cp "$csrc" "$stage/bin/kirnc$ext"
+          cp -R stdlib src "$stage/"
+          cp README.md "$stage/"
 
-           # The raw executables as their own assets, so they can be fetched
-           # directly without unpacking an archive. Named per target because a
-           # release cannot hold two assets called `kirn`.
-           cp "$src" "dist/kirn-$TARGET$ext"
-           cp "$csrc" "dist/kirnc-$TARGET$ext"
-           chmod +x "dist/kirn-$TARGET$ext" "dist/kirnc-$TARGET$ext" 2>/dev/null || true
+          # The raw executables as their own assets, so they can be fetched
+          # directly without unpacking an archive. Named per target because a
+          # release cannot hold two assets called `kirn`.
+          cp "$src" "dist/kirn-$TARGET$ext"
+          cp "$csrc" "dist/kirnc-$TARGET$ext"
+          chmod +x "dist/kirn-$TARGET$ext" "dist/kirnc-$TARGET$ext" 2>/dev/null || true
 
           # Print what was actually staged: a silent cp failure here used to
           # surface much later as a confusing "no such file" in the smoke test.
@@ -419,61 +431,24 @@ jobs:
           ls -la dist
 
       # Native targets are executed; cross targets cannot run here, so they were
-      # verified structurally above.
+      # verified structurally above. Windows has its own step below.
       - name: Smoke test
-        if: matrix.mode == 'native'
+        if: matrix.mode == 'native' && !startsWith(matrix.target, 'windows-')
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          stage="$PWD/dist/kirn-$TARGET"
-          if [ -f "$stage/bin/kirn.exe" ]; then
-            # Git Bash can execute Windows binaries reliably through a relative
-            # path; an absolute /d/... path is not understood by every runner.
-            exe="./dist/kirn-$TARGET/bin/kirn.exe"
-          else
-            exe="$stage/bin/kirn"
-          fi
+          stage="$PWD/stage/kirn-$TARGET"
+          exe="$stage/bin/kirn"
           if [ ! -f "$exe" ]; then
             echo "::error::no staged executable at $exe"
-            echo "::error::what the stage step produced:"
             ls -la "$stage" 2>&1 || true
             ls -la "$stage/bin" 2>&1 || true
-            ls -la "$PWD/dist" 2>&1 || true
             exit 1
           fi
           echo "smoke testing $exe"
-          export PATH="$PWD/build:$PWD/build/Release:$PATH"
-
-          if [[ "$TARGET" == windows-* ]]; then
-            # A Windows executable can be present and still fail with the
-            # unhelpful MSYS message "The system cannot find the path
-            # specified" when one of its DLL dependencies is absent.  Check
-            # the staged directory before invoking it; the native build is
-            # configured /MT + static vcpkg, so this must be empty.
-            missing=0
-            for dll in \
-              "libcrypto-3-x64.dll" "libssl-3-x64.dll" "zlib1.dll" \
-              "sqlite3.dll" "vcruntime140.dll" "msvcp140.dll"; do
-              if [ -f "$stage/bin/$dll" ]; then
-                echo "::error::unexpected dynamic dependency staged: $dll"
-                missing=1
-              fi
-            done
-            if command -v ldd >/dev/null 2>&1; then
-              deps=$(ldd "$exe" 2>&1 || true)
-              printf '%s\n' "$deps"
-              if printf '%s\n' "$deps" | grep -Eiq 'not found|cannot find'; then
-                echo "::error::Windows executable has an unresolved DLL dependency"
-                exit 1
-              fi
-            fi
-            if [ "$missing" -ne 0 ]; then
-              echo "::error::Windows release is not self-contained"
-              exit 1
-            fi
-          fi
+          export PATH="$PWD/build:$PATH"
 
           out=$(env -u KIRN_STDLIB -u KIRN_PATS -u KIRN_CXX "$exe" run examples/01_hello.kn)
           echo "$out"
@@ -487,25 +462,90 @@ jobs:
           work="$(mktemp -d)"
           cp -R "$stage/stdlib" "$work/stdlib"
           mkdir -p "$work/proj"
-          project_exe="$exe"
-          if [[ "$TARGET" == windows-* ]]; then
-            cp "$stage/bin/kirn.exe" "$work/proj/kirn.exe"
-            project_exe="./kirn.exe"
-          fi
-           cat > "$work/proj/main.kn" <<'KN'
-           import pat.math;
+          cat > "$work/proj/main.kn" <<'KN'
+          import pat.math;
 
-           fn main() {
-               print(math.abs(-42));
-           }
-           KN
-          got=$(cd "$work/proj" && env -u KIRN_PATS KIRN_STDLIB="$work/stdlib" "$project_exe" run main.kn)
+          fn main() {
+              print(math.abs(-42));
+          }
+          KN
+          got=$(cd "$work/proj" && env -u KIRN_PATS KIRN_STDLIB="$work/stdlib" "$exe" run main.kn)
           echo "$got"
           case "$got" in
             *42*) ;;
             *) echo "::error::smoke: expected 42 from the math module, got: $got"; exit 1 ;;
           esac
           echo "smoke ok: $TARGET"
+
+      # Windows smoke test, in PowerShell rather than Git Bash. From bash the
+      # exe was started as ./dist/<...>/kirn.exe, a POSIX-style relative path:
+      # the executable learns its own location from argv[0], and anything it
+      # then hands to cmd.exe (which reads "./dist" as a switch) fails with the
+      # unhelpful "The system cannot find the path specified." Here it gets a
+      # real absolute Windows path. It also runs with a minimal PATH, which is
+      # the real test that the exe is self-contained (static vcpkg + /MT): a
+      # missing DLL shows up as exit code 0xC0000135 instead of being masked
+      # by DLLs that happen to be on the runner's PATH.
+      - name: Smoke test (Windows)
+        if: matrix.mode == 'native' && startsWith(matrix.target, 'windows-')
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stageRoot = Join-Path $PWD "stage"
+          $stage = Join-Path $stageRoot "kirn-$env:TARGET"
+          $exe = Join-Path $stage "bin\kirn.exe"
+          if (-not (Test-Path -LiteralPath $exe)) {
+            Write-Host "::error::no staged executable at $exe"
+            Get-ChildItem -Recurse -LiteralPath $stageRoot | Select-Object -First 60 -ExpandProperty FullName
+            exit 1
+          }
+          Write-Host "smoke testing $exe"
+          Get-Item -LiteralPath $exe | Format-List FullName, Length
+
+          foreach ($v in 'KIRN_STDLIB', 'KIRN_PATS', 'KIRN_CXX') {
+            Remove-Item "Env:$v" -ErrorAction SilentlyContinue
+          }
+          # Only the OS itself: no vcpkg, Git, MinGW or Strawberry Perl DLLs.
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+
+          function Invoke-Kirn([string[]]$KirnArgs) {
+            $ErrorActionPreference = "Continue"
+            $text = & $exe @KirnArgs 2>&1 | Out-String
+            [pscustomobject]@{ Code = $LASTEXITCODE; Text = $text }
+          }
+          function Assert-Kirn($r, [string]$expect, [string]$what) {
+            Write-Host $r.Text
+            if ($r.Code -ne 0 -or $r.Text -notmatch [regex]::Escape($expect)) {
+              $hex = '0x{0:X8}' -f ([int]$r.Code)
+              Write-Host "::error::smoke ($what): exit $($r.Code) ($hex), expected output containing '$expect'"
+              if ($hex -eq '0xC0000135') { Write-Host "::error::STATUS_DLL_NOT_FOUND - kirn.exe still depends on a DLL that is not shipped" }
+              exit 1
+            }
+          }
+
+          Assert-Kirn (Invoke-Kirn @('run', 'examples/01_hello.kn')) 'Hello, World!' 'hello'
+
+          # A project outside the repo importing the standard library: exactly
+          # how an installed copy is used once KIRN_STDLIB is set.
+          $work = Join-Path $env:RUNNER_TEMP "kirn-smoke"
+          if (Test-Path -LiteralPath $work) { Remove-Item -Recurse -Force -LiteralPath $work }
+          New-Item -ItemType Directory -Path (Join-Path $work "proj") | Out-Null
+          Copy-Item -Recurse -LiteralPath (Join-Path $stage "stdlib") -Destination (Join-Path $work "stdlib")
+          @'
+          import pat.math;
+
+          fn main() {
+              print(math.abs(-42));
+          }
+          '@ | Set-Content -Path (Join-Path $work "proj\main.kn") -Encoding ascii
+          Push-Location (Join-Path $work "proj")
+          try {
+            $env:KIRN_STDLIB = Join-Path $work "stdlib"
+            Assert-Kirn (Invoke-Kirn @('run', 'main.kn')) '42' 'stdlib import'
+          } finally { Pop-Location }
+          Write-Host "smoke ok: $env:TARGET"
 
       # Asset names carry no version, so the installer can use the stable
       # /releases/latest/download/<name> URL with no API call to resolve a tag.
@@ -515,25 +555,26 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          python3 - "$TARGET" <<'PY'
+          py="$(command -v python3 || command -v python)"
+          "$py" - "$TARGET" <<'PY'
           import os, shutil, sys
           target = sys.argv[1]
-          root = os.path.join("dist", "kirn-%s" % target)
+          name = "kirn-%s" % target
           if target.startswith("windows"):
-              fmt, ext = "zip", "zip"
+              fmt = "zip"
           else:
-              fmt, ext = "gztar", "tar.gz"
-          out = shutil.make_archive(os.path.join("dist", "kirn-%s" % target), fmt,
-                                    "dist", os.path.basename(root))
+              fmt = "gztar"
+          # root_dir=stage, base_dir=kirn-<target>: the archive holds one
+          # top-level kirn-<target>/ directory, written to dist/.
+          out = shutil.make_archive(os.path.join("dist", name), fmt, "stage", name)
           print("archived %s" % out)
           PY
           ls -la dist
 
-      # Only the archives and the raw executable are uploaded. Listing the bare
-      # staged directory here would make upload-artifact ship the whole tree
-      # (bin/ + src/ + stdlib/ - already inside the archive) and recreate it as a
-      # directory on download, which gh release upload then rejects with
-      # "read ...: is a directory".
+      # Only archives and raw executables live in dist/, so every pattern below
+      # is a file (the staged tree is in stage/ and is already inside the
+      # archive). Patterns that match nothing on a given OS are fine;
+      # if-no-files-found only errors when none of them match.
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -541,10 +582,10 @@ jobs:
           path: |
             dist/kirn-${{ matrix.target }}.tar.gz
             dist/kirn-${{ matrix.target }}.zip
-             dist/kirn-${{ matrix.target }}
-             dist/kirn-${{ matrix.target }}.exe
-             dist/kirnc-${{ matrix.target }}
-             dist/kirnc-${{ matrix.target }}.exe
+            dist/kirn-${{ matrix.target }}
+            dist/kirn-${{ matrix.target }}.exe
+            dist/kirnc-${{ matrix.target }}
+            dist/kirnc-${{ matrix.target }}.exe
           retention-days: 14
           if-no-files-found: error
 
@@ -578,8 +619,10 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          mkdir -p dist
-          chmod -R a+rwX dist
+          # stage/ holds the staged tree, dist/ only the uploaded files; both
+          # must be writable by the unprivileged user inside the image.
+          mkdir -p dist stage
+          chmod -R a+rwX dist stage
           printf '%s' "$TARGET" > dist/.kirn-target
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/work" \
@@ -589,7 +632,7 @@ jobs:
               # The image may start with a rotating third-party mirror. A
               # mirror can publish Release metadata before its Packages index
               # is synchronized, which makes apt reject the index as having an
-              # unexpected size. Use Termux's official primary repository and
+              # unexpected size. Use the official Termux primary repository and
               # rebuild the container-local index before installing packages.
               printf "%s\\n" \
                 "deb https://packages.termux.dev/apt/termux-main stable main" \
@@ -616,11 +659,11 @@ jobs:
                 -DSQLite3_INCLUDE_DIR="$PREFIX/include" \
                 -DSQLite3_LIBRARY="$PREFIX/lib/libsqlite3.so"
               cmake --build "$workroot/build" --target kirn kirnc -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
-              stage="/work/dist/kirn-termux-$target"
+              stage="/work/stage/kirn-termux-$target"
               mkdir -p "$stage/bin"
               cp "$workroot/build/kirn" "$workroot/build/kirnc" "$stage/bin/"
               cp -R /work/stdlib /work/src "$stage/"
-              tar -czf "/work/dist/kirn-termux-$target.tar.gz" -C /work/dist "kirn-termux-$target"
+              tar -czf "/work/dist/kirn-termux-$target.tar.gz" -C /work/stage "kirn-termux-$target"
               cp "$workroot/build/kirn" "/work/dist/kirn-termux-$target"
               cp "$workroot/build/kirnc" "/work/dist/kirnc-termux-$target"
             '
@@ -723,10 +766,10 @@ jobs:
               case "$name" in
                 kirn-*.tar.gz) t="${name%.tar.gz}"; t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
                 kirn-*.zip)    t="${name%.zip}";    t="${t#kirn-}"; kind="full archive (compiler + stdlib + src)" ;;
-                 kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
-                 kirn-*)        t="${name#kirn-}";  kind="raw executable (needs stdlib separately)" ;;
-                 kirnc-*.exe)   t="${name%.exe}";    t="${t#kirnc-}"; kind="raw checker (needs stdlib separately)" ;;
-                 kirnc-*)       t="${name#kirnc-}";  kind="raw checker (needs stdlib separately)" ;;
+                kirn-*.exe)    t="${name%.exe}";    t="${t#kirn-}"; kind="raw executable (needs stdlib separately)" ;;
+                kirn-*)        t="${name#kirn-}";   kind="raw executable (needs stdlib separately)" ;;
+                kirnc-*.exe)   t="${name%.exe}";    t="${t#kirnc-}"; kind="raw checker (needs stdlib separately)" ;;
+                kirnc-*)       t="${name#kirnc-}";  kind="raw checker (needs stdlib separately)" ;;
                 *)             t="-"; kind="installer / checksum" ;;
               esac
               echo "| [\`$name\`]($release_url/$name) | \`$t\` | $kind |"

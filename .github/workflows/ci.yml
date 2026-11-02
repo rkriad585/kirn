@@ -41,24 +41,68 @@ jobs:
         run: cmake -S . -B build
 
       - name: Build
+        id: build
         run: cmake --build build -j "$(nproc)"
 
       # Each gate is an independent script under scripts/gates/ (no aggregate
-      # driver): run them all, one process per gate, and fail on the first one
-      # that reports a failure.
+      # driver): run them all, one process per gate. A failing gate no longer
+      # stops the loop, so one red gate cannot hide the state of the others;
+      # the step still fails at the end and names every gate that failed.
       - name: Corpus gates
+        id: gates
         run: |
-          set -e
+          failed=()
           for g in scripts/gates/[0-9]*.sh; do
             echo "::group::$g"
-            bash "$g"
+            if ! bash "$g"; then
+              failed+=("$g")
+              echo "::error::gate failed: $g"
+            fi
             echo "::endgroup::"
           done
+          if [ "${#failed[@]}" -ne 0 ]; then
+            printf 'FAILED GATE: %s\n' "${failed[@]}"
+            exit 1
+          fi
 
+      # Triage for the 69_parallel_sort hang (watchdog 20 s). A deadlock in the
+      # runtime cannot be fixed from a workflow, so this step only gathers the
+      # evidence needed to fix it: is it deterministic or a race, how many
+      # cores the runner has, and where every thread is parked when it hangs.
+      # Exit code 124 below means "timed out".
+      - name: Triage parallel_sort hang
+        if: ${{ failure() && steps.gates.conclusion == 'failure' }}
+        continue-on-error: true
+        run: |
+          echo "cores: $(nproc)"
+          f="$(find examples -name '69_parallel_sort.kn' | head -1)"
+          [ -n "$f" ] || { echo "69_parallel_sort.kn not found"; exit 0; }
+          for i in $(seq 1 10); do
+            if timeout 20 build/kirnrun "$f" >/dev/null 2>&1; then rc=0; else rc=$?; fi
+            echo "run $i: exit=$rc"
+          done
+          sudo apt-get install -y gdb >/dev/null 2>&1 || true
+          for i in $(seq 1 5); do
+            build/kirnrun "$f" >/dev/null 2>&1 &
+            pid=$!
+            sleep 8
+            if kill -0 "$pid" 2>/dev/null; then
+              echo "attempt $i: still running after 8 s - thread stacks:"
+              sudo gdb -p "$pid" -batch -ex 'thread apply all bt' 2>&1 | tail -120 || true
+              kill -9 "$pid" 2>/dev/null || true
+              break
+            fi
+            wait "$pid" || true
+          done
+
+      # The sanitizer and snapshot steps below are independent of the gates, so
+      # they still run when a gate failed (but not when the build itself broke).
       - name: ASan corpus (examples)
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
         run: bash scripts/asanall.sh 2>&1 | tail -30
 
       - name: TSan corpus (examples)
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
         run: bash scripts/tsanall.sh 2>&1 | tail -30
 
       # Phase 1 verification. These two were the missing oracles until now:
@@ -71,9 +115,11 @@ jobs:
       # both sides of the cross-check together (so it stays green) and is caught
       # only by the goldens.
       - name: Golden behaviour snapshots
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
         run: bash scripts/golden_linux.sh
 
       - name: kirnc vs legacy tool cross-check
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
         run: bash scripts/crosscheck_linux.sh
 
   build-test:
@@ -87,7 +133,16 @@ jobs:
           $ErrorActionPreference = "Stop"
           vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
 
+      # src/interp/runtime.cpp is one very large translation unit; in a Debug
+      # build it overflows MSVC's default object-file section limit (error
+      # C1128, "compile with /bigobj"). CMake folds $env:CXXFLAGS into
+      # CMAKE_CXX_FLAGS *on top of* its own defaults (/EHsc etc.), unlike
+      # -DCMAKE_CXX_FLAGS which would replace them. "-bigobj" is the dash
+      # spelling of /bigobj: identical to cl.exe, and immune to MSYS path
+      # mangling if this is ever moved to a bash step.
       - name: Configure
+        env:
+          CXXFLAGS: -bigobj
         run: >-
           cmake -S . -B build
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
@@ -129,9 +184,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kirn-tools
+          # The Debug build links vcpkg's dynamic x64-windows triplet, so the
+          # exes load libcrypto/zlib/sqlite DLLs that vcpkg copies beside them.
+          # Ship those too, or cross-arm64 cannot start kirn.exe.
           path: |
             build/Debug/kirn.exe
             build/Debug/kirnrun.exe
+            build/Debug/*.dll
           retention-days: 1
           if-no-files-found: error
 

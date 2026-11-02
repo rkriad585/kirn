@@ -1,5 +1,9 @@
 # Support
 
+Kirn is maintained by RK Riad Khan for the Kirn language organization.
+For organization contact, email `thekirnlang@gmail.com` or visit
+[kirn-lang.github.io](https://kirn-lang.github.io/).
+
 Please search existing [GitHub issues](https://github.com/rkriad585/kirn/issues)
 before opening a new one.
 

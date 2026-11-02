@@ -4,8 +4,10 @@ message: "If Kirn contributes to your work, please cite this repository."
 type: software
 authors:
   - family-names: RK
-    given-names: "Riad"
+    given-names: "Riad Khan"
     alias: rkriad585
+    email: "rkriad585@gmail.com"
+    website: "https://rkriad585.github.io"
 repository-code: "https://github.com/rkriad585/kirn"
 url: "https://kirn-lang.github.io"
 license: MIT

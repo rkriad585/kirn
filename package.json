@@ -3,6 +3,19 @@
   "version": "0.0.1-b3",
   "private": false,
   "description": "Install and run the Kirn compiler from npm.",
+  "author": {
+    "name": "RK Riad Khan",
+    "email": "rkriad585@gmail.com",
+    "url": "https://rkriad585.github.io"
+  },
+  "homepage": "https://kirn-lang.github.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rkriad585/kirn.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rkriad585/kirn/issues"
+  },
   "type": "commonjs",
   "bin": {
     "kirn": "bin/kirn.js"

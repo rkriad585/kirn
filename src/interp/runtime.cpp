@@ -492,6 +492,55 @@ static int64_t nowMs() {
 // returns immediately. Gate arms still use the short poll because a cached gate
 // expression has no notification source.
 namespace {
+struct ValueContainerRegistry {
+    std::mutex m;
+    std::vector<std::weak_ptr<std::vector<Value>>> vecs;
+    std::vector<std::weak_ptr<std::vector<std::pair<Value, Value>>>> maps;
+};
+
+ValueContainerRegistry& valueContainerRegistry() {
+    static ValueContainerRegistry r;
+    return r;
+}
+
+} // namespace
+
+void trackValueVec(const std::shared_ptr<std::vector<Value>>& value) {
+    auto& r = valueContainerRegistry();
+    std::lock_guard<std::mutex> lock(r.m);
+    r.vecs.emplace_back(value);
+}
+
+void trackValueMap(
+    const std::shared_ptr<std::vector<std::pair<Value, Value>>>& value) {
+    auto& r = valueContainerRegistry();
+    std::lock_guard<std::mutex> lock(r.m);
+    r.maps.emplace_back(value);
+}
+
+void releaseValueContainerCycles() {
+    auto& r = valueContainerRegistry();
+    std::vector<std::shared_ptr<std::vector<Value>>> vecs;
+    std::vector<std::shared_ptr<std::vector<std::pair<Value, Value>>>> maps;
+    {
+        std::lock_guard<std::mutex> lock(r.m);
+        for (const auto& weak : r.vecs)
+            if (auto value = weak.lock()) vecs.push_back(std::move(value));
+        for (const auto& weak : r.maps)
+            if (auto value = weak.lock()) maps.push_back(std::move(value));
+        r.vecs.clear();
+        r.maps.clear();
+    }
+    // At interpreter teardown all interpreter roots have already been
+    // released. Any remaining tracked container is therefore an unreachable
+    // cycle (or a container retained only by another such cycle). Clearing its
+    // elements breaks the shared_ptr cycle before the registry handles leave.
+    for (auto& value : vecs) value->clear();
+    for (auto& value : maps) value->clear();
+}
+
+namespace {
+
 struct HeapRegistry {
     std::mutex m;
     std::vector<std::weak_ptr<HeapObj>> objects;
@@ -1813,6 +1862,37 @@ Interpreter::Interpreter(const Stmt& program) {
 Interpreter::~Interpreter() {
     shutdownThreads();
     collectGc();
+    // Function and builtin values may close over the global environment.  The
+    // environment in turn owns those values, so ordinary shared_ptr teardown
+    // cannot break this intentional runtime cycle.  Release interpreter-owned
+    // roots explicitly before globals_ itself is destroyed; this also keeps
+    // sanitizer runs from reporting every builtin's captured argument names as
+    // leaked allocations.
+    methodDecorators_.clear();
+    structEnv_.clear();
+    impls_.clear();
+    for (auto& entry : loadedModules_) {
+        if (entry.second) {
+            entry.second->vars.clear();
+            entry.second->parent.reset();
+        }
+    }
+    loadedModules_.clear();
+    moduleAstCache_.clear();
+    bucket_.clear();
+    {
+        std::lock_guard<std::mutex> lock(defersM_);
+        defers_.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(usingsM_);
+        usings_.clear();
+    }
+    if (globals_) {
+        globals_->vars.clear();
+        globals_->parent.reset();
+    }
+    releaseValueContainerCycles();
 }
 
 size_t Interpreter::collectGc() {
@@ -12978,6 +13058,16 @@ void Interpreter::shutdownThreads() {
     // that never complete simply block here rather than crash.
     for (auto& t : local)
         if (t && t->th.joinable()) t->th.join();
+    // A completed task can retain its lexical environment through result or
+    // raised values.  Drop those payloads before releasing the task handles so
+    // task/channel tests do not leave an environment cycle behind.
+    for (auto& t : local) {
+        if (!t) continue;
+        t->result = Value::none();
+        t->raiseValue = Value::none();
+        t->panicFrames.clear();
+        t->panicMsg.clear();
+    }
     if (taskScheduler_) taskScheduler_->shutdown();
 }
 

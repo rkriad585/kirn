@@ -103,6 +103,9 @@ static int runSources(const std::string& label, const std::string& src,
                 try {
                     kirn::interp::Interpreter interp(module);
                     addModuleDirs(interp, label);
+                    // Corpus runs exercise the explicit gc_collect() builtin
+                    // and must also reclaim unreachable cycles at shutdown.
+                    interp.enableGc();
                     if (embedded)
                         for (const auto& [name, esrc] : *embedded)
                             interp.addEmbeddedSource(name, esrc);

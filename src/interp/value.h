@@ -24,6 +24,14 @@ struct Value;
 struct EnvS;
 using Env = std::shared_ptr<EnvS>;
 
+// Runtime-owned container tracking lets the interpreter reclaim reference
+// cycles such as `a = []; a.push(a)` at shutdown.  The normal shared_ptr model
+// cannot reclaim those cycles by itself.
+void trackValueVec(const std::shared_ptr<std::vector<Value>>& value);
+void trackValueMap(
+    const std::shared_ptr<std::vector<std::pair<Value, Value>>>& value);
+void releaseValueContainerCycles();
+
 struct ChanImpl;
 struct HeapObj;
 struct ThreadImpl;
@@ -175,32 +183,38 @@ struct Value {
     static Value list(std::vector<Value> vs = {}) {
         Value x; x.k = VK::List;
         x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
+        trackValueVec(x.vec);
         return x;
     }
     static Value tuple(std::vector<Value> vs) {
         Value x; x.k = VK::Tuple;
         x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
+        trackValueVec(x.vec);
         return x;
     }
     static Value set(std::vector<Value> vs = {}) {
         Value x; x.k = VK::Set;
         x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
+        trackValueVec(x.vec);
         return x;
     }
     static Value dict() {
         Value x; x.k = VK::Dict;
         x.map = std::make_shared<std::vector<std::pair<Value, Value>>>();
+        trackValueMap(x.map);
         return x;
     }
     static Value deque(std::vector<Value> vs = {}, int64_t maxlen = -1) {
         Value x; x.k = VK::Deque;
         x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
         x.i = maxlen;
+        trackValueVec(x.vec);
         return x;
     }
     static Value counter() {
         Value x; x.k = VK::Counter;
         x.map = std::make_shared<std::vector<std::pair<Value, Value>>>();
+        trackValueMap(x.map);
         return x;
     }
     static Value rangeV(int64_t lo, int64_t hi, bool incl) {
@@ -231,6 +245,7 @@ struct Value {
     static Value gen(std::vector<Value> vs) {
         Value x; x.k = VK::Gen;
         x.vec = std::make_shared<std::vector<Value>>(std::move(vs));
+        trackValueVec(x.vec);
         return x;
     }
 

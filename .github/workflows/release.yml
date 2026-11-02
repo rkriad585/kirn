@@ -149,7 +149,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          vcpkg install openssl:x64-windows zlib:x64-windows sqlite3:x64-windows --clean-after-build
+          # Published Windows archives contain no DLL directory, so use static
+          # triplets and keep kirn.exe/kirnc.exe self-contained.
+          vcpkg install openssl:x64-windows-static zlib:x64-windows-static sqlite3:x64-windows-static --clean-after-build
 
       - name: Install native macOS libraries
         if: startsWith(matrix.target, 'darwin-')
@@ -173,7 +175,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          vcpkg install openssl:arm64-windows zlib:arm64-windows sqlite3:arm64-windows --clean-after-build
+          vcpkg install openssl:arm64-windows-static zlib:arm64-windows-static sqlite3:arm64-windows-static --clean-after-build
 
       - name: Configure and build
         shell: bash
@@ -200,7 +202,8 @@ jobs:
             native)
               if [ "$TARGET" = windows-amd64 ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-                  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+                  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+                  -DVCPKG_TARGET_TRIPLET=x64-windows-static
               elif [ "$TARGET" = darwin-arm64 ] && [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
                   -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
@@ -257,7 +260,7 @@ jobs:
                 if [ "$os" = "windows" ] && [ -n "${VCPKG_INSTALLATION_ROOT:-}" ]; then
                   cmake_args+=(
                     -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-                    -DVCPKG_TARGET_TRIPLET=arm64-windows
+                    -DVCPKG_TARGET_TRIPLET=arm64-windows-static
                   )
                 fi
                 cmake "${cmake_args[@]}"

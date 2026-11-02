@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,6 +55,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>   // GetEnvironmentVariableA (PATH auto-setup)
+#include <process.h>    // _spawnvp/_P_WAIT for direct sibling execution
 #else
 // Minimal POSIX shims for the handful of Win32 calls used below (PATH
 // auto-setup and app-shim install). Keeps the CLI buildable on Linux dev
@@ -128,16 +130,8 @@ using kirn::tomlmini::Doc;
 
 constexpr const char* kKirnVersion = "0.0.1-b3";
 
+#ifndef _WIN32
 std::string shellQuote(const std::string& value) {
-#ifdef _WIN32
-    std::string out = "\"";
-    for (char c : value) {
-        if (c == '"') out += "\\\"";
-        else out += c;
-    }
-    out += "\"";
-    return out;
-#else
     std::string out = "'";
     for (char c : value) {
         if (c == '\'') out += "'\\''";
@@ -145,8 +139,8 @@ std::string shellQuote(const std::string& value) {
     }
     out += "'";
     return out;
-#endif
 }
+#endif
 
 // `kirn` is the user-facing orchestrator; compilation is owned by the
 // sibling `kirnc`, just as cargo delegates compilation to rustc. Resolve the
@@ -160,6 +154,30 @@ int delegateToKirnc(const std::vector<std::string>& tail) {
     std::string compiler = fs::is_regular_file(sibling)
                                ? sibling.string()
                                : std::string("kirnc");
+#ifdef _WIN32
+    // Do not send a staged Windows executable through std::system(). The CRT
+    // implementation of system() invokes cmd.exe, whose quoting and MSYS path
+    // conversion can turn a valid sibling path into the misleading
+    // "The system cannot find the path specified" failure seen in release
+    // smoke tests. _spawnvp passes the argument vector directly and waits for
+    // kirnc to finish, preserving its exit status.
+    std::vector<std::string> childArgs;
+    childArgs.reserve(tail.size() + 1);
+    childArgs.push_back(compiler);
+    childArgs.insert(childArgs.end(), tail.begin(), tail.end());
+    std::vector<const char*> childArgv;
+    childArgv.reserve(childArgs.size() + 1);
+    for (const auto& arg : childArgs) childArgv.push_back(arg.c_str());
+    childArgv.push_back(nullptr);
+    const intptr_t status =
+        _spawnvp(_P_WAIT, compiler.c_str(), childArgv.data());
+    if (status == -1) {
+        std::cerr << "kirn: cannot start kirnc '" << compiler
+                  << "': " << std::strerror(errno) << "\n";
+        return 127;
+    }
+    return static_cast<int>(status);
+#else
     std::string command = shellQuote(compiler);
     for (const auto& arg : tail) command += " " + shellQuote(arg);
     if (std::getenv("KIRN_VERBOSE")) std::cerr << "[cmd] " << command << "\n";
@@ -173,6 +191,7 @@ int delegateToKirnc(const std::vector<std::string>& tail) {
     if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
 #endif
     return status;
+#endif
 }
 
 int cmdDoctor() {

@@ -30,7 +30,7 @@ Chocolatey:
 choco install kirn --version 0.0.1-b3 --yes
 ```
 
-Linux and macOS:
+Linux/MacOS/Termux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh

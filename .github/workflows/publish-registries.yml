@@ -66,8 +66,9 @@ jobs:
         run: |
           if (-not $env:NODE_AUTH_TOKEN) { throw 'NPM_SCERET_KEY is not configured' }
           npm config set //registry.npmjs.org/:_authToken=$env:NODE_AUTH_TOKEN
-          # Pack first with lifecycle scripts disabled. Direct npm publish
-          # still invokes prepare, which is a repository-only Husky hook.
+          # Remove the repository-only Husky hook from the staging checkout.
+          # npm pack invokes prepare even when lifecycle scripts are ignored.
+          npm pkg delete scripts.prepare
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           npm pack --ignore-scripts --pack-destination dist
           $npmPackage = Get-ChildItem dist -Filter 'kirn-*.tgz' | Select-Object -First 1

@@ -1,0 +1,72 @@
+name: publish npm and Chocolatey packages
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish npm and Chocolatey packages
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      startsWith(github.event.workflow_run.head_branch, 'v0.0.1-b')
+    runs-on: windows-latest
+    steps:
+      - name: Wait for release completion
+        shell: pwsh
+        run: Start-Sleep -Seconds 10
+
+      - name: Check registry credentials
+        id: credentials
+        shell: pwsh
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_SECRET_KEY || secrets.NPM_SCERET_KEY }}
+          CHOCO_TOKEN: ${{ secrets.CHOCO_SECRET_KEY }}
+        run: |
+          if (-not $env:NPM_TOKEN -or -not $env:CHOCO_TOKEN) {
+            Write-Host '::notice::npm and/or Chocolatey credentials are not configured; registry publication will be skipped'
+            'publish=false' >> $env:GITHUB_OUTPUT
+          } else {
+            'publish=true' >> $env:GITHUB_OUTPUT
+          }
+
+      - uses: actions/checkout@v4
+        if: steps.credentials.outputs.publish == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify package versions
+        if: steps.credentials.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $npm = (Get-Content package.json | ConvertFrom-Json).version
+          $choco = ([xml](Get-Content packaging/chocolatey/kirn.nuspec)).package.metadata.version
+          if ($npm -ne $choco) { throw "package version mismatch: npm=$npm choco=$choco" }
+
+      - name: Publish npm package
+        if: steps.credentials.outputs.publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_SECRET_KEY || secrets.NPM_SCERET_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:NODE_AUTH_TOKEN) { throw 'NPM_SCERET_KEY is not configured' }
+          npm config set //registry.npmjs.org/:_authToken=$env:NODE_AUTH_TOKEN
+          npm publish --access public
+
+      - name: Pack and publish Chocolatey package
+        if: steps.credentials.outputs.publish == 'true'
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_SECRET_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:CHOCO_API_KEY) { throw 'CHOCO_SECRET_KEY is not configured' }
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          choco pack packaging/chocolatey/kirn.nuspec --outputdirectory dist
+          $pkg = Get-ChildItem dist -Filter 'kirn.*.nupkg' | Select-Object -First 1
+          if (-not $pkg) { throw 'Chocolatey package was not created' }
+          choco push $pkg.FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY

@@ -2,7 +2,7 @@ name: kirn install and code-run test
 
 on:
   workflow_run:
-    workflows: [release]
+    workflows: [publish npm and Chocolatey packages]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -21,8 +21,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        startsWith(github.event.workflow_run.ref, 'refs/tags/v0.0.1-b')
+        (github.event.workflow_run.event == 'push' ||
+         github.event.workflow_run.event == 'workflow_dispatch')
       )
     runs-on: ubuntu-latest
     outputs:
@@ -35,7 +35,13 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          tag="${INPUT_TAG:-${EVENT_TAG:-}}"
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ] && printf '%s' "${EVENT_TAG:-}" | grep -Eq '^v0\.0\.1-b[0-9]+$'; then
+            tag="$EVENT_TAG"
+          fi
+          # A manually dispatched registry publish may use main as its source
+          # ref; its package version is still the current b3 release.
+          tag="${tag:-v0.0.1-b3}"
           if ! printf '%s' "$tag" | grep -Eq '^v0\.0\.1-b[0-9]+$'; then
             echo "::error::cannot determine a v0.0.1-bN release tag (got '$tag')"
             exit 1
@@ -72,9 +78,8 @@ jobs:
           TAG: ${{ needs.select-release.outputs.tag }}
         run: |
           set -euo pipefail
-          npm pack --ignore-scripts >/dev/null
-          package=$(find . -maxdepth 1 -type f -name '*.tgz' -print -quit)
-          npm install -g "$package" --ignore-scripts
+          version="${TAG#v}"
+          npm install -g "@kirn-lang/kirn@$version" --ignore-scripts
           # The package launcher downloads the matching release lazily.
           KIRN_VERSION="${TAG#v}" kirn run examples/01_hello.kn | grep -F 'Hello, World!'
 
@@ -102,10 +107,9 @@ jobs:
         env:
           TAG: ${{ needs.select-release.outputs.tag }}
         run: |
-          npm pack --ignore-scripts | Out-Null
-          $package = Get-ChildItem -File -Filter '*.tgz' | Select-Object -First 1
-          npm install -g $package.FullName --ignore-scripts
-          $env:KIRN_VERSION = $env:TAG.TrimStart('v')
+          $version = $env:TAG.TrimStart('v')
+          npm install -g "@kirn-lang/kirn@$version" --ignore-scripts
+          $env:KIRN_VERSION = $version
           kirn run examples/01_hello.kn | Select-String 'Hello, World!'
 
   chocolatey:

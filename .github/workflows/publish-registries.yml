@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Release tag or commit to publish (for example, v0.0.1-b3)"
+        description: "Release tag, branch, or commit to publish"
         required: true
         type: string
         default: v0.0.1-b3
@@ -24,7 +24,7 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       startsWith(github.event.workflow_run.head_branch, 'v0.0.1-b')) ||
       (github.event_name == 'workflow_dispatch' &&
-      startsWith(inputs.ref, 'v0.0.1-b'))
+      (startsWith(inputs.ref, 'v0.0.1-b') || inputs.ref == 'main'))
     runs-on: windows-latest
     steps:
       - name: Wait for release completion

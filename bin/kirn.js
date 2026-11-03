@@ -3,7 +3,7 @@
 // The npm entry point is intentionally dependency-free. It downloads the same
 // signed-by-checksum release archive as the curl installer, then forwards all
 // arguments to the real Kirn executable. This keeps both `npm install -g
-// @rk_riad585/kirn` and `npx @rk_riad585/kirn` usable without shipping platform
+// @kirn-lang/kirn` and `npx @kirn-lang/kirn` usable without shipping platform
 // binaries in the npm tarball.
 "use strict";
 

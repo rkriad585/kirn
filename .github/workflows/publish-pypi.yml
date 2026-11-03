@@ -1,0 +1,52 @@
+name: publish PyPI package
+
+on:
+  workflow_run:
+    workflows: [publish npm and Chocolatey packages]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag, branch, or commit to publish"
+        required: true
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish PyPI package
+    if: >-
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for registry completion
+        run: sleep 10
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build PyPI package
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build packaging/pypi --outdir dist
+
+      - name: Publish PyPI package
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo 'PYPI_API_TOKEN is not configured'
+            exit 1
+          fi
+          python -m twine upload dist/*

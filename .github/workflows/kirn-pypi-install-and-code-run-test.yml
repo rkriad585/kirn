@@ -1,0 +1,57 @@
+name: kirn PyPI install and code-run test
+
+on:
+  workflow_run:
+    workflows: [publish PyPI package]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "PyPI version to test"
+        required: true
+        type: string
+        default: 0.0.1b3
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    if: >-
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for PyPI propagation
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version || '0.0.1b3' }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if python -m pip index versions kirn 2>/dev/null | grep -F "$VERSION"; then
+              exit 0
+            fi
+            echo "kirn $VERSION is not visible yet (attempt $attempt/12); waiting 10 seconds"
+            sleep 10
+          done
+          echo "PyPI package kirn $VERSION was not found"
+          exit 1
+
+      - name: Install from PyPI and run code
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version || '0.0.1b3' }}
+          KIRN_VERSION: 0.0.1-b3
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade --no-cache-dir "kirn==$VERSION"
+          kirn run examples/01_hello.kn | grep -F 'Hello, World!'

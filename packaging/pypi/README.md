@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="kirn-logos/kirn-logo.png" alt="Kirn logo" width="180">
+  <img src="https://raw.githubusercontent.com/rkriad585/kirn/main/kirn-logos/kirn-icon-on-light.png" alt="Kirn logo" width="180">
 </p>
 
 <h1 align="center">Kirn Programming Language</h1>
@@ -19,6 +19,36 @@
   <a href="https://pats-regestry.github.io/">Pats registry</a> ·
   <a href="https://github.com/rkriad585/kirn">Source</a>
 </p>
+
+## Install from PyPI
+
+Install Kirn with any supported package route:
+
+```sh
+# curl (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh -s -- --version v0.0.1-b3
+
+# npm
+npm install -g @kirn-lang/kirn
+
+# PyPI
+python -m pip install kirn
+```
+
+```powershell
+# Chocolatey (Windows)
+choco install kirn --version 0.0.1-b3 --yes
+```
+
+Then run Kirn from your terminal:
+
+```sh
+kirn run examples/01_hello.kn
+```
+
+The launcher downloads the matching Kirn release archive on first use. Set
+`KIRN_VERSION` to select a different release or `KIRN_PYPI_HOME` to choose the
+local binary cache.
 
 > **Work in progress:** Kirn is actively developed and incomplete. The language,
 > compiler, standard library, package workflow, and documentation may change.

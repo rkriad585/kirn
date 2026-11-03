@@ -2,24 +2,6 @@
   <img src="https://raw.githubusercontent.com/rkriad585/kirn/main/kirn-logos/kirn-icon-on-light.png" alt="Kirn logo" width="180">
 </p>
 
-## Install Kirn
-
-```sh
-# curl (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh -s -- --version v0.0.1-b3
-
-# npm
-npm install -g @kirn-lang/kirn
-
-# PyPI
-python -m pip install kirn
-```
-
-```powershell
-# Chocolatey (Windows)
-choco install kirn --version 0.0.1-b3 --yes
-```
-
 <h1 align="center">Kirn Programming Language</h1>
 
 <p align="center"><em>A modern, expressive general-purpose programming language built in the open.</em></p>
@@ -51,6 +33,44 @@ close to explicit types, structured data, concurrency, and a compiled toolchain.
 The compiler is written in modern C++ and includes a lexer, parser, semantic
 analysis, interpreter/VM work, and an evolving native backend. Kirn is a public
 laboratory for language design, compiler engineering, and developer tools.
+
+## Install Kirn
+
+npm:
+
+```sh
+npm install -g @kirn-lang/kirn
+```
+
+npx:
+
+```sh
+npx @kirn-lang/kirn run examples/01_hello.kn
+```
+
+PyPI:
+
+```sh
+python -m pip install kirn
+```
+
+Chocolatey:
+
+```powershell
+choco install kirn --version 0.0.1-b3 --yes
+```
+
+Linux and macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex
+```
 
 ## A taste of Kirn
 

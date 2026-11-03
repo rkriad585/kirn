@@ -6,14 +6,40 @@
 
 ## Install Kirn
 
+npm:
+
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh -s -- --version v0.0.1-b3
 npm install -g @kirn-lang/kirn
+```
+
+npx:
+
+```sh
+npx @kirn-lang/kirn run examples/01_hello.kn
+```
+
+PyPI:
+
+```sh
 python -m pip install kirn
 ```
 
+Chocolatey:
+
 ```powershell
 choco install kirn --version 0.0.1-b3 --yes
+```
+
+Linux and macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex
 ```
 
 The standard library ships with Kirn and lives in `stdlib/pat/`. Each module is

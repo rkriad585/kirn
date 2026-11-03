@@ -8,26 +8,44 @@ The npm package is a dependency-free launcher for the matching Kirn release.
 
 ## Install Kirn
 
+npm:
+
 ```sh
-# curl (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh -s -- --version v0.0.1-b3
-
-# npm
 npm install -g @kirn-lang/kirn
+```
 
-# PyPI
+npx:
+
+```sh
+npx @kirn-lang/kirn run examples/01_hello.kn
+```
+
+PyPI:
+
+```sh
 python -m pip install kirn
 ```
 
+Chocolatey:
+
 ```powershell
-# Chocolatey (Windows)
 choco install kirn --version 0.0.1-b3 --yes
 ```
 
+Linux and macOS:
+
 ```sh
-npm install -g @kirn-lang/kirn
-# or
-npx @kirn-lang/kirn run examples/01_hello.kn
+curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex
+```
+
+```sh
+kirn run examples/01_hello.kn
 ```
 
 It downloads the platform archive on first use. Set `KIRN_VERSION` to select a

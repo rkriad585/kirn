@@ -20,36 +20,6 @@
   <a href="https://github.com/rkriad585/kirn">Source</a>
 </p>
 
-## Install from PyPI
-
-Install Kirn with any supported package route:
-
-```sh
-# curl (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh -s -- --version v0.0.1-b3
-
-# npm
-npm install -g @kirn-lang/kirn
-
-# PyPI
-python -m pip install kirn
-```
-
-```powershell
-# Chocolatey (Windows)
-choco install kirn --version 0.0.1-b3 --yes
-```
-
-Then run Kirn from your terminal:
-
-```sh
-kirn run examples/01_hello.kn
-```
-
-The launcher downloads the matching Kirn release archive on first use. Set
-`KIRN_VERSION` to select a different release or `KIRN_PYPI_HOME` to choose the
-local binary cache.
-
 > **Work in progress:** Kirn is actively developed and incomplete. The language,
 > compiler, standard library, package workflow, and documentation may change.
 > Treat features marked planned as goals, not guarantees.
@@ -63,6 +33,44 @@ close to explicit types, structured data, concurrency, and a compiled toolchain.
 The compiler is written in modern C++ and includes a lexer, parser, semantic
 analysis, interpreter/VM work, and an evolving native backend. Kirn is a public
 laboratory for language design, compiler engineering, and developer tools.
+
+## Install Kirn
+
+npm:
+
+```sh
+npm install -g @kirn-lang/kirn
+```
+
+npx:
+
+```sh
+npx @kirn-lang/kirn run examples/01_hello.kn
+```
+
+PyPI:
+
+```sh
+python -m pip install kirn
+```
+
+Chocolatey:
+
+```powershell
+choco install kirn --version 0.0.1-b3 --yes
+```
+
+Linux and macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rkriad585/kirn/main/installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rkriad585/kirn/main/installer.ps1 | iex
+```
 
 ## A taste of Kirn
 

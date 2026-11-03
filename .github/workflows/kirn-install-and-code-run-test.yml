@@ -98,7 +98,9 @@ jobs:
           version="${TAG#v}"
           npm install -g "@kirn-lang/kirn@$version" --ignore-scripts
           # The package launcher downloads the matching release lazily.
-          KIRN_VERSION="${TAG#v}" kirn run examples/01_hello.kn | grep -F 'Hello, World!'
+          export KIRN_NPM_HOME="$RUNNER_TEMP/kirn-npm/$version"
+          export PATH="$KIRN_NPM_HOME/bin:$PATH"
+          KIRN_VERSION="$version" kirn run examples/01_hello.kn | grep -F 'Hello, World!'
 
   windows:
     needs: select-release

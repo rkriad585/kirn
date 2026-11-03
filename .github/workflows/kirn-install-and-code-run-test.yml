@@ -48,6 +48,23 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      - name: Wait for npm package propagation
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          for attempt in $(seq 1 12); do
+            if npm view "@kirn-lang/kirn@$version" version --json; then
+              exit 0
+            fi
+            echo "npm package is not visible yet (attempt $attempt/12); waiting 10 seconds"
+            sleep 10
+          done
+          echo "::error::@kirn-lang/kirn@$version was not visible on npm"
+          exit 1
+
   unix:
     needs: select-release
     env:
@@ -68,7 +85,7 @@ jobs:
           prefix="$RUNNER_TEMP/kirn-curl"
           curl -fsSL "https://raw.githubusercontent.com/${KIRN_REPO}/main/installer.sh" |
             sh -s -- --version "$TAG" --prefix "$prefix" --no-modify-path
-          out="$($prefix/bin/kirn run examples/01_hello.kn)"
+          out="$(PATH="$prefix/bin:$PATH" "$prefix/bin/kirn" run examples/01_hello.kn)"
           printf '%s\n' "$out"
           case "$out" in *"Hello, World!"*) ;; *) exit 1;; esac
 
@@ -100,7 +117,7 @@ jobs:
           & ([scriptblock]::Create($script)) -Version $env:TAG -Prefix $prefix -NoModifyPath
           $out = & (Join-Path $prefix 'bin\kirn.exe') run examples/01_hello.kn
           $out | Write-Host
-          if ($out -notmatch 'Hello, World!') { throw 'hello-world smoke test failed' }
+          if (($out -join "`n") -notmatch 'Hello, World!') { throw 'hello-world smoke test failed' }
 
       - name: Install through npm and run code
         shell: pwsh
@@ -126,8 +143,11 @@ jobs:
         run: |
           $version = $env:TAG.TrimStart('v')
           choco install kirn --version $version --yes --no-progress
-          kirn run "https://raw.githubusercontent.com/$env:KIRN_REPO/main/examples/01_hello.kn" |
-            Select-String 'Hello, World!'
+          $example = Join-Path $env:RUNNER_TEMP '01_hello.kn'
+          Invoke-WebRequest "https://raw.githubusercontent.com/$env:KIRN_REPO/main/examples/01_hello.kn" -OutFile $example
+          $out = kirn run $example
+          $out | Write-Host
+          if (($out -join "`n") -notmatch 'Hello, World!') { throw 'hello-world smoke test failed' }
 
   termux-contract:
     # GitHub-hosted Actions has no Android/Termux runner. Keep a CI assertion

@@ -87,7 +87,10 @@ async function ensureBinary(t) {
 }
 
 ensureBinary(target()).then((exe) => {
-  const result = execFileSync(exe, process.argv.slice(2), { stdio: "inherit" });
+  const env = { ...process.env };
+  const binDir = path.dirname(exe);
+  env.PATH = `${binDir}${path.delimiter}${env.PATH || ""}`;
+  const result = execFileSync(exe, process.argv.slice(2), { stdio: "inherit", env });
   process.exit(result?.status || 0);
 }).catch((err) => {
   console.error(`kirn: ${err.message}`);

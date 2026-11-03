@@ -66,9 +66,13 @@ jobs:
         run: |
           if (-not $env:NODE_AUTH_TOKEN) { throw 'NPM_SCERET_KEY is not configured' }
           npm config set //registry.npmjs.org/:_authToken=$env:NODE_AUTH_TOKEN
-          # The package's prepare hook is for repository development and calls
-          # Husky. Publishing does not need lifecycle scripts or dev tools.
-          npm publish --access public --ignore-scripts
+          # Pack first with lifecycle scripts disabled. Direct npm publish
+          # still invokes prepare, which is a repository-only Husky hook.
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          npm pack --ignore-scripts --pack-destination dist
+          $npmPackage = Get-ChildItem dist -Filter 'kirn-*.tgz' | Select-Object -First 1
+          if (-not $npmPackage) { throw 'npm package tarball was not created' }
+          npm publish $npmPackage.FullName --access public --ignore-scripts
 
       - name: Pack and publish Chocolatey package
         if: steps.credentials.outputs.publish == 'true'

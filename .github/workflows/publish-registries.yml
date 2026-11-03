@@ -56,7 +56,9 @@ jobs:
         run: |
           if (-not $env:NODE_AUTH_TOKEN) { throw 'NPM_SCERET_KEY is not configured' }
           npm config set //registry.npmjs.org/:_authToken=$env:NODE_AUTH_TOKEN
-          npm publish --access public
+          # The package's prepare hook is for repository development and calls
+          # Husky. Publishing does not need lifecycle scripts or dev tools.
+          npm publish --access public --ignore-scripts
 
       - name: Pack and publish Chocolatey package
         if: steps.credentials.outputs.publish == 'true'

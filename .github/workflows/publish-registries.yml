@@ -4,6 +4,13 @@ on:
   workflow_run:
     workflows: [release]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag or commit to publish (for example, v0.0.1-b3)"
+        required: true
+        type: string
+        default: v0.0.1-b3
 
 permissions:
   contents: read
@@ -12,9 +19,12 @@ jobs:
   publish:
     name: publish npm and Chocolatey packages
     if: >-
+      (github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      startsWith(github.event.workflow_run.head_branch, 'v0.0.1-b')
+      startsWith(github.event.workflow_run.head_branch, 'v0.0.1-b')) ||
+      (github.event_name == 'workflow_dispatch' &&
+      startsWith(inputs.ref, 'v0.0.1-b'))
     runs-on: windows-latest
     steps:
       - name: Wait for release completion
@@ -38,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.credentials.outputs.publish == 'true'
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
 
       - name: Verify package versions
         if: steps.credentials.outputs.publish == 'true'

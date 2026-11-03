@@ -23,11 +23,9 @@ async fn main() -> none {
     print("cancelled:", t.is_aborted(), t.is_finished(), await t);
 
     var set = a.TaskSet();
-    // Keep completion order deterministic for the tree-vs-VM parity gate while
-    // still exercising multiple tasks and TaskSet collection.
-    set.spawn(work(10, 50));
-    set.spawn(work(20, 150));
-    set.spawn(work(30, 250));
+    set.spawn(work(10, 5));
+    set.spawn(work(20, 5));
+    set.spawn(work(30, 5));
     print("tracked:", set.len());
     print("first:", await set.join_next());
     rest = await set.join_all();
